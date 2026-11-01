@@ -4,6 +4,7 @@
 //! splitter (no upstream counterpart).
 
 mod air_wires_test;
+mod d356_test;
 mod design_rules_test;
 mod fabrication_output_settings_test;
 mod io_test;

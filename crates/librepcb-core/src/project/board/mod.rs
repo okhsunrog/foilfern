@@ -10,7 +10,7 @@
 //! ([`BoardDerived`]), recomputed on demand from dirty sets maintained by
 //! the mutations ([`BoardAirWiresBuilder`]).
 //!
-//! Not ported yet: the painters, the export glue (Gerber, D356,
+//! Not ported yet: the painters, the export glue (Gerber, Excellon,
 //! Specctra, interactive HTML BOM), the plane fragments builder and the DRC.
 
 mod air_wire;
@@ -19,6 +19,7 @@ mod air_wires_builder;
 mod board;
 mod bounds;
 mod change;
+mod d356_netlist_export;
 mod design_rules;
 mod device;
 mod fabrication_output_settings;
@@ -41,6 +42,7 @@ pub use board::{
     PreferredFootprintTags,
 };
 pub use change::{BoardChange, BoardItemKind, BoardSegmentItems};
+pub use d356_netlist_export::BoardD356NetlistExport;
 pub use design_rules::BoardDesignRules;
 pub(crate) use device::ResolvedDevice;
 pub use device::{BoardDevice, FootprintPadView};

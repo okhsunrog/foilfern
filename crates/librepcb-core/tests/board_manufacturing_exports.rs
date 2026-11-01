@@ -164,3 +164,112 @@ fn pick_place_matches_upstream_test_projects() {
         }
     }
 }
+
+fn normalize_fields(text: &str, fields: &[&str]) -> String {
+    text.lines()
+        .map(|line| {
+            fields
+                .iter()
+                .find_map(|field| {
+                    line.split_once(field)
+                        .map(|(prefix, _)| format!("{prefix}{field}"))
+                })
+                .unwrap_or_else(|| line.to_owned())
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n"
+}
+
+/// Port of tests/unittests/core/project/board/boardpickplacegeneratortest.cpp.
+#[test]
+fn pick_place_upstream_golden_files() {
+    let (_, _, project) = projects()
+        .into_iter()
+        .find(|(path, _, _)| path.file_name().unwrap() == "Gerber Test")
+        .unwrap();
+    let board = project.boards().first().unwrap();
+    let variant = AssemblyVariantId(
+        project
+            .circuit()
+            .assembly_variants()
+            .first()
+            .unwrap()
+            .uuid(),
+    );
+    let data = BoardPickPlaceGenerator::new(&project, board, variant)
+        .generate()
+        .unwrap();
+    let root = Path::new(env!("LIBREPCB_UPSTREAM_DIR"))
+        .join("tests/data/unittests/librepcbproject/BoardPickPlaceGeneratorTest/expected");
+    for (side, name, comment) in [
+        (PickPlaceSides::Top, "top.csv", true),
+        (PickPlaceSides::Bottom, "bottom.csv", true),
+        (PickPlaceSides::Both, "both.csv", false),
+    ] {
+        let mut writer = PickPlaceCsvWriter::new(&data, "test");
+        writer.set_board_sides(side);
+        writer.set_include_metadata_comment(comment);
+        let content = writer.generate_csv().unwrap().to_csv_string().unwrap();
+        let actual = normalize_fields(&content, &["Generation Software:", "Generation Date:"]);
+        let expected = std::fs::read_to_string(root.join(name)).unwrap();
+        assert_eq!(actual, expected, "{name}");
+    }
+}
+
+/// Port of tests/unittests/core/project/board/boardd356netlistexporttest.cpp.
+#[test]
+fn d356_upstream_golden_file() {
+    use librepcb_core::export::Timestamp;
+    use librepcb_core::project::board::BoardD356NetlistExport;
+    let (_, _, project) = projects()
+        .into_iter()
+        .find(|(path, _, _)| path.file_name().unwrap() == "Gerber Test")
+        .unwrap();
+    let board = project.boards().first().unwrap();
+    let content = BoardD356NetlistExport::new(&project, board, "test", Timestamp::now())
+        .generate()
+        .unwrap();
+    let actual = normalize_fields(&content, &["Generation Software:", "Generation Date:"]);
+    let expected = std::fs::read_to_string(
+        Path::new(env!("LIBREPCB_UPSTREAM_DIR"))
+            .join("tests/data/unittests/librepcbproject/BoardD356NetlistExportTest/expected.d356"),
+    )
+    .unwrap();
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn d356_matches_upstream_test_projects() {
+    use librepcb_core::export::Timestamp;
+    use librepcb_core::project::board::BoardD356NetlistExport;
+    let cli = upstream_cli();
+    if cli.is_none() {
+        eprintln!("librepcb-cli not found; fixture exports run, D356 comparisons are skipped");
+    }
+    for (directory, filename, project) in projects() {
+        let mut expected = BTreeMap::new();
+        for (index, board) in project.boards().iter().enumerate() {
+            let content = BoardD356NetlistExport::new(&project, board, "2.1.1", Timestamp::now())
+                .generate()
+                .unwrap();
+            expected.insert(
+                format!("{index}.d356"),
+                normalize_fields(&content, &["Generation Date:"]),
+            );
+        }
+        if let Some(cli) = &cli {
+            let outputs = oracle_outputs(
+                cli,
+                &directory,
+                &filename,
+                "(type netlist) (board all) (output \"{{BOARD_INDEX}}.d356\")",
+            );
+            let actual = outputs
+                .into_iter()
+                .map(|(name, content)| (name, normalize_fields(&content, &["Generation Date:"])))
+                .collect::<BTreeMap<_, _>>();
+            assert_eq!(actual, expected, "{}", directory.display());
+        }
+    }
+}
