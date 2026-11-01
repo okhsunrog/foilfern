@@ -32,11 +32,12 @@
 //!   `error`: see the re-exports below.
 //!
 //! Not ported yet: `erc/` (electrical rule check), `board/drc/`, the
-//! export glue (`boardgerberexport`, `bomgenerator`, ...),
+//! export glue (`boardgerberexport`, ...),
 //! `projectjsonexport`, `outputjobrunner`.
 
 mod attribute_lookup;
 pub mod board;
+mod bom_generator;
 mod change;
 pub mod circuit;
 mod error;
@@ -51,6 +52,7 @@ pub mod schematic;
 
 pub use attribute_lookup::ProjectAttributeLookup;
 pub use board::BoardChange;
+pub use bom_generator::BomGenerator;
 pub use change::{Change, ChangeLog, ChangesSince, DEFAULT_CHANGE_LOG_CAPACITY};
 pub use error::{EntityKind, Error, Result};
 pub use id::{

@@ -7,7 +7,7 @@ covers where things stand and how the work has been organized.
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 922 tests report success (about 85k lines
+The workspace builds cleanly and 930 tests report success (about 85k lines
 of Rust). The latest local run had no upstream CLI installed, so the
 optional CLI oracle comparisons returned early; file round trips ran
 against the pinned upstream test data.
@@ -41,6 +41,9 @@ Done, in `crates/librepcb-core` unless noted:
 - **Project attribute lookup** (2026-11-01): built-in and custom attributes
   in project, assembly variant, component, schematic, symbol, board and
   device contexts, including part precedence and recursive substitution.
+- **BOM generator** (2026-11-01): generic and board-specific BOMs, assembly
+  variants, alternative parts, custom common/part columns, unmounted part
+  fallbacks, and the glue to the existing CSV writer.
 
 ## Next steps
 
@@ -49,7 +52,7 @@ Done, in `crates/librepcb-core` unless noted:
      Excellon, pick & place and D356 glue that drives the existing
      generators;
    - DRC (the largest remaining core piece, about 8k lines of C++);
-   - ERC, the BOM generator, and the JSON export
+   - ERC and the JSON export
      of the project.
 2. **Wave 4:** the `job` module (output jobs, which also fixes the pending
    `jobs.lp` round trip), the output job runner and the CLI. Acceptance:

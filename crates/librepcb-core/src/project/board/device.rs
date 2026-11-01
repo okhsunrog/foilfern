@@ -18,7 +18,7 @@ use super::{BoardDesignRules, BoardStrokeTextData};
 use crate::attribute::AttributeList;
 use crate::geometry::{ComponentSide, Pad, PadGeometry, StrokeTextList, TraceAnchor, property};
 use crate::library::LibraryBaseElement;
-use crate::library::dev::Device;
+use crate::library::dev::{Device, Part};
 use crate::library::pkg::{Footprint, FootprintPad, Package, PackagePad};
 use crate::project::circuit::Circuit;
 use crate::project::error::Result;
@@ -51,6 +51,35 @@ pub struct BoardDevice {
 }
 
 impl BoardDevice {
+    /// Returns parts of this device for the selected assembly variant, or
+    /// all variants if `None` (upstream `BI_Device::getParts()`). Options
+    /// without parts yield an empty part carrying the option attributes.
+    pub fn parts(
+        &self,
+        circuit: &Circuit,
+        variant: Option<crate::project::AssemblyVariantId>,
+    ) -> Result<Vec<Part>> {
+        let component = circuit
+            .component_instance(self.component)
+            .ok_or(crate::project::Error::InexistentComponent(self.component.0))?;
+        let mut parts = Vec::new();
+        for option in component.assembly_options() {
+            if option.device() == self.lib_device
+                && variant.is_none_or(|variant| option.assembly_variants().contains(&variant))
+            {
+                parts.extend(option.parts().iter().cloned());
+                if option.parts().is_empty() {
+                    parts.push(Part::new(
+                        Default::default(),
+                        Default::default(),
+                        option.attributes().clone(),
+                    ));
+                }
+            }
+        }
+        Ok(parts)
+    }
+
     /// Creates a device without attributes, stroke texts and 3D model.
     #[allow(clippy::too_many_arguments)]
     pub fn new(

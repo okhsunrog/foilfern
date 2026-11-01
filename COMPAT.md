@@ -373,6 +373,14 @@ differ between platforms/implementations:
   `formatFileSize()` (`"1.50 MB"`) instead of
   `QLocale::formattedDataSize()` (`"2 MiB"`).
 
+## project/bom_generator
+
+- Value cleanup uses Rust Unicode whitespace (`regex` and
+  `str::split_whitespace()`) instead of Qt regular expressions and
+  `QString::simplified()`. Non-ASCII whitespace around redundant part names
+  can therefore change the cleaned BOM value. Oversized escaped part-name
+  patterns return a project error if they exceed the regex engine's limits.
+
 ## project/attribute_lookup
 
 - Lookups borrow a project and explicit context instead of holding Qt weak
