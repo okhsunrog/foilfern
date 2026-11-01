@@ -2,6 +2,8 @@
 //! and error cases, symbol pin views, the net segment splitter and the
 //! serde representation.
 
+mod erc_test;
+
 use std::sync::Arc;
 
 use chrono::Utc;

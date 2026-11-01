@@ -373,6 +373,17 @@ differ between platforms/implementations:
   `formatFileSize()` (`"1.50 MB"`) instead of
   `QLocale::formattedDataSize()` (`"2 MiB"`).
 
+## project/erc
+
+- Findings and representative highlighting locations are selected in
+  deterministic UUID order where upstream traverses unordered sets/hashes
+  or registration lists. The selected schematic/segment/pin may differ
+  when several locations represent the same finding. Approval contents
+  are unchanged; the two bus-net findings can appear in a different order.
+- A wire width of `i64::MAX` cannot be expanded by 1 nm for highlighting:
+  ERC returns a range error instead of overflowing. Realistic widths and
+  their highlighting match upstream.
+
 ## project/bom_generator
 
 - Value cleanup uses Rust Unicode whitespace (`regex` and

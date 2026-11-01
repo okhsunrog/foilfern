@@ -10,6 +10,7 @@ mod attribute_lookup_test;
 mod board;
 mod bom_generator_test;
 mod circuit_test;
+mod erc_test;
 mod project_test;
 mod schematic_test;
 mod serde_test;

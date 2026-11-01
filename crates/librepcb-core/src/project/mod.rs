@@ -31,7 +31,7 @@
 //! - `mutation`, `change`, `ref_index`, `library`, `project`, `id`,
 //!   `error`: see the re-exports below.
 //!
-//! Not ported yet: `erc/` (electrical rule check), `board/drc/`, the
+//! Not ported yet: `board/drc/`, the
 //! export glue (`boardgerberexport`, ...),
 //! `projectjsonexport`, `outputjobrunner`.
 
@@ -40,6 +40,7 @@ pub mod board;
 mod bom_generator;
 mod change;
 pub mod circuit;
+pub mod erc;
 mod error;
 mod id;
 mod library;

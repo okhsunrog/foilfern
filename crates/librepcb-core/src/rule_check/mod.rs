@@ -1,5 +1,5 @@
 //! Port of libs/librepcb/core/rulecheck (messages of the library element
-//! checks, and later of the electrical and design rule checks).
+//! checks and electrical rule checks, and later of design rule checks).
 
 mod rule_check_message;
 
