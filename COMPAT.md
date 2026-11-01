@@ -425,6 +425,15 @@ differ between platforms/implementations:
 
 ## project/board
 
+- Gerber/Excellon board exports return expanded output names and contents
+  instead of writing files or removing obsolete outputs. Relative names are
+  relative to the project directory; the caller owns filesystem resolution,
+  write callbacks and cleanup. Version/time are explicit, as in the low-level
+  generators. Rebuild planes before fabrication export, as upstream does.
+  Successful fabrication, glue and component files match upstream; X3 string
+  simplification follows Rust's whitespace rule. The upstream component
+  outline rule which omits circle centers is deliberately retained.
+
 - Plane calculation is synchronous and reports progress/cancellation between
   planes instead of exposing Qt's asynchronous builder lifecycle. Errors or
   cancellation retain the previous fragments and dirty state atomically;

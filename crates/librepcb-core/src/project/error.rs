@@ -169,6 +169,15 @@ fn duplicate_name(kind: EntityKind, name: &str) -> String {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// A fabrication layer is outside the supported copper stack.
+    #[error("Unknown inner copper layer: {0}")]
+    InvalidFabricationLayer(u32),
+    /// A manufacturing generator rejected the output geometry.
+    #[error(transparent)]
+    Export(#[from] crate::export::Error),
+    /// Invalid geometric outline.
+    #[error(transparent)]
+    Geometry(#[from] crate::geometry::Error),
     /// Plane construction was cancelled before applying any results.
     #[error("Plane construction cancelled.")]
     PlaneBuildCancelled,

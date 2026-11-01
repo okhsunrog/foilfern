@@ -7,7 +7,7 @@ covers where things stand and how the work has been organized.
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 967 tests report success (about 85k lines
+The workspace builds cleanly and 973 tests report success (about 85k lines
 of Rust). The latest local run used the official CLI 2.1.1 as the oracle,
 including ERC messages, migrations and byte-identical JSON exports over
 the pinned upstream test data.
@@ -72,11 +72,19 @@ Done, in `crates/librepcb-core` unless noted:
   pass on the upstream 40-inner-layer fixture. Builds are synchronous with
   progress/cancellation and atomic application through the change journal.
 
+- **Board Gerber/Excellon export** (2026-11-01): fabrication layers,
+  split/merged and blind/buried drills, routed/G85 slots, glue and X3
+  component layers with variant selection. Original upstream Gerber golden
+  files match; PCB outputs and every board/variant's glue/X3 files match
+  official CLI 2.1.1 after normalizing software/date/checksum metadata.
+  FontoBene glyph spacing retains upstream's float precision, preserving
+  nanometer placement after whitespace. Exporters return named file contents;
+  output jobs will own writing and obsolete-file cleanup.
+
 ## Next steps
 
-1. **Wave 3c** (can run in parallel, three agents):
-   - board-level Gerber/Excellon exports using the existing generators;
-   - DRC (the largest remaining core piece, about 8k lines of C++).
+1. **Wave 3c:** DRC (the largest remaining core piece, about 8k lines
+   of C++).
 2. **Wave 4:** the `job` module (output jobs, which also fixes the pending
    `jobs.lp` round trip), the output job runner and the CLI. Acceptance:
    upstream `tests/cli` (pytest, run with `uv`) passing against our CLI,

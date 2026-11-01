@@ -111,7 +111,7 @@ fn oracle_outputs(
         .filter(|path| {
             matches!(
                 path.extension().and_then(|s| s.to_str()),
-                Some("csv" | "d356")
+                Some("csv" | "d356" | "gbr" | "drl")
             )
         })
         .map(|path| {
@@ -270,6 +270,141 @@ fn d356_matches_upstream_test_projects() {
                 .map(|(name, content)| (name, normalize_fields(&content, &["Generation Date:"])))
                 .collect::<BTreeMap<_, _>>();
             assert_eq!(actual, expected, "{}", directory.display());
+        }
+    }
+}
+
+#[test]
+fn gerber_excellon_matches_upstream_test_projects() {
+    use librepcb_core::export::Timestamp;
+    use librepcb_core::project::board::BoardGerberExport;
+    use librepcb_core::serialization::{List, Mode, SExpression, SerializeObject};
+    let cli = upstream_cli();
+    for (directory, filename, mut project) in projects() {
+        let ids: Vec<_> = project.boards().iter().map(|b| b.id()).collect();
+        for id in ids {
+            project.rebuild_planes(id, None).unwrap();
+            let board = project.board(id).unwrap();
+            for merged in [false, true] {
+                let mut config = board.settings().fabrication_output_settings.clone();
+                config.output_base_path = "test".into();
+                config.merge_drill_files = merged;
+                // Curved slots cannot be represented by G85; exercise routing
+                // here and test that error separately on the golden project.
+                config.use_g85_slot_command = false;
+                config.enable_solder_paste_top = !merged;
+                config.enable_solder_paste_bot = !merged;
+                let actual = BoardGerberExport::new(&project, board, "0.1.2", Timestamp::now())
+                    .generate_pcb_layers(&config)
+                    .unwrap();
+                assert!(!actual.is_empty());
+                if let Some(cli) = &cli {
+                    let mut job = List::new("job");
+                    config.serialize(&mut job);
+                    job.append_child("type", &"gerber_excellon");
+                    job.append_child("board", &board.uuid());
+                    job.append_child("output", &config.output_base_path);
+                    let text = SExpression::List(job)
+                        .to_string_with_mode(Mode::LibrePcb)
+                        .unwrap();
+                    let expected = oracle_outputs(
+                        cli,
+                        &directory,
+                        &filename,
+                        text.strip_prefix("(job")
+                            .unwrap()
+                            .trim_end()
+                            .strip_suffix(')')
+                            .unwrap(),
+                    );
+                    assert_eq!(
+                        actual.keys().collect::<Vec<_>>(),
+                        expected.keys().collect::<Vec<_>>(),
+                        "{} / {}",
+                        directory.display(),
+                        board.name()
+                    );
+                    for (name, content) in actual {
+                        let actual = normalize_gerber(&content);
+                        let expected = normalize_gerber(&expected[&name]);
+                        if actual != expected {
+                            let line = actual
+                                .lines()
+                                .zip(expected.lines())
+                                .position(|(a, e)| a != e)
+                                .unwrap_or(actual.lines().count().min(expected.lines().count()));
+                            panic!(
+                                "{} / {} / {name}: line {}: actual {:?}, expected {:?}",
+                                directory.display(),
+                                board.name(),
+                                line + 1,
+                                actual.lines().nth(line),
+                                expected.lines().nth(line)
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn normalize_gerber(text: &str) -> String {
+    let software = regex::Regex::new(r"TF\.GenerationSoftware,LibrePCB,LibrePCB,[^\s\*]*").unwrap();
+    let date = regex::Regex::new(r"TF\.CreationDate,[^\s\*]*").unwrap();
+    let md5 = regex::Regex::new(r".*TF\.MD5,.*").unwrap();
+    md5.replace_all(
+        &date.replace_all(
+            &software.replace_all(text, "TF.GenerationSoftware,LibrePCB,LibrePCB,0.1.2"),
+            "TF.CreationDate,2019-01-02T03:04:05",
+        ),
+        "",
+    )
+    .into_owned()
+}
+
+#[test]
+fn gerber_x3_and_glue_match_upstream_test_projects() {
+    use librepcb_core::export::{BoardSide, Timestamp};
+    use librepcb_core::project::board::BoardGerberExport;
+    let cli = upstream_cli();
+    for (directory, filename, project) in projects() {
+        let mut expected = BTreeMap::new();
+        for (board_index, board) in project.boards().iter().enumerate() {
+            let exporter = BoardGerberExport::new(&project, board, "0.1.2", Timestamp::now());
+            for (variant_index, variant) in project.circuit().assembly_variants().iter().enumerate()
+            {
+                let variant = AssemblyVariantId(variant.uuid());
+                for (side, suffix) in [(BoardSide::Top, "top"), (BoardSide::Bottom, "bot")] {
+                    expected.insert(
+                        format!("components_{suffix}_{board_index}_{variant_index}.gbr"),
+                        normalize_gerber(
+                            &exporter.generate_component_layer(side, variant).unwrap(),
+                        ),
+                    );
+                    expected.insert(
+                        format!("glue_{suffix}_{board_index}_{variant_index}.gbr"),
+                        normalize_gerber(&exporter.generate_glue_layer(side, variant).unwrap()),
+                    );
+                }
+            }
+        }
+        if let Some(cli) = &cli {
+            let mut job = "(type gerber_x3) (board all) (variant all)".to_owned();
+            for key in ["components_top", "components_bot", "glue_top", "glue_bot"] {
+                job.push_str(&format!(" ({key} (create true) (output \"{key}_{{{{BOARD_INDEX}}}}_{{{{VARIANT_INDEX}}}}.gbr\"))"));
+            }
+            let actual: BTreeMap<_, _> = oracle_outputs(cli, &directory, &filename, &job)
+                .into_iter()
+                .map(|(name, content)| (name, normalize_gerber(&content)))
+                .collect();
+            for (name, content) in &actual {
+                assert_eq!(content, &expected[name], "{} / {name}", directory.display());
+            }
+            assert_eq!(
+                actual.keys().collect::<Vec<_>>(),
+                expected.keys().collect::<Vec<_>>()
+            );
         }
     }
 }

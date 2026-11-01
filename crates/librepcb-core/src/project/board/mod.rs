@@ -10,8 +10,8 @@
 //! ([`BoardDerived`]), recomputed on demand from dirty sets maintained by
 //! the mutations ([`BoardAirWiresBuilder`]).
 //!
-//! Not ported yet: the painters, the export glue (Gerber, Excellon,
-//! Specctra, interactive HTML BOM) and the DRC.
+//! Not ported yet: the painters, Specctra and interactive HTML BOM
+//! exports, and the DRC.
 
 mod air_wire;
 mod air_wires_builder;
@@ -23,6 +23,7 @@ mod d356_netlist_export;
 mod design_rules;
 mod device;
 mod fabrication_output_settings;
+mod gerber_export;
 mod hole_data;
 pub(crate) mod keyed_map;
 mod net_segment;
@@ -48,6 +49,7 @@ pub use design_rules::BoardDesignRules;
 pub(crate) use device::ResolvedDevice;
 pub use device::{BoardDevice, FootprintPadView};
 pub use fabrication_output_settings::BoardFabricationOutputSettings;
+pub use gerber_export::BoardGerberExport;
 pub use hole_data::BoardHoleData;
 pub use net_segment::{BoardNetSegment, BoardSegmentElements};
 pub use net_segment_splitter::{BoardNetSegmentParts, BoardNetSegmentSplitter};
