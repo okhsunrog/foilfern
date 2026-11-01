@@ -80,10 +80,6 @@ stated otherwise. Entries are grouped by module.
   decomposed with the `unicode-normalization` crate instead of
   `QString::normalized()`; results only differ where the Unicode versions
   differ.
-- **ERC approvals after a project migration** are not cleaned up yet
-  (upstream runs the ERC and keeps only approvals of messages which still
-  occur); obsolete approvals stay in `circuit/erc.lp` until the ERC is
-  ported.
 - **Migration log**: the application version in the footer is passed in by
   the application (`ProjectLoader::set_application_version()`, empty by
   default); dates are formatted with `chrono` like Qt's
@@ -376,8 +372,9 @@ differ between platforms/implementations:
 ## project/erc
 
 - Findings and representative highlighting locations are selected in
-  deterministic UUID order where upstream traverses unordered sets/hashes
-  or registration lists. The selected schematic/segment/pin may differ
+  deterministic model order (UUID-keyed collections and library pin order)
+  where upstream traverses unordered sets/hashes or registration lists.
+  The selected schematic/segment/pin may differ
   when several locations represent the same finding. Approval contents
   are unchanged; the two bus-net findings can appear in a different order.
 - A wire width of `i64::MAX` cannot be expanded by 1 nm for highlighting:

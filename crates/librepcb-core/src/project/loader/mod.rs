@@ -7,9 +7,8 @@
 //! insertion functions as editing, so the error messages are upstream's;
 //! the change journal is cleared afterwards.
 //!
-//! Differences to upstream:
-//! - The ERC approval cleanup after a file format migration is not ported
-//!   yet (needs the ERC), so obsolete approvals are kept.
+//! After a file format migration, ERC runs on the fully loaded model and
+//! obsolete approvals are discarded before the upgraded files are saved.
 
 mod board;
 mod circuit;
@@ -23,6 +22,7 @@ use chrono::Local;
 pub use migration_log::MigrationLog;
 
 use super::Project;
+use super::erc::ElectricalRuleCheck;
 use super::error::{Error, Result};
 use super::library::{LibraryElementKind, ProjectLibrary};
 use super::ref_index::RefIndex;
@@ -30,6 +30,7 @@ use crate::application;
 use crate::attribute::AttributeList;
 use crate::fileio::{FilePath, FileSystem, TransactionalDirectory, VersionFile};
 use crate::library::LibraryBaseElement;
+use crate::rule_check::all_approvals;
 use crate::serialization::{DeserializeObject, Mode, SExpression, file_format_migrations};
 use crate::types::Version;
 
@@ -112,9 +113,10 @@ impl ProjectLoader {
         p.refs = RefIndex::build(&p);
 
         if self.migration_log.is_some() {
-            // TODO(erc): upstream runs the ERC here and keeps only the ERC
-            // approvals of messages which still occur, to clean up obsolete
-            // approvals (needs the port of `ElectricalRuleCheck`).
+            let messages = ElectricalRuleCheck::new(&p).run_checks()?;
+            let live_approvals = all_approvals(messages.iter().map(|m| m.rule_message()));
+            p.erc_approvals
+                .retain(|approval| live_approvals.contains(approval));
 
             // Make sure the files are formatted correctly. Also handle
             // possible errors during serialization now instead of later.

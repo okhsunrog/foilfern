@@ -440,7 +440,7 @@ crates/librepcb-core/src/project/
                        later: design_rules.rs, fabrication_output_settings.rs, *_data.rs, zone/polygon/
                        stroke_text/hole items, air_wires_builder.rs, plane_fragments_builder.rs,
                        net_segment_splitter.rs, drc/
-  erc/                 later: electrical_rule_check.rs, electrical_rule_check_messages.rs
+  erc/                 electrical_rule_check.rs, messages.rs (typed findings and approvals)
 ```
 
 The skeleton (implemented): ids, `error.rs`, `Project` with
@@ -528,8 +528,8 @@ state (`Board::derived`, the verbatim `raw` files) is skipped.
   ported; `Project::create()` does not copy the application's fontobene
   fonts yet (no resources directory port).
 - Projects in an older file format are upgraded by the file format
-  migrations (`serialization::file_format_migrations()`), but the ERC
-  approval cleanup after a migration waits for the ERC port.
+  migrations (`serialization::file_format_migrations()`); after loading,
+  ERC removes obsolete approvals before the upgraded project is saved.
 - `Project::create()`/`open()` reset the journal, so a fresh project has
   revision 0; `created` is truncated to seconds (the file format's
   precision).

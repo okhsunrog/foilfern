@@ -7,7 +7,7 @@ covers where things stand and how the work has been organized.
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 942 tests report success (about 85k lines
+The workspace builds cleanly and 943 tests report success (about 85k lines
 of Rust). The latest local run had no upstream CLI installed, so the
 optional CLI oracle comparisons returned early; file round trips ran
 against the pinned upstream test data.
@@ -47,7 +47,9 @@ Done, in `crates/librepcb-core` unless noted:
 - **ERC** (2026-11-01): all upstream electrical rules, typed findings,
   translated messages, byte-compatible approvals and schematic highlighting.
   Tested on all upstream project fixtures; CLI comparison runs when the
-  upstream executable is available. Migration approval cleanup is next.
+  upstream executable is available. After migrations the loader keeps only
+  approvals of findings which still occur; current-format loads preserve
+  all existing approvals.
 
 ## Next steps
 
@@ -56,7 +58,7 @@ Done, in `crates/librepcb-core` unless noted:
      Excellon, pick & place and D356 glue that drives the existing
      generators;
    - DRC (the largest remaining core piece, about 8k lines of C++);
-   - ERC approval cleanup after migrations and the JSON export of the project.
+   - the JSON export of the project.
 2. **Wave 4:** the `job` module (output jobs, which also fixes the pending
    `jobs.lp` round trip), the output job runner and the CLI. Acceptance:
    upstream `tests/cli` (pytest, run with `uv`) passing against our CLI,

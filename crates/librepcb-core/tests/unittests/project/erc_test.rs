@@ -3,10 +3,10 @@
 
 use super::*;
 use librepcb_core::library::LibraryBaseElement;
-use librepcb_core::project::ComponentSignalRef;
 use librepcb_core::project::erc::{
     ElectricalRuleCheck, ElectricalRuleCheckMessage, ErcMessageKind as Kind,
 };
+use librepcb_core::project::{ComponentSignalRef, ProjectLoader};
 use librepcb_core::rule_check::Severity;
 use librepcb_core::serialization::Mode;
 
@@ -197,5 +197,77 @@ fn unused_bus_has_upstream_approval() {
             .to_string_with_mode(Mode::LibrePcb)
             .unwrap(),
         format!("(approved unused_bus (bus {}))\n", id.0)
+    );
+}
+
+#[test]
+fn loader_removes_obsolete_approvals_only_after_migration() {
+    use librepcb_core::fileio::{
+        FilePath, FileSystem, TransactionalDirectory, TransactionalFileSystem,
+    };
+    use librepcb_core::serialization::List;
+    use std::sync::Arc;
+
+    let source = crate::helpers::test_data_dir().join("projects/v1");
+    let filename = std::fs::read_dir(&source)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .find(|name| name.ends_with(".lpp"))
+        .unwrap();
+    let old_directory = || {
+        TransactionalDirectory::new(
+            Arc::new(TransactionalFileSystem::open_ro(&FilePath::new(&source).unwrap()).unwrap()),
+            "",
+        )
+    };
+    let mut loader = ProjectLoader::new();
+    let baseline = loader.open(old_directory(), &filename).unwrap();
+    assert!(loader.migration_log().is_some());
+    let live = check(&baseline)
+        .iter()
+        .find(|message| matches!(message.kind(), Kind::OpenNet(_)))
+        .expect("v1 fixture must contain an open net")
+        .rule_message()
+        .approval()
+        .clone();
+    let mut obsolete = List::new("approved");
+    obsolete.push(SExpression::token("obsolete_test_rule"));
+    let obsolete = SExpression::List(obsolete);
+    let mut erc = List::new("librepcb_erc");
+    erc.ensure_line_break();
+    erc.push(live.clone());
+    erc.ensure_line_break();
+    erc.push(obsolete.clone());
+    erc.ensure_line_break();
+    let bytes = SExpression::List(erc)
+        .to_byte_array(Mode::LibrePcb)
+        .unwrap();
+    // A current-format project keeps existing approvals, even if obsolete.
+    let mut current = TransactionalDirectory::new(
+        Arc::clone(baseline.directory().file_system()),
+        baseline.directory().path(),
+    );
+    current.write("circuit/erc.lp", &bytes).unwrap();
+    let reopened = loader.open(current, &filename).unwrap();
+    assert!(loader.migration_log().is_none());
+    assert_eq!(
+        reopened.erc_approvals(),
+        &BTreeSet::from([live.clone(), obsolete])
+    );
+    // The same approval file in an old project is intersected with the
+    // findings after migration; nothing is newly approved.
+    let mut old = old_directory();
+    old.write("circuit/erc.lp", &bytes).unwrap();
+    let upgraded = loader.open(old, &filename).unwrap();
+    assert!(loader.migration_log().is_some());
+    assert_eq!(upgraded.erc_approvals(), &BTreeSet::from([live.clone()]));
+    assert_eq!(upgraded.revision(), 0);
+    let expected = format!(
+        "(librepcb_erc\n {}\n)\n",
+        live.to_string_with_mode(Mode::LibrePcb).unwrap().trim_end()
+    );
+    assert_eq!(
+        String::from_utf8(upgraded.directory().read("circuit/erc.lp").unwrap()).unwrap(),
+        expected
     );
 }
