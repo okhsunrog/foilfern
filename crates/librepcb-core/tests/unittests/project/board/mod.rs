@@ -10,6 +10,7 @@ mod io_test;
 mod mutation_test;
 mod net_segment_splitter_test;
 mod serde_test;
+mod via_test;
 
 use chrono::Utc;
 use librepcb_core::geometry::{

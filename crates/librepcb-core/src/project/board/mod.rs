@@ -30,6 +30,7 @@ mod pad_data;
 mod plane;
 mod polygon_data;
 mod stroke_text_data;
+mod via;
 mod zone_data;
 
 pub use air_wire::AirWire;
@@ -50,6 +51,7 @@ pub use pad_data::BoardPadData;
 pub use plane::{BoardPlane, PlaneConnectStyle};
 pub use polygon_data::BoardPolygonData;
 pub use stroke_text_data::BoardStrokeTextData;
+pub use via::ViaView;
 pub use zone_data::BoardZoneData;
 
 pub(crate) use board::{FootprintPadKey, PadUse};

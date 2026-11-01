@@ -8,8 +8,8 @@
 //! shortest-number notation, which the standard pretty formatter cannot
 //! reproduce. See Qt's qjsonwriter.cpp and qlocale_tools.cpp::resolveFormat.
 
-use super::board::{Board, ResolvedDevice};
-use super::{Error, Project, ProjectView, Result};
+use super::board::{Board, ResolvedDevice, ViaView};
+use super::{Project, ProjectView, Result};
 use crate::geometry::PadHole;
 use crate::types::{Layer, Length, PcbColor, PositiveLength};
 use chrono::SecondsFormat;
@@ -65,42 +65,11 @@ impl ProjectJsonExport {
                 add_pad_holes(pad.pad().holes(), &mut pth_drills, &mut pth_slots);
             }
             for via in segment.vias().values() {
-                let start = via.start_layer();
-                if start.copper_number() > board.settings().inner_layer_count as usize {
+                let geometry = ViaView::new(via, board, segment.net(), view.circuit)?;
+                let Some((start, end)) = geometry.drill_layer_span() else {
                     continue;
-                }
-                let end = if via.end_layer().is_bottom() {
-                    via.end_layer()
-                } else {
-                    let number = via
-                        .end_layer()
-                        .copper_number()
-                        .min(board.settings().inner_layer_count as usize);
-                    let Some(end) = Layer::inner_copper(number) else {
-                        continue;
-                    };
-                    if start.copper_number() >= number {
-                        continue;
-                    }
-                    end
                 };
-                let automatic = if let Some(net) = segment.net() {
-                    let net = view
-                        .circuit
-                        .net_signal(net)
-                        .ok_or(Error::InexistentNetSignal(net.0))?;
-                    view.circuit
-                        .net_classes()
-                        .get(&net.net_class())
-                        .ok_or(Error::InexistentNetClass(net.net_class().0))?
-                        .default_via_drill()
-                } else {
-                    None
-                };
-                let diameter = via
-                    .drill_diameter()
-                    .or(automatic)
-                    .unwrap_or(board.design_rules().default_via_drill_diameter());
+                let diameter = geometry.drill_diameter();
                 if start.is_top() && end.is_bottom() {
                     tht.add(diameter);
                 } else if start.is_top() || end.is_bottom() {

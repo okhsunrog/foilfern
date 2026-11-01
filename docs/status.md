@@ -7,7 +7,7 @@ covers where things stand and how the work has been organized.
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 951 tests report success (about 85k lines
+The workspace builds cleanly and 955 tests report success (about 85k lines
 of Rust). The latest local run used the official CLI 2.1.1 as the oracle,
 including ERC messages, migrations and byte-identical JSON exports over
 the pinned upstream test data.
@@ -54,6 +54,9 @@ Done, in `crates/librepcb-core` unless noted:
   metadata, assembly variants and board manufacturing statistics, including
   outline bounds, physical via drill spans and automatic drill diameters.
   JSON bytes match the official CLI for all upstream project fixtures.
+- **Via manufacturing data** (2026-11-01): computed drill/copper diameters,
+  stop-mask openings and physical drill spans with inherited net-class and
+  board rules. Shared by JSON export and subsequent fabrication exporters.
 
 ## Next steps
 

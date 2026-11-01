@@ -425,6 +425,10 @@ differ between platforms/implementations:
 
 ## project/board
 
+- Derived via copper/mask diameters use widened addition and return a range
+  error for dimensions outside `i64`, instead of overflowing. Ordinary
+  dimensions, rule rounding and layer spans match upstream.
+
 - Loading rejects duplicate item UUIDs first and then validates each board
   as a whole (upstream adds the empty board and then item by item); for a
   file with several errors, the reported error can differ. Messages are
