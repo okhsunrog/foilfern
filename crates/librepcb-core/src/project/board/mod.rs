@@ -10,7 +10,7 @@
 //! ([`BoardDerived`]), recomputed on demand from dirty sets maintained by
 //! the mutations ([`BoardAirWiresBuilder`]).
 //!
-//! Not ported yet: the painters, the export glue (Gerber, pick&place, D356,
+//! Not ported yet: the painters, the export glue (Gerber, D356,
 //! Specctra, interactive HTML BOM), the plane fragments builder and the DRC.
 
 mod air_wire;
@@ -27,6 +27,7 @@ pub(crate) mod keyed_map;
 mod net_segment;
 mod net_segment_splitter;
 mod pad_data;
+mod pick_place_generator;
 mod plane;
 mod polygon_data;
 mod stroke_text_data;
@@ -48,6 +49,7 @@ pub use hole_data::BoardHoleData;
 pub use net_segment::{BoardNetSegment, BoardSegmentElements};
 pub use net_segment_splitter::{BoardNetSegmentParts, BoardNetSegmentSplitter};
 pub use pad_data::BoardPadData;
+pub use pick_place_generator::BoardPickPlaceGenerator;
 pub use plane::{BoardPlane, PlaneConnectStyle};
 pub use polygon_data::BoardPolygonData;
 pub use stroke_text_data::BoardStrokeTextData;

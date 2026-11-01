@@ -425,6 +425,11 @@ differ between platforms/implementations:
 
 ## project/board
 
+- Pick&place values use `str::split_whitespace()` to simplify whitespace
+  after substitution instead of `QString::simplified()` (the crate-wide
+  Rust whitespace rule). Typical values and all fixture CSV bodies match
+  upstream; exotic Unicode whitespace may differ between Unicode versions.
+
 - Derived via copper/mask diameters use widened addition and return a range
   error for dimensions outside `i64`, instead of overflowing. Ordinary
   dimensions, rule rounding and layer spans match upstream.

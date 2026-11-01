@@ -7,7 +7,7 @@ covers where things stand and how the work has been organized.
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 955 tests report success (about 85k lines
+The workspace builds cleanly and 958 tests report success (about 85k lines
 of Rust). The latest local run used the official CLI 2.1.1 as the oracle,
 including ERC messages, migrations and byte-identical JSON exports over
 the pinned upstream test data.
@@ -57,12 +57,16 @@ Done, in `crates/librepcb-core` unless noted:
 - **Via manufacturing data** (2026-11-01): computed drill/copper diameters,
   stop-mask openings and physical drill spans with inherited net-class and
   board rules. Shared by JSON export and subsequent fabrication exporters.
+- **Board pick & place** (2026-11-01): variant selection, transformed
+  placements, assembly types and footprint/standalone fiducials. Top,
+  bottom and combined CSV bodies match the official CLI byte for byte for
+  every board and variant in the upstream project fixtures.
 
 ## Next steps
 
 1. **Wave 3c** (can run in parallel, three agents):
    - board export data and the plane fragments builder, plus the Gerber,
-     Excellon, pick & place and D356 glue that drives the existing
+     Excellon and D356 glue that drives the existing
      generators;
    - DRC (the largest remaining core piece, about 8k lines of C++).
 2. **Wave 4:** the `job` module (output jobs, which also fixes the pending

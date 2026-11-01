@@ -9,6 +9,7 @@ mod fabrication_output_settings_test;
 mod io_test;
 mod mutation_test;
 mod net_segment_splitter_test;
+mod pick_place_test;
 mod serde_test;
 mod via_test;
 
