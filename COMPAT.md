@@ -425,6 +425,12 @@ differ between platforms/implementations:
 
 ## project/board
 
+- Plane calculation is synchronous and reports progress/cancellation between
+  planes instead of exposing Qt's asynchronous builder lifecycle. Errors or
+  cancellation retain the previous fragments and dirty state atomically;
+  upstream can return partial results with per-plane errors. Successful
+  copper geometry uses the same 5um arc tolerance and algorithms.
+
 - Pick&place values use `str::split_whitespace()` to simplify whitespace
   after substitution instead of `QString::simplified()` (the crate-wide
   Rust whitespace rule). Typical values and all fixture CSV bodies match

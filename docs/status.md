@@ -7,7 +7,7 @@ covers where things stand and how the work has been organized.
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 964 tests report success (about 85k lines
+The workspace builds cleanly and 967 tests report success (about 85k lines
 of Rust). The latest local run used the official CLI 2.1.1 as the oracle,
 including ERC messages, migrations and byte-identical JSON exports over
 the pinned upstream test data.
@@ -66,12 +66,16 @@ Done, in `crates/librepcb-core` unless noted:
   into the existing generator. Original upstream PnP/D356 golden tests pass;
   D356 files match the official CLI for all fixture boards after normalizing
   the generation-date comment.
+- **Plane fragments** (2026-11-01): upstream clipping, priorities, keepouts,
+  thermal spokes, minimum widths, island removal and canonical contours.
+  The Nested Planes golden file matches byte for byte; simultaneous builds
+  pass on the upstream 40-inner-layer fixture. Builds are synchronous with
+  progress/cancellation and atomic application through the change journal.
 
 ## Next steps
 
 1. **Wave 3c** (can run in parallel, three agents):
-   - the plane fragments builder and board-level Gerber/Excellon exports
-     using the existing generators;
+   - board-level Gerber/Excellon exports using the existing generators;
    - DRC (the largest remaining core piece, about 8k lines of C++).
 2. **Wave 4:** the `job` module (output jobs, which also fixes the pending
    `jobs.lp` round trip), the output job runner and the CLI. Acceptance:

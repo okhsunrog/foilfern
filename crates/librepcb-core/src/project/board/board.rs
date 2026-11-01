@@ -860,8 +860,8 @@ impl SerializeObject for Board {
 /// The mutations only mark nets and layers dirty; the air wires are
 /// rebuilt by [`Project::rebuild_air_wires()`](crate::project::Project::rebuild_air_wires)
 /// (the editor calls it after each command, upstream
-/// `triggerAirWiresRebuild()`), the plane fragments by the (not yet ported)
-/// plane fragments builder.
+/// `triggerAirWiresRebuild()`), the plane fragments by
+/// [`Project::rebuild_planes()`](crate::project::Project::rebuild_planes).
 ///
 /// Never participates in equality: two boards with the same persistent
 /// content are equal regardless of their derived data.

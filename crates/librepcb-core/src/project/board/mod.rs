@@ -11,7 +11,7 @@
 //! the mutations ([`BoardAirWiresBuilder`]).
 //!
 //! Not ported yet: the painters, the export glue (Gerber, Excellon,
-//! Specctra, interactive HTML BOM), the plane fragments builder and the DRC.
+//! Specctra, interactive HTML BOM) and the DRC.
 
 mod air_wire;
 mod air_wires_builder;
@@ -30,6 +30,7 @@ mod net_segment_splitter;
 mod pad_data;
 mod pick_place_generator;
 mod plane;
+mod plane_fragments_builder;
 mod polygon_data;
 mod stroke_text_data;
 mod via;
@@ -53,6 +54,7 @@ pub use net_segment_splitter::{BoardNetSegmentParts, BoardNetSegmentSplitter};
 pub use pad_data::BoardPadData;
 pub use pick_place_generator::BoardPickPlaceGenerator;
 pub use plane::{BoardPlane, PlaneConnectStyle};
+pub use plane_fragments_builder::{BoardPlaneFragmentsBuilder, PlaneFragments};
 pub use polygon_data::BoardPolygonData;
 pub use stroke_text_data::BoardStrokeTextData;
 pub use via::ViaView;

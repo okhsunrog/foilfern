@@ -194,3 +194,45 @@ impl DeserializeObject for BoardStrokeTextData {
         })
     }
 }
+
+impl BoardStrokeTextData {
+    /// Expands attributes and strokes this board/device text in local text
+    /// coordinates (upstream `BI_StrokeText::updateText()/updatePaths()`).
+    pub fn paths(
+        &self,
+        project: &crate::project::Project,
+        board: &super::Board,
+        device: Option<&super::BoardDevice>,
+    ) -> crate::project::Result<Vec<crate::geometry::Path>> {
+        use crate::font::StrokeTextPathBuilder;
+        use crate::project::ProjectAttributeLookup;
+        let parts = device
+            .map(|device| device.parts(project.circuit(), None))
+            .transpose()?
+            .unwrap_or_default();
+        let lookup = match device {
+            Some(device) => ProjectAttributeLookup::device(project, board, device, parts.first()),
+            None => ProjectAttributeLookup::board(project, board, None),
+        };
+        let text = lookup.substitute(self.text())?;
+        let font = project
+            .stroke_fonts()
+            .font(&board.settings().default_font)?;
+        Ok(StrokeTextPathBuilder::build(
+            font,
+            self.letter_spacing(),
+            self.line_spacing(),
+            self.height(),
+            self.stroke_width(),
+            self.align(),
+            self.rotation(),
+            self.auto_rotate(),
+            &text,
+        ))
+    }
+
+    /// Returns the placement of the locally stroked paths on the board.
+    pub fn transform(&self) -> crate::utils::transform::Transform {
+        crate::utils::transform::Transform::new(self.position(), self.rotation(), self.mirrored())
+    }
+}

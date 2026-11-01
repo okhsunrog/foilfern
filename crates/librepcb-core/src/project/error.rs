@@ -169,6 +169,15 @@ fn duplicate_name(kind: EntityKind, name: &str) -> String {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// Plane construction was cancelled before applying any results.
+    #[error("Plane construction cancelled.")]
+    PlaneBuildCancelled,
+    /// Thermal pad copper and clearance contour counts are inconsistent.
+    #[error("Thermal pads inconsistency, please open a bug report.")]
+    ThermalPadsInconsistent,
+    /// Polygon clipping or contour flattening failed.
+    #[error(transparent)]
+    Clipper(#[from] crate::utils::clipper_helpers::Error),
     /// Serializing an exported JSON document failed.
     #[error(transparent)]
     Json(#[from] serde_json::Error),
