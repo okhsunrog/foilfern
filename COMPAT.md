@@ -425,6 +425,13 @@ differ between platforms/implementations:
 
 ## project/board
 
+- DRC manufacturing rules operate synchronously on an owned snapshot,
+  without Qt worker lifecycle callbacks or model changes. Findings are
+  deterministic in snapshot order; callers must not depend on the ordering
+  of upstream's concurrently scheduled checks. Approval tokens, UUID fields,
+  formatting and severities are unchanged. The explicitly partial
+  `run_manufacturing_rules` entry point excludes unported DRC checks.
+
 - Gerber/Excellon board exports return expanded output names and contents
   instead of writing files or removing obsolete outputs. Relative names are
   relative to the project directory; the caller owns filesystem resolution,

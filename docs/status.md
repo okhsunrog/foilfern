@@ -7,7 +7,7 @@ covers where things stand and how the work has been organized.
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 973 tests report success (about 85k lines
+The workspace builds cleanly and 980 tests report success (about 85k lines
 of Rust). The latest local run used the official CLI 2.1.1 as the oracle,
 including ERC messages, migrations and byte-identical JSON exports over
 the pinned upstream test data.
@@ -81,10 +81,20 @@ Done, in `crates/librepcb-core` unless noted:
   nanometer placement after whitespace. Exporters return named file contents;
   output jobs will own writing and obsolete-file cleanup.
 
+- **DRC manufacturing rules** (2026-11-01): owned `BoardDrcData` snapshots,
+  typed hole/finding identities, round drill diameters, slot widths and
+  allowed shapes, thermal spoke settings, disabled/unused copper layers.
+  Matches all 15 applicable approvals in the upstream DRC fixture and the
+  official CLI's message text/severity. Boundary, slot-policy, net-class and
+  concurrent snapshot tests pass. The entry point is deliberately named
+  `run_manufacturing_rules`: it does not perform a full DRC yet.
+
 ## Next steps
 
-1. **Wave 3c:** DRC (the largest remaining core piece, about 8k lines
-   of C++).
+1. **Wave 3c:** finish DRC: minimum copper/silkscreen widths and text
+   height, annular rings, clearances, keepouts, board outlines/cutouts,
+   via validity, device overlaps, connectivity and stale objects. Extend the
+   owned snapshot and compare the remaining upstream DRC approvals.
 2. **Wave 4:** the `job` module (output jobs, which also fixes the pending
    `jobs.lp` round trip), the output job runner and the CLI. Acceptance:
    upstream `tests/cli` (pytest, run with `uv`) passing against our CLI,
