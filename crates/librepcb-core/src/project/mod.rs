@@ -33,8 +33,9 @@
 //!
 //! Not ported yet: `erc/` (electrical rule check), `board/drc/`, the
 //! export glue (`boardgerberexport`, `bomgenerator`, ...),
-//! `projectattributelookup`, `projectjsonexport`, `outputjobrunner`.
+//! `projectjsonexport`, `outputjobrunner`.
 
+mod attribute_lookup;
 pub mod board;
 mod change;
 pub mod circuit;
@@ -48,6 +49,7 @@ mod project;
 mod ref_index;
 pub mod schematic;
 
+pub use attribute_lookup::ProjectAttributeLookup;
 pub use board::BoardChange;
 pub use change::{Change, ChangeLog, ChangesSince, DEFAULT_CHANGE_LOG_CAPACITY};
 pub use error::{EntityKind, Error, Result};

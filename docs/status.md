@@ -1,13 +1,16 @@
 # Status and handoff
 
-State of the port as of 2026-09-27, for continuing the work in a new
+State of the port as of 2026-11-01, for continuing the work in a new
 session (for example a cloud session). Read `AGENTS.md` first; this file
 covers where things stand and how the work has been organized.
 
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-`master` builds cleanly and 915 tests pass (about 85k lines of Rust).
+The workspace builds cleanly and 922 tests report success (about 85k lines
+of Rust). The latest local run had no upstream CLI installed, so the
+optional CLI oracle comparisons returned early; file round trips ran
+against the pinned upstream test data.
 
 Done, in `crates/librepcb-core` unless noted:
 
@@ -35,6 +38,9 @@ Done, in `crates/librepcb-core` unless noted:
   with hit testing and a Slint adapter.
 - **`crates/librepcb-i18n`, `tools/ts2po`, `lang/`:** translations from the
   upstream catalogs, with Slint bundled translations.
+- **Project attribute lookup** (2026-11-01): built-in and custom attributes
+  in project, assembly variant, component, schematic, symbol, board and
+  device contexts, including part precedence and recursive substitution.
 
 ## Next steps
 
@@ -43,7 +49,7 @@ Done, in `crates/librepcb-core` unless noted:
      Excellon, pick & place and D356 glue that drives the existing
      generators;
    - DRC (the largest remaining core piece, about 8k lines of C++);
-   - ERC, the BOM generator, project attribute lookup, and the JSON export
+   - ERC, the BOM generator, and the JSON export
      of the project.
 2. **Wave 4:** the `job` module (output jobs, which also fixes the pending
    `jobs.lp` round trip), the output job runner and the CLI. Acceptance:

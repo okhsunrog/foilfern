@@ -1767,3 +1767,39 @@ fn serde_roundtrip() {
     junctions.insert(Uuid::new_random().to_string(), junction);
     assert!(serde_json::from_value::<SchematicNetSegment>(value).is_err());
 }
+
+#[test]
+fn symbol_attribute_lookup() {
+    use librepcb_core::attribute::{Attribute, AttributeList, AttributeType};
+    use librepcb_core::project::ProjectAttributeLookup;
+
+    let f = Fixture::new(2);
+    let symbol = f.new_symbol(0);
+    let schematic = f.p.schematic(f.schematic).unwrap();
+    let variant = f.p.circuit().assembly_variants().first().unwrap();
+    let lookup =
+        ProjectAttributeLookup::symbol(&f.p, schematic, &symbol, None, None, Some(variant));
+    assert_eq!(lookup.value("NAME").unwrap().as_deref(), Some("U1-A"));
+    assert_eq!(lookup.value("SHEET").unwrap().as_deref(), Some("Main"));
+    assert_eq!(lookup.value("VARIANT").unwrap().as_deref(), Some("Std"));
+    assert_eq!(
+        lookup.substitute("{{NAME}}: {{PAGE_X_OF_Y}}").unwrap(),
+        "U1-A: Page 1 of 1"
+    );
+    let part = librepcb_core::library::dev::Part::new(
+        "MPN".parse().unwrap(),
+        "Maker".parse().unwrap(),
+        AttributeList::from(vec![
+            Attribute::new(
+                "NAME".parse().unwrap(),
+                AttributeType::String,
+                "part name",
+                None,
+            )
+            .unwrap(),
+        ]),
+    );
+    let lookup = ProjectAttributeLookup::symbol(&f.p, schematic, &symbol, None, Some(&part), None);
+    assert_eq!(lookup.value("NAME").unwrap().as_deref(), Some("part name"));
+    assert_eq!(lookup.value("VARIANT").unwrap(), None);
+}

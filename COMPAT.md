@@ -373,6 +373,15 @@ differ between platforms/implementations:
   `formatFileSize()` (`"1.50 MB"`) instead of
   `QLocale::formattedDataSize()` (`"2 MiB"`).
 
+## project/attribute_lookup
+
+- Lookups borrow a project and explicit context instead of holding Qt weak
+  pointers and following parent pointers. For detached objects with missing
+  library/component references, `value()` and `substitute()` return project
+  errors; upstream assumes these references were resolved during construction.
+  Values and precedence for valid project objects are unchanged. Dates and
+  times use the local time zone, including creation timestamps stored in UTC.
+
 ## project/schematic
 
 - Loading validates each schematic page as a whole after deserializing it
