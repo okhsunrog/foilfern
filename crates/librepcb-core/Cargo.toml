@@ -26,6 +26,7 @@ petgraph = "0.8.3"
 regex = "1.13.1"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 spade = "2.15.1"
 static_assertions = "1.1.0"
 tempfile = "3.27.0"
@@ -46,6 +47,3 @@ rustix = { version = "1.1.5", features = ["process"] }
 
 [target.'cfg(not(target_os = "linux"))'.dependencies]
 sysinfo = "0.39.6"
-
-[dev-dependencies]
-serde_json = "1.0.151"

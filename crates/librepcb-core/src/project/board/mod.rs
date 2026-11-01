@@ -17,6 +17,7 @@ mod air_wire;
 mod air_wires_builder;
 #[allow(clippy::module_inception)] // Upstream file name.
 mod board;
+mod bounds;
 mod change;
 mod design_rules;
 mod device;
@@ -39,6 +40,7 @@ pub use board::{
 };
 pub use change::{BoardChange, BoardItemKind, BoardSegmentItems};
 pub use design_rules::BoardDesignRules;
+pub(crate) use device::ResolvedDevice;
 pub use device::{BoardDevice, FootprintPadView};
 pub use fabrication_output_settings::BoardFabricationOutputSettings;
 pub use hole_data::BoardHoleData;

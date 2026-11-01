@@ -169,6 +169,9 @@ fn duplicate_name(kind: EntityKind, name: &str) -> String {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// Serializing an exported JSON document failed.
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
     /// A BOM attribute exceeds the regex engine's pattern limits.
     #[error(transparent)]
     BomPattern(#[from] regex::Error),

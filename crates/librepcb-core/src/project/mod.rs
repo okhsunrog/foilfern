@@ -33,7 +33,7 @@
 //!
 //! Not ported yet: `board/drc/`, the
 //! export glue (`boardgerberexport`, ...),
-//! `projectjsonexport`, `outputjobrunner`.
+//! `outputjobrunner`.
 
 mod attribute_lookup;
 pub mod board;
@@ -43,6 +43,7 @@ pub mod circuit;
 pub mod erc;
 mod error;
 mod id;
+mod json_export;
 mod library;
 pub mod loader;
 mod mutation;
@@ -61,6 +62,7 @@ pub use id::{
     ComponentInstanceId, ComponentSignalRef, DeviceRef, NetClassId, NetSegmentId, NetSegmentRef,
     NetSignalId, PlaneId, PlaneRef, SchematicId, SymbolId, SymbolRef,
 };
+pub use json_export::ProjectJsonExport;
 pub use library::{LibraryElementKind, ProjectLibrary};
 pub use loader::ProjectLoader;
 pub use mutation::{BoardMutation, Mutation, SchematicMutation};

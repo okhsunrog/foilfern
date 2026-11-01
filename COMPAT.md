@@ -369,6 +369,13 @@ differ between platforms/implementations:
   `formatFileSize()` (`"1.50 MB"`) instead of
   `QLocale::formattedDataSize()` (`"2 MiB"`).
 
+## project/json_export
+
+- Bounding-box extents use widened integer subtraction before conversion to
+  millimeters. Opposite corners more than `i64::MAX` nanometers apart are
+  exported without integer overflow; upstream subtracts in its length type.
+  Realistic boards and all upstream fixture exports are byte-identical.
+
 ## project/erc
 
 - Findings and representative highlighting locations are selected in

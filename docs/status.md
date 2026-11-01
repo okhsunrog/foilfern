@@ -7,10 +7,10 @@ covers where things stand and how the work has been organized.
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 943 tests report success (about 85k lines
-of Rust). The latest local run had no upstream CLI installed, so the
-optional CLI oracle comparisons returned early; file round trips ran
-against the pinned upstream test data.
+The workspace builds cleanly and 951 tests report success (about 85k lines
+of Rust). The latest local run used the official CLI 2.1.1 as the oracle,
+including ERC messages, migrations and byte-identical JSON exports over
+the pinned upstream test data.
 
 Done, in `crates/librepcb-core` unless noted:
 
@@ -50,6 +50,10 @@ Done, in `crates/librepcb-core` unless noted:
   upstream executable is available. After migrations the loader keeps only
   approvals of findings which still occur; current-format loads preserve
   all existing approvals.
+- **Project JSON export** (2026-11-01): upstream format 1.0 with project
+  metadata, assembly variants and board manufacturing statistics, including
+  outline bounds, physical via drill spans and automatic drill diameters.
+  JSON bytes match the official CLI for all upstream project fixtures.
 
 ## Next steps
 
@@ -57,8 +61,7 @@ Done, in `crates/librepcb-core` unless noted:
    - board export data and the plane fragments builder, plus the Gerber,
      Excellon, pick & place and D356 glue that drives the existing
      generators;
-   - DRC (the largest remaining core piece, about 8k lines of C++);
-   - the JSON export of the project.
+   - DRC (the largest remaining core piece, about 8k lines of C++).
 2. **Wave 4:** the `job` module (output jobs, which also fixes the pending
    `jobs.lp` round trip), the output job runner and the CLI. Acceptance:
    upstream `tests/cli` (pytest, run with `uv`) passing against our CLI,
