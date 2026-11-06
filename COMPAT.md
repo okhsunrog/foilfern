@@ -504,3 +504,10 @@ differ between platforms/implementations:
 - Cloning a known job preserves arbitrary option nodes. Upstream's base
   copy constructor omits them, accidentally losing forward-compatible
   options. This difference can affect files after cloning such jobs.
+- Output job execution is synchronous, with caller-provided file and job
+  observers replacing Qt signals/event processing. Manufacturing jobs
+  rebuild copper planes before exporting, including callers' detached
+  geometry without dirty flags. Application version/time are explicit.
+  Rendering/3D/interactive BOM jobs fail explicitly until their milestone.
+  ZIP timestamps/compression follow the existing Rust ZIP implementation;
+  archive contents and output filenames are compatible.

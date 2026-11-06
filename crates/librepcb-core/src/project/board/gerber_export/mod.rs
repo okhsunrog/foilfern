@@ -62,10 +62,22 @@ impl<'a> BoardGerberExport<'a> {
         &self,
         settings: &BoardFabricationOutputSettings,
     ) -> Result<BTreeMap<String, String>> {
+        self.generate_pcb_layers_with_callback(settings, |_, _| Ok(()))
+    }
+
+    /// Generates files in upstream write order, calling `on_file` before
+    /// collecting each result. Indexed writers use this to reject duplicate
+    /// paths even when two layers of the same job resolve to the same name.
+    pub fn generate_pcb_layers_with_callback(
+        &self,
+        settings: &BoardFabricationOutputSettings,
+        mut on_file: impl FnMut(&str, &str) -> Result<()>,
+    ) -> Result<BTreeMap<String, String>> {
         let mut files = BTreeMap::new();
         let mut context = FileContext::default();
         let mut insert = |suffix: &str, data: String, ctx: &FileContext| -> Result<()> {
             let path = self.output_path(&format!("{}{suffix}", settings.output_base_path), ctx)?;
+            on_file(&path, &data)?;
             files.insert(path, data);
             Ok(())
         };

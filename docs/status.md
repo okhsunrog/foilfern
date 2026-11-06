@@ -7,7 +7,7 @@ covers where things stand and how the work has been organized.
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 987 tests report success (about 97k lines
+The workspace builds cleanly and 995 tests report success (about 99k lines
 of Rust). The latest local run used the official CLI 2.1.1 as the oracle,
 including ERC messages, migrations and byte-identical JSON exports over
 the pinned upstream test data.
@@ -79,7 +79,7 @@ Done, in `crates/librepcb-core` unless noted:
   official CLI 2.1.1 after normalizing software/date/checksum metadata.
   FontoBene glyph spacing retains upstream's float precision, preserving
   nanometer placement after whitespace. Exporters return named file contents;
-  output jobs will own writing and obsolete-file cleanup.
+  the output job runner owns writing and obsolete-file cleanup.
 
 - **DRC rules** (2026-11-06): all upstream manufacturing, width/text,
   clearance, annular-ring, keepout, outline/cutout, via, device-overlap,
@@ -99,9 +99,17 @@ Done, in `crates/librepcb-core` unless noted:
   with inverses and journal entries. Current files round-trip byte for byte;
   migrated `jobs.lp` now participates in official CLI comparisons.
 
+- **Output job runner** (2026-11-06): manufacturing, assembly, BOM,
+  netlist, JSON, copy, ZIP and LPPZ jobs use the indexed output writer.
+  It resolves board/variant selections in project order, rebuilds planes
+  before fabrication, rejects duplicate names and removes obsolete files
+  after successful jobs. Archives consume only previously executed jobs.
+  Upstream security/rebuild test cases and official CLI output comparisons
+  pass. Graphics, interactive BOM and 3D execution remain deferred.
+
 ## Next steps
 
-1. **Wave 4:** the output job runner and the CLI. Acceptance:
+1. **Wave 4:** the CLI. Acceptance:
    upstream `tests/cli` (pytest, run with `uv`) passing against our CLI,
    plus output diffs against the official `librepcb-cli`.
 2. **Then M1.5** (MCP, library manager, Specctra) per `roadmap.md` and the

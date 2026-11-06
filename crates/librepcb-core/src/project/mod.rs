@@ -31,7 +31,7 @@
 //! - `mutation`, `change`, `ref_index`, `library`, `project`, `id`,
 //!   `error`: see the re-exports below.
 //!
-//! Not ported yet: `outputjobrunner` and the deferred Specctra/HTML BOM exports.
+//! Deferred: rendering jobs and Specctra/HTML BOM exports.
 
 mod attribute_lookup;
 pub mod board;
@@ -45,6 +45,7 @@ mod json_export;
 mod library;
 pub mod loader;
 mod mutation;
+mod output_job_runner;
 #[allow(clippy::module_inception)] // Upstream file name.
 mod project;
 mod ref_index;
@@ -64,6 +65,7 @@ pub use json_export::ProjectJsonExport;
 pub use library::{LibraryElementKind, ProjectLibrary};
 pub use loader::ProjectLoader;
 pub use mutation::{BoardMutation, Mutation, SchematicMutation};
+pub use output_job_runner::{OutputJobEvent, OutputJobRunner};
 pub use project::{Project, ProjectMetadata, ProjectSettings, ProjectView};
 pub use ref_index::{ComponentUses, NetUse, Reference};
 pub use schematic::SchematicChange;
