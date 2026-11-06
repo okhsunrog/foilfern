@@ -19,7 +19,9 @@ fn load(name: &str) -> Project {
 fn included(node: &SExpression, board: &str) -> bool {
     let kind: String = node.child_value("@0").unwrap();
     match kind.as_str() {
-        "minimum_width_violation"
+        "drill_clearance_violation"
+        | "drill_board_clearance_violation"
+        | "minimum_width_violation"
         | "minimum_text_height_violation"
         | "minimum_drill_diameter_violation"
         | "minimum_slot_width_violation"
@@ -39,7 +41,8 @@ fn manufacturing_messages_match_upstream_approvals() {
     let mut total = 0;
     for board in project.boards() {
         let data = BoardDrcData::extract(&project, board, &board.settings().drc_settings).unwrap();
-        let findings = BoardDesignRuleCheck::run_manufacturing_rules(&data);
+        let mut findings = BoardDesignRuleCheck::run_manufacturing_rules(&data);
+        findings.extend(BoardDesignRuleCheck::run_drill_clearances(&data).unwrap());
         let mut actual = BTreeSet::new();
         for finding in findings {
             assert_eq!(finding.board(), board.id());
@@ -60,7 +63,7 @@ fn manufacturing_messages_match_upstream_approvals() {
         assert_eq!(actual, expected, "{}", board.name());
         total += actual.len();
     }
-    assert_eq!(total, 24, "upstream DRC approval vectors changed");
+    assert_eq!(total, 36, "upstream DRC approval vectors changed");
     assert_eq!(revision, project.revision());
 }
 #[test]
@@ -125,7 +128,10 @@ fn manufacturing_messages_match_official_cli() {
             .retain(|n| !matches!(n, SExpression::List(list) if list.name() == "approved"));
         std::fs::write(path, node.to_string_with_mode(Mode::LibrePcb).unwrap()).unwrap();
         let data = BoardDrcData::extract(&project, board, &board.settings().drc_settings).unwrap();
-        for finding in BoardDesignRuleCheck::run_manufacturing_rules(&data) {
+        for finding in BoardDesignRuleCheck::run_manufacturing_rules(&data)
+            .into_iter()
+            .chain(BoardDesignRuleCheck::run_drill_clearances(&data).unwrap())
+        {
             let message = finding.rule_message();
             let severity = match message.severity() {
                 Severity::Hint => "HINT",
@@ -149,6 +155,8 @@ fn manufacturing_messages_match_official_cli() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(matches!(output.status.code(), Some(0 | 1)), "{stderr}");
     let prefixes = [
+        "Clearance drill ↔ drill",
+        "Clearance drill ↔ board outline",
         "Trace width",
         "Min. plane width",
         "Polygon width",

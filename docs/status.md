@@ -86,7 +86,9 @@ Done, in `crates/librepcb-core` unless noted:
   allowed shapes, thermal spoke settings, disabled/unused copper layers.
   Also checks minimum copper/silkscreen widths and board silkscreen text
   height, including net-class limits and filled-shape export semantics.
-  Matches all 24 applicable approvals in the upstream DRC fixture and the
+  Drill-to-drill and drill-to-board/cutout clearances use the upstream
+  5um tolerance and canonical nested drill approvals.
+  Matches all 36 applicable approvals in the upstream DRC fixture and the
   official CLI's message text/severity. Boundary, slot-policy, net-class and
   concurrent snapshot tests pass. The entry point is deliberately named
   `run_manufacturing_rules`: it does not perform a full DRC yet.

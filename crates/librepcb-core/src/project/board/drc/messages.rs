@@ -66,6 +66,16 @@ impl DrcHoleRef {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DrcMessageKind {
+    /// Clearance between two drills below the configured minimum.
+    DrillClearance {
+        holes: [DrcHoleRef; 2],
+        minimum: UnsignedLength,
+    },
+    /// Drill too close to a board outline or cutout.
+    DrillBoardClearance {
+        hole: DrcHoleRef,
+        minimum: UnsignedLength,
+    },
     /// Stroke or configured minimum width below a manufacturing limit.
     MinimumWidth {
         object: DrcObjectRef,

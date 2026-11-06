@@ -6,6 +6,7 @@
 //! unported, so the partial entry point is explicitly named accordingly.
 
 mod data;
+mod drill_clearances;
 mod manufacturing;
 mod messages;
 mod widths;

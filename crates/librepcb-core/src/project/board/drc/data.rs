@@ -26,6 +26,7 @@ pub struct BoardDrcData {
     pub(super) copper_layers: BTreeSet<Layer>,
     pub(super) used_layers: BTreeSet<Layer>,
     pub(super) widths: Vec<WidthObject>,
+    pub(super) outlines: Vec<(DrcObjectRef, Layer, Path)>,
     pub(super) silkscreen_layers: BTreeSet<Layer>,
 }
 static_assertions::assert_impl_all!(BoardDrcData: Send, Sync);
@@ -67,6 +68,7 @@ impl BoardDrcData {
             copper_layers: board.copper_layers(),
             used_layers: BTreeSet::from([Layer::TOP_COPPER, Layer::BOT_COPPER]),
             widths: Vec::new(),
+            outlines: Vec::new(),
             silkscreen_layers: board
                 .settings()
                 .silkscreen_layers_top
@@ -201,6 +203,53 @@ impl BoardDrcData {
                 .filter(|l| l.is_copper()),
         );
         data.collect_widths(project, board)?;
+        for polygon in board
+            .polygons()
+            .values()
+            .filter(|p| p.layer().is_board_edge())
+        {
+            data.outlines.push((
+                DrcObjectRef::Polygon {
+                    device: None,
+                    polygon: polygon.uuid(),
+                },
+                polygon.layer(),
+                polygon.path().clone(),
+            ));
+        }
+        for device in board.devices().values() {
+            let footprint = ResolvedDevice::resolve(device, project.library())?.footprint;
+            for polygon in footprint
+                .polygons()
+                .iter()
+                .filter(|p| p.layer().is_board_edge())
+            {
+                data.outlines.push((
+                    DrcObjectRef::Polygon {
+                        device: Some(device.component()),
+                        polygon: polygon.uuid(),
+                    },
+                    polygon.layer(),
+                    device.transform().map(polygon.path()),
+                ));
+            }
+            for circle in footprint
+                .circles()
+                .iter()
+                .filter(|c| c.layer().is_board_edge())
+            {
+                data.outlines.push((
+                    DrcObjectRef::Circle {
+                        device: device.component(),
+                        circle: circle.uuid(),
+                    },
+                    circle.layer(),
+                    device
+                        .transform()
+                        .map(&Path::circle(circle.diameter()).translated(circle.center())),
+                ));
+            }
+        }
         Ok(data)
     }
     /// Board this snapshot belongs to.
