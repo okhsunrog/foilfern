@@ -75,7 +75,9 @@ fn assert_project_upgrade(src: &str, version: &str) -> SExpression {
     assert!(loader.migration_log().is_none());
     assert_eq!(project.schematics().len(), schematic_count);
     assert_eq!(project.boards().len(), board_count);
-    project.output_jobs().clone()
+    let mut root = librepcb_core::serialization::List::new("librepcb_jobs");
+    librepcb_core::serialization::SerializeObject::serialize(project.output_jobs(), &mut root);
+    root.into()
 }
 
 #[test]

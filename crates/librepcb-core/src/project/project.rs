@@ -6,8 +6,7 @@
 //! the change journal ([`Project::changes_since()`]), and the reverse
 //! relations upstream keeps as registration lists are answered by the
 //! private reverse index ([`Project::is_net_signal_used()`], ...).
-//! The output jobs are kept as raw `jobs.lp` content until the `job`
-//! module is ported. `create()` does not copy the stroke fonts of the
+//! `create()` does not copy the stroke fonts of the
 //! application resources yet.
 
 use std::collections::BTreeSet;
@@ -26,6 +25,7 @@ use crate::application;
 use crate::attribute::AttributeList;
 use crate::fileio::{FilePath, FileSystem, TransactionalDirectory, VersionFile};
 use crate::font::StrokeFontPool;
+use crate::job::OutputJobList;
 use crate::serialization::{List, Mode, SExpression, SerializeObject};
 use crate::types::{ElementName, FileProofName, Uuid};
 
@@ -73,8 +73,7 @@ pub struct Project {
     pub(crate) settings: ProjectSettings,
     /// Date/time of the last open or save.
     pub(crate) date_time: DateTime<Utc>,
-    /// Raw `project/jobs.lp` (TODO: port `core/job`).
-    pub(crate) output_jobs: SExpression,
+    pub(crate) output_jobs: OutputJobList,
     pub(crate) stroke_fonts: StrokeFontPool,
     pub(crate) library: ProjectLibrary,
     pub(crate) circuit: Circuit,
@@ -125,8 +124,6 @@ impl Project {
         let library = ProjectLibrary::new(directory.subdir("library"));
         // Second precision, like the file format.
         let now = chrono::SubsecRound::trunc_subsecs(Utc::now(), 0);
-        let mut output_jobs = List::new("librepcb_jobs");
-        output_jobs.ensure_line_break();
         Ok(Self {
             directory,
             file_name,
@@ -140,7 +137,7 @@ impl Project {
             },
             settings: ProjectSettings::default(),
             date_time: now,
-            output_jobs: SExpression::from(output_jobs),
+            output_jobs: OutputJobList::new(),
             stroke_fonts: StrokeFontPool::from_files(fonts),
             library,
             circuit: Circuit::new(),
@@ -220,9 +217,8 @@ impl Project {
         self.date_time
     }
 
-    /// Returns the raw content of `project/jobs.lp` (until the `job` module
-    /// is ported).
-    pub fn output_jobs(&self) -> &SExpression {
+    /// Returns output jobs in execution order.
+    pub fn output_jobs(&self) -> &OutputJobList {
         &self.output_jobs
     }
 
@@ -453,10 +449,11 @@ impl Project {
             root.ensure_line_break();
             dir.write("project/settings.user.lp", &to_bytes(root)?)?;
         }
-        dir.write(
-            "project/jobs.lp",
-            &self.output_jobs.to_byte_array(Mode::LibrePcb)?,
-        )?;
+        dir.write("project/jobs.lp", &{
+            let mut root = List::new("librepcb_jobs");
+            self.output_jobs.serialize(&mut root);
+            SExpression::from(root).to_byte_array(Mode::LibrePcb)?
+        })?;
         {
             let mut root = List::new("librepcb_circuit");
             self.circuit.serialize(&mut root);

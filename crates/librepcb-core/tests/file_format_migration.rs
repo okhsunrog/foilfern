@@ -17,10 +17,6 @@
 //! Only the footer of the migration log (application version and time of
 //! the upgrade) is excluded from the comparison.
 //!
-//! TODO: `project/jobs.lp` is still written back verbatim (after the
-//! migration) until `core/job` is ported (the output jobs are kept as raw
-//! S-expression), while upstream re-serializes it, so differences in this
-//! file are only reported, not treated as failure ([`PENDING_FILE_NAMES`]).
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -40,9 +36,8 @@ use librepcb_core::library::sym::Symbol;
 use librepcb_core::library::{Library, LibraryBaseElement};
 use librepcb_core::project::ProjectLoader;
 
-/// Files which are not re-serialized yet (see the module documentation):
-/// boards (`board.lp`, `settings.user.lp`) and output jobs (`jobs.lp`).
-const PENDING_FILE_NAMES: &[&str] = &["jobs.lp"];
+/// All project files now participate in byte-for-byte comparisons.
+const PENDING_FILE_NAMES: &[&str] = &[];
 
 fn data_dir() -> PathBuf {
     Path::new(env!("LIBREPCB_UPSTREAM_DIR")).join("tests/data")

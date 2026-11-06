@@ -7,7 +7,7 @@ covers where things stand and how the work has been organized.
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 984 tests report success (about 97k lines
+The workspace builds cleanly and 987 tests report success (about 97k lines
 of Rust). The latest local run used the official CLI 2.1.1 as the oracle,
 including ERC messages, migrations and byte-identical JSON exports over
 the pinned upstream test data.
@@ -29,7 +29,7 @@ Done, in `crates/librepcb-core` unless noted:
   are stored in files.
 - **Export generators:** Gerber, Excellon, IPC-D-356A, BOM and pick & place.
 - **File format migrations** v0.1 → v1 → v2. Migrated projects and
-  libraries match `librepcb-cli` byte for byte, except `jobs.lp`.
+  libraries match `librepcb-cli` byte for byte, including `jobs.lp`.
 - **Project model** (`project/`), designed in `project-model-design.md`:
   circuit, schematics and boards with mutations, inverses, the reverse
   index, the change journal and serde. All test projects round-trip byte
@@ -93,10 +93,15 @@ Done, in `crates/librepcb-core` unless noted:
   common result API. Approval cleanup is journaled, preserves unknown
   approvals and waits for a full run after a file-format upgrade.
 
+- **Output job model** (2026-11-06): all 12 job kinds, board/variant
+  selections, dependency references, unknown jobs and arbitrary options.
+  Projects and organizations use typed settings; project edits are mutations
+  with inverses and journal entries. Current files round-trip byte for byte;
+  migrated `jobs.lp` now participates in official CLI comparisons.
+
 ## Next steps
 
-1. **Wave 4:** the `job` module (output jobs, which also fixes the pending
-   `jobs.lp` round trip), the output job runner and the CLI. Acceptance:
+1. **Wave 4:** the output job runner and the CLI. Acceptance:
    upstream `tests/cli` (pytest, run with `uv`) passing against our CLI,
    plus output diffs against the official `librepcb-cli`.
 2. **Then M1.5** (MCP, library manager, Specctra) per `roadmap.md` and the

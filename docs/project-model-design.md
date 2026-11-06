@@ -19,7 +19,7 @@ pub struct Project {
     file_name: String,                      // "*.lpp"
     metadata: ProjectMetadata,              // uuid, name, author, version, created, attributes
     settings: ProjectSettings,              // locale/norm order, custom BOM attrs, lock default
-    output_jobs: SExpression,               // raw jobs.lp until `job` is ported (round-trips bytes)
+    output_jobs: OutputJobList,             // ordered typed jobs, unknown nodes preserved
     stroke_fonts: StrokeFontPool,
     library: ProjectLibrary,
     circuit: Circuit,

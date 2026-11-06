@@ -67,6 +67,9 @@ pub enum Mutation {
         approved: bool,
     },
 
+    /// Replaces output jobs in execution order.
+    SetOutputJobs(crate::job::OutputJobList),
+
     // --- Circuit ---
     /// Adds an assembly variant at `index` (appends if `None`).
     AddAssemblyVariant {
@@ -152,6 +155,11 @@ impl Project {
     /// changed (see the module documentation).
     pub fn apply(&mut self, mutation: Mutation) -> Result<Mutation> {
         match mutation {
+            Mutation::SetOutputJobs(jobs) => {
+                let old = std::mem::replace(&mut self.output_jobs, jobs);
+                self.record(Change::OutputJobs);
+                Ok(Mutation::SetOutputJobs(old))
+            }
             Mutation::SetProjectMetadata(m) => self.set_project_metadata(m),
             Mutation::SetProjectSettings(s) => self.set_project_settings(s),
             Mutation::SetErcApprovals(a) => self.set_erc_approvals(a),

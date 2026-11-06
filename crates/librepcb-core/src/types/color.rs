@@ -98,3 +98,5 @@ mod tests {
         assert!("#gg0000".parse::<Color>().is_err());
     }
 }
+
+crate::utils::serde_string::serde_string!(Color);

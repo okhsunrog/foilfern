@@ -219,8 +219,7 @@ fn load_settings(p: &mut Project) -> Result<()> {
 }
 
 fn load_output_jobs(p: &mut Project) -> Result<()> {
-    // Kept as raw S-expression until the `job` module is ported.
-    p.output_jobs = parse_file(p, "project/jobs.lp")?;
+    p.output_jobs = crate::job::OutputJobList::deserialize(&parse_file(p, "project/jobs.lp")?)?;
     Ok(())
 }
 

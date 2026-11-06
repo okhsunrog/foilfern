@@ -319,8 +319,7 @@ differ between platforms/implementations:
   Sources are always empty in organizations.
 - **`Organization::duplicate_from()`** copies the output jobs with new UUIDs;
   upstream clears the job lists before iterating over them and thus drops
-  all jobs of the duplicate. Output jobs are kept as raw S-expression nodes
-  until `OutputJob` is ported (written back unchanged).
+  all jobs of the duplicate. Output jobs use the same typed model as projects.
 - **`Component::duplicate_from()`**: a pin-signal-map entry referring to a
   non-existent signal becomes unconnected (upstream: undefined behavior).
 - **Package check geometry** (pad clearances, legend clearance, annular
@@ -495,3 +494,13 @@ differ between platforms/implementations:
 - `BoardNetSegmentSplitter`: new junction UUIDs come from a caller provided
   generator, and the elements of a resulting segment may be listed in
   another order. Files are unaffected (elements are saved sorted by UUID).
+
+## job
+
+- Jobs use owned enum variants instead of a class hierarchy. Graphics,
+  interactive BOM and 3D settings can be read and written independently of
+  the deferred renderers. Unknown jobs retain the original complete node,
+  including when common fields are edited, matching `UnknownOutputJob`.
+- Cloning a known job preserves arbitrary option nodes. Upstream's base
+  copy constructor omits them, accidentally losing forward-compatible
+  options. This difference can affect files after cloning such jobs.
