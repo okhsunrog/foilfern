@@ -19,7 +19,17 @@ fn load(name: &str) -> Project {
 fn included(node: &SExpression, board: &str) -> bool {
     let kind: String = node.child_value("@0").unwrap();
     match kind.as_str() {
-        "missing_board_outline"
+        "copper_clearance_violation"
+        | "copper_board_clearance_violation"
+        | "copper_hole_clearance_violation"
+        | "minimum_annular_ring_violation"
+        | "empty_netsegment"
+        | "unconnected_junction"
+        | "impossible_connection"
+        | "forbidden_via"
+        | "invalid_via"
+        | "invalid_pad_connection"
+        | "missing_board_outline"
         | "multiple_board_outlines"
         | "open_board_outline"
         | "intersecting_board_outlines"
@@ -36,20 +46,38 @@ fn included(node: &SExpression, board: &str) -> bool {
         | "disabled_layer" => true,
         // Same whitelist as the upstream test: empty layers on unrelated
         // boards are intentionally ignored in its stored expectations.
+        "missing_device" => board == "checkForUnplacedComponents",
+        "missing_connection" => false,
+        "useless_via" => ["checkVias", "checkVias2", "checkVias3"].contains(&board),
         "unused_layer" => board == "checkUsedLayers",
-        _ => false,
+        "plated_cutouts" => board == "checkBoardCutouts",
+        _ => true,
     }
 }
 #[test]
-fn manufacturing_messages_match_upstream_approvals() {
+fn test_messages() {
     let project = load("DRC");
     let revision = project.revision();
     let mut total = 0;
     for board in project.boards() {
         let data = BoardDrcData::extract(&project, board, &board.settings().drc_settings).unwrap();
-        let mut findings = BoardDesignRuleCheck::run_manufacturing_rules(&data);
-        findings.extend(BoardDesignRuleCheck::run_drill_clearances(&data).unwrap());
-        findings.extend(BoardDesignRuleCheck::run_outline_rules(&data).unwrap());
+        let findings = all_checks(&data);
+        if board.name().as_str() == "checkForMissingConnections" {
+            let actual: Vec<_> = findings
+                .iter()
+                .map(|f| f.rule_message().approval())
+                .filter(|n| n.child_value::<String>("@0").unwrap() == "missing_connection")
+                .cloned()
+                .collect();
+            let expected: Vec<_> = board
+                .drc_approvals()
+                .iter()
+                .filter(|n| n.child_value::<String>("@0").unwrap() == "missing_connection")
+                .cloned()
+                .collect();
+            compare_equivalent_airwire_trees(&project, board, &actual, &expected);
+            total += actual.len();
+        }
         let mut actual = BTreeSet::new();
         for finding in findings {
             assert_eq!(finding.board(), board.id());
@@ -70,7 +98,7 @@ fn manufacturing_messages_match_upstream_approvals() {
         assert_eq!(actual, expected, "{}", board.name());
         total += actual.len();
     }
-    assert_eq!(total, 47, "upstream DRC approval vectors changed");
+    assert_eq!(total, 222, "upstream DRC approval vectors changed");
     assert_eq!(revision, project.revision());
 }
 #[test]
@@ -80,17 +108,17 @@ fn snapshots_outlive_the_project_and_run_concurrently() {
         let board = &project.boards()[0];
         BoardDrcData::extract(&project, board, &board.settings().drc_settings).unwrap()
     };
-    let expected = BoardDesignRuleCheck::run_manufacturing_rules(&data);
+    let expected = all_checks(&data);
     std::thread::scope(|scope| {
-        let a = scope.spawn(|| BoardDesignRuleCheck::run_manufacturing_rules(&data));
-        let b = scope.spawn(|| BoardDesignRuleCheck::run_manufacturing_rules(&data));
+        let a = scope.spawn(|| all_checks(&data));
+        let b = scope.spawn(|| all_checks(&data));
         assert_eq!(a.join().unwrap(), expected);
         assert_eq!(b.join().unwrap(), expected);
     });
 }
 
 #[test]
-fn manufacturing_messages_match_official_cli() {
+fn full_drc_messages_match_official_cli() {
     use librepcb_core::fileio::file_utils;
     use librepcb_core::rule_check::Severity;
     use librepcb_core::serialization::Mode;
@@ -135,18 +163,17 @@ fn manufacturing_messages_match_official_cli() {
             .retain(|n| !matches!(n, SExpression::List(list) if list.name() == "approved"));
         std::fs::write(path, node.to_string_with_mode(Mode::LibrePcb).unwrap()).unwrap();
         let data = BoardDrcData::extract(&project, board, &board.settings().drc_settings).unwrap();
-        for finding in BoardDesignRuleCheck::run_manufacturing_rules(&data)
-            .into_iter()
-            .chain(BoardDesignRuleCheck::run_drill_clearances(&data).unwrap())
-            .chain(BoardDesignRuleCheck::run_outline_rules(&data).unwrap())
-        {
+        for finding in all_checks(&data) {
             let message = finding.rule_message();
             let severity = match message.severity() {
                 Severity::Hint => "HINT",
                 Severity::Warning => "WARNING",
                 Severity::Error => "ERROR",
             };
-            expected.push(format!("[{severity}] {}", message.message()));
+            expected.push(normalize_message(format!(
+                "[{severity}] {}",
+                message.message()
+            )));
         }
     }
     let output = Command::new(cli)
@@ -162,42 +189,138 @@ fn manufacturing_messages_match_official_cli() {
         .unwrap();
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(matches!(output.status.code(), Some(0 | 1)), "{stderr}");
-    let prefixes = [
-        "Missing board outline",
-        "Multiple board outlines",
-        "Non-closed board outline",
-        "Intersecting board outlines",
-        "Cutout outside of board area",
-        "Board outline inner radius",
-        "Clearance drill ↔ drill",
-        "Clearance drill ↔ board outline",
-        "Trace width",
-        "Min. plane width",
-        "Polygon width",
-        "Stroke width",
-        "Circle width",
-        "Text height",
-        "Via drill diameter",
-        "Pad drill diameter",
-        "NPTH drill diameter",
-        "Plated slot width",
-        "NPTH slot width",
-        "Hole is a slot",
-        "Hole is a multi-segment slot",
-        "Ignored thermal spoke width",
-        "Objects on disabled layer",
-        "Unused layer:",
-    ];
     let mut actual: Vec<_> = stderr
         .lines()
         .filter_map(|l| l.trim().strip_prefix("- ["))
         .map(|l| format!("[{l}"))
-        .filter(|l| {
-            l.split_once("] ")
-                .is_some_and(|(_, message)| prefixes.iter().any(|p| message.starts_with(p)))
-        })
         .collect();
+    actual = actual.into_iter().map(normalize_message).collect();
     actual.sort();
     expected.sort();
     assert_eq!(actual, expected, "{stderr}");
+}
+
+fn all_checks(data: &BoardDrcData) -> Vec<librepcb_core::project::board::drc::BoardDrcMessage> {
+    let mut result = BoardDesignRuleCheck::run_manufacturing_rules(data);
+    result.extend(BoardDesignRuleCheck::run_drill_clearances(data).unwrap());
+    result.extend(BoardDesignRuleCheck::run_outline_rules(data).unwrap());
+    result.extend(BoardDesignRuleCheck::run_structural_rules(data).unwrap());
+    result.extend(BoardDesignRuleCheck::run_copper_rules(data).unwrap());
+    result.extend(BoardDesignRuleCheck::run_placement_rules(data).unwrap());
+    result.extend(BoardDesignRuleCheck::run_keepout_rules(data).unwrap());
+    result.extend(BoardDesignRuleCheck::run_cutout_rules(data).unwrap());
+    result
+}
+fn normalize_message(message: String) -> String {
+    // The chosen edges of an equal-weight MST are intentionally different
+    // (COMPAT.md). Compare counts per net here; the fixture test separately
+    // verifies the complete trees, vertices and exact edge weights.
+    if message.contains("Missing connection in")
+        && let Some((prefix, _)) = message.split_once(": ")
+    {
+        return prefix.to_owned();
+    }
+    if message.contains("Clearance on ")
+        && let Some((prefix, objects)) = message.split_once(": ")
+        && let Some((objects, minimum)) = objects.rsplit_once(" < ")
+        && let Some((a, b)) = objects.split_once(" ↔ ")
+    {
+        return format!("{prefix}: {} ↔ {} < {minimum}", a.min(b), a.max(b));
+    }
+    message
+}
+
+fn compare_equivalent_airwire_trees(
+    project: &Project,
+    board: &librepcb_core::project::board::Board,
+    actual: &[SExpression],
+    expected: &[SExpression],
+) {
+    use librepcb_core::project::{ComponentInstanceId, NetSegmentId};
+    use librepcb_core::types::{Point, Uuid};
+    use std::collections::BTreeMap;
+    assert!(
+        board.planes().is_empty(),
+        "this reference fixture has no plane-connected components"
+    );
+    let positions = |node: &SExpression| -> Vec<Point> {
+        if let Ok(uuid) = node.child_value::<Uuid>("netsegment/@0") {
+            let segment = &board.net_segments()[&NetSegmentId(uuid)];
+            segment
+                .junctions()
+                .values()
+                .map(|j| j.position())
+                .chain(segment.vias().values().map(|v| v.position()))
+                .chain(segment.pads().values().map(|p| p.pad().position()))
+                .collect()
+        } else {
+            let device = ComponentInstanceId(node.child_value::<Uuid>("device/@0").unwrap());
+            let pad = node.child_value::<Uuid>("pad/@0").unwrap();
+            assert!(board.footprint_pad_segment(device, pad).is_none());
+            vec![
+                board.devices()[&device]
+                    .pad(&pad, project.library(), project.circuit())
+                    .unwrap()
+                    .unwrap()
+                    .position(),
+            ]
+        }
+    };
+    let decode = |approvals: &[SExpression]| {
+        let mut edges = Vec::new();
+        let mut vertices = BTreeSet::new();
+        let mut weights = Vec::new();
+        for approval in approvals {
+            let a = approval.required_child("from").unwrap();
+            let b = approval.required_child("to").unwrap();
+            let weight = positions(a)
+                .iter()
+                .flat_map(|p| {
+                    positions(b).into_iter().map(move |q| {
+                        let dx = i128::from(p.x.to_nm()) - i128::from(q.x.to_nm());
+                        let dy = i128::from(p.y.to_nm()) - i128::from(q.y.to_nm());
+                        dx * dx + dy * dy
+                    })
+                })
+                .min()
+                .unwrap();
+            let key = |node: &SExpression| {
+                let SExpression::List(mut n) = node.clone() else {
+                    panic!("anchor is list")
+                };
+                n.set_name("anchor");
+                SExpression::List(n)
+            };
+            let a = key(a);
+            let b = key(b);
+            vertices.insert(a.clone());
+            vertices.insert(b.clone());
+            edges.push((a, b));
+            weights.push(weight);
+        }
+        let indices: BTreeMap<_, _> = vertices
+            .iter()
+            .enumerate()
+            .map(|(i, n)| (n.clone(), i))
+            .collect();
+        let mut union = petgraph::unionfind::UnionFind::<usize>::new(indices.len());
+        for (a, b) in edges {
+            assert!(
+                union.union(indices[&a], indices[&b]),
+                "airwire graph has a cycle"
+            );
+        }
+        assert_eq!(
+            approvals.len() + 1,
+            vertices.len(),
+            "airwire graph is not a spanning tree"
+        );
+        weights.sort();
+        (vertices, weights)
+    };
+    assert_eq!(
+        decode(actual),
+        decode(expected),
+        "alternative airwire trees must span the same anchors with the same weights"
+    );
 }

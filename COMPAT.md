@@ -425,12 +425,15 @@ differ between platforms/implementations:
 
 ## project/board
 
-- DRC manufacturing rules operate synchronously on an owned snapshot,
+- DRC rule groups operate synchronously on an owned snapshot,
   without Qt worker lifecycle callbacks or model changes. Findings are
   deterministic in snapshot order; callers must not depend on the ordering
   of upstream's concurrently scheduled checks. Approval tokens, UUID fields,
-  formatting and severities are unchanged. The explicitly partial
-  `run_manufacturing_rules` entry point excludes unported DRC checks.
+  formatting and severities are unchanged, except for the already documented
+  equal-length airwire choices. Extraction rebuilds planes and air wires in a
+  private copy instead of applying derived geometry to the live board.
+  The source rules which ignore footprint circle centers during cutout
+  checking and leave `%2` in invalid-pad-connection titles are retained.
 
 - Gerber/Excellon board exports return expanded output names and contents
   instead of writing files or removing obsolete outputs. Relative names are

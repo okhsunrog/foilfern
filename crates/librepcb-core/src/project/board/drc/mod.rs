@@ -1,19 +1,28 @@
 //! Port of libs/librepcb/core/project/board/drc (board design rule checks).
 //!
-//! Manufacturing checks run synchronously on owned, thread-safe snapshots.
-//! Rule predicates and approvals follow the upstream source; geometry uses
-//! the existing core path operations. Clearance/connectivity checks remain
-//! unported, so the partial entry point is explicitly named accordingly.
+//! Rule groups run synchronously on owned, thread-safe snapshots. Geometry,
+//! messages and approvals follow the upstream source; the existing native
+//! path/Clipper implementations preserve file-relevant geometric decisions.
 
+mod copper_clearances;
+mod copper_messages;
+mod cutouts;
 mod data;
 mod drill_clearances;
+mod keepout;
 mod manufacturing;
 mod messages;
 mod outline_rules;
+mod paths;
+mod physical_data;
+mod placement;
+mod structural;
 mod widths;
 
 pub use data::BoardDrcData;
-pub use messages::{BoardDrcMessage, DrcHoleRef, DrcMessageKind, DrcObjectRef};
+pub use messages::{
+    BoardDrcMessage, DrcCopperRef, DrcHoleRef, DrcMessageKind, DrcObjectRef, DrcPadRef,
+};
 
 /// Board rule checker, independent of editor state and worker scheduling.
 #[derive(Debug, Clone, Copy)]

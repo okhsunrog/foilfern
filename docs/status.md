@@ -81,25 +81,19 @@ Done, in `crates/librepcb-core` unless noted:
   nanometer placement after whitespace. Exporters return named file contents;
   output jobs will own writing and obsolete-file cleanup.
 
-- **DRC manufacturing rules** (2026-11-01): owned `BoardDrcData` snapshots,
-  typed hole/finding identities, round drill diameters, slot widths and
-  allowed shapes, thermal spoke settings, disabled/unused copper layers.
-  Also checks minimum copper/silkscreen widths and board silkscreen text
-  height, including net-class limits and filled-shape export semantics.
-  Drill-to-drill and drill-to-board/cutout clearances use the upstream
-  5um tolerance and canonical nested drill approvals.
-  Outline closure/counts, intersecting outlines, outside cutouts and minimum
-  inner milling radius are also checked.
-  Matches all 47 applicable approvals in the upstream DRC fixture and the
-  official CLI's message text/severity. Boundary, slot-policy, net-class and
-  concurrent snapshot tests pass. The entry point is deliberately named
-  `run_manufacturing_rules`: it does not perform a full DRC yet.
+- **DRC rules** (2026-11-06): all upstream manufacturing, width/text,
+  clearance, annular-ring, keepout, outline/cutout, via, device-overlap,
+  connectivity and stale-object checks operate on owned `BoardDrcData`.
+  Full fixture coverage includes 222 reference findings and official CLI
+  text/severity comparisons. Missing-connection ties use equivalent spanning
+  trees: tests verify identical anchors and edge weights (see `COMPAT.md`).
+  Other approval nodes match byte for byte. Extraction rebuilds planes and
+  air wires in a private copy and leaves the project untouched.
 
 ## Next steps
 
-1. **Wave 3c:** finish DRC: annular rings, copper clearances, keepouts, plated cutouts,
-   via validity, device overlaps, connectivity and stale objects. Extend the
-   owned snapshot and compare the remaining upstream DRC approvals.
+1. **Wave 3c:** finish the DRC execution API, quick mode, progress/cancellation
+   and approval cleanup lifecycle; the rule groups themselves are ported.
 2. **Wave 4:** the `job` module (output jobs, which also fixes the pending
    `jobs.lp` round trip), the output job runner and the CLI. Acceptance:
    upstream `tests/cli` (pytest, run with `uv`) passing against our CLI,

@@ -1,6 +1,6 @@
 //! Port of libs/librepcb/core/project/board/drc/boarddesignrulecheckdata.{h,cpp}.
 //!
-//! Owned input for the currently ported manufacturing checks. Library and
+//! Owned input for board design rule checks. Library and
 //! project references are resolved while extracting, before a caller moves
 //! the snapshot to a worker thread.
 
@@ -15,8 +15,8 @@ use std::collections::BTreeSet;
 
 /// Immutable, self-contained input to board rule checks.
 ///
-/// Captures drill/slot, width/text, plane-configuration and layer-use inputs.
-/// Clearance, connectivity and outline checks are not implemented yet.
+/// Captures manufacturing, geometry and connectivity inputs. Planes and air
+/// wires are rebuilt in a private board copy, without changing the project.
 #[derive(Debug, Clone)]
 pub struct BoardDrcData {
     pub(super) board: BoardId,
@@ -26,8 +26,10 @@ pub struct BoardDrcData {
     pub(super) copper_layers: BTreeSet<Layer>,
     pub(super) used_layers: BTreeSet<Layer>,
     pub(super) widths: Vec<WidthObject>,
+    pub(super) physical: super::physical_data::PhysicalData,
     pub(super) outlines: Vec<(DrcObjectRef, Layer, Path)>,
     pub(super) silkscreen_layers: BTreeSet<Layer>,
+    pub(super) silkscreen_sides: [Vec<Layer>; 2],
 }
 static_assertions::assert_impl_all!(BoardDrcData: Send, Sync);
 
@@ -68,7 +70,12 @@ impl BoardDrcData {
             copper_layers: board.copper_layers(),
             used_layers: BTreeSet::from([Layer::TOP_COPPER, Layer::BOT_COPPER]),
             widths: Vec::new(),
+            physical: Default::default(),
             outlines: Vec::new(),
+            silkscreen_sides: [
+                board.settings().silkscreen_layers_top.clone(),
+                board.settings().silkscreen_layers_bot.clone(),
+            ],
             silkscreen_layers: board
                 .settings()
                 .silkscreen_layers_top
@@ -250,6 +257,7 @@ impl BoardDrcData {
                 ));
             }
         }
+        data.physical = super::physical_data::PhysicalData::collect(project, board, settings)?;
         Ok(data)
     }
     /// Board this snapshot belongs to.

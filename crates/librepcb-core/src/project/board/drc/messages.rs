@@ -4,7 +4,7 @@
 //! field order and line breaks, since projects persist these exact values.
 
 use super::data::Hole;
-use crate::geometry::Path;
+use crate::geometry::{Path, TraceAnchor};
 use crate::project::{BoardId, ComponentInstanceId, NetSegmentId, PlaneId};
 use crate::rule_check::{RuleCheckMessage, Severity};
 use crate::serialization::List;
@@ -66,6 +66,81 @@ impl DrcHoleRef {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DrcMessageKind {
+    /// Two package bodies overlap.
+    OverlappingDevices([ComponentInstanceId; 2]),
+    /// Package body intrudes into another package's courtyard.
+    DeviceInCourtyard([ComponentInstanceId; 2]),
+    /// Silkscreen text too close to solder mask or board edge.
+    SilkscreenClearance {
+        object: DrcObjectRef,
+        minimum: UnsignedLength,
+    },
+    /// Zone has no enabled layer or rule.
+    UselessZone(Uuid),
+    /// Copper or mask geometry violates a keepout zone.
+    Keepout {
+        zone: Uuid,
+        zone_device: Option<ComponentInstanceId>,
+        object: DrcCopperRef,
+        exposure: bool,
+    },
+    /// Package body violates a keepout zone.
+    DeviceKeepout {
+        zone: Uuid,
+        zone_device: Option<ComponentInstanceId>,
+        device: ComponentInstanceId,
+    },
+    /// Non-plated cutout touches outer copper.
+    NonPlatedCutoutWithCopper(DrcObjectRef),
+    /// Plated cutout lacks copper along its edge.
+    PlatedCutoutWithoutCopper(DrcObjectRef),
+    /// Plated cutouts are present (experimental upstream manufacturing feature).
+    PlatedCutouts,
+    /// Copper items of different nets violate a clearance.
+    CopperClearance {
+        objects: [DrcCopperRef; 2],
+        layers: std::collections::BTreeSet<Layer>,
+        minimum: UnsignedLength,
+    },
+    /// Copper is too close to a board edge.
+    CopperBoardClearance {
+        object: DrcCopperRef,
+        minimum: UnsignedLength,
+    },
+    /// Non-plated hole is too close to copper.
+    CopperHoleClearance {
+        hole: DrcHoleRef,
+        minimum: UnsignedLength,
+    },
+    /// Insufficient copper around a plated hole.
+    AnnularRing {
+        object: DrcCopperRef,
+        minimum: UnsignedLength,
+    },
+    /// Schematic component missing from the board.
+    MissingDevice(ComponentInstanceId),
+    /// Disconnected board anchors of the same net.
+    MissingConnection([TraceAnchor; 2]),
+    /// Connected component signal not exposed by the footprint.
+    ImpossibleConnection {
+        device: ComponentInstanceId,
+        signal: Uuid,
+    },
+    /// Net segment without items.
+    EmptyNetSegment(NetSegmentId),
+    /// Junction without traces.
+    UnconnectedJunction {
+        segment: NetSegmentId,
+        junction: Uuid,
+    },
+    /// Board policy forbids the via type.
+    ForbiddenVia(DrcCopperRef),
+    /// Via has no physical drilling span.
+    InvalidVia(DrcCopperRef),
+    /// Via connects fewer than two copper layers.
+    UselessVia(DrcCopperRef),
+    /// Trace anchor is outside a pad's filled outline.
+    InvalidPadConnection { pad: DrcPadRef, layer: Layer },
     /// No closed outline exists.
     MissingBoardOutline,
     /// More than one independent outline exists.
@@ -382,5 +457,100 @@ impl DrcObjectRef {
             node.append_child(name, &id);
         }
         node.ensure_line_break();
+    }
+}
+
+impl DrcObjectRef {
+    pub(super) fn device(self) -> Option<ComponentInstanceId> {
+        match self {
+            Self::Polygon { device, .. } | Self::StrokeText { device, .. } => device,
+            Self::Circle { device, .. } => Some(device),
+            _ => None,
+        }
+    }
+}
+/// Identity of a standalone or footprint copper pad.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DrcPadRef {
+    /// Pad of a board net segment.
+    Board { segment: NetSegmentId, pad: Uuid },
+    /// Pad of a placed footprint.
+    Footprint {
+        device: ComponentInstanceId,
+        pad: Uuid,
+    },
+}
+impl DrcPadRef {
+    pub(super) fn device(self) -> Option<ComponentInstanceId> {
+        match self {
+            Self::Footprint { device, .. } => Some(device),
+            _ => None,
+        }
+    }
+    pub(super) fn serialize(self, node: &mut List) {
+        match self {
+            Self::Board { segment, pad } => {
+                node.ensure_line_break();
+                node.append_child("netsegment", &segment.0);
+                node.ensure_line_break();
+                node.append_child("pad", &pad);
+            }
+            Self::Footprint { device, pad } => {
+                node.ensure_line_break();
+                node.append_child("device", &device.0);
+                node.ensure_line_break();
+                node.append_child("pad", &pad);
+            }
+        }
+        node.ensure_line_break();
+    }
+}
+/// Identity of an item producing copper.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DrcCopperRef {
+    /// Pad copper, possibly on multiple layers.
+    Pad(DrcPadRef),
+    /// Via copper between its logical endpoints.
+    Via { segment: NetSegmentId, via: Uuid },
+    /// Graphics, trace or plane.
+    Graphic(DrcObjectRef),
+}
+impl DrcCopperRef {
+    pub(super) fn serialize(self, node: &mut List, compact: bool) {
+        match self {
+            Self::Pad(pad) => pad.serialize(node),
+            Self::Via { segment, via } => {
+                node.ensure_line_break();
+                node.append_child("netsegment", &segment.0);
+                node.ensure_line_break();
+                node.append_child("via", &via);
+                node.ensure_line_break();
+            }
+            Self::Graphic(reference) => {
+                if compact {
+                    match reference {
+                        DrcObjectRef::Plane(id) => {
+                            node.append_child("plane", &id.0);
+                            return;
+                        }
+                        DrcObjectRef::Polygon {
+                            device: None,
+                            polygon,
+                        } => {
+                            node.append_child("polygon", &polygon);
+                            return;
+                        }
+                        DrcObjectRef::StrokeText { device: None, text } => {
+                            node.append_child("stroke_text", &text);
+                            return;
+                        }
+                        _ => {}
+                    }
+                }
+                reference.serialize(node);
+            }
+        }
     }
 }

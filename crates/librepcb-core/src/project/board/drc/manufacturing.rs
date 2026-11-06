@@ -185,8 +185,10 @@ mod tests {
             planes: Vec::new(),
             used_layers: Default::default(),
             widths: Vec::new(),
+            physical: Default::default(),
             outlines: Vec::new(),
             silkscreen_layers: Default::default(),
+            silkscreen_sides: Default::default(),
             copper_layers: Default::default(),
         }
     }
