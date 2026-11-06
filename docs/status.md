@@ -7,7 +7,7 @@ covers where things stand and how the work has been organized.
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 995 tests report success (about 99k lines
+The workspace builds cleanly and 1001 tests report success (about 100k lines
 of Rust). The latest local run used the official CLI 2.1.1 as the oracle,
 including ERC messages, migrations and byte-identical JSON exports over
 the pinned upstream test data.
@@ -107,11 +107,22 @@ Done, in `crates/librepcb-core` unless noted:
   Upstream security/rebuild test cases and official CLI output comparisons
   pass. Graphics, interactive BOM and 3D execution remain deferred.
 
+- **Native CLI core** (2026-11-06): `crates/librepcb-cli` opens `.lpp`/`.lppz`
+  projects and libraries, runs ERC/DRC and library checks, executes output
+  jobs, exports manufacturing/assembly/BOM/netlist files, selects boards and
+  variants, removes boards and changes the default variant through mutations,
+  checks canonical files and saves/migrates transactionally. Runs without a
+  display server. `scripts/check-cli-core.sh` passes 115 unmodified upstream
+  pytest cases. The full suite reports 115 passed / 63 failed: rendering,
+  STEP and Qt parser/help/version snapshots remain pending. M1 is not complete.
+
 ## Next steps
 
-1. **Wave 4:** the CLI. Acceptance:
-   upstream `tests/cli` (pytest, run with `uv`) passing against our CLI,
-   plus output diffs against the official `librepcb-cli`.
+1. **Wave 4 acceptance:** close the remaining CLI differences. Graphics
+   exporters/painters and STEP currently belong to later milestones; decide
+   their scope against the full upstream `tests/cli` acceptance requirement.
+   Parser/help/version snapshots need a native-parser acceptance policy.
+   Keep running the implemented paths with `scripts/check-cli-core.sh`.
 2. **Then M1.5** (MCP, library manager, Specctra) per `roadmap.md` and the
    decisions in `mcp-research-konnect.md`.
 

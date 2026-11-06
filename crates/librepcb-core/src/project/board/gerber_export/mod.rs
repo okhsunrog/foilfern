@@ -228,6 +228,56 @@ impl<'a> BoardGerberExport<'a> {
         Ok(files)
     }
 
+    /// Disabled drill/mask/legend/paste outputs which a direct export should
+    /// remove. The caller must exclude paths written by this export, since
+    /// suffixes can coincide. Indexed output jobs use their ownership index
+    /// instead of this legacy cleanup, matching upstream.
+    pub fn disabled_pcb_output_paths(
+        &self,
+        settings: &BoardFabricationOutputSettings,
+    ) -> Result<Vec<String>> {
+        let board = self.board.settings();
+        let disabled = [
+            (!settings.merge_drill_files, &settings.suffix_drills),
+            (settings.merge_drill_files, &settings.suffix_drills_npth),
+            (settings.merge_drill_files, &settings.suffix_drills_pth),
+            (
+                board.solder_resist.is_none(),
+                &settings.suffix_solder_mask_top,
+            ),
+            (
+                board.solder_resist.is_none(),
+                &settings.suffix_solder_mask_bot,
+            ),
+            (
+                board.silkscreen_layers_top.is_empty(),
+                &settings.suffix_silkscreen_top,
+            ),
+            (
+                board.silkscreen_layers_bot.is_empty(),
+                &settings.suffix_silkscreen_bot,
+            ),
+            (
+                !settings.enable_solder_paste_top,
+                &settings.suffix_solder_paste_top,
+            ),
+            (
+                !settings.enable_solder_paste_bot,
+                &settings.suffix_solder_paste_bot,
+            ),
+        ];
+        disabled
+            .into_iter()
+            .filter(|(disabled, _)| *disabled)
+            .map(|(_, suffix)| {
+                self.output_path(
+                    &format!("{}{suffix}", settings.output_base_path),
+                    &FileContext::default(),
+                )
+            })
+            .collect()
+    }
+
     /// Generates assembly-variant-filtered glue for one side.
     pub fn generate_glue_layer(
         &self,

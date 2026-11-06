@@ -36,8 +36,8 @@ Every intentional behavior difference from upstream is listed in
 
 ## Status
 
-Early. There is no application or CLI yet; the work so far is the core
-library that everything else builds on.
+The native CLI can open projects and libraries, run checks and export
+manufacturing data. The graphical application is still planned.
 
 | Area | State |
 |---|---|
@@ -49,7 +49,8 @@ library that everything else builds on.
 | Gerber, Excellon, IPC-D-356A, BOM, pick & place generators | done |
 | File format migrations (v0.1 → v1 → v2) | done |
 | Project model: circuit, schematics, boards (with undoable mutations and a change journal) | done |
-| Plane fragments, DRC, ERC, output jobs, CLI | next |
+| Plane fragments, DRC, ERC, output job model and manufacturing runner | done |
+| Native CLI | core commands available; rendering/STEP and full upstream acceptance pending |
 | MCP server, library manager, Specctra export for autorouting | planned |
 | Slint viewer and editor | planned (a rendering canvas already exists) |
 
@@ -60,6 +61,7 @@ See [docs/roadmap.md](docs/roadmap.md) for the milestones and
 
 | Path | Contents |
 |---|---|
+| `crates/librepcb-cli` | Native command-line interface, without a display server |
 | `crates/librepcb-core` | The domain model: types, serialization, geometry, libraries, project model, exports |
 | `crates/librepcb-i18n` | Translations for strings from Rust code, using the upstream catalogs |
 | `crates/librepcb-network` | Async networking (downloads, LibrePCB API) |
@@ -108,6 +110,25 @@ cargo clippy --workspace --all-targets -- -D warnings
 The file format migration test compares against the upstream command line
 tool (same file format version), taken from `LIBREPCB_CLI` or `librepcb-cli`
 on the `PATH`; without it, that comparison is skipped.
+
+To use the native CLI:
+
+```sh
+cargo run -p librepcb-cli -- open-project --erc --drc path/to/project.lpp
+cargo run -p librepcb-cli -- open-project --run-job "Gerber/Excellon" path/to/project.lpp
+cargo run -p librepcb-cli -- open-library --all --check path/to/library.lplib
+```
+
+Opening and checking do not save changes. Pass `--save` to persist edits or
+file format upgrades. Both `.lpp` and `.lppz` projects are supported.
+Run `scripts/check-cli-core.sh -q` for the unmodified upstream tests of the
+implemented commands. Set `LIBREPCB_CLI` to the **official** executable when
+running the Rust tests against the upstream oracle, since both binaries
+are named `librepcb-cli`.
+
+The complete upstream CLI suite is not passing yet: graphics/STEP commands
+are deferred, and help, version and parse-error text follows clap instead
+of Qt. See `COMPAT.md` and `docs/status.md` for the exact boundary.
 
 To see the canvas demo:
 

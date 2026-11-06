@@ -48,6 +48,28 @@ pub(super) fn add_assembly_variant(
     Ok(Mutation::RemoveAssemblyVariant(id))
 }
 
+pub(super) fn move_assembly_variant(
+    p: &mut Project,
+    variant: AssemblyVariantId,
+    index: usize,
+) -> Result<Mutation> {
+    let variants = &mut p.circuit.assembly_variants;
+    let old = variants.index_of_uuid(&variant.0).ok_or(Error::NotFound {
+        kind: EntityKind::AssemblyVariant,
+        uuid: variant.0,
+    })?;
+    let new = index.min(variants.len() - 1);
+    if old != new {
+        let value = variants.take(old).expect("index was resolved above");
+        variants.insert(new, value);
+        p.record(Change::AssemblyVariantOrder);
+    }
+    Ok(Mutation::MoveAssemblyVariant {
+        variant,
+        index: old,
+    })
+}
+
 pub(super) fn remove_assembly_variant(p: &mut Project, id: AssemblyVariantId) -> Result<Mutation> {
     let variants = &p.circuit.assembly_variants;
     let index = variants.index_of_uuid(&id.0).ok_or(Error::NotFound {

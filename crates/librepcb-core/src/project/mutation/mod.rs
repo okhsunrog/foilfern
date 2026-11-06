@@ -78,6 +78,11 @@ pub enum Mutation {
         /// Position in the list.
         index: Option<usize>,
     },
+    /// Moves an assembly variant to a new position (zero is the default).
+    MoveAssemblyVariant {
+        variant: AssemblyVariantId,
+        index: usize,
+    },
     /// Removes an assembly variant (not the last one).
     RemoveAssemblyVariant(AssemblyVariantId),
     /// Replaces name and description of an assembly variant.
@@ -168,6 +173,9 @@ impl Project {
             }
             Mutation::AddAssemblyVariant { variant, index } => {
                 circuit::add_assembly_variant(self, variant, index)
+            }
+            Mutation::MoveAssemblyVariant { variant, index } => {
+                circuit::move_assembly_variant(self, variant, index)
             }
             Mutation::RemoveAssemblyVariant(id) => circuit::remove_assembly_variant(self, id),
             Mutation::UpdateAssemblyVariant(v) => circuit::update_assembly_variant(self, v),

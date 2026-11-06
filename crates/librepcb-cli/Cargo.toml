@@ -1,0 +1,17 @@
+[package]
+name = "librepcb-cli"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+clap = { version = "4.6.7", features = ["derive", "string"] }
+librepcb-core = { version = "0.1.0", path = "../librepcb-core" }
+librepcb-i18n = { version = "0.1.0", path = "../librepcb-i18n" }
+thiserror = "2.0.21"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"

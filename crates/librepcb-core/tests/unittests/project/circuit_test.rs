@@ -504,3 +504,56 @@ fn journal() {
     );
     assert_eq!(p.changes_since(p.revision()), ChangesSince::Changes(&[]));
 }
+
+#[test]
+fn assembly_variant_order_is_journaled_and_reversible() {
+    let mut project = new_project();
+    let first = AssemblyVariantId(project.circuit().assembly_variants()[0].uuid());
+    let variant =
+        AssemblyVariant::new(Uuid::new_random(), FileProofName::new("Other").unwrap(), "");
+    let other = AssemblyVariantId(variant.uuid());
+    project.add_assembly_variant(variant, None).unwrap();
+    assert_inverse(
+        &mut project,
+        Mutation::MoveAssemblyVariant {
+            variant: other,
+            index: 0,
+        },
+    );
+    let before = project.revision();
+    let inverse = project
+        .apply(Mutation::MoveAssemblyVariant {
+            variant: other,
+            index: 0,
+        })
+        .unwrap();
+    assert_eq!(
+        project.circuit().assembly_variants().uuids(),
+        vec![other.0, first.0]
+    );
+    assert!(matches!(
+        project.changes_since(before),
+        ChangesSince::Changes([Change::AssemblyVariantOrder])
+    ));
+    project.apply(inverse).unwrap();
+    assert_eq!(
+        project.circuit().assembly_variants().uuids(),
+        vec![first.0, other.0]
+    );
+    let before = project.revision();
+    project
+        .apply(Mutation::MoveAssemblyVariant {
+            variant: first,
+            index: 0,
+        })
+        .unwrap();
+    assert_eq!(project.revision(), before);
+    assert!(
+        project
+            .apply(Mutation::MoveAssemblyVariant {
+                variant: AssemblyVariantId::new_random(),
+                index: 0
+            })
+            .is_err()
+    );
+}

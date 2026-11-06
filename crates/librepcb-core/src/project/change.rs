@@ -40,6 +40,8 @@ pub enum Change {
     ErcApprovals,
     /// An assembly variant was added.
     AssemblyVariantAdded(AssemblyVariantId),
+    /// The assembly variant order (including the default variant) changed.
+    AssemblyVariantOrder,
     /// An assembly variant was removed.
     AssemblyVariantRemoved(AssemblyVariantId),
     /// Name or description of an assembly variant changed.

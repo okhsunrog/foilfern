@@ -511,3 +511,20 @@ differ between platforms/implementations:
   Rendering/3D/interactive BOM jobs fail explicitly until their milestone.
   ZIP timestamps/compression follow the existing Rust ZIP implementation;
   archive contents and output filenames are compatible.
+
+## cli
+
+- The native CLI uses clap instead of Qt's argument parser. Help layout,
+  parser diagnostics and parser-error exit codes follow clap. Version output
+  reports this Rust package's version, without fictitious Qt/OpenCascade
+  versions. Application messages still use the upstream translation context.
+- Implemented commands are `open-project`, `open-library`, `open-symbol` and
+  `open-package`; symbol/package commands currently support checks only.
+  Graphics exports, STEP/minification and rendering-dependent jobs remain
+  deferred and are reported as unsupported. The 115 upstream tests of the
+  implemented command paths pass unchanged; the full 178-test suite still
+  has 63 failures in these deferred features and parser/help/version text.
+- Saving `.lppz` builds the updated archive in memory, then writes it
+  atomically through the existing file utility. A failed archive export
+  therefore retains the original file. The project root is isolated from
+  sibling files before loading ZIP contents, like upstream.

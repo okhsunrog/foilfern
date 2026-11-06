@@ -13,7 +13,9 @@ diffing outputs against the official `librepcb-cli`.
 - Wave 3b (complete): schematic items, board items, file format migrations.
 - Wave 3c (complete): board export data and plane fragments, DRC, ERC + BOM + project
   attribute lookup.
-- Wave 4: output jobs and the CLI.
+- Wave 4 (in progress): output job model and manufacturing runner complete;
+  native CLI core available (115 upstream cases pass). Full acceptance still
+  needs rendering/STEP command coverage and parser/help/version expectations.
 
 ## M1.5 — AI track (MCP)
 
