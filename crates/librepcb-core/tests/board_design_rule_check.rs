@@ -19,7 +19,9 @@ fn load(name: &str) -> Project {
 fn included(node: &SExpression, board: &str) -> bool {
     let kind: String = node.child_value("@0").unwrap();
     match kind.as_str() {
-        "minimum_drill_diameter_violation"
+        "minimum_width_violation"
+        | "minimum_text_height_violation"
+        | "minimum_drill_diameter_violation"
         | "minimum_slot_width_violation"
         | "forbidden_slot"
         | "plane_thermal_spoke_width_ignored"
@@ -58,7 +60,7 @@ fn manufacturing_messages_match_upstream_approvals() {
         assert_eq!(actual, expected, "{}", board.name());
         total += actual.len();
     }
-    assert_eq!(total, 15, "upstream manufacturing approval vectors changed");
+    assert_eq!(total, 24, "upstream DRC approval vectors changed");
     assert_eq!(revision, project.revision());
 }
 #[test]
@@ -147,6 +149,12 @@ fn manufacturing_messages_match_official_cli() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(matches!(output.status.code(), Some(0 | 1)), "{stderr}");
     let prefixes = [
+        "Trace width",
+        "Min. plane width",
+        "Polygon width",
+        "Stroke width",
+        "Circle width",
+        "Text height",
         "Via drill diameter",
         "Pad drill diameter",
         "NPTH drill diameter",

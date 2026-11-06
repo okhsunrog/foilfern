@@ -8,9 +8,10 @@
 mod data;
 mod manufacturing;
 mod messages;
+mod widths;
 
 pub use data::BoardDrcData;
-pub use messages::{BoardDrcMessage, DrcHoleRef, DrcMessageKind};
+pub use messages::{BoardDrcMessage, DrcHoleRef, DrcMessageKind, DrcObjectRef};
 
 /// Board rule checker, independent of editor state and worker scheduling.
 #[derive(Debug, Clone, Copy)]

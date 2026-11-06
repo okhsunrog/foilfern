@@ -15,7 +15,7 @@ impl BoardDesignRuleCheck {
     /// slot widths/shapes, thermal spoke settings and copper layer use.
     ///
     /// This is not a full DRC. In particular, no clearance, connectivity,
-    /// minimum copper width or board outline checks are performed here.
+    /// board outline checks are performed here. Width and text rules are included.
     pub fn run_manufacturing_rules(data: &BoardDrcData) -> Vec<BoardDrcMessage> {
         let mut result = Vec::new();
         let mut add = |(kind, rule)| {
@@ -145,6 +145,7 @@ impl BoardDesignRuleCheck {
             approval.ensure_line_break();
             add((DrcMessageKind::UnusedLayer(layer), rule));
         }
+        result.extend(super::widths::check(data));
         result
     }
 }
@@ -183,6 +184,8 @@ mod tests {
             }],
             planes: Vec::new(),
             used_layers: Default::default(),
+            widths: Vec::new(),
+            silkscreen_layers: Default::default(),
             copper_layers: Default::default(),
         }
     }

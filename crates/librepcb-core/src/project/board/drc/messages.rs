@@ -66,6 +66,16 @@ impl DrcHoleRef {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DrcMessageKind {
+    /// Stroke or configured minimum width below a manufacturing limit.
+    MinimumWidth {
+        object: DrcObjectRef,
+        minimum: UnsignedLength,
+    },
+    /// Board silkscreen text smaller than the configured height.
+    MinimumTextHeight {
+        object: DrcObjectRef,
+        minimum: UnsignedLength,
+    },
     /// Round drill smaller than the manufacturing limit.
     MinimumDrillDiameter {
         hole: DrcHoleRef,
@@ -302,4 +312,53 @@ pub(super) fn forbidden_slot(
     );
     hole.reference.serialize(rule.approval_mut());
     (DrcMessageKind::ForbiddenSlot(hole.reference), rule)
+}
+
+/// Identity of board graphics, used in findings and persisted approvals.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DrcObjectRef {
+    /// Board or footprint polygon.
+    Polygon {
+        device: Option<ComponentInstanceId>,
+        polygon: Uuid,
+    },
+    /// Instance stroke text, whose placement is independent of the device.
+    StrokeText {
+        device: Option<ComponentInstanceId>,
+        text: Uuid,
+    },
+    /// Footprint circle.
+    Circle {
+        device: ComponentInstanceId,
+        circle: Uuid,
+    },
+    /// Net segment trace.
+    Trace { segment: NetSegmentId, trace: Uuid },
+    /// Copper plane.
+    Plane(PlaneId),
+}
+impl DrcObjectRef {
+    pub(super) fn serialize(self, node: &mut List) {
+        let fields = match self {
+            Self::Polygon { device, polygon } => device
+                .map(|d| ("device", d.0))
+                .into_iter()
+                .chain([("polygon", polygon)])
+                .collect::<Vec<_>>(),
+            Self::StrokeText { device, text } => device
+                .map(|d| ("device", d.0))
+                .into_iter()
+                .chain([("stroke_text", text)])
+                .collect(),
+            Self::Circle { device, circle } => vec![("device", device.0), ("circle", circle)],
+            Self::Trace { segment, trace } => vec![("netsegment", segment.0), ("trace", trace)],
+            Self::Plane(id) => vec![("plane", id.0)],
+        };
+        for (name, id) in fields {
+            node.ensure_line_break();
+            node.append_child(name, &id);
+        }
+        node.ensure_line_break();
+    }
 }

@@ -1,6 +1,6 @@
 # Status and handoff
 
-State of the port as of 2026-11-01, for continuing the work in a new
+State of the port as of 2026-11-06, for continuing the work in a new
 session (for example a cloud session). Read `AGENTS.md` first; this file
 covers where things stand and how the work has been organized.
 
@@ -84,15 +84,16 @@ Done, in `crates/librepcb-core` unless noted:
 - **DRC manufacturing rules** (2026-11-01): owned `BoardDrcData` snapshots,
   typed hole/finding identities, round drill diameters, slot widths and
   allowed shapes, thermal spoke settings, disabled/unused copper layers.
-  Matches all 15 applicable approvals in the upstream DRC fixture and the
+  Also checks minimum copper/silkscreen widths and board silkscreen text
+  height, including net-class limits and filled-shape export semantics.
+  Matches all 24 applicable approvals in the upstream DRC fixture and the
   official CLI's message text/severity. Boundary, slot-policy, net-class and
   concurrent snapshot tests pass. The entry point is deliberately named
   `run_manufacturing_rules`: it does not perform a full DRC yet.
 
 ## Next steps
 
-1. **Wave 3c:** finish DRC: minimum copper/silkscreen widths and text
-   height, annular rings, clearances, keepouts, board outlines/cutouts,
+1. **Wave 3c:** finish DRC: annular rings, clearances, keepouts, board outlines/cutouts,
    via validity, device overlaps, connectivity and stale objects. Extend the
    owned snapshot and compare the remaining upstream DRC approvals.
 2. **Wave 4:** the `job` module (output jobs, which also fixes the pending
