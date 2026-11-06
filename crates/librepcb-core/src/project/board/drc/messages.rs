@@ -66,6 +66,18 @@ impl DrcHoleRef {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DrcMessageKind {
+    /// No closed outline exists.
+    MissingBoardOutline,
+    /// More than one independent outline exists.
+    MultipleBoardOutlines,
+    /// An edge polygon is not closed.
+    OpenBoardOutline(DrcObjectRef),
+    /// Two outline polygons overlap.
+    IntersectingBoardOutlines([DrcObjectRef; 2]),
+    /// A cutout extends outside the PCB.
+    CutoutOutsideBoardArea(DrcObjectRef),
+    /// Tool radius exceeds an internal board edge radius.
+    MinimumBoardInnerRadius(UnsignedLength),
     /// Clearance between two drills below the configured minimum.
     DrillClearance {
         holes: [DrcHoleRef; 2],

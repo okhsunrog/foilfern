@@ -88,14 +88,16 @@ Done, in `crates/librepcb-core` unless noted:
   height, including net-class limits and filled-shape export semantics.
   Drill-to-drill and drill-to-board/cutout clearances use the upstream
   5um tolerance and canonical nested drill approvals.
-  Matches all 36 applicable approvals in the upstream DRC fixture and the
+  Outline closure/counts, intersecting outlines, outside cutouts and minimum
+  inner milling radius are also checked.
+  Matches all 47 applicable approvals in the upstream DRC fixture and the
   official CLI's message text/severity. Boundary, slot-policy, net-class and
   concurrent snapshot tests pass. The entry point is deliberately named
   `run_manufacturing_rules`: it does not perform a full DRC yet.
 
 ## Next steps
 
-1. **Wave 3c:** finish DRC: annular rings, clearances, keepouts, board outlines/cutouts,
+1. **Wave 3c:** finish DRC: annular rings, copper clearances, keepouts, plated cutouts,
    via validity, device overlaps, connectivity and stale objects. Extend the
    owned snapshot and compare the remaining upstream DRC approvals.
 2. **Wave 4:** the `job` module (output jobs, which also fixes the pending

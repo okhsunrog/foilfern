@@ -9,6 +9,7 @@ mod data;
 mod drill_clearances;
 mod manufacturing;
 mod messages;
+mod outline_rules;
 mod widths;
 
 pub use data::BoardDrcData;
