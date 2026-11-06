@@ -31,9 +31,7 @@
 //! - `mutation`, `change`, `ref_index`, `library`, `project`, `id`,
 //!   `error`: see the re-exports below.
 //!
-//! Not ported yet: `board/drc/`, the
-//! export glue (`boardgerberexport`, ...),
-//! `outputjobrunner`.
+//! Not ported yet: `outputjobrunner` and the deferred Specctra/HTML BOM exports.
 
 mod attribute_lookup;
 pub mod board;

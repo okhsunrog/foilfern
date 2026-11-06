@@ -6,8 +6,17 @@ use crate::rule_check::{RuleCheckMessage, Severity};
 use librepcb_i18n::tr;
 
 pub(super) fn check(data: &BoardDrcData) -> Vec<BoardDrcMessage> {
+    check_impl(data, false)
+}
+pub(super) fn check_copper(data: &BoardDrcData) -> Vec<BoardDrcMessage> {
+    check_impl(data, true)
+}
+fn check_impl(data: &BoardDrcData, copper_only: bool) -> Vec<BoardDrcMessage> {
     let mut result = Vec::new();
     for copper in [true, false] {
+        if !copper && copper_only {
+            continue;
+        }
         let minimum = if copper {
             data.settings.min_copper_width()
         } else {
@@ -170,6 +179,9 @@ pub(super) fn check(data: &BoardDrcData) -> Vec<BoardDrcMessage> {
                 rule,
             });
         }
+    }
+    if copper_only {
+        return result;
     }
     for object in &data.widths {
         let Some(height) = object.board_text_height else {

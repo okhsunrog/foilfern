@@ -11,7 +11,7 @@
 //! the mutations ([`BoardAirWiresBuilder`]).
 //!
 //! Not ported yet: the painters, Specctra and interactive HTML BOM
-//! exports, and the remaining DRC rules. Manufacturing checks are in [`drc`].
+//! exports. Design rule checks and owned snapshots are in [`drc`].
 
 mod air_wire;
 mod air_wires_builder;

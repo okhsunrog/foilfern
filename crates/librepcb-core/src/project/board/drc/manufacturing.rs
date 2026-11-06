@@ -172,6 +172,7 @@ mod tests {
         settings.set_allowed_pth_slots(AllowedSlots::Any);
         BoardDrcData {
             board: BoardId::new_random(),
+            mode: crate::project::board::drc::DrcMode::Full,
             settings,
             holes: vec![Hole {
                 reference,

@@ -69,7 +69,11 @@ fn items(data: &BoardDrcData) -> Result<Vec<Item>> {
             expanded: paths::trace(trace, expansion(trace.clearance))?,
         });
     }
-    for plane in &p.planes {
+    for plane in p
+        .planes
+        .iter()
+        .filter(|_| data.mode == super::DrcMode::Full)
+    {
         result.push(Item {
             reference: DrcCopperRef::Graphic(plane.reference),
             net: plane.net,
@@ -251,7 +255,7 @@ impl BoardDesignRuleCheck {
             }
         }
         let minimum = data.settings.min_pth_annular_ring();
-        if minimum > UnsignedLength::ZERO {
+        if minimum > UnsignedLength::ZERO && data.mode == super::DrcMode::Full {
             let tree = ch::intersect_all_to_tree(&copper)?;
             let all = ch::tree_to_paths(&tree);
             for pad in &data.physical.pads {

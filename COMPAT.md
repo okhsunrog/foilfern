@@ -425,13 +425,16 @@ differ between platforms/implementations:
 
 ## project/board
 
-- DRC rule groups operate synchronously on an owned snapshot,
+- DRC runs synchronously on an owned snapshot,
   without Qt worker lifecycle callbacks or model changes. Findings are
   deterministic in snapshot order; callers must not depend on the ordering
   of upstream's concurrently scheduled checks. Approval tokens, UUID fields,
   formatting and severities are unchanged, except for the already documented
   equal-length airwire choices. Extraction rebuilds planes and air wires in a
   private copy instead of applying derived geometry to the live board.
+  Progress/cancellation is reported between rule groups, rather than Qt
+  worker jobs. Errors or cancellation return no partially applicable result;
+  approval cleanup therefore only consumes successful results.
   The source rules which ignore footprint circle centers during cutout
   checking and leave `%2` in invalid-pad-connection titles are retained.
 
@@ -484,8 +487,11 @@ differ between platforms/implementations:
   The anchors are added in a deterministic order, and ties between equally
   long air wires can be resolved differently (see algorithm). Display and
   DRC "missing connection" approvals only.
-- The DRC approval cleanup (`Board::updateDrcMessageApprovals()`) is not
-  ported yet (part of the DRC).
+- DRC approval cleanup goes through `Project::update_drc_approvals()` and the
+  existing approval mutation/journal, with a nonpersistent session cache in
+  `BoardDerived`. Quick runs and unknown current-format approvals are
+  preserved; a full run after a format upgrade removes all obsolete entries,
+  as upstream does.
 - `BoardNetSegmentSplitter`: new junction UUIDs come from a caller provided
   generator, and the elements of a resulting segment may be listed in
   another order. Files are unaffected (elements are saved sorted by UUID).

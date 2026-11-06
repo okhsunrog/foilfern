@@ -16,6 +16,7 @@ mod outline_rules;
 mod paths;
 mod physical_data;
 mod placement;
+mod runner;
 mod structural;
 mod widths;
 
@@ -27,3 +28,5 @@ pub use messages::{
 /// Board rule checker, independent of editor state and worker scheduling.
 #[derive(Debug, Clone, Copy)]
 pub struct BoardDesignRuleCheck;
+
+pub use runner::{BoardDrcResult, DrcMode};

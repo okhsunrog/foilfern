@@ -10,8 +10,8 @@ Open real upstream projects and libraries, run ERC/DRC, export
 manufacturing data. Validated with upstream `tests/cli` (pytest) and by
 diffing outputs against the official `librepcb-cli`.
 
-- Wave 3b: schematic items, board items, file format migrations.
-- Wave 3c: board export data and plane fragments, DRC, ERC + BOM + project
+- Wave 3b (complete): schematic items, board items, file format migrations.
+- Wave 3c (complete): board export data and plane fragments, DRC, ERC + BOM + project
   attribute lookup.
 - Wave 4: output jobs and the CLI.
 

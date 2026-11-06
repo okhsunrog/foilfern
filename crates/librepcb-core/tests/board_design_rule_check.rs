@@ -1,4 +1,4 @@
-//! Port of the implemented subset of BoardDesignRuleCheckTest::testMessages.
+//! Port of tests/unittests/core/project/board/boarddesignrulechecktest.cpp.
 //! Upstream approvals remain the oracle; test data is never copied here.
 
 use librepcb_core::fileio::{FilePath, TransactionalDirectory, TransactionalFileSystem};
@@ -201,16 +201,9 @@ fn full_drc_messages_match_official_cli() {
 }
 
 fn all_checks(data: &BoardDrcData) -> Vec<librepcb_core::project::board::drc::BoardDrcMessage> {
-    let mut result = BoardDesignRuleCheck::run_manufacturing_rules(data);
-    result.extend(BoardDesignRuleCheck::run_drill_clearances(data).unwrap());
-    result.extend(BoardDesignRuleCheck::run_outline_rules(data).unwrap());
-    result.extend(BoardDesignRuleCheck::run_structural_rules(data).unwrap());
-    result.extend(BoardDesignRuleCheck::run_copper_rules(data).unwrap());
-    result.extend(BoardDesignRuleCheck::run_placement_rules(data).unwrap());
-    result.extend(BoardDesignRuleCheck::run_keepout_rules(data).unwrap());
-    result.extend(BoardDesignRuleCheck::run_cutout_rules(data).unwrap());
-    result
+    BoardDesignRuleCheck::run(data).unwrap().into_messages()
 }
+
 fn normalize_message(message: String) -> String {
     // The chosen edges of an equal-weight MST are intentionally different
     // (COMPAT.md). Compare counts per net here; the fixture test separately
@@ -323,4 +316,57 @@ fn compare_equivalent_airwire_trees(
         decode(expected),
         "alternative airwire trees must span the same anchors with the same weights"
     );
+}
+
+#[test]
+fn quick_mode_progress_and_cancellation() {
+    use librepcb_core::project::Error;
+    use librepcb_core::project::board::drc::DrcMode;
+    use std::ops::ControlFlow;
+    let project = load("Gerber Test");
+    let revision = project.revision();
+    let board = &project.boards()[0];
+    let full = BoardDrcData::extract(&project, board, &board.settings().drc_settings).unwrap();
+    let quick = BoardDrcData::extract_with_mode(
+        &project,
+        board,
+        &board.settings().drc_settings,
+        DrcMode::Quick,
+    )
+    .unwrap();
+    assert_eq!(quick.mode(), DrcMode::Quick);
+    let mut progress = Vec::new();
+    let result = BoardDesignRuleCheck::run_with_progress(&quick, |done, total| {
+        progress.push((done, total));
+        ControlFlow::Continue(())
+    })
+    .unwrap();
+    assert!(result.is_partial());
+    assert_eq!(result.board(), board.id());
+    assert_eq!(progress, [(0, 2), (1, 2), (2, 2)]);
+    for finding in result.messages() {
+        let kind: String = finding.rule_message().approval().child_value("@0").unwrap();
+        assert!(
+            [
+                "copper_clearance_violation",
+                "copper_board_clearance_violation",
+                "copper_hole_clearance_violation",
+                "minimum_width_violation"
+            ]
+            .contains(&kind.as_str()),
+            "quick run emitted {kind}"
+        );
+    }
+    let mut called = Vec::new();
+    let cancelled = BoardDesignRuleCheck::run_with_progress(&full, |done, total| {
+        called.push((done, total));
+        if done == 1 {
+            ControlFlow::Break(())
+        } else {
+            ControlFlow::Continue(())
+        }
+    });
+    assert!(matches!(cancelled, Err(Error::DrcCancelled)));
+    assert_eq!(called, [(0, 8), (1, 8)]);
+    assert_eq!(project.revision(), revision);
 }

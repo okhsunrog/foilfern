@@ -153,7 +153,11 @@ pub(super) fn copper(data: &BoardDrcData, layer: Layer) -> Result<ClipperPaths> 
     {
         unite(&mut result, &text(t, Length::ZERO)?)?;
     }
-    for plane_ in p.planes.iter().filter(|p| p.layer == layer) {
+    for plane_ in p
+        .planes
+        .iter()
+        .filter(|p| p.layer == layer && data.mode == super::DrcMode::Full)
+    {
         unite(&mut result, &plane(plane_, Length::ZERO)?)?;
     }
     for device in p.devices.keys() {
@@ -200,7 +204,10 @@ pub(super) fn stop_mask(data: &BoardDrcData, layer: Layer, offset: Length) -> Re
         unite(&mut result, &text(t, offset)?)?;
     }
     for (path, diameter) in &p.masks {
-        unite(&mut result, &hole(path, *diameter, offset)?)?;
+        unite(
+            &mut result,
+            &hole(path, PositiveLength::new(*diameter)?, offset)?,
+        )?;
     }
     for pad_ in &p.pads {
         unite(&mut result, &pad(pad_, layer, offset, false)?)?;

@@ -7,7 +7,7 @@ covers where things stand and how the work has been organized.
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 980 tests report success (about 85k lines
+The workspace builds cleanly and 984 tests report success (about 97k lines
 of Rust). The latest local run used the official CLI 2.1.1 as the oracle,
 including ERC messages, migrations and byte-identical JSON exports over
 the pinned upstream test data.
@@ -88,17 +88,18 @@ Done, in `crates/librepcb-core` unless noted:
   text/severity comparisons. Missing-connection ties use equivalent spanning
   trees: tests verify identical anchors and edge weights (see `COMPAT.md`).
   Other approval nodes match byte for byte. Extraction rebuilds planes and
-  air wires in a private copy and leaves the project untouched.
+  air wires in a private copy and leaves the project untouched. Full/quick
+  execution, progress and atomic cancellation are available through the
+  common result API. Approval cleanup is journaled, preserves unknown
+  approvals and waits for a full run after a file-format upgrade.
 
 ## Next steps
 
-1. **Wave 3c:** finish the DRC execution API, quick mode, progress/cancellation
-   and approval cleanup lifecycle; the rule groups themselves are ported.
-2. **Wave 4:** the `job` module (output jobs, which also fixes the pending
+1. **Wave 4:** the `job` module (output jobs, which also fixes the pending
    `jobs.lp` round trip), the output job runner and the CLI. Acceptance:
    upstream `tests/cli` (pytest, run with `uv`) passing against our CLI,
    plus output diffs against the official `librepcb-cli`.
-3. **Then M1.5** (MCP, library manager, Specctra) per `roadmap.md` and the
+2. **Then M1.5** (MCP, library manager, Specctra) per `roadmap.md` and the
    decisions in `mcp-research-konnect.md`.
 
 Deliberately deferred: the schematic/board painters (M2), Specctra

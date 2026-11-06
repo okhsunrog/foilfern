@@ -867,6 +867,8 @@ impl SerializeObject for Board {
 /// content are equal regardless of their derived data.
 #[derive(Debug, Clone, Default)]
 pub struct BoardDerived {
+    /// Approvals observed during this session, for conservative DRC cleanup.
+    pub(crate) supported_drc_approvals: BTreeSet<SExpression>,
     pub(crate) air_wires: BTreeMap<Option<NetSignalId>, Vec<AirWire>>,
     pub(crate) dirty_air_wire_nets: BTreeSet<Option<NetSignalId>>,
     pub(crate) plane_fragments: BTreeMap<PlaneId, Vec<Path>>,

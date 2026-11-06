@@ -1,7 +1,7 @@
 //! Port of geometric/connectivity snapshot extraction in
 //! libs/librepcb/core/project/board/drc/boarddesignrulecheckdata.cpp.
 
-use super::{DrcCopperRef, DrcObjectRef, DrcPadRef};
+use super::{DrcCopperRef, DrcMode, DrcObjectRef, DrcPadRef};
 use crate::geometry::{PadGeometry, Path, TraceAnchor, Vertex, Via, ZoneLayers, ZoneRules};
 use crate::project::board::{
     Board, BoardAirWiresBuilder, BoardPlaneFragmentsBuilder, PadOnBoard, ResolvedDevice, ViaView,
@@ -22,7 +22,8 @@ pub(super) struct PhysicalData {
     pub planes: Vec<Plane>,
     pub zones: Vec<Zone>,
     pub devices: BTreeMap<ComponentInstanceId, Device>,
-    pub masks: Vec<(Path, PositiveLength)>,
+    /// Raw mask diameters are validated only when a rule evaluates mask geometry.
+    pub masks: Vec<(Path, Length)>,
     pub unplaced: Vec<(ComponentInstanceId, String)>,
     pub stale: Vec<Stale>,
     pub air_wires: Vec<AirWire>,
@@ -137,6 +138,7 @@ impl PhysicalData {
         project: &Project,
         board: &Board,
         settings: &crate::library::org::BoardDesignRuleCheckSettings,
+        mode: DrcMode,
     ) -> Result<Self> {
         let mut data = Self {
             clearance_enabled: settings.min_copper_copper_clearance() > UnsignedLength::ZERO
@@ -200,12 +202,8 @@ impl PhysicalData {
         for hole in board.holes().values() {
             if let Some(offset) = hole.stop_mask_offset(board.design_rules()) {
                 let diameter = *hole.diameter() + offset * 2;
-                if diameter > Length::ZERO {
-                    data.masks.push((
-                        hole.path().clone().into_inner(),
-                        PositiveLength::new(diameter)?,
-                    ));
-                }
+                data.masks
+                    .push((hole.path().clone().into_inner(), diameter));
             }
         }
         for segment in board.net_segments().values() {
@@ -409,12 +407,8 @@ impl PhysicalData {
             for hole in footprint.holes() {
                 if let Some(Some(offset)) = offsets.get(&hole.uuid()) {
                     let diameter = *hole.diameter() + *offset * 2;
-                    if diameter > Length::ZERO {
-                        data.masks.push((
-                            transform.map(hole.path()).into_inner(),
-                            PositiveLength::new(diameter)?,
-                        ));
-                    }
+                    data.masks
+                        .push((transform.map(hole.path()).into_inner(), diameter));
                 }
             }
             for zone in footprint.zones() {
@@ -494,9 +488,15 @@ impl PhysicalData {
                 outline: zone.outline().clone(),
             });
         }
-        let fragments = BoardPlaneFragmentsBuilder::build(project, board, None)?;
+        let fragments = if mode == DrcMode::Full {
+            BoardPlaneFragmentsBuilder::build(project, board, None)?
+                .fragments()
+                .clone()
+        } else {
+            board.derived().plane_fragments().clone()
+        };
         let mut rebuilt = board.clone();
-        rebuilt.derived.plane_fragments = fragments.fragments().clone();
+        rebuilt.derived.plane_fragments = fragments.clone();
         for plane in board.planes().values() {
             let (net_name, clearance) = net_info(plane.net())?;
             data.planes.push(Plane {
@@ -506,11 +506,7 @@ impl PhysicalData {
                 net_name,
                 clearance,
                 outline: plane.outline().clone(),
-                fragments: fragments
-                    .fragments()
-                    .get(&plane.id())
-                    .cloned()
-                    .unwrap_or_default(),
+                fragments: fragments.get(&plane.id()).cloned().unwrap_or_default(),
             });
         }
         for (id, component) in project.circuit().component_instances() {
@@ -524,19 +520,21 @@ impl PhysicalData {
                 data.unplaced.push((*id, component.name().to_string()));
             }
         }
-        let builder = BoardAirWiresBuilder::new(&rebuilt, project.library(), project.circuit());
-        for net in project.circuit().net_signals().keys() {
-            for wire in builder.build_air_wires(*net) {
-                data.air_wires.push(AirWire {
-                    from: data.anchor(board, wire.p1())?,
-                    to: data.anchor(board, wire.p2())?,
-                    net: net_info(Some(*net))?.0,
-                    locations: vec![Path::obround_line(
-                        wire.p1_position(),
-                        wire.p2_position(),
-                        PositiveLength::new(Length::new(50_000))?,
-                    )],
-                });
+        if mode == DrcMode::Full {
+            let builder = BoardAirWiresBuilder::new(&rebuilt, project.library(), project.circuit());
+            for net in project.circuit().net_signals().keys() {
+                for wire in builder.build_air_wires(*net) {
+                    data.air_wires.push(AirWire {
+                        from: data.anchor(board, wire.p1())?,
+                        to: data.anchor(board, wire.p2())?,
+                        net: net_info(Some(*net))?.0,
+                        locations: vec![Path::obround_line(
+                            wire.p1_position(),
+                            wire.p2_position(),
+                            PositiveLength::new(Length::new(50_000))?,
+                        )],
+                    });
+                }
             }
         }
         Ok(data)

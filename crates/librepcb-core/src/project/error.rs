@@ -169,6 +169,9 @@ fn duplicate_name(kind: EntityKind, name: &str) -> String {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// DRC was cancelled before returning an applicable result.
+    #[error("Design rule check cancelled.")]
+    DrcCancelled,
     /// A fabrication layer is outside the supported copper stack.
     #[error("Unknown inner copper layer: {0}")]
     InvalidFabricationLayer(u32),

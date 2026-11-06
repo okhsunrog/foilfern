@@ -4,7 +4,7 @@
 //! project references are resolved while extracting, before a caller moves
 //! the snapshot to a worker thread.
 
-use super::{DrcHoleRef, DrcObjectRef};
+use super::{DrcHoleRef, DrcMode, DrcObjectRef};
 use crate::geometry::{NonEmptyPath, Pad, Path};
 use crate::library::org::BoardDesignRuleCheckSettings;
 use crate::project::board::{Board, BoardPlane, ResolvedDevice, ViaView};
@@ -20,6 +20,7 @@ use std::collections::BTreeSet;
 #[derive(Debug, Clone)]
 pub struct BoardDrcData {
     pub(super) board: BoardId,
+    pub(super) mode: DrcMode,
     pub(super) settings: BoardDesignRuleCheckSettings,
     pub(super) holes: Vec<Hole>,
     pub(super) planes: Vec<(BoardPlane, String)>,
@@ -55,15 +56,26 @@ pub(super) struct WidthObject {
     pub board_text_height: Option<PositiveLength>,
 }
 impl BoardDrcData {
-    /// Extracts data with the requested settings, without changing the board
-    /// or requiring rebuilt planes/air wires for these checks.
+    /// Extracts full-check data with fresh derived geometry in a private copy.
+    /// The project and its board remain unchanged.
     pub fn extract(
         project: &Project,
         board: &Board,
         settings: &BoardDesignRuleCheckSettings,
     ) -> Result<Self> {
+        Self::extract_with_mode(project, board, settings, DrcMode::Full)
+    }
+    /// Extracts full or quick-check input. Quick snapshots reuse existing
+    /// fragments without rebuilding planes or calculating air wires.
+    pub fn extract_with_mode(
+        project: &Project,
+        board: &Board,
+        settings: &BoardDesignRuleCheckSettings,
+        mode: DrcMode,
+    ) -> Result<Self> {
         let mut data = Self {
             board: board.id(),
+            mode,
             settings: settings.clone(),
             holes: Vec::new(),
             planes: Vec::new(),
@@ -257,12 +269,17 @@ impl BoardDrcData {
                 ));
             }
         }
-        data.physical = super::physical_data::PhysicalData::collect(project, board, settings)?;
+        data.physical =
+            super::physical_data::PhysicalData::collect(project, board, settings, mode)?;
         Ok(data)
     }
     /// Board this snapshot belongs to.
     pub fn board(&self) -> BoardId {
         self.board
+    }
+    /// Rules this snapshot is prepared to run.
+    pub fn mode(&self) -> DrcMode {
+        self.mode
     }
     /// Settings captured with this snapshot.
     pub fn settings(&self) -> &BoardDesignRuleCheckSettings {
