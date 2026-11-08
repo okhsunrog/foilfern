@@ -600,7 +600,7 @@ dependencies = [
  "regex",
  "rustc-hash 2.1.3",
  "shlex",
- "syn 2.0.119",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -2988,6 +2988,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "36eee07d8e02bd95bf52b2e642cf13d33701b94c6e4b04fbf1d1fb07e9cb19e7"
 
 [[package]]
+name = "interactive-html-bom"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af6052b5a2a4890369de5dfb7418ae29af390e3fcc059d7e4fcde478c2b44a83"
+dependencies = [
+ "jzon",
+ "lz-str",
+]
+
+[[package]]
 name = "io-lifetimes"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3103,6 +3113,12 @@ dependencies = [
  "futures-util",
  "wasm-bindgen",
 ]
+
+[[package]]
+name = "jzon"
+version = "0.12.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17ab85f84ca42c5ec520e6f3c9966ba1fd62909ce260f8837e248857d2560509"
 
 [[package]]
 name = "keyboard-types"
@@ -3244,9 +3260,11 @@ dependencies = [
  "html-escape",
  "icu_collator",
  "image",
+ "interactive-html-bom",
  "libm",
  "librepcb-i18n",
  "log",
+ "lz-str",
  "md-5",
  "path-clean",
  "pathdiff",
@@ -3487,6 +3505,12 @@ dependencies = [
  "lyon_geom",
  "num-traits",
 ]
+
+[[package]]
+name = "lz-str"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39f3d72d77227090eed75ea331285a53726e78374a1f357ff5757702c23c70cc"
 
 [[package]]
 name = "md-5"

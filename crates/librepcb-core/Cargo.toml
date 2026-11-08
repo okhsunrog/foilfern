@@ -16,6 +16,7 @@ glob = "0.3.4"
 html-escape = "0.2.15"
 icu_collator = "2.3.1"
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }
+interactive-html-bom = "0.2.0"
 libm = "0.2.16"
 librepcb-i18n = { version = "0.1.0", path = "../librepcb-i18n" }
 log = "0.4.34"
@@ -47,3 +48,6 @@ rustix = { version = "1.1.5", features = ["process"] }
 
 [target.'cfg(not(target_os = "linux"))'.dependencies]
 sysinfo = "0.39.6"
+
+[dev-dependencies]
+lz-str = "0.2.1"

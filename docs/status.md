@@ -7,7 +7,7 @@ covers where things stand and how the work has been organized.
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 1025 tests report success (about 100k lines
+The workspace builds cleanly and 1027 tests report success (about 100k lines
 of Rust). The latest local run used the official CLI 2.1.1 as the oracle,
 including ERC messages, migrations and byte-identical JSON exports over
 the pinned upstream test data.
@@ -161,6 +161,12 @@ Done, in `crates/librepcb-core` unless noted:
   for mirrors, rotations, fixed paper and transparency. Realistic PDF job
   names/page counts match official CLI 2.1.1, and both sides of Gerber Test's
   PNG output were visually compared. This does not implement 3D or a viewer.
+- **Interactive BOM data adapter** (2026-11-08): resolves footprints, pads,
+  slots, nets, tracks, plane fragments, stroke drawings and grouped assembly
+  rows into the existing `interactive-html-bom` Rust crate. The original
+  `BoardInteractiveHtmlBomGeneratorTest` HTML matches byte for byte; fixture
+  checks cover variants, custom columns, DNP and read-only extraction. Output
+  job execution and browser acceptance are the next integration step.
 
 ## Next steps
 

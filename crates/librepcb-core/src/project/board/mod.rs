@@ -10,8 +10,9 @@
 //! ([`BoardDerived`]), recomputed on demand from dirty sets maintained by
 //! the mutations ([`BoardAirWiresBuilder`]).
 //!
-//! Headless painters live in `librepcb-graphics`. Not ported yet: Specctra
-//! and interactive HTML BOM exports. Design rule checks and owned snapshots
+//! Headless painters live in `librepcb-graphics`. Interactive assembly HTML
+//! uses [`BoardInteractiveBomGenerator`]. Specctra export is not ported yet.
+//! Design rule checks and owned snapshots
 //! are in [`drc`].
 
 mod air_wire;
@@ -27,6 +28,7 @@ pub mod drc;
 mod fabrication_output_settings;
 mod gerber_export;
 mod hole_data;
+mod interactive_bom;
 pub(crate) mod keyed_map;
 mod net_segment;
 mod net_segment_splitter;
@@ -54,6 +56,7 @@ pub use device::{BoardDevice, FootprintPadView};
 pub use fabrication_output_settings::BoardFabricationOutputSettings;
 pub use gerber_export::BoardGerberExport;
 pub use hole_data::BoardHoleData;
+pub use interactive_bom::{BoardInteractiveBomGenerator, InteractiveHtmlBom};
 pub use net_segment::{BoardNetSegment, BoardSegmentElements};
 pub use net_segment_splitter::{BoardNetSegmentParts, BoardNetSegmentSplitter};
 pub use pad_data::BoardPadData;
