@@ -187,8 +187,11 @@ with 27 devices / 87 valid solids and a watertight 53,400-triangle mesh.
 Every component solid matches the official STEP export individually; PCB
 contours are approximated within 5 um (0.0094% PCB volume difference).
 Mechanical export intentionally omits via drills, as upstream does.
-It remains outside the application workspace: units, materials, exact PCB
-arcs and broader importer coverage are not yet adapted. See
+The unit adapter now normalizes uniform SI/conversion-based contexts to
+millimetres (16 independent fixture comparisons); mixed contexts and
+unsupported angle units fail explicitly. It remains outside the application
+workspace: materials, exact PCB arcs and broader importer coverage are not
+yet adapted. See
 `../spikes/step/README.md`; CLI STEP remains deferred.
 
 1. **Wave 4 acceptance:** close the remaining CLI differences. STEP still

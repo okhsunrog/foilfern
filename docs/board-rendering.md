@@ -57,8 +57,8 @@ The isolated `spikes/step` experiment now consumes the canonical snapshot
 to build a mechanical BRep board and placed component solids with
 Monstertruck, with STEP and OBJ output. CAN–USB's component placements match
 the official STEP export individually in independent OCCT checks. This
-prototype approximates PCB curves within 5 micrometres, assumes millimetre
-model units and loses material metadata. It omits via drills to match the
+prototype approximates PCB curves within 5 micrometres, normalizes supported
+model unit contexts to millimetres and loses material metadata. It omits via drills to match the
 upstream mechanical STEP policy; a physical viewer requires its own
 depth-aware drill geometry. See `../spikes/step/README.md` for measured
 results and reproduction. Application integration remains pending.

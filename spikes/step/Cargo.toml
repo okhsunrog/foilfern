@@ -17,6 +17,7 @@ monstertruck-meshing = "0.4.1"
 monstertruck-modeling = "0.4.1"
 monstertruck-topology = "0.4.1"
 serde_json = "1.0.154"
+thiserror = "2.0.21"
 
 [lints.rust]
 unsafe_code = "forbid"

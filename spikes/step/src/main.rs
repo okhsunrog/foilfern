@@ -9,10 +9,10 @@ use std::{
     path::{Path, PathBuf},
     time::Instant,
 };
-use step_spike::{mesh_stats, placed_solids};
+use step_spike::{mesh_stats, metadata::StepDocument, placed_solids, transform_solid};
 
-fn assembly_report(table: &Table, output: &Path, tolerance: f64) -> Result<Value> {
-    let placed = placed_solids(table)?;
+fn assembly_report(document: &StepDocument, output: &Path, tolerance: f64) -> Result<Value> {
+    let placed = placed_solids(document)?;
     let mut instances = Vec::new();
     for item in &placed {
         let mut stats = Vec::new();
@@ -54,7 +54,8 @@ fn main() -> Result<()> {
     std::fs::create_dir_all(&output)?;
     let started = Instant::now();
     let bytes = std::fs::read(&input)?;
-    let table = Table::from_step_bytes(&bytes)?;
+    let document = StepDocument::parse(&bytes)?;
+    let table = &document.table;
     let mut shells: Vec<_> = table.shell.iter().collect();
     shells.sort_by_key(|(id, _)| **id);
     let mut results = Vec::new();
@@ -62,14 +63,16 @@ fn main() -> Result<()> {
         let before = Instant::now();
         let result: Result<Value> = (|| {
             let (shell, report) = table.to_compressed_shell_reported(step_shell)?;
-            let meshed = shell.robust_triangulation(tolerance);
-            let missing_mesh_faces = meshed.faces.iter().filter(|f| f.surface.is_none()).count();
-            let stats = mesh_stats(meshed.to_polygon())?;
-            let solid = CompressedSolid {
-                boundaries: vec![shell.clone()],
+            let mut solid = CompressedSolid {
+                boundaries: vec![shell],
                 id_allocator: None,
                 attributes: None,
             };
+            transform_solid(&mut solid, Matrix4::from_scale(document.length_to_mm));
+            let shell = &solid.boundaries[0];
+            let meshed = shell.robust_triangulation(tolerance);
+            let missing_mesh_faces = meshed.faces.iter().filter(|f| f.surface.is_none()).count();
+            let stats = mesh_stats(meshed.to_polygon())?;
             let text = save::CompleteStepDisplay::new(
                 save::StepModel::from(&solid),
                 save::StepHeaderDescriptor {
@@ -103,11 +106,11 @@ fn main() -> Result<()> {
         })();
         results.push(match result { Ok(report)=>report, Err(error)=>json!({"entity":id,"error":format!("{error:#}"),"elapsed_ms":before.elapsed().as_millis()}) });
     }
-    let assembly = match assembly_report(&table, &output, tolerance) {
+    let assembly = match assembly_report(&document, &output, tolerance) {
         Ok(report) => report,
         Err(error) => json!({"error":format!("{error:#}")}),
     };
-    let report = json!({"input":input,"input_bytes":bytes.len(),"tolerance":tolerance,"shells":results,"assembly":assembly,
+    let report = json!({"input":input,"input_bytes":bytes.len(),"tolerance":tolerance,"shells":results,"assembly":assembly,"length_to_mm":document.length_to_mm,"entity_count":document.entity_count(),
         "manifold_solids":table.manifold_solid_brep.len(),"unmapped_entities":table.dummy.len(),"entity_losses":table.entity_report.total(),
         "entity_report":table.entity_report.to_string(),"elapsed_ms":started.elapsed().as_millis()});
     let report = serde_json::to_string_pretty(&report)?;

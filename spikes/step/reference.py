@@ -79,7 +79,9 @@ if __name__ == "__main__":
         if expected_file.exists():
             expected = json.loads(expected_file.read_text())
             assert reference["valid"] and reference["solids"] == expected["solids"]
-            assert abs(reference["volume"] - expected["volume"]) < 1e-7
+            assert abs(reference["volume"] - expected["volume"]) < max(
+                1e-7, abs(expected["volume"]) * 1e-9
+            )
             # OCCT enlarges analytic bounds by its 1e-7 modelling tolerance.
             assert all(
                 abs(reference["bounds"][side][axis] - expected["bounds"][side][axis])

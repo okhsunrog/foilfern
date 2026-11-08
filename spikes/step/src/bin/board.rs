@@ -4,7 +4,7 @@ use librepcb_core::{
     fileio::{FilePath, FileSystem, TransactionalDirectory, TransactionalFileSystem},
     project::{AssemblyVariantId, ProjectLoader, board::BoardPhysicalGeometry},
 };
-use monstertruck_io::step::{load::Table, save};
+use monstertruck_io::step::save;
 use monstertruck_meshing::prelude::*;
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
@@ -21,18 +21,17 @@ fn checked_mesh(mesh: &PolygonMesh) -> Result<Value> {
 }
 use step_spike::{
     board::{board_solids, device_matrix},
-    mesh_stats, placed_solids, transform_solid,
+    mesh_stats,
+    metadata::StepDocument,
+    placed_solids, transform_solid,
 };
 
 fn main() -> Result<()> {
     let mut args = std::env::args_os().skip(1);
-    ensure!(
-        args.next().is_some_and(|v| v == "--assume-mm"),
-        "experimental importer requires --assume-mm: model unit contexts are not implemented"
+    let input = PathBuf::from(
+        args.next()
+            .context("usage: board PROJECT.lpp[z] OUTPUT_DIR [BOARD_INDEX] [VARIANT_INDEX]")?,
     );
-    let input = PathBuf::from(args.next().context(
-        "usage: board --assume-mm PROJECT.lpp[z] OUTPUT_DIR [BOARD_INDEX] [VARIANT_INDEX]",
-    )?);
     let output = PathBuf::from(args.next().context("missing output directory")?);
     let board_index = args
         .next()
@@ -95,9 +94,9 @@ fn main() -> Result<()> {
     std::fs::write(output.join("pcb.step"), &pcb_text)?;
     // The modeling and STEP-import geometry enums differ. Reload the generated
     // BRep to share one save-side type, without a lossy mesh conversion.
-    let pcb_table = Table::from_step_bytes(pcb_text.as_bytes())?;
-    pcb_table.entity_report.require_empty()?;
-    let pcb_solids: Vec<_> = placed_solids(&pcb_table)?
+    let pcb_document = StepDocument::parse(pcb_text.as_bytes())?;
+    pcb_document.table.entity_report.require_empty()?;
+    let pcb_solids: Vec<_> = placed_solids(&pcb_document)?
         .into_iter()
         .map(|item| item.solid)
         .collect();
@@ -127,9 +126,9 @@ fn main() -> Result<()> {
                 .directory()
                 .read(&path)
                 .with_context(|| format!("model for {}: {path}", device.name))?;
-            let table = Table::from_step_bytes(&bytes)?;
-            table.entity_report.require_empty()?;
-            entry.insert(placed_solids(&table)?);
+            let document = StepDocument::parse(&bytes)?;
+            document.table.entity_report.require_empty()?;
+            entry.insert(placed_solids(&document)?);
         }
         let matrix = device_matrix(device, data.thickness.to_mm());
         for item in &cache[&key] {
@@ -165,7 +164,7 @@ fn main() -> Result<()> {
         output.join("assembly.step"),
         save::CompleteStepDisplay::new(models, save::StepHeaderDescriptor::default()).to_string(),
     )?;
-    let report = json!({"input":input,"board":board.name().to_string(),"variant":variant.name().to_string(),"devices":data.devices.len(),"pcb_solids":pcb_solids.len(),"component_solids":solids.len(),"meshes":meshes,"contour_tolerance_mm":0.005,"tessellation_tolerance_mm":0.01,"materials_preserved":false,"via_drills_omitted":true,"model_units_assumed_mm":true});
+    let report = json!({"input":input,"board":board.name().to_string(),"variant":variant.name().to_string(),"devices":data.devices.len(),"pcb_solids":pcb_solids.len(),"component_solids":solids.len(),"meshes":meshes,"contour_tolerance_mm":0.005,"tessellation_tolerance_mm":0.01,"materials_preserved":false,"via_drills_omitted":true,"model_units_assumed_mm":false});
     std::fs::write(
         output.join("board.json"),
         serde_json::to_string_pretty(&report)?,

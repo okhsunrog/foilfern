@@ -79,8 +79,12 @@ would lose repeated leads; a lossless shell report alone is insufficient.
 This demonstrates geometry feasibility on these fixtures, **not a general
 production STEP importer**. In particular:
 
-- Coordinates are used as stored. The tested files use millimetres; unit
-  contexts and conversions need an explicit adapter before general import.
+- Lengths are normalized to millimetres from SI prefixes or recursive
+  conversion-based units (including inches/feet). The same scale applies
+  to assembly placements. Mixed length contexts and non-radian angle units
+  fail explicitly; they are not silently treated as millimetres/radians.
+  Missing/invalid units, cyclic definitions, duplicate entity IDs and
+  multiple DATA sections are rejected before geometry conversion.
 - The table leaves colors, styles and other unsupported records in `dummy`.
   `entity_report == 0` does not prove metadata preservation. Even the
   `colors.step` result above establishes geometry only.
@@ -116,12 +120,12 @@ placed solids. Missing models and failed conversions/tessellations fail
 instead of disappearing silently. The generated PCB BRep is reloaded to
 unify Monstertruck's distinct modeling and STEP-import geometry enums.
 
-The prototype requires `--assume-mm` because it has no unit-context adapter.
+The prototype reads model unit contexts and normalizes to millimetres.
 It does not preserve model colors, names/assembly hierarchy in STEP, or add
 copper/mask/silk meshes. There is no Bevy viewer or CLI output-job integration.
 
 ```sh
-"$CARGO_TARGET_DIR/debug/board" --assume-mm \
+"$CARGO_TARGET_DIR/debug/board" \
   /absolute/path/to/can2usb.lppz "$STEP_WORK/can2usb-3d"
 "$LIBREPCB_CLI" open-project --run-job 'STEP Model' \
   --outdir "$STEP_WORK/can2usb-oracle" /absolute/path/to/can2usb.lppz
@@ -154,6 +158,28 @@ Three focused Rust tests cover canonical geometry vs flat projections,
 overlapping/edge-crossing cutouts, mechanical drill policy and non-through
 rejection, and independently computed top/bottom model placements.
 
-Next: adapt units and materials, retain analytic PCB arcs where feasible,
+Next: adapt materials, retain analytic PCB arcs where feasible,
 and establish broader fixture/error coverage before moving the adapter
 into the application workspace. Rendering integration remains independent.
+
+## Unit checks (2026-11-09)
+
+```sh
+uv run --no-project python spikes/step/make-unit-fixtures.py \
+  "$CARGO_TARGET_DIR/debug/plate" "$STEP_WORK/units/fixtures"
+# Add the three generated .step inputs to check.py with --input, then run
+# reference.py on its summary.json as above.
+```
+
+The generated centimetre, metre and inch files describe the same 20 x 10 x
+1.6 mm physical plate, with independently computed expected dimensions and
+volume. All sixteen cases (the original thirteen plus these three) pass the
+Rust geometry and OCCT round-trip/measurement checks at 0.01 mm. CAN–USB's
+87 solids continue to match the official export as described above.
+Five Rust tests cover board geometry/placement and SI/conversion-based
+unit resolution, missing/cyclic units and mixed context rejection.
+
+Very large geometry at a fixed fine tolerance remains resource-sensitive:
+an initial 20-metre variant exceeded the probe's 45-second child timeout.
+The equivalent-size fixtures above isolate unit correctness; they do not
+establish performance for unusually large or adversarial models.

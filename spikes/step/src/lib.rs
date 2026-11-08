@@ -1,8 +1,9 @@
 //! Experimental adapters for upstream OccModel/StepExport geometry using Monstertruck.
 //! Not a general STEP importer: callers must validate unit/representation support.
 pub mod board;
+pub mod metadata;
 use anyhow::{Context, Result, ensure};
-use monstertruck_io::step::load::{Table, convert::StepCompressedSolid};
+use monstertruck_io::step::load::convert::StepCompressedSolid;
 use monstertruck_meshing::prelude::*;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
@@ -27,7 +28,8 @@ pub fn transform_solid(solid: &mut StepCompressedSolid, matrix: Matrix4) {
     }
 }
 
-pub fn placed_solids(table: &Table) -> Result<Vec<PlacedSolid>> {
+pub fn placed_solids(document: &metadata::StepDocument) -> Result<Vec<PlacedSolid>> {
+    let table = &document.table;
     let assembly = table.step_assy()?;
     let mut solids = Vec::new();
     let mut reached = BTreeSet::new();
@@ -56,7 +58,10 @@ pub fn placed_solids(table: &Table) -> Result<Vec<PlacedSolid>> {
                 for report in reports {
                     report.require_lossless()?;
                 }
-                transform_solid(&mut solid, matrix);
+                transform_solid(
+                    &mut solid,
+                    Matrix4::from_scale(document.length_to_mm) * matrix,
+                );
                 solids.push(PlacedSolid {
                     entity: id,
                     name: node.attributes().name.clone(),

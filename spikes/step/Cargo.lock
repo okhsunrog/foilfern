@@ -1819,6 +1819,7 @@ dependencies = [
  "monstertruck-modeling",
  "monstertruck-topology",
  "serde_json",
+ "thiserror",
 ]
 
 [[package]]
