@@ -1,6 +1,8 @@
 //! Experimental adapters for upstream OccModel/StepExport geometry using Monstertruck.
-//! Not a general STEP importer: callers must validate unit/representation support.
+//! Supported units and surface appearance are adapted explicitly; representation
+//! coverage and kernel panic/resource isolation still prevent general import.
 pub mod board;
+pub mod materials;
 pub mod metadata;
 use anyhow::{Context, Result, ensure};
 use monstertruck_io::step::load::convert::StepCompressedSolid;
@@ -8,11 +10,14 @@ use monstertruck_meshing::prelude::*;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
+#[derive(Clone)]
 pub struct PlacedSolid {
     pub entity: u64,
     pub name: String,
     pub solid: StepCompressedSolid,
+    pub appearance: materials::Appearance,
 }
+static_assertions::assert_impl_all!(PlacedSolid: Send, Sync);
 
 pub fn transform_solid(solid: &mut StepCompressedSolid, matrix: Matrix4) {
     for shell in &mut solid.boundaries {
@@ -28,8 +33,45 @@ pub fn transform_solid(solid: &mut StepCompressedSolid, matrix: Matrix4) {
     }
 }
 
+pub fn tessellate_solid(
+    item: &PlacedSolid,
+    tolerance: f64,
+) -> Result<(PolygonMesh, materials::MaterialGroups)> {
+    ensure!(
+        tolerance.is_finite() && tolerance > 0.,
+        "invalid tessellation tolerance"
+    );
+    ensure!(
+        item.appearance.len() == item.solid.boundaries.len(),
+        "material boundary mismatch"
+    );
+    let mut combined = PolygonMesh::default();
+    let mut groups = Vec::new();
+    for (shell, materials) in item.solid.boundaries.iter().zip(&item.appearance) {
+        let meshed = shell.robust_triangulation(tolerance);
+        ensure!(
+            meshed.faces.len() == materials.len(),
+            "material face mismatch"
+        );
+        for (face, material) in meshed.faces.into_iter().zip(materials) {
+            let mut mesh = face.surface.context("face tessellation failed")?;
+            if !face.orientation {
+                mesh.invert();
+            }
+            ensure!(
+                mesh.quad_faces().is_empty() && mesh.other_faces().is_empty(),
+                "non-triangular tessellation"
+            );
+            groups.push((mesh.tri_faces().len(), *material));
+            combined.merge(mesh);
+        }
+    }
+    Ok((combined, groups))
+}
+
 pub fn placed_solids(document: &metadata::StepDocument) -> Result<Vec<PlacedSolid>> {
     let table = &document.table;
+    let styles = document.records.surface_styles()?;
     let assembly = table.step_assy()?;
     let mut solids = Vec::new();
     let mut reached = BTreeSet::new();
@@ -58,6 +100,15 @@ pub fn placed_solids(document: &metadata::StepDocument) -> Result<Vec<PlacedSoli
                 for report in reports {
                     report.require_lossless()?;
                 }
+                let appearance = document.records.appearance(id, &styles)?;
+                ensure!(
+                    appearance.len() == solid.boundaries.len()
+                        && appearance
+                            .iter()
+                            .zip(&solid.boundaries)
+                            .all(|(materials, shell)| materials.len() == shell.faces.len()),
+                    "appearance/topology mismatch"
+                );
                 transform_solid(
                     &mut solid,
                     Matrix4::from_scale(document.length_to_mm) * matrix,
@@ -66,6 +117,7 @@ pub fn placed_solids(document: &metadata::StepDocument) -> Result<Vec<PlacedSoli
                     entity: id,
                     name: node.attributes().name.clone(),
                     solid,
+                    appearance,
                 });
                 reached.insert(id);
             }

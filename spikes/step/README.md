@@ -85,10 +85,11 @@ production STEP importer**. In particular:
   fail explicitly; they are not silently treated as millimetres/radians.
   Missing/invalid units, cyclic definitions, duplicate entity IDs and
   multiple DATA sections are rejected before geometry conversion.
-- The table leaves colors, styles and other unsupported records in `dummy`.
-  `entity_report == 0` does not prove metadata preservation. Even the
-  `colors.step` result above establishes geometry only.
-- Export flattens instance structure and loses names, colors and metadata.
+- The table leaves colors/styles in `dummy`; the explicit AST adapter now
+  restores supported surface RGB and opacity. `entity_report == 0` still
+  does not establish preservation of arbitrary STEP metadata.
+- Export flattens instance structure and loses product names/hierarchy and
+  metadata beyond the supported surface appearance.
 - Surface-only models, mapped representations, additional DATA sections,
   unsupported analytic entities and adversarial/resource-heavy input need
   dedicated coverage and explicit rejection or support.
@@ -121,7 +122,8 @@ instead of disappearing silently. The generated PCB BRep is reloaded to
 unify Monstertruck's distinct modeling and STEP-import geometry enums.
 
 The prototype reads model unit contexts and normalizes to millimetres.
-It does not preserve model colors, names/assembly hierarchy in STEP, or add
+It preserves supported surface colors/opacity in STEP, JSON appearance data
+and OBJ/MTL. It does not preserve names/assembly hierarchy in STEP or add
 copper/mask/silk meshes. There is no Bevy viewer or CLI output-job integration.
 
 ```sh
@@ -136,8 +138,9 @@ cargo test --manifest-path spikes/step/Cargo.toml
 
 The optional trailing board/variant indices default to zero. The read-only
 project loader accepts `.lpp` or `.lppz`; it does not save migrated files.
-The output directory contains `pcb.step`, `assembly.step`, `assembly.obj`
-and a diagnostic `board.json`. The comparison adds `comparison.json`.
+The output directory contains `pcb.step`, `assembly.step`, `assembly.obj`,
+`assembly.mtl` and a diagnostic `board.json`. Keep OBJ and MTL together.
+The comparison adds `comparison.json`.
 
 On CAN–USB's default assembly, measured 2026-11-08:
 
@@ -158,7 +161,7 @@ Three focused Rust tests cover canonical geometry vs flat projections,
 overlapping/edge-crossing cutouts, mechanical drill policy and non-through
 rejection, and independently computed top/bottom model placements.
 
-Next: adapt materials, retain analytic PCB arcs where feasible,
+Next: retain analytic PCB arcs where feasible,
 and establish broader fixture/error coverage before moving the adapter
 into the application workspace. Rendering integration remains independent.
 
@@ -183,3 +186,59 @@ Very large geometry at a fixed fine tolerance remains resource-sensitive:
 an initial 20-metre variant exceeded the probe's 45-second child timeout.
 The equivalent-size fixtures above isolate unit correctness; they do not
 establish performance for unusually large or adversarial models.
+
+## Surface appearance checks (2026-11-09)
+
+`materials` resolves standard RGB and named colors, surface fill/rendering
+styles, transparency and explicit `OVER_RIDING_STYLED_ITEM` chains. Local
+face appearance overrides shell/solid defaults. Conflicting styles, cycles,
+unknown target kinds, directional/context-dependent styles and unsupported
+optical properties fail explicitly. Curve/point styling is outside the
+surface model. This is an RGB/opacity adapter, not a complete PBR/material
+or STEP presentation implementation.
+
+The exporter recovers **new** solid/shell/face IDs from Monstertruck's output
+AST and appends AP214 presentation entities. Input entity numbers are never
+reused. The same per-face material association accompanies tessellation and
+becomes OBJ `usemtl` groups and MTL diffuse/opacity values. Unstyled OBJ faces
+get an explicit neutral preview default; the CAD appearance data remains
+`None`. CAD RGB values are retained without a gamma conversion (the OCCT
+oracle reads them back in sRGB); future rendering must choose its color
+space explicitly. The mechanical PCB color follows the snapshot resist
+color, darkened for STEP as upstream, rather than modeling surface layers.
+
+```sh
+"$CARGO_TARGET_DIR/debug/appearance" "$STEP_WORK/plate.step" \
+  "$STEP_WORK/known-appearance.step"
+# Include known-appearance.step as another --input in check.py.
+uv run spikes/step/appearance_reference.py "$STEP_WORK/verified/summary.json" \
+  "$STEP_WORK/verified/appearance-reference.json" \
+  --negative-control "$STEP_WORK/negative-control"
+```
+
+All seventeen inputs (the original thirteen, three unit variants and a
+four-color/translucent plate) pass geometry and independent XCAF appearance
+checks. The oracle compares individual placed faces by geometry, surface
+area, RGB and alpha; inherited solid colors and face overrides resolve
+through OCCT's own XCAF style collector. A deliberately recolored STEP is
+rejected as a negative control. The generated plate separately checks known
+RGB/opacity face counts, so a self-consistent round-trip is insufficient.
+
+CAN–USB retains 87 valid solids / 53,400 closed-mesh triangles. All 86
+component solids still match the official export, and all 2,024 component
+face colors/opacity now match individually. The PCB's approximated contours
+remain excluded from exact face correspondence; its geometry acceptance
+boundary above is unchanged. `compare-board.py` checks component appearance
+in addition to geometry.
+
+Nine Rust tests pass, including independent OBJ/MTL parsing with `tobj`,
+material/triangle assignment, opacity, override priority, conflicts and
+cyclic style rejection. Both the parsed document and placed BReps have
+compile-time `Send + Sync` assertions. Monstertruck remains isolated in this
+prototype pending exact PCB curves, broader coverage and application wiring.
+
+Official LibrePCB 2.1.1 also reads and tessellates both new exports with
+`open-step --tesselate`: CAN–USB reports 133,200 vertices / five colors, and
+the known-appearance plate reports 732 vertices / four colors. This checks
+that the original application can consume the output, in addition to the
+independent OCCT 8 oracle; it does not complete native CLI STEP integration.

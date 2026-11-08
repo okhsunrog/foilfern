@@ -9,7 +9,9 @@ use std::{
     path::{Path, PathBuf},
     time::Instant,
 };
-use step_spike::{mesh_stats, metadata::StepDocument, placed_solids, transform_solid};
+use step_spike::{
+    materials::export_step, mesh_stats, metadata::StepDocument, placed_solids, transform_solid,
+};
 
 fn assembly_report(document: &StepDocument, output: &Path, tolerance: f64) -> Result<Value> {
     let placed = placed_solids(document)?;
@@ -24,16 +26,22 @@ fn assembly_report(document: &StepDocument, output: &Path, tolerance: f64) -> Re
             );
             stats.push(mesh_stats(meshed.to_polygon())?);
         }
-        instances.push(json!({"entity":item.entity,"name":item.name,"shells":stats}));
+        instances.push(json!({"entity":item.entity,"name":item.name,"shells":stats,"appearance":item.appearance}));
     }
-    let solids: Vec<_> = placed.into_iter().map(|item| item.solid).collect();
-    let models: save::StepModels<_, _, _> = solids.iter().collect();
-    let text =
-        save::CompleteStepDisplay::new(models, save::StepHeaderDescriptor::default()).to_string();
+    let text = export_step(&placed)?;
+    let again = StepDocument::parse(text.as_bytes())?;
+    let again = placed_solids(&again)?;
+    ensure!(
+        again
+            .iter()
+            .map(|item| &item.appearance)
+            .eq(placed.iter().map(|item| &item.appearance)),
+        "appearance changed on round trip"
+    );
     let path = output.join("assembly.step");
     std::fs::write(&path, text)?;
     Ok(
-        json!({"instances":instances,"solid_count":solids.len(),"roundtrip_file":path,"metadata_preserved":false}),
+        json!({"instances":instances,"solid_count":placed.len(),"roundtrip_file":path,"surface_materials_preserved":true,"metadata_preserved":false}),
     )
 }
 

@@ -10,6 +10,7 @@ import argparse
 import json
 from pathlib import Path
 
+from appearance_reference import compare as compare_appearance
 from OCP.TopAbs import TopAbs_SOLID
 from OCP.TopExp import TopExp_Explorer
 from reference import measure_shape, read_shape
@@ -104,6 +105,11 @@ def main():
         "component_solids_matched": len(component_errors),
         "max_component_bounds_error_mm": max(component_errors, default=0.0),
         "pcb": body_results,
+        "component_appearance": compare_appearance(
+            args.expected,
+            args.actual / "assembly.step",
+            [body["bounds"] for body in pcb],
+        ),
     }
     (args.actual / "comparison.json").write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2))

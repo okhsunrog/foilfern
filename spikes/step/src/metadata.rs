@@ -11,6 +11,7 @@ use monstertruck_io::step::load::{
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum Error {
     #[error("STEP parse failed: {0}")]
     Parse(String),
@@ -62,7 +63,7 @@ pub(crate) fn number(value: &Parameter, id: u64) -> Result<f64> {
 #[derive(Debug)]
 pub(crate) struct Records(pub BTreeMap<u64, Vec<Record>>);
 impl Records {
-    fn new(data: &DataSection) -> Result<Self> {
+    pub(crate) fn new(data: &DataSection) -> Result<Self> {
         let mut records = BTreeMap::new();
         for entity in &data.entities {
             let (id, value) = match entity {
@@ -192,11 +193,19 @@ impl Records {
     }
 }
 
+pub(crate) fn text(value: &Parameter, id: u64) -> Result<&str> {
+    match value {
+        Parameter::String(value) => Ok(value),
+        _ => Err(invalid(id, "expected string")),
+    }
+}
+
 pub struct StepDocument {
     pub table: Table,
     pub length_to_mm: f64,
     pub(crate) records: Records,
 }
+static_assertions::assert_impl_all!(StepDocument: Send, Sync);
 impl StepDocument {
     pub fn entity_count(&self) -> usize {
         self.records.0.len()

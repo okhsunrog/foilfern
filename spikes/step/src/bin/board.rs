@@ -21,9 +21,10 @@ fn checked_mesh(mesh: &PolygonMesh) -> Result<Value> {
 }
 use step_spike::{
     board::{board_solids, device_matrix},
+    materials::{Material, export_obj, export_step},
     mesh_stats,
     metadata::StepDocument,
-    placed_solids, transform_solid,
+    placed_solids, tessellate_solid, transform_solid,
 };
 
 fn main() -> Result<()> {
@@ -96,24 +97,33 @@ fn main() -> Result<()> {
     // BRep to share one save-side type, without a lossy mesh conversion.
     let pcb_document = StepDocument::parse(pcb_text.as_bytes())?;
     pcb_document.table.entity_report.require_empty()?;
-    let pcb_solids: Vec<_> = placed_solids(&pcb_document)?
-        .into_iter()
-        .map(|item| item.solid)
-        .collect();
+    let mut pcb_solids = placed_solids(&pcb_document)?;
+    let pcb_material = if let Some(resist) = data.solder_resist {
+        let color = resist.to_solder_resist_color();
+        Material {
+            color: [color.r, color.g, color.b].map(|value| f64::from(value) / 510.),
+            opacity: f64::from(color.a) / 255.,
+        }
+    } else {
+        Material {
+            color: [70., 80., 70.].map(|value| value / 255.),
+            opacity: 1.,
+        }
+    };
+    for item in &mut pcb_solids {
+        for shell in &mut item.appearance {
+            shell.fill(Some(pcb_material));
+        }
+    }
+    std::fs::write(output.join("pcb.step"), export_step(&pcb_solids)?)?;
     let mut combined = PolygonMesh::default();
+    let mut material_groups = Vec::new();
     let mut meshes = Vec::new();
     for solid in &pcb_solids {
-        let mut mesh = PolygonMesh::default();
-        for shell in &solid.boundaries {
-            let triangulated = shell.robust_triangulation(0.01);
-            ensure!(
-                triangulated.faces.iter().all(|f| f.surface.is_some()),
-                "PCB face tessellation failed"
-            );
-            mesh.merge(triangulated.to_polygon());
-        }
+        let (mesh, groups) = tessellate_solid(solid, 0.01)?;
+        material_groups.extend(groups);
         let stats = checked_mesh(&mesh)?;
-        meshes.push(json!({"name":"PCB","mesh":stats}));
+        meshes.push(json!({"name":"PCB","mesh":stats,"appearance":solid.appearance}));
         combined.merge(mesh);
     }
     let mut solids = Vec::new();
@@ -132,39 +142,23 @@ fn main() -> Result<()> {
         }
         let matrix = device_matrix(device, data.thickness.to_mm());
         for item in &cache[&key] {
-            let mut solid = item.solid.clone();
-            transform_solid(&mut solid, matrix);
-            let mut mesh = PolygonMesh::default();
-            for shell in &solid.boundaries {
-                let triangulated = shell.robust_triangulation(0.01);
-                ensure!(
-                    triangulated.faces.iter().all(|f| f.surface.is_some()),
-                    "component face tessellation failed"
-                );
-                mesh.merge(triangulated.to_polygon());
-            }
+            let mut solid = item.clone();
+            transform_solid(&mut solid.solid, matrix);
+            let (mesh, groups) = tessellate_solid(&solid, 0.01)?;
+            material_groups.extend(groups);
             let stats = checked_mesh(&mesh)?;
-            meshes.push(json!({"name":device.name,"mesh":stats}));
+            meshes.push(json!({"name":device.name,"mesh":stats,"appearance":solid.appearance}));
             combined.merge(mesh);
             solids.push(solid);
         }
     }
-    obj::write(
-        &combined,
-        std::fs::File::create(output.join("assembly.obj"))?,
-    )?;
-    let mut models = save::StepModels::default();
-    for solid in &pcb_solids {
-        models.push_solid(solid);
-    }
-    for solid in &solids {
-        models.push_solid(solid);
-    }
-    std::fs::write(
-        output.join("assembly.step"),
-        save::CompleteStepDisplay::new(models, save::StepHeaderDescriptor::default()).to_string(),
-    )?;
-    let report = json!({"input":input,"board":board.name().to_string(),"variant":variant.name().to_string(),"devices":data.devices.len(),"pcb_solids":pcb_solids.len(),"component_solids":solids.len(),"meshes":meshes,"contour_tolerance_mm":0.005,"tessellation_tolerance_mm":0.01,"materials_preserved":false,"via_drills_omitted":true,"model_units_assumed_mm":false});
+    let (obj, mtl) = export_obj(&combined, &material_groups)?;
+    std::fs::write(output.join("assembly.obj"), obj)?;
+    std::fs::write(output.join("assembly.mtl"), mtl)?;
+    let component_solids = solids.len();
+    solids.extend(pcb_solids.clone());
+    std::fs::write(output.join("assembly.step"), export_step(&solids)?)?;
+    let report = json!({"input":input,"board":board.name().to_string(),"variant":variant.name().to_string(),"devices":data.devices.len(),"pcb_solids":pcb_solids.len(),"component_solids":component_solids,"meshes":meshes,"contour_tolerance_mm":0.005,"tessellation_tolerance_mm":0.01,"surface_materials_preserved":true,"via_drills_omitted":true,"model_units_assumed_mm":false});
     std::fs::write(
         output.join("board.json"),
         serde_json::to_string_pretty(&report)?,
@@ -172,7 +166,7 @@ fn main() -> Result<()> {
     println!(
         "{} devices, {} component solids, {} PCB solids -> {}",
         data.devices.len(),
-        solids.len(),
+        component_solids,
         pcb_solids.len(),
         output.display()
     );
