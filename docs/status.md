@@ -177,6 +177,14 @@ Done, in `crates/librepcb-core` unless noted:
 
 ## Next steps
 
+The standalone `spikes/step` probe now validates Monstertruck 0.4.1 geometry
+on all ten CAN–USB STEP files, two upstream OccModelTest fixtures and an
+analytic drilled plate. Reported conversion, watertight tessellation,
+assembly instances/placements and BRep re-export pass independent OCCT
+solid/face-count, volume, bounds and validity checks. It remains outside the
+application workspace: units, materials and broader importer coverage are
+not yet adapted. See `../spikes/step/README.md`; CLI STEP remains deferred.
+
 1. **Wave 4 acceptance:** close the remaining CLI differences. STEP still
    blocks mixed job runs. STEP originally belonged to M5; full upstream
    `tests/cli` acceptance requires it. Parser/help/version snapshots need a
