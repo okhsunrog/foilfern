@@ -14,10 +14,10 @@ diffing outputs against the official `librepcb-cli`.
 - Wave 3c (complete): board export data and plane fragments, DRC, ERC + BOM + project
   attribute lookup.
 - Wave 4 (in progress): output job model and manufacturing runner complete;
-  native CLI, schematic/library graphics and technical/realistic 2D board
+  native CLI, interactive HTML BOM, schematic/library graphics and 2D board
   exports available (143 of 178 upstream cases pass; the focused supported
-  command suite has 139 cases). Full acceptance still needs interactive
-  BOM/STEP command coverage and parser/help/version expectations.
+  command suite has 139 cases). Full acceptance still needs STEP command
+  coverage and parser/help/version expectations.
 
 ## M1.5 — AI track (MCP)
 
@@ -49,5 +49,5 @@ Symbol, package, component and device editors.
 
 ## M5 — the rest
 
-3D view and STEP, interactive HTML BOM, PCB ordering API, Eagle and KiCad
+3D view and STEP, PCB ordering API, Eagle and KiCad
 importers.

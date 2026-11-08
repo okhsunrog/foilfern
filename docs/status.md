@@ -7,7 +7,7 @@ covers where things stand and how the work has been organized.
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 1027 tests report success (about 100k lines
+The workspace builds cleanly and 1030 tests report success (about 100k lines
 of Rust). The latest local run used the official CLI 2.1.1 as the oracle,
 including ERC messages, migrations and byte-identical JSON exports over
 the pinned upstream test data.
@@ -126,7 +126,8 @@ Done, in `crates/librepcb-core` unless noted:
   in `librepcb-graphics`, retaining indexed ownership, archive dependencies,
   collision checks and cleanup. Board graphics rebuild planes before encoding.
   Realistic top/bottom board rendering also uses this writer and the shared
-  physical snapshot. Interactive BOM and 3D execution remain deferred.
+  physical snapshot. Interactive BOM HTML jobs execute directly through the
+  upstream Rust generator. 3D execution remains deferred.
 
 - **Native CLI core** (2026-11-06): `crates/librepcb-cli` opens `.lpp`/`.lppz`
   projects and libraries, runs ERC/DRC and library checks, executes output
@@ -136,7 +137,7 @@ Done, in `crates/librepcb-core` unless noted:
   display server. Symbol/package graphics and schematic exports are supported.
   `scripts/check-cli-core.sh` covers 139 unmodified upstream pytest cases.
   The full upstream suite reports 143 passed / 35 failed: nine STEP/minification
-  cases, six mixed job runs blocked on interactive BOM (with STEP later), and
+  cases, six mixed job runs blocked on STEP, and
   twenty parser/help/version cases, including the missing `open-step` parser.
   M1 is not complete.
 
@@ -161,25 +162,31 @@ Done, in `crates/librepcb-core` unless noted:
   for mirrors, rotations, fixed paper and transparency. Realistic PDF job
   names/page counts match official CLI 2.1.1, and both sides of Gerber Test's
   PNG output were visually compared. This does not implement 3D or a viewer.
-- **Interactive BOM data adapter** (2026-11-08): resolves footprints, pads,
+- **Interactive HTML BOM** (2026-11-08): resolves footprints, pads,
   slots, nets, tracks, plane fragments, stroke drawings and grouped assembly
   rows into the existing `interactive-html-bom` Rust crate. The original
   `BoardInteractiveHtmlBomGeneratorTest` HTML matches byte for byte; fixture
   checks cover variants, custom columns, DNP and read-only extraction. Output
-  job execution and browser acceptance are the next integration step.
+  jobs rebuild planes and preserve indexed ownership, archives, collision
+  checks and cleanup. Official CLI comparisons cover emitted configuration
+  and PCB data, excluding time. CAN–USB was exercised offline in headless
+  Chromium: filtering, footprint highlights, sides, themes and persistent
+  checkboxes, with no HTTP requests or JavaScript errors. Desktop/compact
+  light/dark screenshots were reviewed. `scripts/check-ibom-browser.py`
+  repeats this check; see `interactive-bom.md`.
 
 ## Next steps
 
-1. **Wave 4 acceptance:** close the remaining CLI differences. Interactive BOM
-   and STEP still block mixed job runs. These
-   features originally belonged to M5; full upstream `tests/cli` acceptance
-   requires them. Parser/help/version snapshots need a native-parser policy.
+1. **Wave 4 acceptance:** close the remaining CLI differences. STEP still
+   blocks mixed job runs. STEP originally belonged to M5; full upstream
+   `tests/cli` acceptance requires it. Parser/help/version snapshots need a
+   native-parser policy.
    Keep running the implemented paths with `scripts/check-cli-core.sh`.
 2. **Then M1.5** (MCP, library manager, Specctra) per `roadmap.md` and the
    decisions in `mcp-research-konnect.md`.
 
 Deliberately deferred: live viewer/editor integration (M2), Specctra
-(M1.5), the interactive HTML BOM, 3D/STEP, and the Eagle/KiCad importers
+(M1.5), 3D/STEP, and the Eagle/KiCad importers
 (M5).
 
 ## How the work is organized

@@ -57,7 +57,7 @@ pub struct GerberX3Job {
     pub glue_top: EnabledOutput,
     pub glue_bottom: EnabledOutput,
 }
-/// HTML BOM configuration; generation is deferred to the HTML BOM milestone.
+/// Standalone interactive HTML assembly BOM configuration.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct InteractiveBomJob {
     pub view_mode: BomViewMode,

@@ -3,7 +3,10 @@
 //! ownership. Application version/time are explicit; observer callbacks
 //! replace Qt signals. Graphics encoding is provided by the caller.
 
-use super::board::{BoardD356NetlistExport, BoardGerberExport, BoardPickPlaceGenerator};
+use super::board::{
+    BoardD356NetlistExport, BoardGerberExport, BoardInteractiveBomGenerator,
+    BoardPickPlaceGenerator,
+};
 use super::{
     AssemblyVariantId, BoardId, BomGenerator, Project, ProjectAttributeLookup, ProjectJsonExport,
 };
@@ -429,7 +432,69 @@ impl<'a> OutputJobRunner<'a> {
                     self.write(job, &file.name, &file.contents)?;
                 }
             }
-            JobKind::Board3d { .. } | JobKind::InteractiveBom(_) => {
+            JobKind::InteractiveBom(settings) => {
+                let boards = self.required_boards(&settings.boards)?;
+                let variants = self.required_variants(&settings.variants)?;
+                for board in boards {
+                    self.rebuild_planes(board)?;
+                    for variant in variants.iter().copied() {
+                        let path = self.path(&settings.output, Some(board), Some(variant))?;
+                        let suffix = std::path::Path::new(&path)
+                            .extension()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or_default();
+                        if !["html", "htm", "xhtml"]
+                            .iter()
+                            .any(|s| suffix.eq_ignore_ascii_case(s))
+                        {
+                            return Err(Error::UnsupportedFormat {
+                                kind: "interactive BOM",
+                                suffix: suffix.into(),
+                            });
+                        }
+                        let board = self.board(board)?;
+                        let mut generator =
+                            BoardInteractiveBomGenerator::new(self.project, board, variant);
+                        generator.set_custom_attributes(settings.custom_attributes.clone());
+                        generator.set_component_order(settings.component_order.clone());
+                        let mut data = generator.generate(self.timestamp)?;
+                        data.view_mode = match settings.view_mode {
+                            crate::job::BomViewMode::BomOnly => {
+                                interactive_html_bom::ViewMode::BomOnly
+                            }
+                            crate::job::BomViewMode::LeftRight => {
+                                interactive_html_bom::ViewMode::LeftRight
+                            }
+                            crate::job::BomViewMode::TopBottom => {
+                                interactive_html_bom::ViewMode::TopBottom
+                            }
+                        };
+                        data.highlight_pin1 = match settings.highlight_pin1 {
+                            crate::job::HighlightPin1::None => {
+                                interactive_html_bom::HighlightPin1Mode::None
+                            }
+                            crate::job::HighlightPin1::Selected => {
+                                interactive_html_bom::HighlightPin1Mode::Selected
+                            }
+                            crate::job::HighlightPin1::All => {
+                                interactive_html_bom::HighlightPin1Mode::All
+                            }
+                        };
+                        data.dark_mode = settings.dark_mode;
+                        data.board_rotation = settings.rotation.to_deg() as f32;
+                        data.offset_back_rotation = settings.offset_back_rotation;
+                        data.show_silkscreen = settings.show_silkscreen;
+                        data.show_fabrication = settings.show_fabrication;
+                        data.show_pads = settings.show_pads;
+                        data.checkboxes = settings.checkboxes.clone();
+                        // Source jobs currently leave show_tracks/show_zones
+                        // unused; preserve the complete copper data like upstream.
+                        let html = data.generate_html().map_err(Error::InteractiveBom)?;
+                        self.write(job, &path, html.as_bytes())?;
+                    }
+                }
+            }
+            JobKind::Board3d { .. } => {
                 return Err(Error::DeferredJob(job.kind.type_name().into()));
             }
         }

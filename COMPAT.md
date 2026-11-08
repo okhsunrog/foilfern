@@ -166,7 +166,9 @@ stated otherwise. Entries are grouped by module.
   Lithuanian or Estonian letter order) and between ICU/Unicode versions.
   Callers use a stable sort; upstream uses `std::sort`, whose order of
   elements comparing equal (e.g. `r1` vs. `R1`) is unspecified. Affects the
-  row order of exported BOM and pick&place files in these edge cases.
+  row order of exported BOM and pick&place files in these edge cases. This
+  includes interactive BOM rows: Qt under `C.UTF-8` sorts lexicographically
+  (`C1, C10, C2`), while Rust keeps numeric order (`C1, C2, C10`).
 
 ## export
 
@@ -499,7 +501,7 @@ differ between platforms/implementations:
 
 - Jobs use owned enum variants instead of a class hierarchy. Graphics,
   interactive BOM and 3D settings can be read and written independently of
-  the deferred renderers. Unknown jobs retain the original complete node,
+  execution. Unknown jobs retain the original complete node,
   including when common fields are edited, matching `UnknownOutputJob`.
 - Cloning a known job preserves arbitrary option nodes. Upstream's base
   copy constructor omits them, accidentally losing forward-compatible
@@ -511,7 +513,8 @@ differ between platforms/implementations:
   Graphics encoding is injected by the caller, keeping core independent of
   the graphics crate. Schematic/2D-board jobs use the same indexed writer;
   realistic 2D board rendering shares physical geometry with future 3D
-  consumers. 3D and interactive BOM still fail explicitly.
+  consumers. Interactive HTML BOM uses the upstream Rust generator directly.
+  3D jobs still fail explicitly.
   ZIP timestamps/compression follow the existing Rust ZIP implementation;
   archive contents and output filenames are compatible.
 
@@ -523,8 +526,8 @@ differ between platforms/implementations:
   versions. Application messages still use the upstream translation context.
 - Implemented commands are `open-project`, `open-library`, `open-symbol` and
   `open-package`, including symbol/package and schematic graphics exports.
-  Schematic, 2D-board and realistic top/bottom output jobs are supported.
-  STEP/minification and interactive BOM remain deferred and are reported
+  Schematic, 2D-board, realistic top/bottom and interactive HTML BOM output
+  jobs are supported. STEP/minification remain deferred and are reported
   as unsupported. The supported-command suite has 139 unmodified upstream
   tests; the full suite reports 143 passed / 35 failed across deferred
   features and parser/help/version text.

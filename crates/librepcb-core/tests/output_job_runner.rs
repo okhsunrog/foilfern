@@ -182,8 +182,26 @@ fn duplicate_gerber_names_fail_and_failed_jobs_preserve_previous_outputs() {
     assert!(temp.path().join("old.txt").exists());
 }
 fn normalized(data: &[u8]) -> String {
-    String::from_utf8_lossy(data)
-        .lines()
+    let text = String::from_utf8_lossy(data);
+    if let Some(encoded) = text
+        .split("var pcbdata = JSON.parse(LZString.decompressFromBase64(\"")
+        .nth(1)
+        .and_then(|s| s.split('"').next())
+    {
+        let decoded =
+            String::from_utf16(&lz_str::decompress_from_base64(encoded).unwrap()).unwrap();
+        let mut pcb: serde_json::Value = serde_json::from_str(&decoded).unwrap();
+        pcb["metadata"]["date"] = "generation time".into();
+        let config = text
+            .split("var config = ")
+            .nth(1)
+            .unwrap()
+            .lines()
+            .next()
+            .unwrap();
+        return format!("{config}\n{pcb}");
+    }
+    text.lines()
         .filter(|line| {
             !line.starts_with("G04 #@! TF.CreationDate,")
                 && !line.starts_with("G04 #@! TF.GenerationSoftware,")
@@ -238,7 +256,6 @@ fn supported_fixture_jobs_match_official_cli() {
                 j.kind,
                 JobKind::Graphics(_)
                     | JobKind::Board3d { .. }
-                    | JobKind::InteractiveBom(_)
                     | JobKind::Archive { .. }
                     | JobKind::Lppz { .. }
             )
