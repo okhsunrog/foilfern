@@ -7,7 +7,7 @@ covers where things stand and how the work has been organized.
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 1015 tests report success (about 100k lines
+The workspace builds cleanly and 1020 tests report success (about 100k lines
 of Rust). The latest local run used the official CLI 2.1.1 as the oracle,
 including ERC messages, migrations and byte-identical JSON exports over
 the pinned upstream test data.
@@ -36,6 +36,12 @@ Done, in `crates/librepcb-core` unless noted:
   for byte.
 - **`crates/librepcb-canvas`:** a retained 2D scene rendered with vello_cpu,
   with hit testing and a Slint adapter.
+- **Shared physical board geometry** (2026-11-08): an owned snapshot resolves
+  outer material regions, cutouts, slots and drill spans, colors/thickness and
+  optional assembly model placements. Flat regions reproduce upstream's
+  physical top/bottom projection; canonical geometry remains available to a
+  future 3D mesh builder. Extraction is read-only and has no graphics or STEP
+  dependency. See `board-rendering.md`.
 - **Slint snapshot** (2026-11-08): canvas and standalone prototypes pin
   upstream master `aebe3dd580ce0594de272bc5797b7444a2aa18fd` (package 1.20.0,
   still a development snapshot). UI builds select edition 1.20. The optional

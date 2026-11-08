@@ -31,6 +31,7 @@ pub(crate) mod keyed_map;
 mod net_segment;
 mod net_segment_splitter;
 mod pad_data;
+mod physical_geometry;
 mod pick_place_generator;
 mod plane;
 mod plane_fragments_builder;
@@ -56,6 +57,9 @@ pub use hole_data::BoardHoleData;
 pub use net_segment::{BoardNetSegment, BoardSegmentElements};
 pub use net_segment_splitter::{BoardNetSegmentParts, BoardNetSegmentSplitter};
 pub use pad_data::BoardPadData;
+pub use physical_geometry::{
+    BoardPhysicalGeometry, BoardSurfaceGeometry, PhysicalDevice, PhysicalHole, PhysicalHoleDepth,
+};
 pub use pick_place_generator::BoardPickPlaceGenerator;
 pub use plane::{BoardPlane, PlaneConnectStyle};
 pub use plane_fragments_builder::{BoardPlaneFragmentsBuilder, PlaneFragments};
