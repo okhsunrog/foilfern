@@ -34,6 +34,7 @@ use slint::ComponentHandle;
 use slint::platform::PointerEventButton;
 
 slint::slint! {
+    #[edition = "1.20"]
     export component DemoWindow inherits Window {
         preferred-width: 1600px;
         preferred-height: 1000px;

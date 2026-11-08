@@ -36,6 +36,11 @@ Done, in `crates/librepcb-core` unless noted:
   for byte.
 - **`crates/librepcb-canvas`:** a retained 2D scene rendered with vello_cpu,
   with hit testing and a Slint adapter.
+- **Slint snapshot** (2026-11-08): canvas and standalone prototypes pin
+  upstream master `aebe3dd580ce0594de272bc5797b7444a2aa18fd` (package 1.20.0,
+  still a development snapshot). UI builds select edition 1.20. The optional
+  Slint integration, full renderer spike and bundled-translation check build
+  against the same revision; translation runtime checks pass.
 - **`crates/librepcb-i18n`, `tools/ts2po`, `lang/`:** translations from the
   upstream catalogs, with Slint bundled translations.
 - **Project attribute lookup** (2026-11-01): built-in and custom attributes

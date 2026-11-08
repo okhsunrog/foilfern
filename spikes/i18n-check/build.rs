@@ -10,7 +10,9 @@ fn main() {
         .expect("stage translations");
     slint_build::compile_with_config(
         "ui/main.slint",
-        slint_build::CompilerConfiguration::new().with_bundled_translations(lang),
+        slint_build::CompilerConfiguration::new()
+            .with_edition((1, 20))
+            .with_bundled_translations(lang),
     )
     .expect("compile ui/main.slint");
 }

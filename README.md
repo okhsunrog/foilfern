@@ -50,7 +50,8 @@ manufacturing data. The graphical application is still planned.
 | File format migrations (v0.1 → v1 → v2) | done |
 | Project model: circuit, schematics, boards (with undoable mutations and a change journal) | done |
 | Plane fragments, DRC, ERC, output job model and manufacturing runner | done |
-| Native CLI | core commands available; rendering/STEP and full upstream acceptance pending |
+| SVG, PNG and multipage PDF | symbols, footprints, schematics and 2D-board output jobs |
+| Native CLI | core commands available; realistic rendering/STEP and full upstream acceptance pending |
 | MCP server, library manager, Specctra export for autorouting | planned |
 | Slint viewer and editor | planned (a rendering canvas already exists) |
 
@@ -66,6 +67,7 @@ See [docs/roadmap.md](docs/roadmap.md) for the milestones and
 | `crates/librepcb-i18n` | Translations for strings from Rust code, using the upstream catalogs |
 | `crates/librepcb-network` | Async networking (downloads, LibrePCB API) |
 | `crates/librepcb-canvas` | 2D rendering canvas (vello_cpu) with hit testing, and a Slint adapter |
+| `crates/librepcb-graphics` | Headless symbol, footprint, schematic and board graphics exports |
 | `crates/clipper` | Pure-Rust port of the Clipper 1 polygon clipping library |
 | `tools/ts2po` | Converter from upstream Qt `.ts` translations to gettext `.po` |
 | `lang/` | Translation catalogs (25 languages) |
@@ -126,14 +128,26 @@ implemented commands. Set `LIBREPCB_CLI` to the **official** executable when
 running the Rust tests against the upstream oracle, since both binaries
 are named `librepcb-cli`.
 
-The complete upstream CLI suite is not passing yet: graphics/STEP commands
-are deferred, and help, version and parse-error text follows clap instead
+The complete upstream CLI suite is not passing yet: realistic board rendering,
+interactive BOM and STEP are deferred, and help, version and parse-error text follows clap instead
 of Qt. See `COMPAT.md` and `docs/status.md` for the exact boundary.
 
 To see the canvas demo:
 
 ```sh
 cargo run --release -p librepcb-canvas --features slint --example canvas_demo
+```
+
+Slint is pinned to upstream master commit
+[`aebe3dd580ce0594de272bc5797b7444a2aa18fd`](https://github.com/slint-ui/slint/commit/aebe3dd580ce0594de272bc5797b7444a2aa18fd)
+(2026-11-08, development package version 1.20.0). All Slint dependencies,
+including the standalone prototypes under `spikes/`, use this revision.
+The UI selects Slint edition 1.20; this snapshot requires Rust 1.95 or newer.
+Check the optional integration explicitly:
+
+```sh
+cargo test --workspace --features librepcb-canvas/slint
+cargo clippy --workspace --all-targets --features librepcb-canvas/slint -- -D warnings
 ```
 
 ## Documentation

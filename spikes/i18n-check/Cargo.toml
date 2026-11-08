@@ -6,13 +6,13 @@ license = "GPL-3.0-or-later"
 publish = false
 
 [dependencies]
-i-slint-backend-testing = "1.18.1"
+i-slint-backend-testing = { git = "https://github.com/slint-ui/slint", rev = "aebe3dd580ce0594de272bc5797b7444a2aa18fd", version = "1.20.0" }
 librepcb-i18n = { version = "0.1.0", path = "../../crates/librepcb-i18n" }
-slint = "1.18.1"
+slint = { git = "https://github.com/slint-ui/slint", rev = "aebe3dd580ce0594de272bc5797b7444a2aa18fd", version = "1.20.0" }
 
 # Standalone: not part of the main workspace.
 [workspace]
 
 [build-dependencies]
 librepcb-i18n = { version = "0.1.0", path = "../../crates/librepcb-i18n" }
-slint-build = "1.18.1"
+slint-build = { git = "https://github.com/slint-ui/slint", rev = "aebe3dd580ce0594de272bc5797b7444a2aa18fd", version = "1.20.0" }

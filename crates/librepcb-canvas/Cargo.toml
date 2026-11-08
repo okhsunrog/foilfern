@@ -9,7 +9,7 @@ kurbo = "0.13.1"
 librepcb-core = { version = "0.1.0", path = "../librepcb-core" }
 peniko = "0.6.1"
 rstar = "0.13.0"
-slint = { version = "1.18.1", optional = true }
+slint = { version = "1.20.0", optional = true, git = "https://github.com/slint-ui/slint", rev = "aebe3dd580ce0594de272bc5797b7444a2aa18fd" }
 slotmap = "1.1.1"
 static_assertions = "1.1.0"
 thiserror = "2.0.21"
