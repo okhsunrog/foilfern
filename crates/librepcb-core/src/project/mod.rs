@@ -65,7 +65,10 @@ pub use json_export::ProjectJsonExport;
 pub use library::{LibraryElementKind, ProjectLibrary};
 pub use loader::ProjectLoader;
 pub use mutation::{BoardMutation, Mutation, SchematicMutation};
-pub use output_job_runner::{OutputJobEvent, OutputJobRunner};
+pub use output_job_runner::{
+    GraphicsJobExporter, GraphicsJobFile, OutputJobEvent, OutputJobRunner, select_job_boards,
+    select_job_variants,
+};
 pub use project::{Project, ProjectMetadata, ProjectSettings, ProjectView};
 pub use ref_index::{ComponentUses, NetUse, Reference};
 pub use schematic::SchematicChange;

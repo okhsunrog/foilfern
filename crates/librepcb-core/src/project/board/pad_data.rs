@@ -50,6 +50,20 @@ impl BoardPadData {
     pub fn pad_mut(&mut self) -> &mut Pad {
         &mut self.pad
     }
+    /// Placement-dependent copper, stop-mask and paste geometry of this
+    /// standalone pad. Footprint pads use `FootprintPadView::geometries()`.
+    pub fn geometries(
+        &self,
+        copper_layers: &BTreeSet<Layer>,
+        rules: &BoardDesignRules,
+        connected_layers: &BTreeSet<Layer>,
+    ) -> BTreeMap<Layer, Vec<PadGeometry>> {
+        PadOnBoard {
+            pad: &self.pad,
+            mirrored: false,
+        }
+        .geometries(copper_layers, rules, connected_layers)
+    }
 
     property!(
         /// Returns whether the pad is locked.

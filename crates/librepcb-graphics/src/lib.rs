@@ -5,9 +5,11 @@
 //! font shaping, rasterization and PDF encoding use maintained Rust libraries.
 //! Only LibrePCB's drawing order, units, settings and page semantics are ported.
 
+mod board;
 mod drawing;
 mod error;
 mod export;
+mod jobs;
 mod library;
 mod palette;
 mod schematic;
@@ -18,5 +20,7 @@ pub use error::{Error, Result};
 pub use export::{GraphicsExport, GraphicsFile, GraphicsPage};
 pub use settings::GraphicsSettings;
 
+pub use board::board_drawing;
+pub use jobs::graphics_job_files;
 pub use library::{default_stroke_font, footprint_drawing, symbol_drawing};
 pub use schematic::schematic_drawing;

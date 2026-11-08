@@ -25,6 +25,15 @@ pub enum Error {
     FileIo(#[from] librepcb_core::fileio::Error),
     #[error(transparent)]
     Core(Box<librepcb_core::project::Error>),
+    #[error(transparent)]
+    Job(Box<librepcb_core::job::Error>),
+    #[error("Graphics content '{0}' is not implemented yet.")]
+    UnsupportedContent(String),
+}
+impl From<librepcb_core::job::Error> for Error {
+    fn from(e: librepcb_core::job::Error) -> Self {
+        Self::Job(Box::new(e))
+    }
 }
 impl From<librepcb_core::project::Error> for Error {
     fn from(e: librepcb_core::project::Error) -> Self {

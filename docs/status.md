@@ -7,7 +7,7 @@ covers where things stand and how the work has been organized.
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 1006 tests report success (about 100k lines
+The workspace builds cleanly and 1015 tests report success (about 100k lines
 of Rust). The latest local run used the official CLI 2.1.1 as the oracle,
 including ERC messages, migrations and byte-identical JSON exports over
 the pinned upstream test data.
@@ -105,7 +105,10 @@ Done, in `crates/librepcb-core` unless noted:
   before fabrication, rejects duplicate names and removes obsolete files
   after successful jobs. Archives consume only previously executed jobs.
   Upstream security/rebuild test cases and official CLI output comparisons
-  pass. Graphics, interactive BOM and 3D execution remain deferred.
+  pass. Schematic and 2D board graphics are encoded by an injected renderer
+  in `librepcb-graphics`, retaining indexed ownership, archive dependencies,
+  collision checks and cleanup. Board graphics rebuild planes before encoding.
+  Interactive BOM, realistic board rendering and 3D execution remain deferred.
 
 - **Native CLI core** (2026-11-06): `crates/librepcb-cli` opens `.lpp`/`.lppz`
   projects and libraries, runs ERC/DRC and library checks, executes output
@@ -114,8 +117,10 @@ Done, in `crates/librepcb-core` unless noted:
   checks canonical files and saves/migrates transactionally. Runs without a
   display server. Symbol/package graphics and schematic exports are supported.
   `scripts/check-cli-core.sh` covers 138 unmodified upstream pytest cases.
-  Graphics jobs, STEP and Qt parser/help/version snapshots remain pending.
-  M1 is not complete.
+  The full upstream suite reports 142 passed / 36 failed: nine STEP/minification
+  cases, seven mixed job runs blocked on realistic board rendering (also
+  containing deferred interactive BOM/STEP), and twenty parser/help/version
+  cases, including the missing `open-step` parser. M1 is not complete.
 
 - **Graphics export backend** (2026-11-08): `crates/librepcb-graphics`
   provides owned drawing lists, native text, layer palettes and page layout,
@@ -126,19 +131,23 @@ Done, in `crates/librepcb-core` unless noted:
   23 unmodified upstream tests, including output naming/collision behavior.
   Model-content tests cover pins, overlines, images, pad holes and read-only
   schematic export. Demo symbol PDF renders were visually compared with the
-  official CLI. Board painting and graphics output jobs are the next block.
+  official CLI. The board painter covers placed footprints, copper fills,
+  pads/vias, masks, traces, holes and stroke text. Schematic and board PDF
+  jobs match the official CLI's filenames and page counts; both sides of
+  Gerber Test's assembly PDF were visually compared. Encoding retains native
+  font/raster differences documented in `COMPAT.md`.
 
 ## Next steps
 
-1. **Wave 4 acceptance:** close the remaining CLI differences. Graphics
-   exporters/painters and STEP currently belong to later milestones; decide
-   their scope against the full upstream `tests/cli` acceptance requirement.
-   Parser/help/version snapshots need a native-parser acceptance policy.
+1. **Wave 4 acceptance:** close the remaining CLI differences. Realistic board
+   rendering, interactive BOM and STEP still block mixed job runs. These
+   features originally belonged to M5; full upstream `tests/cli` acceptance
+   requires them. Parser/help/version snapshots need a native-parser policy.
    Keep running the implemented paths with `scripts/check-cli-core.sh`.
 2. **Then M1.5** (MCP, library manager, Specctra) per `roadmap.md` and the
    decisions in `mcp-research-konnect.md`.
 
-Deliberately deferred: the board painter/editor integration (M2), Specctra
+Deliberately deferred: live viewer/editor integration (M2), Specctra
 (M1.5), the interactive HTML BOM, 3D/STEP, and the Eagle/KiCad importers
 (M5).
 

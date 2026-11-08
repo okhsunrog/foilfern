@@ -10,8 +10,9 @@
 //! ([`BoardDerived`]), recomputed on demand from dirty sets maintained by
 //! the mutations ([`BoardAirWiresBuilder`]).
 //!
-//! Not ported yet: the painters, Specctra and interactive HTML BOM
-//! exports. Design rule checks and owned snapshots are in [`drc`].
+//! Headless painters live in `librepcb-graphics`. Not ported yet: Specctra
+//! and interactive HTML BOM exports. Design rule checks and owned snapshots
+//! are in [`drc`].
 
 mod air_wire;
 mod air_wires_builder;

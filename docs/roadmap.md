@@ -14,8 +14,10 @@ diffing outputs against the official `librepcb-cli`.
 - Wave 3c (complete): board export data and plane fragments, DRC, ERC + BOM + project
   attribute lookup.
 - Wave 4 (in progress): output job model and manufacturing runner complete;
-  native CLI core available (115 upstream cases pass). Full acceptance still
-  needs rendering/STEP command coverage and parser/help/version expectations.
+  native CLI and schematic/library/2D-board graphics available (142 of 178
+  upstream cases pass; the focused supported-command suite has 138 cases).
+  Full acceptance still needs realistic rendering, interactive BOM/STEP
+  command coverage and parser/help/version expectations.
 
 ## M1.5 — AI track (MCP)
 
@@ -34,7 +36,7 @@ diffing outputs against the official `librepcb-cli`.
 
 Read-only Slint app: schematic and board tabs on `librepcb-canvas`, layers
 panel, live updates from the change journal (watch an AI agent work).
-Schematic PDF export.
+Schematic PDF export is already available in the headless CLI.
 
 ## M3 — editing
 

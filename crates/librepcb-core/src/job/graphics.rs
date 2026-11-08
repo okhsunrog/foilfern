@@ -1,5 +1,5 @@
 //! Port of libs/librepcb/core/job/graphicsoutputjob.{h,cpp}.
-//! Page settings are file-format data independent of the future renderer.
+//! Page settings are file-format data independent of the renderer.
 
 use super::ObjectSet;
 use super::output_job::{read_options, token_enum, write_options};

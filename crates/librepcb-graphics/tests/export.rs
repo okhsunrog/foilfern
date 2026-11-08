@@ -159,3 +159,38 @@ fn layer_filter_and_monochrome_preserve_grab_area_alpha() {
     assert_eq!(s.color("schematic_wires"), Some(Color::WHITE));
     assert!(s.color("unknown").is_none());
 }
+
+#[test]
+fn zero_length_polygon_is_a_filled_dot_with_its_original_width() {
+    use librepcb_core::{
+        geometry::{Path, Polygon, Vertex},
+        types::{Layer, Length, UnsignedLength, Uuid},
+        utils::transform::Transform,
+    };
+    let settings = GraphicsSettings {
+        margins: [0.; 4],
+        min_line_width: 2.,
+        ..Default::default()
+    };
+    let polygon = Polygon::new(
+        Uuid::new_random(),
+        Layer::SYMBOL_OUTLINES,
+        UnsignedLength::new(Length::new(250_000)).unwrap(),
+        false,
+        false,
+        Path::new(vec![Vertex::at(Point::ORIGIN)]),
+    );
+    let mut drawing = Drawing::new();
+    drawing.polygon(
+        &polygon,
+        &Transform::new(Point::ORIGIN, Angle::DEG0, false),
+        &settings,
+    );
+    let (_, w, h) = GraphicsExport::default()
+        .page_svg(&GraphicsPage { drawing, settings })
+        .unwrap();
+    assert!(
+        (w - 0.25).abs() < 1e-6 && (h - 0.25).abs() < 1e-6,
+        "{w} x {h}"
+    );
+}

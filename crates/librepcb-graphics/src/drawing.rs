@@ -140,12 +140,15 @@ impl Drawing {
     pub fn polygon(&mut self, p: &Polygon, transform: &Transform, settings: &GraphicsSettings) {
         let role = transform.map(&p.layer()).color_role();
         if p.path().is_zero_length() {
-            if let Some(vertex) = p.path().vertices().first() {
+            if let Some(vertex) = p.path().vertices().first()
+                && p.line_width().to_nm() > 0
+            {
                 let point = transform.map(&vertex.pos);
-                self.line(
-                    point,
-                    point,
-                    p.line_width().to_mm(),
+                self.path(
+                    kurbo::Circle::new(convert::point(point), p.line_width().to_mm() / 2.)
+                        .to_path(0.0001),
+                    0.,
+                    None,
                     settings.color(role),
                     settings,
                 );

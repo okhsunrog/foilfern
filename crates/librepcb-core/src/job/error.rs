@@ -15,6 +15,8 @@ pub enum Error {
     UnknownJob(String),
     #[error("Output job type '{0}' requires a renderer which is not implemented yet.")]
     DeferredJob(String),
+    #[error("{0}")]
+    Graphics(String),
     #[error("Unsupported {kind} format: '{suffix}'")]
     UnsupportedFormat { kind: &'static str, suffix: String },
     #[error("Board does not exist: {0}")]

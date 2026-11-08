@@ -437,6 +437,19 @@ pub fn run(options: ProjectOptions) -> Result<bool> {
                 };
                 let mut runner =
                     OutputJobRunner::new(&mut project, &output, VERSION, Timestamp::now());
+                runner.set_graphics_exporter(Some(Box::new(|project, job| {
+                    librepcb_graphics::graphics_job_files(project, job)
+                        .map(|files| {
+                            files
+                                .into_iter()
+                                .map(|file| librepcb_core::project::GraphicsJobFile {
+                                    name: file.name,
+                                    contents: file.contents,
+                                })
+                                .collect()
+                        })
+                        .map_err(|error| librepcb_core::job::Error::Graphics(error.to_string()))
+                })));
                 let style = options.project.clone();
                 runner.set_file_observer(Some(Box::new(move |event| {
                     if let OutputDirectoryEvent::AboutToWriteFile(fp) = event {

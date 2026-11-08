@@ -508,7 +508,9 @@ differ between platforms/implementations:
   observers replacing Qt signals/event processing. Manufacturing jobs
   rebuild copper planes before exporting, including callers' detached
   geometry without dirty flags. Application version/time are explicit.
-  Rendering/3D/interactive BOM jobs fail explicitly until their milestone.
+  Graphics encoding is injected by the caller, keeping core independent of
+  the graphics crate. Schematic/2D-board jobs use the same indexed writer;
+  realistic rendering, 3D and interactive BOM still fail explicitly.
   ZIP timestamps/compression follow the existing Rust ZIP implementation;
   archive contents and output filenames are compatible.
 
@@ -520,10 +522,11 @@ differ between platforms/implementations:
   versions. Application messages still use the upstream translation context.
 - Implemented commands are `open-project`, `open-library`, `open-symbol` and
   `open-package`, including symbol/package and schematic graphics exports.
-  STEP/minification and graphics/3D-dependent jobs remain deferred and are
-  reported as unsupported. The implemented command paths are checked by
-  138 unmodified upstream tests; full acceptance still includes these
-  deferred features and parser/help/version text.
+  Schematic and 2D-board output jobs are supported. STEP/minification,
+  realistic rendering and interactive BOM remain deferred and are reported
+  as unsupported. The supported-command suite has 138 unmodified upstream
+  tests; the full suite reports 142 passed / 36 failed across deferred
+  features and parser/help/version text.
 - Saving `.lppz` builds the updated archive in memory, then writes it
   atomically through the existing file utility. A failed archive export
   therefore retains the original file. The project root is isolated from
@@ -545,7 +548,7 @@ differ between platforms/implementations:
 - PNG allocation is bounded by a caller-configurable pixel limit (64 million
   by default). External filesystem image links in SVG are disabled; embedded
   data images remain supported. No display server or Qt resources are needed.
-- Library footprints render stroke-font text as paths. They currently omit
+- Library footprints and boards render stroke-font text as paths. They omit
   upstream's additional invisible text overlay for searching/selecting these
   glyphs in PDF/SVG; regular schematic/symbol text remains searchable.
 - Malformed embedded images fail display-list creation before export. Upstream

@@ -117,6 +117,60 @@ fn failed_copy_job_cannot_read_sibling_files() {
 }
 
 #[test]
+fn graphics_jobs_run_without_a_display_and_report_unimplemented_rendering() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = FilePath::new(
+        Path::new(env!("LIBREPCB_UPSTREAM_DIR"))
+            .join("tests/data/projects/Project With Two Boards"),
+    )
+    .unwrap();
+    let root = FilePath::new(temp.path().join("project")).unwrap();
+    file_utils::copy_dir_recursively(&source, &root).unwrap();
+    let project = root.path_to("Project With Two Boards.lpp");
+    let output = FilePath::new(temp.path().join("graphics")).unwrap();
+    let result = run(&[
+        "open-project",
+        "--run-job",
+        "Schematic PDF",
+        "--run-job",
+        "Board Assembly PDF",
+        "--outdir",
+        output.as_str(),
+        project.as_str(),
+    ]);
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    for name in [
+        "Empty_Project_v1_Schematic.pdf",
+        "Empty_Project_v1_Assembly.pdf",
+    ] {
+        assert!(
+            std::fs::read(output.path_to(name).as_ref())
+                .unwrap()
+                .starts_with(b"%PDF-")
+        );
+    }
+    let result = run(&[
+        "open-project",
+        "--run-job",
+        "Board Rendering PDF",
+        "--outdir",
+        output.as_str(),
+        project.as_str(),
+    ]);
+    assert_eq!(result.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&result.stderr).contains("board_rendering"));
+    assert!(
+        !output
+            .path_to("Empty_Project_v1_Rendering.pdf")
+            .is_existing_file()
+    );
+}
+
+#[test]
 fn legacy_export_removes_disabled_files_and_preserves_unrelated_files() {
     let temp = tempfile::tempdir().unwrap();
     let project = fixture(&temp);

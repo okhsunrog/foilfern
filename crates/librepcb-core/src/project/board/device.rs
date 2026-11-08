@@ -209,6 +209,10 @@ impl BoardDevice {
     pub fn transform(&self) -> Transform {
         Transform::from_obj(self)
     }
+    /// Resolves the placed library footprint without retaining cached state.
+    pub fn footprint<'a>(&self, library: &'a ProjectLibrary) -> Result<&'a Footprint> {
+        Ok(ResolvedDevice::resolve(self, library)?.footprint)
+    }
 
     /// Returns the stroke texts of the footprint, transformed to the device
     /// placement (upstream `getDefaultStrokeTexts()`).

@@ -1,7 +1,7 @@
 //! Port of libs/librepcb/core/project/outputjobrunner.{h,cpp}.
 //! Synchronous execution uses existing format generators and indexed output
 //! ownership. Application version/time are explicit; observer callbacks
-//! replace Qt signals. Rendering jobs remain deferred by the roadmap.
+//! replace Qt signals. Graphics encoding is provided by the caller.
 
 use super::board::{BoardD356NetlistExport, BoardGerberExport, BoardPickPlaceGenerator};
 use super::{
@@ -14,7 +14,7 @@ use crate::fileio::{
     self, CleanFileNameOptions, FilePath, FileSystem, OutputDirectoryObserver,
     OutputDirectoryWriter, TransactionalFileSystem, ZipWriter,
 };
-use crate::job::{Error, JobKind, ObjectSet, OutputJob, Result};
+use crate::job::{Error, GraphicsContentType, GraphicsJob, JobKind, ObjectSet, OutputJob, Result};
 use crate::types::Uuid;
 use librepcb_i18n::tr;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -26,6 +26,15 @@ pub enum OutputJobEvent {
     Started(Uuid),
     Warning(String),
 }
+/// An encoded graphics file, named relative to the indexed output directory.
+#[derive(Debug, Clone)]
+pub struct GraphicsJobFile {
+    pub name: String,
+    pub contents: Vec<u8>,
+}
+/// Encoding lives outside core; the runner retains ownership of all writes.
+pub type GraphicsJobExporter =
+    Box<dyn Fn(&Project, &GraphicsJob) -> Result<Vec<GraphicsJobFile>> + Send>;
 /// Executes jobs in the supplied order. Archive dependencies must precede
 /// their consumers, as upstream. A failure stops the run and retains files
 /// already written; obsolete files are removed only after job success.
@@ -34,6 +43,7 @@ pub struct OutputJobRunner<'a> {
     writer: OutputDirectoryWriter,
     app_version: String,
     timestamp: Timestamp,
+    graphics_exporter: Option<GraphicsJobExporter>,
 }
 static_assertions::assert_impl_all!(OutputJobRunner<'_>:Send);
 impl<'a> OutputJobRunner<'a> {
@@ -48,6 +58,7 @@ impl<'a> OutputJobRunner<'a> {
             writer: OutputDirectoryWriter::new(output),
             app_version: app_version.into(),
             timestamp,
+            graphics_exporter: None,
         }
     }
     pub fn directory_path(&self) -> &FilePath {
@@ -58,6 +69,9 @@ impl<'a> OutputJobRunner<'a> {
     }
     pub fn set_file_observer(&mut self, observer: Option<OutputDirectoryObserver>) {
         self.writer.set_observer(observer);
+    }
+    pub fn set_graphics_exporter(&mut self, exporter: Option<GraphicsJobExporter>) {
+        self.graphics_exporter = exporter;
     }
     pub fn find_unknown_files(&self, known: &HashSet<Uuid>) -> Result<Vec<FilePath>> {
         Ok(self.writer.find_unknown_files(known)?)
@@ -145,12 +159,7 @@ impl<'a> OutputJobRunner<'a> {
         self.project.board(id).ok_or(Error::BoardNotFound(id.0))
     }
     fn boards(&self, set: &ObjectSet<Option<Uuid>>) -> Result<Vec<Option<BoardId>>> {
-        select(
-            set,
-            self.project.boards().iter().map(|b| (b.uuid(), b.id())),
-            false,
-            Error::BoardNotFound,
-        )
+        select_job_boards(self.project, set)
     }
     fn required_boards(&self, set: &ObjectSet<Uuid>) -> Result<Vec<BoardId>> {
         Ok(self
@@ -160,16 +169,7 @@ impl<'a> OutputJobRunner<'a> {
             .collect())
     }
     fn variants(&self, set: &ObjectSet<Option<Uuid>>) -> Result<Vec<Option<AssemblyVariantId>>> {
-        select(
-            set,
-            self.project
-                .circuit()
-                .assembly_variants()
-                .iter()
-                .map(|v| (v.uuid(), AssemblyVariantId(v.uuid()))),
-            false,
-            Error::VariantNotFound,
-        )
+        select_job_variants(self.project, set)
     }
     fn required_variants(&self, set: &ObjectSet<Uuid>) -> Result<Vec<AssemblyVariantId>> {
         Ok(self
@@ -405,12 +405,65 @@ impl<'a> OutputJobRunner<'a> {
                 self.write(job, &path, &bytes)?;
             }
             JobKind::Unknown(_) => return Err(Error::UnknownJob(job.kind.type_name().into())),
-            JobKind::Graphics(_) | JobKind::Board3d { .. } | JobKind::InteractiveBom(_) => {
+            JobKind::Graphics(settings) => {
+                if self.graphics_exporter.is_none() {
+                    return Err(Error::DeferredJob(job.kind.type_name().into()));
+                }
+                let mut boards = BTreeSet::new();
+                for content in &settings.content {
+                    if matches!(
+                        content.kind,
+                        GraphicsContentType::Board | GraphicsContentType::BoardRendering
+                    ) {
+                        boards.extend(self.boards(&content.boards)?.into_iter().flatten());
+                    }
+                }
+                for board in boards {
+                    self.rebuild_planes(board)?;
+                }
+                // The presence was checked before rebuilding; no user input can
+                // change the callback while this synchronous method runs.
+                let exporter = self.graphics_exporter.as_ref().expect("checked above");
+                let files = exporter(self.project, settings)?;
+                for file in files {
+                    self.write(job, &file.name, &file.contents)?;
+                }
+            }
+            JobKind::Board3d { .. } | JobKind::InteractiveBom(_) => {
                 return Err(Error::DeferredJob(job.kind.type_name().into()));
             }
         }
         Ok(())
     }
+}
+/// Resolves nullable boards in project order. `All` excludes the null choice;
+/// `Default` is the first board, or null for projects without any boards.
+pub fn select_job_boards(
+    project: &Project,
+    set: &ObjectSet<Option<Uuid>>,
+) -> Result<Vec<Option<BoardId>>> {
+    select(
+        set,
+        project.boards().iter().map(|b| (b.uuid(), b.id())),
+        false,
+        Error::BoardNotFound,
+    )
+}
+/// Resolves nullable assembly variants with the same semantics as boards.
+pub fn select_job_variants(
+    project: &Project,
+    set: &ObjectSet<Option<Uuid>>,
+) -> Result<Vec<Option<AssemblyVariantId>>> {
+    select(
+        set,
+        project
+            .circuit()
+            .assembly_variants()
+            .iter()
+            .map(|v| (v.uuid(), AssemblyVariantId(v.uuid()))),
+        false,
+        Error::VariantNotFound,
+    )
 }
 fn optional_set(set: &ObjectSet<Uuid>) -> ObjectSet<Option<Uuid>> {
     match set {
