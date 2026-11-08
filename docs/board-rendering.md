@@ -22,12 +22,30 @@ The snapshot contains:
 - Optional assembly-variant component model references, placement and
   footprint model offsets. With no variant, component models are omitted.
 
-The intended consumers are independent:
+The consumers are independent:
 
 ```text
 Project -> BoardPhysicalGeometry -> realistic 2D paths -> Vello / SVG / PDF
                                 -> future mesh builder -> 3D renderer
 ```
+
+`librepcb_graphics::realistic_board_drawing()` selects material colors and
+paint order from the snapshot and export settings. Output jobs reuse a
+snapshot across top/bottom pages. Transparent mask/legend colors request the
+board's fabrication colors; absent roles remain hidden. Copper and paste
+regions use the viewed face's drill projection, even if the job enables
+layers from both faces.
+
+The resulting `Drawing::filled_areas()` retains ordered compound paths.
+PNG uses `librepcb_canvas::render::rasterize_filled_paths()` and `vello_cpu`;
+SVG/PDF use those same paths and the same page transform without embedding
+a board bitmap. The raster path preserves even-odd cutouts directly instead
+of inserting areas into the editor scene, whose fill batching normalizes
+subpath winding for unions. General drawings containing text/strokes/images
+continue through the existing SVG/resvg pipeline.
+
+This headless export needs no display server or GPU. GPU texture presentation
+in Slint is a separate integration; the retained paths carry no CPU/GPU state.
 
 A future 3D mesh builder uses canonical outlines, resolved drill spans and
 model references. It must not extrude a flat projection: upstream's flat

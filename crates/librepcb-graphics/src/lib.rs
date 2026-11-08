@@ -12,10 +12,11 @@ mod export;
 mod jobs;
 mod library;
 mod palette;
+mod realistic_board;
 mod schematic;
 mod settings;
 
-pub use drawing::Drawing;
+pub use drawing::{Drawing, FilledArea};
 pub use error::{Error, Result};
 pub use export::{GraphicsExport, GraphicsFile, GraphicsPage};
 pub use settings::GraphicsSettings;
@@ -23,4 +24,5 @@ pub use settings::GraphicsSettings;
 pub use board::board_drawing;
 pub use jobs::graphics_job_files;
 pub use library::{default_stroke_font, footprint_drawing, symbol_drawing};
+pub use realistic_board::realistic_board_drawing;
 pub use schematic::schematic_drawing;

@@ -7,7 +7,7 @@ covers where things stand and how the work has been organized.
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 1020 tests report success (about 100k lines
+The workspace builds cleanly and 1025 tests report success (about 100k lines
 of Rust). The latest local run used the official CLI 2.1.1 as the oracle,
 including ERC messages, migrations and byte-identical JSON exports over
 the pinned upstream test data.
@@ -125,7 +125,8 @@ Done, in `crates/librepcb-core` unless noted:
   pass. Schematic and 2D board graphics are encoded by an injected renderer
   in `librepcb-graphics`, retaining indexed ownership, archive dependencies,
   collision checks and cleanup. Board graphics rebuild planes before encoding.
-  Interactive BOM, realistic board rendering and 3D execution remain deferred.
+  Realistic top/bottom board rendering also uses this writer and the shared
+  physical snapshot. Interactive BOM and 3D execution remain deferred.
 
 - **Native CLI core** (2026-11-06): `crates/librepcb-cli` opens `.lpp`/`.lppz`
   projects and libraries, runs ERC/DRC and library checks, executes output
@@ -133,11 +134,11 @@ Done, in `crates/librepcb-core` unless noted:
   variants, removes boards and changes the default variant through mutations,
   checks canonical files and saves/migrates transactionally. Runs without a
   display server. Symbol/package graphics and schematic exports are supported.
-  `scripts/check-cli-core.sh` covers 138 unmodified upstream pytest cases.
-  The full upstream suite reports 142 passed / 36 failed: nine STEP/minification
-  cases, seven mixed job runs blocked on realistic board rendering (also
-  containing deferred interactive BOM/STEP), and twenty parser/help/version
-  cases, including the missing `open-step` parser. M1 is not complete.
+  `scripts/check-cli-core.sh` covers 139 unmodified upstream pytest cases.
+  The full upstream suite reports 143 passed / 35 failed: nine STEP/minification
+  cases, six mixed job runs blocked on interactive BOM (with STEP later), and
+  twenty parser/help/version cases, including the missing `open-step` parser.
+  M1 is not complete.
 
 - **Graphics export backend** (2026-11-08): `crates/librepcb-graphics`
   provides owned drawing lists, native text, layer palettes and page layout,
@@ -153,11 +154,18 @@ Done, in `crates/librepcb-core` unless noted:
   jobs match the official CLI's filenames and page counts; both sides of
   Gerber Test's assembly PDF were visually compared. Encoding retains native
   font/raster differences documented in `COMPAT.md`.
+- **Realistic 2D board rendering** (2026-11-08): top/bottom output jobs consume
+  the shared physical snapshot. Board colors, copper, mask, clipped silk and
+  paste become retained even-odd material paths; PNG rasterizes with Vello CPU,
+  while SVG and PDF retain vector contours. Raster/vector agreement is tested
+  for mirrors, rotations, fixed paper and transparency. Realistic PDF job
+  names/page counts match official CLI 2.1.1, and both sides of Gerber Test's
+  PNG output were visually compared. This does not implement 3D or a viewer.
 
 ## Next steps
 
-1. **Wave 4 acceptance:** close the remaining CLI differences. Realistic board
-   rendering, interactive BOM and STEP still block mixed job runs. These
+1. **Wave 4 acceptance:** close the remaining CLI differences. Interactive BOM
+   and STEP still block mixed job runs. These
    features originally belonged to M5; full upstream `tests/cli` acceptance
    requires them. Parser/help/version snapshots need a native-parser policy.
    Keep running the implemented paths with `scripts/check-cli-core.sh`.

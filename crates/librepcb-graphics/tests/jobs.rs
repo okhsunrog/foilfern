@@ -109,52 +109,54 @@ fn multipage_outputs_are_indexed_archived_and_cleaned_after_configuration_change
 
 #[test]
 fn board_jobs_rebuild_planes_and_drawing_does_not_mutate_the_model() {
-    let mut project = load("Nested Planes");
-    let board = project.boards()[0].id();
-    assert!(
-        project
-            .board(board)
-            .unwrap()
-            .derived()
-            .plane_fragments()
-            .is_empty()
-    );
-    let mut job = configured("Board Assembly PDF");
-    let graphics = settings(&mut job);
-    graphics.content.truncate(1);
-    graphics.content[0].layers = BTreeMap::from([
-        ("board_copper_top".into(), Color::rgb(255, 0, 0)),
-        ("board_pads".into(), Color::rgb(255, 0, 0)),
-        ("board_vias".into(), Color::rgb(255, 0, 0)),
-    ]);
-    graphics.output = "planes.svg".into();
-    let temp = tempfile::tempdir().unwrap();
-    let mut runner = OutputJobRunner::new(
-        &mut project,
-        &FilePath::new(temp.path()).unwrap(),
-        "test",
-        Timestamp::now(),
-    );
-    renderer(&mut runner);
-    runner.run(std::slice::from_ref(&job)).unwrap();
-    drop(runner);
-    assert!(
-        project
-            .board(board)
-            .unwrap()
-            .derived()
-            .plane_fragments()
-            .values()
-            .any(|p| !p.is_empty())
-    );
-    let svg = std::fs::read_to_string(temp.path().join("planes.svg")).unwrap();
-    assert!(svg.contains("fill-rule=\"evenodd\""));
-    assert!(svg.contains("#ff0000"));
-    let revision = project.revision();
-    let board = project.board(board).unwrap();
-    let drawing = board_drawing(&project, board, &GraphicsSettings::default()).unwrap();
-    assert!(!drawing.is_empty());
-    assert_eq!(project.revision(), revision);
+    for job_name in ["Board Assembly PDF", "Board Rendering PDF"] {
+        let mut project = load("Nested Planes");
+        let board = project.boards()[0].id();
+        assert!(
+            project
+                .board(board)
+                .unwrap()
+                .derived()
+                .plane_fragments()
+                .is_empty()
+        );
+        let mut job = configured(job_name);
+        let graphics = settings(&mut job);
+        graphics.content.truncate(1);
+        graphics.content[0].layers = BTreeMap::from([
+            ("board_copper_top".into(), Color::rgb(255, 0, 0)),
+            ("board_pads".into(), Color::rgb(255, 0, 0)),
+            ("board_vias".into(), Color::rgb(255, 0, 0)),
+        ]);
+        graphics.output = "planes.svg".into();
+        let temp = tempfile::tempdir().unwrap();
+        let mut runner = OutputJobRunner::new(
+            &mut project,
+            &FilePath::new(temp.path()).unwrap(),
+            "test",
+            Timestamp::now(),
+        );
+        renderer(&mut runner);
+        runner.run(std::slice::from_ref(&job)).unwrap();
+        drop(runner);
+        assert!(
+            project
+                .board(board)
+                .unwrap()
+                .derived()
+                .plane_fragments()
+                .values()
+                .any(|p| !p.is_empty())
+        );
+        let svg = std::fs::read_to_string(temp.path().join("planes.svg")).unwrap();
+        assert!(svg.contains("fill-rule=\"evenodd\""));
+        assert!(svg.contains("#ff0000"));
+        let revision = project.revision();
+        let board = project.board(board).unwrap();
+        let drawing = board_drawing(&project, board, &GraphicsSettings::default()).unwrap();
+        assert!(!drawing.is_empty());
+        assert_eq!(project.revision(), revision);
+    }
 }
 
 #[test]
@@ -177,17 +179,16 @@ fn invalid_selections_and_unavailable_content_fail_explicitly() {
         Err(librepcb_core::job::Error::BoardNotFound(_))
     ));
     drop(runner);
-    let rendering = configured("Board Rendering PDF");
-    let JobKind::Graphics(graphics) = rendering.kind else {
-        panic!("graphics fixture")
-    };
+    let mut rendering = configured("Board Rendering PDF");
+    let graphics = settings(&mut rendering);
+    graphics.content[0].kind = librepcb_core::job::GraphicsContentType::AssemblyGuide;
     assert!(
-        matches!(graphics_job_files(&project, &graphics), Err(librepcb_graphics::Error::UnsupportedContent(ref kind)) if kind == "board_rendering")
+        matches!(graphics_job_files(&project, graphics), Err(librepcb_graphics::Error::UnsupportedContent(ref kind)) if kind == "assembly_guide")
     );
 }
 
 #[test]
-fn schematic_and_board_pdf_jobs_match_official_cli_names_and_page_counts() {
+fn schematic_board_and_realistic_pdf_jobs_match_official_cli_names_and_page_counts() {
     let configured_cli = std::env::var_os("LIBREPCB_CLI");
     let cli = std::path::PathBuf::from(
         configured_cli
@@ -207,6 +208,7 @@ fn schematic_and_board_pdf_jobs_match_official_cli_names_and_page_counts() {
     let jobs = [
         configured("Schematic PDF"),
         configured("Board Assembly PDF"),
+        configured("Board Rendering PDF"),
     ];
     let temp = tempfile::tempdir().unwrap();
     let root = FilePath::new(temp.path()).unwrap();
@@ -246,7 +248,7 @@ fn schematic_and_board_pdf_jobs_match_official_cli_names_and_page_counts() {
     let mut runner = OutputJobRunner::new(&mut project, &actual, "test", Timestamp::now());
     renderer(&mut runner);
     runner.run(&jobs).unwrap();
-    for (job, pages) in jobs.iter().zip([1, 2]) {
+    for (job, pages) in jobs.iter().zip([1, 2, 2]) {
         let paths = &runner.written_files()[&job.uuid()];
         assert_eq!(paths.len(), 1);
         let name = paths[0].file_name();

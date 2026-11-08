@@ -13,8 +13,10 @@
 //! [`GroupView::rev`]: crate::GroupView::rev
 
 mod cpu;
+mod filled_paths;
 
 pub use cpu::{CpuRenderer, CpuRendererSettings};
+pub use filled_paths::rasterize_filled_paths;
 
 use crate::{Scene, View};
 

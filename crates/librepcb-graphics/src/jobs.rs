@@ -2,14 +2,17 @@
 //! Generates encoded files; the caller's indexed writer owns all disk writes.
 use crate::{
     Error, GraphicsExport, GraphicsFile, GraphicsPage, GraphicsSettings, Result, board_drawing,
-    schematic_drawing,
+    realistic_board_drawing, schematic_drawing,
 };
 use librepcb_core::{
     fileio::{CleanFileNameOptions, FilePath},
     job::{GraphicsContentType, GraphicsJob},
-    project::{Project, ProjectAttributeLookup, select_job_boards, select_job_variants},
+    project::{
+        Project, ProjectAttributeLookup, board::BoardPhysicalGeometry, select_job_boards,
+        select_job_variants,
+    },
 };
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 fn single<T: Copy + Ord>(set: &BTreeSet<Option<T>>) -> Option<T> {
     if set.len() == 1 {
         set.first().copied().flatten()
@@ -22,6 +25,7 @@ fn single<T: Copy + Ord>(set: &BTreeSet<Option<T>>) -> Option<T> {
 /// document titles; like upstream, they do not filter schematic components.
 pub fn graphics_job_files(project: &Project, job: &GraphicsJob) -> Result<Vec<GraphicsFile>> {
     let mut pages = Vec::new();
+    let mut physical = BTreeMap::new();
     let mut all_boards = BTreeSet::new();
     let mut all_variants = BTreeSet::new();
     for content in &job.content {
@@ -60,7 +64,22 @@ pub fn graphics_job_files(project: &Project, job: &GraphicsJob) -> Result<Vec<Gr
                 return Err(Error::UnsupportedContent("assembly_guide".into()));
             }
             GraphicsContentType::BoardRendering => {
-                return Err(Error::UnsupportedContent("board_rendering".into()));
+                for id in boards {
+                    let board = id.and_then(|id| project.board(id)).ok_or_else(|| {
+                        Error::Model("Board rendering requires a board selection".into())
+                    })?;
+                    if let std::collections::btree_map::Entry::Vacant(entry) =
+                        physical.entry(board.id())
+                    {
+                        entry.insert(BoardPhysicalGeometry::from_project(project, board, None)?);
+                    }
+                    for _ in &variants {
+                        pages.push(GraphicsPage {
+                            drawing: realistic_board_drawing(&physical[&board.id()], &settings),
+                            settings: settings.clone(),
+                        });
+                    }
+                }
             }
         }
     }

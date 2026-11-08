@@ -7,6 +7,12 @@ use librepcb_core::{
     job::PageOrientation,
 };
 use std::path::Path;
+struct PageLayout {
+    svg: String,
+    width: f64,
+    height: f64,
+    transform: Affine,
+}
 /// A display list with page-specific output settings.
 #[derive(Debug, Clone)]
 pub struct GraphicsPage {
@@ -51,7 +57,12 @@ impl GraphicsExport {
         let mut result = Vec::new();
         let mut pdf_pages = Vec::new();
         for (i, page) in pages.iter().enumerate() {
-            let (svg, width, height) = self.page_svg(page)?;
+            let PageLayout {
+                svg,
+                width,
+                height,
+                transform: page_transform,
+            } = self.page_layout(page)?;
             let out = if ext != "pdf" && pages.len() > 1 {
                 let path = Path::new(name);
                 let stem = path
@@ -81,21 +92,41 @@ impl GraphicsExport {
                         .max(1.);
                     if !w.is_finite()
                         || !h.is_finite()
-                        || w > f64::from(u32::MAX)
-                        || h > f64::from(u32::MAX)
+                        || w > f64::from(i32::MAX)
+                        || h > f64::from(i32::MAX)
                         || w * h > self.max_pixels as f64
                     {
                         return Err(Error::Dimensions);
                     }
+                    // Check Vello's dimension limit before allocating a buffer.
+                    let areas = page.drawing.filled_areas();
+                    if areas.is_some() && (w > f64::from(u16::MAX) || h > f64::from(u16::MAX)) {
+                        return Err(Error::Dimensions);
+                    }
                     let mut pixmap = resvg::tiny_skia::Pixmap::new(w as u32, h as u32)
                         .ok_or(Error::Dimensions)?;
-                    let tree = resvg::usvg::Tree::from_str(&svg, &svg_options())
-                        .map_err(|e| Error::Svg(e.to_string()))?;
-                    let transform = resvg::tiny_skia::Transform::from_scale(
-                        w as f32 / tree.size().width(),
-                        h as f32 / tree.size().height(),
-                    );
-                    resvg::render(&tree, transform, &mut pixmap.as_mut());
+                    if let Some(areas) = areas {
+                        let color = |c: librepcb_core::types::Color| {
+                            librepcb_canvas::peniko::Color::from_rgba8(c.r, c.g, c.b, c.a)
+                        };
+                        librepcb_canvas::render::rasterize_filled_paths(
+                            areas.iter().map(|area| (&area.path, color(area.color))),
+                            Affine::scale_non_uniform(w / width, h / height)
+                                * page_transform
+                                * Affine::FLIP_Y,
+                            (w as u32, h as u32),
+                            color(page.settings.background),
+                            pixmap.data_mut(),
+                        )?;
+                    } else {
+                        let tree = resvg::usvg::Tree::from_str(&svg, &svg_options())
+                            .map_err(|e| Error::Svg(e.to_string()))?;
+                        let transform = resvg::tiny_skia::Transform::from_scale(
+                            w as f32 / tree.size().width(),
+                            h as f32 / tree.size().height(),
+                        );
+                        resvg::render(&tree, transform, &mut pixmap.as_mut());
+                    }
                     pixmap
                         .encode_png()
                         .map_err(|e| Error::Image(e.to_string()))?
@@ -143,6 +174,10 @@ impl GraphicsExport {
     /// Computes a tight visible-content crop, then applies page transform,
     /// orientation, margins and either explicit scale or fit-to-page.
     pub fn page_svg(&self, page: &GraphicsPage) -> Result<(String, f64, f64)> {
+        let layout = self.page_layout(page)?;
+        Ok((layout.svg, layout.width, layout.height))
+    }
+    fn page_layout(&self, page: &GraphicsPage) -> Result<PageLayout> {
         let settings = &page.settings;
         if settings.dpi == 0 || settings.margins.iter().any(|m| !m.is_finite() || *m < 0.) {
             return Err(Error::Dimensions);
@@ -232,7 +267,12 @@ impl GraphicsExport {
             "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"{w}mm\" height=\"{h}mm\" viewBox=\"0 0 {w} {h}\">{title}{background}<g transform=\"matrix({} {} {} {} {} {})\">{body}</g></svg>",
             c[0], c[1], c[2], c[3], c[4], c[5]
         );
-        Ok((svg, w, h))
+        Ok(PageLayout {
+            svg,
+            width: w,
+            height: h,
+            transform,
+        })
     }
     fn merge_pdf(&self, buffers: Vec<Vec<u8>>) -> Result<Vec<u8>> {
         use lopdf::{Document, Object, dictionary};

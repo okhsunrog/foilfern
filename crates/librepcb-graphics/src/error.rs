@@ -22,6 +22,8 @@ pub enum Error {
     #[error(transparent)]
     Clipper(#[from] librepcb_core::utils::clipper_helpers::Error),
     #[error(transparent)]
+    Raster(#[from] librepcb_canvas::render::Error),
+    #[error(transparent)]
     FileIo(#[from] librepcb_core::fileio::Error),
     #[error(transparent)]
     Core(Box<librepcb_core::project::Error>),

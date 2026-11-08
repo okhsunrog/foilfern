@@ -51,10 +51,11 @@ pub struct PhysicalDevice {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BoardSurfaceGeometry {
     pub body: Vec<Path>,
-    pub copper: Vec<Path>,
+    /// Copper by layer, clipped using this projection's drill visibility.
+    pub copper: BTreeMap<Layer, Vec<Path>>,
     pub solder_resist: Vec<Path>,
     pub silkscreen: Vec<Path>,
-    pub solder_paste: Vec<Path>,
+    pub solder_paste: BTreeMap<Layer, Vec<Path>>,
 }
 /// Physical board data shared by flat exports and future 3D consumers.
 /// Canonical outlines/drill spans remain available for extrusion; flat

@@ -1,6 +1,6 @@
 //! Library/project painter contracts against upstream model fixtures.
 use librepcb_core::{
-    fileio::{FilePath, TransactionalDirectory, TransactionalFileSystem},
+    fileio::{FilePath, TransactionalDirectory, TransactionalFileSystem, ZipArchive},
     library::{LibraryBaseElement, pkg::Package, sym::Symbol},
     project::ProjectLoader,
 };
@@ -16,6 +16,12 @@ fn directory(relative: &str) -> TransactionalDirectory {
         .join(relative);
     let fs = TransactionalFileSystem::open_ro(&FilePath::new(path).unwrap()).unwrap();
     TransactionalDirectory::new(Arc::new(fs), "")
+}
+fn contents(bytes: Vec<u8>) -> std::collections::BTreeMap<String, Vec<u8>> {
+    let mut zip = ZipArchive::from_bytes(bytes).unwrap();
+    (0..zip.len())
+        .map(|i| (zip.file_name(i).unwrap(), zip.read_file(i).unwrap()))
+        .collect()
 }
 
 #[test]
@@ -73,7 +79,7 @@ fn schematic_resolves_attributes_and_export_is_read_only() {
         .find(|n| n.ends_with(".lpp"))
         .unwrap();
     let project = ProjectLoader::new().open(directory, &file).unwrap();
-    let before = fs.export_to_zip(None).unwrap();
+    let before = contents(fs.export_to_zip(None).unwrap());
     let revision = project.revision();
     let settings = GraphicsSettings::default();
     let pages: Vec<_> = project
@@ -94,6 +100,13 @@ fn schematic_resolves_attributes_and_export_is_read_only() {
     let pdf = lopdf::Document::load_mem(&pdf[0].contents).unwrap();
     assert_eq!(pdf.get_pages().len(), project.schematics().len());
     assert_eq!(project.revision(), revision);
-    // Transactional ZIP metadata is fixed, so this also compares every file.
-    assert_eq!(fs.export_to_zip(None).unwrap(), before);
+    // Archive creation times can differ; compare every uncompressed file.
+    let after = contents(fs.export_to_zip(None).unwrap());
+    assert_eq!(
+        before.keys().collect::<Vec<_>>(),
+        after.keys().collect::<Vec<_>>()
+    );
+    for (name, bytes) in before {
+        assert!(bytes == after[&name], "Project file changed: {name}");
+    }
 }

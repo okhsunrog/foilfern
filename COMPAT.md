@@ -510,7 +510,8 @@ differ between platforms/implementations:
   geometry without dirty flags. Application version/time are explicit.
   Graphics encoding is injected by the caller, keeping core independent of
   the graphics crate. Schematic/2D-board jobs use the same indexed writer;
-  realistic rendering, 3D and interactive BOM still fail explicitly.
+  realistic 2D board rendering shares physical geometry with future 3D
+  consumers. 3D and interactive BOM still fail explicitly.
   ZIP timestamps/compression follow the existing Rust ZIP implementation;
   archive contents and output filenames are compatible.
 
@@ -522,10 +523,10 @@ differ between platforms/implementations:
   versions. Application messages still use the upstream translation context.
 - Implemented commands are `open-project`, `open-library`, `open-symbol` and
   `open-package`, including symbol/package and schematic graphics exports.
-  Schematic and 2D-board output jobs are supported. STEP/minification,
-  realistic rendering and interactive BOM remain deferred and are reported
-  as unsupported. The supported-command suite has 138 unmodified upstream
-  tests; the full suite reports 142 passed / 36 failed across deferred
+  Schematic, 2D-board and realistic top/bottom output jobs are supported.
+  STEP/minification and interactive BOM remain deferred and are reported
+  as unsupported. The supported-command suite has 139 unmodified upstream
+  tests; the full suite reports 143 passed / 35 failed across deferred
   features and parser/help/version text.
 - Saving `.lppz` builds the updated archive in memory, then writes it
   atomically through the existing file utility. A failed archive export
@@ -538,6 +539,13 @@ differ between platforms/implementations:
   and vector PDF encoding (`svg2pdf`, `lopdf`), with the existing canvas arc
   conversion. Text metrics, antialiasing, metadata and bytes differ from Qt's
   exports; SVG and PDF remain vector documents with searchable regular text.
+- Realistic board PNGs rasterize retained even-odd material paths through
+  `vello_cpu`; SVG/PDF retain vector contours. Material colors, clipping and
+  face-dependent blind-hole projection follow upstream. Canonical geometry
+  separately retains actual drill spans for future 3D consumers, including
+  buried vias which upstream removes from its flat scene preprocessing.
+  Arc clipping uses the source's 5 micrometre tolerance. Antialiasing and
+  subpixel crops differ from Qt; rendering is not byte-identical.
 - Auto crops use visible stroke bounds with subpixel precision instead of
   integer `QPicture` bounds. Empty drawings use a 1 mm source extent. Page
   margins, orientation, mirroring, scale and multipage names follow upstream.
@@ -546,10 +554,13 @@ differ between platforms/implementations:
   level. Missing layers are invisible, and monochrome grab-area fills retain
   their grayscale/alpha behavior.
 - PNG allocation is bounded by a caller-configurable pixel limit (64 million
-  by default). External filesystem image links in SVG are disabled; embedded
+  by default). Area-only Vello rasterization also limits each axis to 65535
+  pixels. External filesystem image links in SVG are disabled; embedded
   data images remain supported. No display server or Qt resources are needed.
 - Library footprints and boards render stroke-font text as paths. They omit
   upstream's additional invisible text overlay for searching/selecting these
   glyphs in PDF/SVG; regular schematic/symbol text remains searchable.
 - Malformed embedded images fail display-list creation before export. Upstream
   can also write a partial drawing and report image-loading errors afterward.
+- Physical geometry preparation errors fail the export instead of logging
+  an error and continuing with the partial realistic drawing, as upstream can.

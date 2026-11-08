@@ -14,9 +14,25 @@ use svg::node::element::{
     Group, Image as SvgImage, Path as SvgPath, Rectangle, TSpan, Text as SvgText,
 };
 /// An owned page display list, in model millimetres with Y up.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct Drawing {
     pub(crate) elements: Vec<String>,
+    filled_areas: Option<Vec<FilledArea>>,
+}
+/// An ordered even-odd fill, in model millimetres (Y up). Retained paths
+/// let raster and vector backends consume exactly the same material regions.
+#[derive(Debug, Clone)]
+pub struct FilledArea {
+    pub path: BezPath,
+    pub color: Color,
+}
+impl Default for Drawing {
+    fn default() -> Self {
+        Self {
+            elements: Vec::new(),
+            filled_areas: Some(Vec::new()),
+        }
+    }
 }
 static_assertions::assert_impl_all!(Drawing:Send,Sync);
 fn paint(c: Color) -> String {
@@ -82,7 +98,16 @@ impl Drawing {
         Self::default()
     }
     pub fn append(&mut self, other: Drawing) {
+        match (&mut self.filled_areas, other.filled_areas) {
+            (Some(areas), Some(other)) => areas.extend(other),
+            _ => self.filled_areas = None,
+        }
         self.elements.extend(other.elements);
+    }
+    /// Returns retained material fills when the drawing contains only areas.
+    /// Text, strokes and images require the general SVG rendering path.
+    pub fn filled_areas(&self) -> Option<&[FilledArea]> {
+        self.filled_areas.as_deref()
     }
     pub fn is_empty(&self) -> bool {
         self.elements.is_empty()
@@ -123,11 +148,18 @@ impl Drawing {
                 .set("stroke-linecap", "round")
                 .set("stroke-linejoin", "round");
         }
+        self.filled_areas = None;
         self.elements.push(node.to_string());
     }
     /// A compound filled area, including holes, with even-odd winding.
     pub fn area(&mut self, path: BezPath, color: Option<Color>) {
         let Some(color) = color else { return };
+        if let Some(areas) = &mut self.filled_areas {
+            areas.push(FilledArea {
+                path: path.clone(),
+                color,
+            });
+        }
         self.elements.push(
             SvgPath::new()
                 .set("d", (Affine::FLIP_Y * path).to_svg())
@@ -376,6 +408,7 @@ impl Drawing {
                     .set("fill-opacity", f64::from(color.a) / 255.),
             );
         }
+        self.filled_areas = None;
         self.elements.push(group.to_string());
     }
     pub fn image(
@@ -419,6 +452,7 @@ impl Drawing {
                 "href",
                 format!("data:{mime};base64,{}", STANDARD.encode(bytes)),
             );
+        self.filled_areas = None;
         if settings.monochrome {
             let matrix = if settings.background == Color::BLACK {
                 "-.299 -.587 -.114 0 1 -.299 -.587 -.114 0 1 -.299 -.587 -.114 0 1 0 0 0 1 0"

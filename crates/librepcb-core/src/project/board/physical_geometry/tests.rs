@@ -75,7 +75,12 @@ fn body_and_copper_subtract_drills_and_cutouts_and_clip_to_outline() {
     data.prepare_surfaces().unwrap();
     for side in [BoardSide::Top, BoardSide::Bottom] {
         let surface = data.surface(side);
-        for paths in [&surface.body, &surface.copper] {
+        let layer = if side == BoardSide::Top {
+            Layer::TOP_COPPER
+        } else {
+            Layer::BOT_COPPER
+        };
+        for paths in [&surface.body, &surface.copper[&layer]] {
             assert!(contains(paths, 1., 1.));
             assert!(!contains(paths, 2., 2.));
             assert!(!contains(paths, 5., 5.));
@@ -97,8 +102,16 @@ fn silkscreen_is_clipped_to_mask_and_paste_to_body() {
     assert!(!contains(&surface.solder_resist, 5., 3.));
     assert!(!contains(&surface.silkscreen, 5., 3.));
     assert!(contains(&surface.silkscreen, 6.25, 3.));
-    assert!(contains(&surface.solder_paste, 1., 1.5));
-    assert!(!contains(&surface.solder_paste, -1., 1.5));
+    assert!(contains(
+        &surface.solder_paste[&Layer::TOP_SOLDER_PASTE],
+        1.,
+        1.5
+    ));
+    assert!(!contains(
+        &surface.solder_paste[&Layer::TOP_SOLDER_PASTE],
+        -1.,
+        1.5
+    ));
     assert!(data.surface(BoardSide::Bottom).silkscreen.is_empty());
 }
 #[test]
@@ -122,7 +135,17 @@ fn drill_depth_is_retained_independently_of_the_upstream_flat_projection() {
     // Preserve RealisticBoardPainter's face-dependent blind-hole projection.
     // Mesh builders use the original depth, not an extrusion of this body.
     assert!(contains(&data.surface(BoardSide::Top).body, 2., 2.));
-    assert!(!contains(&data.surface(BoardSide::Top).copper, 2., 2.));
+    assert!(!contains(
+        &data.surface(BoardSide::Top).copper[&Layer::TOP_COPPER],
+        2.,
+        2.
+    ));
+    // Export settings may enable both copper faces in the same flat view.
+    assert!(!contains(
+        &data.surface(BoardSide::Top).copper[&Layer::BOT_COPPER],
+        2.,
+        2.
+    ));
     assert!(!contains(&data.surface(BoardSide::Bottom).body, 2., 2.));
     for side in [BoardSide::Top, BoardSide::Bottom] {
         assert!(contains(&data.surface(side).body, 7., 7.));

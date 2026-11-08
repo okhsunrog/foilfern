@@ -30,20 +30,12 @@ impl BoardPhysicalGeometry {
             let outlines = ch::paths_to_clipper(&self.outlines, Self::arc_tolerance());
             let mut body = outlines.clone();
             ch::subtract(&mut body, &holes, NonZero, NonZero)?;
-            let mut copper = body.clone();
-            ch::subtract(&mut copper, &copper_holes, EvenOdd, NonZero)?;
-            let (cu, mask, paste) = if bottom {
-                (
-                    Layer::BOT_COPPER,
-                    Layer::BOT_STOP_MASK,
-                    Layer::BOT_SOLDER_PASTE,
-                )
+            let mut copper_body = body.clone();
+            ch::subtract(&mut copper_body, &copper_holes, EvenOdd, NonZero)?;
+            let mask = if bottom {
+                Layer::BOT_STOP_MASK
             } else {
-                (
-                    Layer::TOP_COPPER,
-                    Layer::TOP_STOP_MASK,
-                    Layer::TOP_SOLDER_PASTE,
-                )
+                Layer::TOP_STOP_MASK
             };
             let paths = |layer| {
                 ch::paths_to_clipper(
@@ -54,7 +46,14 @@ impl BoardPhysicalGeometry {
                     Self::arc_tolerance(),
                 )
             };
-            ch::intersect(&mut copper, &paths(cu), EvenOdd, NonZero)?;
+            let mut copper = std::collections::BTreeMap::new();
+            for layer in self.areas.keys().copied().filter(|layer| layer.is_copper()) {
+                let mut region = copper_body.clone();
+                ch::intersect(&mut region, &paths(layer), EvenOdd, NonZero)?;
+                if !region.is_empty() {
+                    copper.insert(layer, ch::paths_from_clipper(&region));
+                }
+            }
             let mut mask_openings = paths(mask);
             mask_openings.extend(ch::paths_to_clipper(&self.cutouts, Self::arc_tolerance()));
             let mut resist = outlines;
@@ -64,14 +63,20 @@ impl BoardPhysicalGeometry {
                 silk.extend(paths(*layer));
             }
             ch::intersect(&mut silk, &resist, NonZero, EvenOdd)?;
-            let mut solder_paste = paths(paste);
-            ch::intersect(&mut solder_paste, &body, NonZero, EvenOdd)?;
+            let mut solder_paste = std::collections::BTreeMap::new();
+            for layer in [Layer::TOP_SOLDER_PASTE, Layer::BOT_SOLDER_PASTE] {
+                let mut region = paths(layer);
+                ch::intersect(&mut region, &body, NonZero, EvenOdd)?;
+                if !region.is_empty() {
+                    solder_paste.insert(layer, ch::paths_from_clipper(&region));
+                }
+            }
             self.surfaces[index] = BoardSurfaceGeometry {
                 body: ch::paths_from_clipper(&body),
-                copper: ch::paths_from_clipper(&copper),
+                copper,
                 solder_resist: ch::paths_from_clipper(&resist),
                 silkscreen: ch::paths_from_clipper(&silk),
-                solder_paste: ch::paths_from_clipper(&solder_paste),
+                solder_paste,
             };
         }
         Ok(())

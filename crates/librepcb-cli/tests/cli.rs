@@ -117,7 +117,7 @@ fn failed_copy_job_cannot_read_sibling_files() {
 }
 
 #[test]
-fn graphics_jobs_run_without_a_display_and_report_unimplemented_rendering() {
+fn schematic_board_and_realistic_graphics_jobs_run_without_a_display() {
     let temp = tempfile::tempdir().unwrap();
     let source = FilePath::new(
         Path::new(env!("LIBREPCB_UPSTREAM_DIR"))
@@ -161,10 +161,13 @@ fn graphics_jobs_run_without_a_display_and_report_unimplemented_rendering() {
         output.as_str(),
         project.as_str(),
     ]);
-    assert_eq!(result.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&result.stderr).contains("board_rendering"));
     assert!(
-        !output
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(
+        output
             .path_to("Empty_Project_v1_Rendering.pdf")
             .is_existing_file()
     );
