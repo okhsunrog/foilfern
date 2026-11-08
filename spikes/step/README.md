@@ -91,7 +91,69 @@ production STEP importer**. In particular:
 - Kernel internals may panic; the process boundary belongs to the probe,
   not an in-process production error strategy.
 
-Next integration should consume the canonical `BoardPhysicalGeometry`,
-keep mesh/rendering separate from BRep export, and explicitly handle drill
-depth, model placement, unit contexts and materials. No CLI STEP acceptance
-case is closed by this isolated experiment.
+No CLI STEP acceptance case is closed by this isolated experiment.
+
+## Shared physical board prototype
+
+The `board` executable consumes the canonical `BoardPhysicalGeometry` from
+the real project loader. It subtracts cutouts and non-via through-drills
+with the existing Clipper adapter, then extrudes the resulting regions
+with Monstertruck. Overlapping cutouts, cuts crossing the board edge and
+disconnected material regions are supported. It never extrudes a flat
+surface projection. Non-via drills with unsupported depth fail explicitly.
+
+This is the upstream **mechanical STEP policy**: all via drills are omitted,
+as in `StepExport::run()`. A physical visualization mesh will need a separate
+depth-aware policy, including blind/buried via geometry. It must not use this
+mechanical simplification as its physical drilling model.
+
+Component BReps are cached by package/model, expanded by assembly instance
+and placed using `OccModel::addToAssembly()`'s transform order: footprint
+translation/rotation, bottom-side rotation about Y, model offset and Z/Y/X
+model rotations. Top-side models start at PCB thickness; bottom-side models
+start at zero. STEP generation and OBJ tessellation consume those same
+placed solids. Missing models and failed conversions/tessellations fail
+instead of disappearing silently. The generated PCB BRep is reloaded to
+unify Monstertruck's distinct modeling and STEP-import geometry enums.
+
+The prototype requires `--assume-mm` because it has no unit-context adapter.
+It does not preserve model colors, names/assembly hierarchy in STEP, or add
+copper/mask/silk meshes. There is no Bevy viewer or CLI output-job integration.
+
+```sh
+"$CARGO_TARGET_DIR/debug/board" --assume-mm \
+  /absolute/path/to/can2usb.lppz "$STEP_WORK/can2usb-3d"
+"$LIBREPCB_CLI" open-project --run-job 'STEP Model' \
+  --outdir "$STEP_WORK/can2usb-oracle" /absolute/path/to/can2usb.lppz
+uv run spikes/step/compare-board.py "$STEP_WORK/can2usb-3d" \
+  "$STEP_WORK/can2usb-oracle/can2usb_v2.step"
+cargo test --manifest-path spikes/step/Cargo.toml
+```
+
+The optional trailing board/variant indices default to zero. The read-only
+project loader accepts `.lpp` or `.lppz`; it does not save migrated files.
+The output directory contains `pcb.step`, `assembly.step`, `assembly.obj`
+and a diagnostic `board.json`. The comparison adds `comparison.json`.
+
+On CAN–USB's default assembly, measured 2026-11-08:
+
+- 27 placed devices, 86 component solids and one PCB solid;
+  all 87 BReps valid according to OCCT.
+- 53,400 triangles; no boundary, nonmanifold or inconsistently oriented
+  mesh edges, checked per solid.
+- All 86 component solids individually match the official LibrePCB export's
+  bounds, volume, center of mass and face count. Maximum component bound
+  difference: 7.2e-15 mm. Full assembly bounds are identical:
+  `(0, 0, -1.4)` to `(60, 16.44, 9.6)` mm.
+- PCB volume difference: 0.146637487 mm3 out of 1563.788673793 mm3
+  (0.0094%), from flattening PCB arcs within 0.005 mm. It has additional
+  planar side faces in place of analytic curved surfaces; this is not exact
+  BRep equivalence for the PCB itself.
+
+Three focused Rust tests cover canonical geometry vs flat projections,
+overlapping/edge-crossing cutouts, mechanical drill policy and non-through
+rejection, and independently computed top/bottom model placements.
+
+Next: adapt units and materials, retain analytic PCB arcs where feasible,
+and establish broader fixture/error coverage before moving the adapter
+into the application workspace. Rendering integration remains independent.

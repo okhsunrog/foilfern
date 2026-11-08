@@ -9,7 +9,9 @@ license = "GPL-3.0-or-later"
 
 [dependencies]
 anyhow = "1.0.104"
-monstertruck-assembly = "0.4.1"
+clipper = { version = "0.1.0", path = "../../crates/clipper" }
+libm = "0.2.16"
+librepcb-core = { version = "0.1.0", path = "../../crates/librepcb-core" }
 monstertruck-io = "0.4.1"
 monstertruck-meshing = "0.4.1"
 monstertruck-modeling = "0.4.1"

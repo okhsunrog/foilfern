@@ -24,7 +24,7 @@ from OCP.TopAbs import TopAbs_FACE, TopAbs_SOLID
 from OCP.TopExp import TopExp_Explorer
 
 
-def measure(path):
+def read_shape(path):
     reader = STEPControl_Reader()
     if reader.ReadFile(str(path)) != IFSelect_RetDone:
         raise ValueError(f"cannot read {path}")
@@ -32,6 +32,10 @@ def measure(path):
     shape = reader.OneShape()
     if shape.IsNull():
         raise ValueError(f"no geometry: {path}")
+    return shape
+
+
+def measure_shape(shape):
     bounds = Bnd_Box()
     BRepBndLib.AddOptimal_s(shape, bounds, False, False)
     volume, area = GProp_GProps(), GProp_GProps()
@@ -47,14 +51,20 @@ def measure(path):
         return count
 
     low, high = bounds.CornerMin(), bounds.CornerMax()
+    center = volume.CentreOfMass()
     return {
         "bounds": [[low.X(), low.Y(), low.Z()], [high.X(), high.Y(), high.Z()]],
         "volume": volume.Mass(),
+        "center": [center.X(), center.Y(), center.Z()],
         "area": area.Mass(),
         "faces": count(TopAbs_FACE),
         "solids": count(TopAbs_SOLID),
         "valid": BRepCheck_Analyzer(shape).IsValid(),
     }
+
+
+def measure(path):
+    return measure_shape(read_shape(path))
 
 
 if __name__ == "__main__":

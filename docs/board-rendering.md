@@ -50,8 +50,18 @@ in Slint is a separate integration; the retained paths carry no CPU/GPU state.
 A future 3D mesh builder uses canonical outlines, resolved drill spans and
 model references. It must not extrude a flat projection: upstream's flat
 blind-via treatment differs from physical depth. Bevy is a candidate for
-lighting, materials and camera control; no Bevy dependency, mesh builder,
-STEP tessellation or 3D viewer is implemented yet.
+lighting, materials and camera control. The application workspace has no
+Bevy dependency, 3D mesh builder, STEP tessellation or 3D viewer yet.
+
+The isolated `spikes/step` experiment now consumes the canonical snapshot
+to build a mechanical BRep board and placed component solids with
+Monstertruck, with STEP and OBJ output. CAN–USB's component placements match
+the official STEP export individually in independent OCCT checks. This
+prototype approximates PCB curves within 5 micrometres, assumes millimetre
+model units and loses material metadata. It omits via drills to match the
+upstream mechanical STEP policy; a physical viewer requires its own
+depth-aware drill geometry. See `../spikes/step/README.md` for measured
+results and reproduction. Application integration remains pending.
 
 The snapshot is synchronous and `Send + Sync`, so a caller can prepare it on
 a worker thread. It is derived data, with no file-format or journal changes.

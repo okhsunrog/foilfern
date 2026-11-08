@@ -181,9 +181,15 @@ The standalone `spikes/step` probe now validates Monstertruck 0.4.1 geometry
 on all ten CAN–USB STEP files, two upstream OccModelTest fixtures and an
 analytic drilled plate. Reported conversion, watertight tessellation,
 assembly instances/placements and BRep re-export pass independent OCCT
-solid/face-count, volume, bounds and validity checks. It remains outside the
-application workspace: units, materials and broader importer coverage are
-not yet adapted. See `../spikes/step/README.md`; CLI STEP remains deferred.
+solid/face-count, volume, bounds and validity checks. Its board executable
+also consumes the shared physical snapshot and produces a CAN–USB assembly
+with 27 devices / 87 valid solids and a watertight 53,400-triangle mesh.
+Every component solid matches the official STEP export individually; PCB
+contours are approximated within 5 um (0.0094% PCB volume difference).
+Mechanical export intentionally omits via drills, as upstream does.
+It remains outside the application workspace: units, materials, exact PCB
+arcs and broader importer coverage are not yet adapted. See
+`../spikes/step/README.md`; CLI STEP remains deferred.
 
 1. **Wave 4 acceptance:** close the remaining CLI differences. STEP still
    blocks mixed job runs. STEP originally belonged to M5; full upstream
