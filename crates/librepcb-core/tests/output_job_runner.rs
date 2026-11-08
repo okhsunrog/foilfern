@@ -192,6 +192,7 @@ fn normalized(data: &[u8]) -> String {
                 && !line.starts_with("; #@! TF.GenerationSoftware,")
                 && !line.starts_with("C  Created:")
                 && !line.starts_with("C  File created:")
+                && !line.starts_with("C  Generation Date:")
                 && !line.starts_with('#')
         })
         .collect::<Vec<_>>()
