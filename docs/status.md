@@ -1,13 +1,13 @@
 # Status and handoff
 
-State of the port as of 2026-11-06, for continuing the work in a new
+State of the port as of 2026-11-08, for continuing the work in a new
 session (for example a cloud session). Read `AGENTS.md` first; this file
 covers where things stand and how the work has been organized.
 
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 1001 tests report success (about 100k lines
+The workspace builds cleanly and 1006 tests report success (about 100k lines
 of Rust). The latest local run used the official CLI 2.1.1 as the oracle,
 including ERC messages, migrations and byte-identical JSON exports over
 the pinned upstream test data.
@@ -115,6 +115,12 @@ Done, in `crates/librepcb-core` unless noted:
   display server. `scripts/check-cli-core.sh` passes 115 unmodified upstream
   pytest cases. The full suite reports 115 passed / 63 failed: rendering,
   STEP and Qt parser/help/version snapshots remain pending. M1 is not complete.
+
+- **Graphics export backend** (2026-11-08): `crates/librepcb-graphics`
+  provides owned drawing lists, native text, layer palettes and page layout,
+  SVG/PNG and vector multipage PDF encoding. Bounds, scale/orientation,
+  image page names, decoded raster pixels and selectable PDF text are tested.
+  Model painters and CLI integration are the next block.
 
 ## Next steps
 

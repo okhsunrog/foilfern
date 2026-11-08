@@ -528,3 +528,20 @@ differ between platforms/implementations:
   atomically through the existing file utility. A failed archive export
   therefore retains the original file. The project root is isolated from
   sibling files before loading ZIP contents, like upstream.
+
+## graphics
+
+- Graphics use SVG composition, native font shaping/rasterization (`resvg`)
+  and vector PDF encoding (`svg2pdf`, `lopdf`), with the existing canvas arc
+  conversion. Text metrics, antialiasing, metadata and bytes differ from Qt's
+  exports; SVG and PDF remain vector documents with searchable regular text.
+- Auto crops use visible stroke bounds with subpixel precision instead of
+  integer `QPicture` bounds. Empty drawings use a 1 mm source extent. Page
+  margins, orientation, mirroring, scale and multipage names follow upstream.
+- The default board palette darkens RGB channels directly rather than
+  round-tripping through Qt HSV; low-intensity channels can differ by one
+  level. Missing layers are invisible, and monochrome grab-area fills retain
+  their grayscale/alpha behavior.
+- PNG allocation is bounded by a caller-configurable pixel limit (64 million
+  by default). External filesystem image links in SVG are disabled; embedded
+  data images remain supported. No display server or Qt resources are needed.
