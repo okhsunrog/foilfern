@@ -41,6 +41,12 @@ Done, in `crates/librepcb-core` unless noted:
   still a development snapshot). UI builds select edition 1.20. The optional
   Slint integration, full renderer spike and bundled-translation check build
   against the same revision; translation runtime checks pass.
+- **Slint runtime checks** (2026-11-08): the actual Rust canvas demo was
+  inspected through its embedded MCP server (18 tools), operated with wheel,
+  keyboard and rectangle-selection input, and captured as PNGs. Accessible
+  state confirms zoom and deletion; the event log has no drops or unknown
+  variants. `scripts/check-slint-mcp.py` repeats this headless software test.
+  See `slint-tooling.md`; a desktop GPU/window-system run is still separate.
 - **`crates/librepcb-i18n`, `tools/ts2po`, `lang/`:** translations from the
   upstream catalogs, with Slint bundled translations.
 - **Project attribute lookup** (2026-11-01): built-in and custom attributes

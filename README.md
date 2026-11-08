@@ -150,6 +150,9 @@ cargo test --workspace --features librepcb-canvas/slint
 cargo clippy --workspace --all-targets --features librepcb-canvas/slint -- -D warnings
 ```
 
+See [docs/slint-tooling.md](docs/slint-tooling.md) for the runtime MCP tools
+and a repeatable headless interaction/screenshot check of the Rust canvas.
+
 ## Documentation
 
 - [docs/roadmap.md](docs/roadmap.md) — milestones
