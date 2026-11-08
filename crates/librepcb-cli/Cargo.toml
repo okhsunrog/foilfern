@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 clap = { version = "4.6.7", features = ["derive", "string"] }
 librepcb-core = { version = "0.1.0", path = "../librepcb-core" }
+librepcb-graphics = { version = "0.1.0", path = "../librepcb-graphics" }
 librepcb-i18n = { version = "0.1.0", path = "../librepcb-i18n" }
 thiserror = "2.0.21"
 

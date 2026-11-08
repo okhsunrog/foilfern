@@ -519,11 +519,11 @@ differ between platforms/implementations:
   reports this Rust package's version, without fictitious Qt/OpenCascade
   versions. Application messages still use the upstream translation context.
 - Implemented commands are `open-project`, `open-library`, `open-symbol` and
-  `open-package`; symbol/package commands currently support checks only.
-  Graphics exports, STEP/minification and rendering-dependent jobs remain
-  deferred and are reported as unsupported. The 115 upstream tests of the
-  implemented command paths pass unchanged; the full 178-test suite still
-  has 63 failures in these deferred features and parser/help/version text.
+  `open-package`, including symbol/package and schematic graphics exports.
+  STEP/minification and graphics/3D-dependent jobs remain deferred and are
+  reported as unsupported. The implemented command paths are checked by
+  138 unmodified upstream tests; full acceptance still includes these
+  deferred features and parser/help/version text.
 - Saving `.lppz` builds the updated archive in memory, then writes it
   atomically through the existing file utility. A failed archive export
   therefore retains the original file. The project root is isolated from
@@ -545,3 +545,8 @@ differ between platforms/implementations:
 - PNG allocation is bounded by a caller-configurable pixel limit (64 million
   by default). External filesystem image links in SVG are disabled; embedded
   data images remain supported. No display server or Qt resources are needed.
+- Library footprints render stroke-font text as paths. They currently omit
+  upstream's additional invisible text overlay for searching/selecting these
+  glyphs in PDF/SVG; regular schematic/symbol text remains searchable.
+- Malformed embedded images fail display-list creation before export. Upstream
+  can also write a partial drawing and report image-loading errors afterward.

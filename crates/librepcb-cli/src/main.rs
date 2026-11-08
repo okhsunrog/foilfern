@@ -74,6 +74,8 @@ struct ProjectOptions {
     strict: bool,
     #[arg(long, help=tr!("CommandLineInterface","Export a generic CSV bill of materials (deprecated; use output jobs)."))]
     export_bom: Vec<String>,
+    #[arg(long, help=tr!("CommandLineInterface","Export schematics as PDF, SVG or PNG (deprecated; use output jobs)."))]
+    export_schematics: Vec<String>,
     #[arg(long, help=tr!("CommandLineInterface","Export board-specific CSV bills of materials (deprecated; use output jobs)."))]
     export_board_bom: Vec<String>,
     #[arg(long, help=tr!("CommandLineInterface","Comma-separated custom BOM columns (deprecated; use output jobs)."))]
@@ -104,6 +106,8 @@ struct LibraryOptions {
 #[derive(Args)]
 struct ElementOptions {
     element: String,
+    #[arg(long, help=tr!("CommandLineInterface","Export as PDF, SVG or PNG."))]
+    export: Option<String>,
     #[arg(long, help=tr!("CommandLineInterface","Run checks and fail on non-approved messages."))]
     check: bool,
 }

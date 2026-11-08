@@ -112,15 +112,21 @@ Done, in `crates/librepcb-core` unless noted:
   jobs, exports manufacturing/assembly/BOM/netlist files, selects boards and
   variants, removes boards and changes the default variant through mutations,
   checks canonical files and saves/migrates transactionally. Runs without a
-  display server. `scripts/check-cli-core.sh` passes 115 unmodified upstream
-  pytest cases. The full suite reports 115 passed / 63 failed: rendering,
-  STEP and Qt parser/help/version snapshots remain pending. M1 is not complete.
+  display server. Symbol/package graphics and schematic exports are supported.
+  `scripts/check-cli-core.sh` covers 138 unmodified upstream pytest cases.
+  Graphics jobs, STEP and Qt parser/help/version snapshots remain pending.
+  M1 is not complete.
 
 - **Graphics export backend** (2026-11-08): `crates/librepcb-graphics`
   provides owned drawing lists, native text, layer palettes and page layout,
   SVG/PNG and vector multipage PDF encoding. Bounds, scale/orientation,
   image page names, decoded raster pixels and selectable PDF text are tested.
-  Model painters and CLI integration are the next block.
+  Library symbol/footprint and schematic painters use resolved model views,
+  attribute contexts, embedded images and stroke fonts. Their CLI exports pass
+  23 unmodified upstream tests, including output naming/collision behavior.
+  Model-content tests cover pins, overlines, images, pad holes and read-only
+  schematic export. Demo symbol PDF renders were visually compared with the
+  official CLI. Board painting and graphics output jobs are the next block.
 
 ## Next steps
 
@@ -132,7 +138,7 @@ Done, in `crates/librepcb-core` unless noted:
 2. **Then M1.5** (MCP, library manager, Specctra) per `roadmap.md` and the
    decisions in `mcp-research-konnect.md`.
 
-Deliberately deferred: the schematic/board painters (M2), Specctra
+Deliberately deferred: the board painter/editor integration (M2), Specctra
 (M1.5), the interactive HTML BOM, 3D/STEP, and the Eagle/KiCad importers
 (M5).
 

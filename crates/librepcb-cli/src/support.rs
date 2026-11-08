@@ -115,6 +115,11 @@ pub fn deprecations(options: &crate::ProjectOptions) -> bool {
             "run-jobs",
         ),
         (
+            !options.export_schematics.is_empty(),
+            "export-schematics",
+            "run-jobs",
+        ),
+        (
             options.export_pcb_fabrication_data,
             "export-pcb-fabrication-data",
             "run-jobs",

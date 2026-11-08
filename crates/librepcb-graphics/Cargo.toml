@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 base64 = "0.23.1"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }
 kurbo = "0.13.1"
 librepcb-canvas = { version = "0.1.0", path = "../librepcb-canvas" }
 librepcb-core = { version = "0.1.0", path = "../librepcb-core" }

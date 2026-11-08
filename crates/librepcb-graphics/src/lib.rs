@@ -8,10 +8,15 @@
 mod drawing;
 mod error;
 mod export;
+mod library;
 mod palette;
+mod schematic;
 mod settings;
 
 pub use drawing::Drawing;
 pub use error::{Error, Result};
 pub use export::{GraphicsExport, GraphicsFile, GraphicsPage};
 pub use settings::GraphicsSettings;
+
+pub use library::{default_stroke_font, footprint_drawing, symbol_drawing};
+pub use schematic::schematic_drawing;

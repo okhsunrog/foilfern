@@ -17,6 +17,10 @@ pub enum Error {
     Pdf(String),
     #[error("Failed to encode image: {0}")]
     Image(String),
+    #[error("{0}")]
+    Model(String),
+    #[error(transparent)]
+    Clipper(#[from] librepcb_core::utils::clipper_helpers::Error),
     #[error(transparent)]
     FileIo(#[from] librepcb_core::fileio::Error),
     #[error(transparent)]

@@ -3236,6 +3236,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "librepcb-core",
+ "librepcb-graphics",
  "librepcb-i18n",
  "tempfile",
  "thiserror 2.0.21",
@@ -3287,6 +3288,7 @@ name = "librepcb-graphics"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
+ "image",
  "kurbo 0.13.1",
  "librepcb-canvas",
  "librepcb-core",

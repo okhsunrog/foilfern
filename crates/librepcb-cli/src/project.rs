@@ -469,6 +469,46 @@ pub fn run(options: ProjectOptions) -> Result<bool> {
             }
         }
     }
+    for template in &options.export_schematics {
+        println!(
+            "{}",
+            tr!(
+                "CommandLineInterface",
+                "Export schematics to '{0}'...",
+                template
+            )
+        );
+        let dest = substitute(&project, template, None, None)?;
+        let output = path(&dest)?;
+        let settings = librepcb_graphics::GraphicsSettings::default();
+        let pages = project
+            .schematics()
+            .iter()
+            .map(|schematic| {
+                Ok(librepcb_graphics::GraphicsPage {
+                    drawing: librepcb_graphics::schematic_drawing(&project, schematic, &settings)?,
+                    settings: settings.clone(),
+                })
+            })
+            .collect::<librepcb_graphics::Result<Vec<_>>>();
+        let exporter = librepcb_graphics::GraphicsExport {
+            title: project.metadata().name.to_string(),
+            creator: format!("LibrePCB {VERSION}"),
+            ..Default::default()
+        };
+        match pages.and_then(|pages| exporter.write(&pages, &output)) {
+            Ok(files) => {
+                for file in files {
+                    println!("  => '{}'", pretty(&file, &dest));
+                    *counts.entry(file).or_default() += 1;
+                }
+            }
+            Err(e) => {
+                eprintln!("  {}", tr!("CommandLineInterface", "ERROR: {0}", e));
+                success = false;
+            }
+        }
+    }
     success &= legacy_exports(&mut project, &options, &boards, &variants, &mut counts)?;
     if options.save {
         println!("{}", tr!("CommandLineInterface", "Save project..."));

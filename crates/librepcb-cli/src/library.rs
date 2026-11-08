@@ -1,7 +1,7 @@
 //! Library commands from apps/librepcb-cli/commandlineinterface.cpp.
 use crate::{ElementOptions, LibraryOptions, error::Result, support::*};
 use librepcb_core::{
-    fileio::{FileSystem, TransactionalDirectory},
+    fileio::{CleanFileNameOptions, FilePath, FileSystem},
     library::{
         Library, LibraryBaseElement,
         cat::{ComponentCategory, PackageCategory},
@@ -125,8 +125,7 @@ pub fn run(options: LibraryOptions) -> Result<bool> {
     }
     Ok(success)
 }
-fn element<E: LibraryBaseElement>(directory: TransactionalDirectory, check: bool) -> Result<bool> {
-    let element = E::open(directory)?;
+fn element<E: LibraryBaseElement>(element: &E, check: bool) -> Result<bool> {
     let mut success = true;
     if check {
         println!("{}", tr!("CommandLineInterface", "Run checks..."));
@@ -142,6 +141,38 @@ fn element<E: LibraryBaseElement>(directory: TransactionalDirectory, check: bool
     }
     Ok(success)
 }
+fn filename(template: &str, lookup: impl FnMut(&str) -> Option<String>) -> String {
+    librepcb_core::attribute::substitute(
+        template,
+        lookup,
+        Some(&mut |s| {
+            FilePath::clean_file_name(
+                s,
+                CleanFileNameOptions {
+                    replace_spaces: true,
+                    ..Default::default()
+                },
+                120,
+            )
+        }),
+    )
+}
+fn export_drawing(
+    drawing: librepcb_graphics::Drawing,
+    settings: librepcb_graphics::GraphicsSettings,
+    title: String,
+    dest: &str,
+) -> Result<Vec<FilePath>> {
+    let exporter = librepcb_graphics::GraphicsExport {
+        title,
+        creator: format!("LibrePCB {}", env!("CARGO_PKG_VERSION")),
+        ..Default::default()
+    };
+    Ok(exporter.write(
+        &[librepcb_graphics::GraphicsPage { drawing, settings }],
+        &path(dest)?,
+    )?)
+}
 pub fn symbol(options: ElementOptions) -> Result<bool> {
     println!(
         "{}",
@@ -151,10 +182,49 @@ pub fn symbol(options: ElementOptions) -> Result<bool> {
             pretty(&path(&options.element)?, &options.element)
         )
     );
-    element::<Symbol>(
-        open_directory(&path(&options.element)?, false)?,
-        options.check,
-    )
+    let symbol = Symbol::open(open_directory(&path(&options.element)?, false)?)?;
+    let mut success = element(&symbol, options.check)?;
+    if let Some(template) = &options.export {
+        println!(
+            "{}",
+            tr!(
+                "CommandLineInterface",
+                "Export symbol to '{0}'...",
+                template
+            )
+        );
+        let dest = filename(template, |key| match key {
+            "SYMBOL" => Some(symbol.metadata().names().default_value().to_string()),
+            "SYMBOL_UUID" => Some(symbol.metadata().uuid().to_string()),
+            _ => None,
+        });
+        let settings = librepcb_graphics::GraphicsSettings {
+            margins: [0.; 4],
+            ..Default::default()
+        };
+        let result = librepcb_graphics::symbol_drawing(&symbol, &settings)
+            .map_err(crate::error::Error::from)
+            .and_then(|drawing| {
+                export_drawing(
+                    drawing,
+                    settings,
+                    symbol.metadata().names().default_value().to_string(),
+                    &dest,
+                )
+            });
+        match result {
+            Ok(files) => {
+                for file in files {
+                    println!("  => '{}'", pretty(&file, &dest));
+                }
+            }
+            Err(e) => {
+                eprintln!("  {}", tr!("CommandLineInterface", "ERROR: {0}", e));
+                success = false;
+            }
+        }
+    }
+    Ok(success)
 }
 pub fn package(options: ElementOptions) -> Result<bool> {
     println!(
@@ -165,8 +235,83 @@ pub fn package(options: ElementOptions) -> Result<bool> {
             pretty(&path(&options.element)?, &options.element)
         )
     );
-    element::<Package>(
-        open_directory(&path(&options.element)?, false)?,
-        options.check,
-    )
+    let package = Package::open(open_directory(&path(&options.element)?, false)?)?;
+    let mut success = element(&package, options.check)?;
+    let mut written = std::collections::BTreeMap::new();
+    if let Some(template) = &options.export {
+        println!(
+            "{}",
+            tr!(
+                "CommandLineInterface",
+                "Export footprint(s) to '{0}'...",
+                template
+            )
+        );
+        for (index, footprint) in package.footprints().iter().enumerate() {
+            let dest = filename(template, |key| match key {
+                "PACKAGE" => Some(package.metadata().names().default_value().to_string()),
+                "PACKAGE_UUID" => Some(package.metadata().uuid().to_string()),
+                "FOOTPRINT" => Some(footprint.names().default_value().to_string()),
+                "FOOTPRINT_UUID" => Some(footprint.uuid().to_string()),
+                "FOOTPRINT_INDEX" => Some((index + 1).to_string()),
+                _ => None,
+            });
+            let settings = librepcb_graphics::GraphicsSettings {
+                margins: [0.; 4],
+                ..Default::default()
+            };
+            let result = librepcb_graphics::footprint_drawing(footprint, &settings)
+                .map_err(crate::error::Error::from)
+                .and_then(|drawing| {
+                    export_drawing(
+                        drawing,
+                        settings,
+                        format!(
+                            "{} ({})",
+                            package.metadata().names().default_value(),
+                            footprint.names().default_value()
+                        ),
+                        &dest,
+                    )
+                });
+            match result {
+                Ok(files) => {
+                    for file in files {
+                        println!("  => '{}'", pretty(&file, &dest));
+                        *written.entry(file).or_insert(0) += 1;
+                    }
+                }
+                Err(e) => {
+                    eprintln!("  {}", tr!("CommandLineInterface", "ERROR: {0}", e));
+                    success = false;
+                }
+            }
+        }
+    }
+    let mut overwritten = false;
+    for (file, count) in written {
+        if count > 1 {
+            eprintln!(
+                "{}",
+                tr!(
+                    "CommandLineInterface",
+                    "ERROR: The file '{0}' was written multiple times!",
+                    pretty(&file, &options.element)
+                )
+            );
+            overwritten = true;
+        }
+    }
+    if overwritten {
+        eprintln!(
+            "{}",
+            tr!(
+                "CommandLineInterface",
+                "NOTE: To avoid writing files multiple times, make sure to pass unique filepaths to all export functions. For footprint output files, you could add a placeholder like '{0}' to the path.",
+                "{{FOOTPRINT}}"
+            )
+        );
+        success = false;
+    }
+    Ok(success)
 }
