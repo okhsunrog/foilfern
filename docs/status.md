@@ -183,9 +183,11 @@ analytic drilled plate. Reported conversion, watertight tessellation,
 assembly instances/placements and BRep re-export pass independent OCCT
 solid/face-count, volume, bounds and validity checks. Its board executable
 also consumes the shared physical snapshot and produces a CAN–USB assembly
-with 27 devices / 87 valid solids and a watertight 53,400-triangle mesh.
+with 27 devices / 87 valid solids and a watertight 67,932-triangle mesh.
 Every component solid matches the official STEP export individually; PCB
-contours are approximated within 5 um (0.0094% PCB volume difference).
+whole surviving contours retain analytic arcs. CAN–USB needs zero flattened
+contours, with a 0.000011741 mm3 PCB volume difference from the official
+export. Intersecting boundaries retain an explicit 5 um approximation count.
 Mechanical export intentionally omits via drills, as upstream does.
 The unit adapter now normalizes uniform SI/conversion-based contexts to
 millimetres (16 independent fixture comparisons); mixed contexts and
@@ -193,9 +195,9 @@ unsupported angle units fail explicitly. Surface RGB/opacity now survive
 STEP re-export and OBJ/MTL tessellation, including solid defaults and face
 overrides. Seventeen models pass independent geometry/XCAF checks; all
 2,024 component-face appearances of assembled CAN–USB match the official
-export. Nine focused Rust tests and compile-time thread-safety assertions
+export. Ten focused Rust tests and compile-time thread-safety assertions
 cover the adapter. It remains outside the application workspace: exact PCB
-arcs, broader metadata/representation coverage and integration are pending. See
+curve intersections, broader metadata/representation coverage and integration are pending. See
 `../spikes/step/README.md`; CLI STEP remains deferred.
 
 1. **Wave 4 acceptance:** close the remaining CLI differences. STEP still

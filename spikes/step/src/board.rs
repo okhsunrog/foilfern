@@ -1,14 +1,69 @@
 //! Port of libs/librepcb/core/3d/occmodel.cpp (createBoard/addToAssembly)
 //! and libs/librepcb/core/3d/stepexport.cpp, as an isolated experiment.
 //! Clipper handles planar subtraction; Monstertruck constructs the BRep.
-//! Curved PCB contours are approximated within the snapshot's 5 um tolerance.
-use anyhow::{Result, ensure};
+//! Whole surviving contours retain analytic arcs; clipped intersections carry
+//! an explicit approximation count at the snapshot's 5 um tolerance.
+use anyhow::{Context, Result, ensure};
 use clipper::{PolyFillType::NonZero, PolyNode};
 use librepcb_core::{
+    geometry::Path,
     project::board::{BoardPhysicalGeometry, PhysicalDevice, PhysicalHoleDepth},
-    utils::clipper_helpers as ch,
+    types::Angle,
+    utils::{clipper_helpers as ch, toolbox},
 };
 use monstertruck_modeling::*;
+use std::collections::BTreeMap;
+
+type ContourKey = Vec<(i64, i64)>;
+pub struct BoardBrep {
+    pub solids: Vec<Solid>,
+    pub approximated_contours: usize,
+}
+
+fn key(points: &[clipper::IntPoint]) -> ContourKey {
+    let points: Vec<_> = points.iter().map(|p| (p.x, p.y)).collect();
+    let rotate = |mut points: ContourKey| {
+        if let Some((index, _)) = points.iter().enumerate().min_by_key(|(_, p)| *p) {
+            points.rotate_left(index);
+        }
+        points
+    };
+    let forward = rotate(points.clone());
+    let backward = rotate(points.into_iter().rev().collect());
+    forward.min(backward)
+}
+
+fn analytic_wire(path: &Path) -> Result<Wire> {
+    ensure!(
+        path.is_closed() && path.vertices().len() >= 3,
+        "invalid closed board contour"
+    );
+    let source = &path.vertices()[..path.vertices().len() - 1];
+    let vertices: Vec<_> = source
+        .iter()
+        .map(|v| builder::vertex(Point3::new(v.pos.x.to_mm(), v.pos.y.to_mm(), 0.)))
+        .collect();
+    let mut edges = Vec::new();
+    for (index, v0) in source.iter().enumerate() {
+        let next = (index + 1) % source.len();
+        let v1 = &source[next];
+        if v0.angle == Angle::DEG0 {
+            edges.push(builder::line(&vertices[index], &vertices[next]));
+        } else {
+            let center = toolbox::arc_center(v0.pos, v1.pos, v0.angle)
+                .context("invalid board arc center")?;
+            let radial = v0.pos - center;
+            let sign = if v0.angle < Angle::DEG0 { -1. } else { 1. };
+            let tangent = Vector3::new(-radial.y.to_mm() * sign, radial.x.to_mm() * sign, 0.);
+            edges.push(builder::try_circle_arc(
+                &vertices[index],
+                &vertices[next],
+                tangent,
+            )?);
+        }
+    }
+    Ok(edges.into())
+}
 
 fn wire(node: PolyNode<'_>) -> Wire {
     let vertices: Vec<_> = node
@@ -21,15 +76,27 @@ fn wire(node: PolyNode<'_>) -> Wire {
         .collect()
 }
 
-fn collect(node: PolyNode<'_>, thickness: f64, solids: &mut Vec<Solid>) -> Result<()> {
+fn collect(
+    node: PolyNode<'_>,
+    thickness: f64,
+    originals: &BTreeMap<ContourKey, Option<&Path>>,
+    output: &mut BoardBrep,
+) -> Result<()> {
     if !node.is_hole() {
-        let mut wires = vec![wire(node)];
-        wires.extend(node.children().map(wire));
+        let mut wires = Vec::new();
+        for contour in std::iter::once(node).chain(node.children()) {
+            if let Some(Some(path)) = originals.get(&key(contour.contour())) {
+                wires.push(analytic_wire(path)?);
+            } else {
+                wires.push(wire(contour));
+                output.approximated_contours += 1;
+            }
+        }
         let solid = profile::solid_from_planar_profile(wires, Vector3::new(0., 0., thickness))?;
-        solids.push(solid);
+        output.solids.push(solid);
     }
     for child in node.children() {
-        collect(child, thickness, solids)?;
+        collect(child, thickness, originals, output)?;
     }
     Ok(())
 }
@@ -37,6 +104,10 @@ fn collect(node: PolyNode<'_>, thickness: f64, solids: &mut Vec<Solid>) -> Resul
 /// Mechanical STEP policy follows upstream: via drills are omitted entirely.
 /// Non-via drills must be through holes; no blind drill is silently deepened.
 pub fn board_solids(data: &BoardPhysicalGeometry) -> Result<Vec<Solid>> {
+    Ok(board_brep(data)?.solids)
+}
+
+pub fn board_brep(data: &BoardPhysicalGeometry) -> Result<BoardBrep> {
     ensure!(!data.outlines.is_empty(), "board has no closed outline");
     let tolerance = BoardPhysicalGeometry::arc_tolerance();
     let outlines = ch::paths_to_clipper(&data.outlines, tolerance);
@@ -51,17 +122,39 @@ pub fn board_solids(data: &BoardPhysicalGeometry) -> Result<Vec<Solid>> {
         );
         holes.extend(hole.path.to_outline_strokes(hole.diameter));
     }
+    let mut originals = BTreeMap::new();
+    for path in data.outlines.iter().chain(&holes) {
+        let normalized = ch::unite_to_tree(
+            &ch::paths_to_clipper(std::slice::from_ref(path), tolerance),
+            NonZero,
+        )?;
+        if normalized.total() == 1
+            && let Some(contour) = normalized.first()
+        {
+            let key = key(contour.contour());
+            if let Some(previous) = originals.get_mut(&key) {
+                if *previous != Some(path) {
+                    *previous = None;
+                }
+            } else {
+                originals.insert(key, Some(path));
+            }
+        }
+    }
     let holes = ch::paths_to_clipper(&holes, tolerance);
     let tree = ch::subtract_to_tree(&outlines, &holes, NonZero, NonZero, true)?;
-    let mut solids = Vec::new();
+    let mut output = BoardBrep {
+        solids: Vec::new(),
+        approximated_contours: 0,
+    };
     for node in tree.root().children() {
-        collect(node, data.thickness.to_mm(), &mut solids)?;
+        collect(node, data.thickness.to_mm(), &originals, &mut output)?;
     }
     ensure!(
-        !solids.is_empty(),
+        !output.solids.is_empty(),
         "board has no material after subtraction"
     );
-    Ok(solids)
+    Ok(output)
 }
 
 fn rotation(axis: Vector3, angle: f64) -> Matrix4 {
@@ -158,6 +251,23 @@ mod tests {
                 stats["signed_volume"].as_f64().unwrap()
             })
             .sum()
+    }
+    #[test]
+    fn circular_holes_keep_two_analytic_arcs_in_both_directions() {
+        let mut data = snapshot();
+        let diameter = PositiveLength::new(Length::from_mm(4.).unwrap()).unwrap();
+        let circle = Path::circle(diameter).translated(Point::from_mm(5., 5.).unwrap());
+        for path in [circle.clone(), circle.reversed()] {
+            data.cutouts = vec![path];
+            let model = board_brep(&data).unwrap();
+            assert_eq!(model.approximated_contours, 0);
+            assert_eq!(model.solids.len(), 1);
+            assert_eq!(model.solids[0].boundaries()[0].len(), 8);
+            assert!(model.solids[0].is_geometric_consistent());
+            assert!((volume(&data, 1) - (100. - std::f64::consts::PI * 4.)).abs() < 0.2);
+        }
+        data.cutouts = vec![circle, rect(4., 4., 8., 8.)];
+        assert!(board_brep(&data).unwrap().approximated_contours > 0);
     }
     #[test]
     fn canonical_contours_union_overlapping_cutouts() {

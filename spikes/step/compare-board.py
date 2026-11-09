@@ -72,13 +72,18 @@ def main():
         error = bound_error(body, original)
         volume_error = abs(body["volume"] - original["volume"])
         assert body["valid"] and original["valid"]
-        assert error <= data["contour_tolerance_mm"] * 2
-        assert volume_error <= original["area"] * data["contour_tolerance_mm"] * 2
+        assert error <= max(1e-6, data["contour_tolerance_mm"] * 2)
+        assert volume_error <= max(
+            1e-7,
+            abs(original["volume"]) * 1e-7,
+            original["area"] * data["contour_tolerance_mm"] * 2,
+        )
         body_results.append(
             {
                 "bounds_error_mm": error,
                 "volume_error_mm3": volume_error,
                 "reference_volume_mm3": original["volume"],
+                "analytic_contours": data.get("approximated_contours", 1) == 0,
             }
         )
     component_errors = []

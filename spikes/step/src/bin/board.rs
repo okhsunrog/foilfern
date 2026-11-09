@@ -20,7 +20,7 @@ fn checked_mesh(mesh: &PolygonMesh) -> Result<Value> {
     Ok(stats)
 }
 use step_spike::{
-    board::{board_solids, device_matrix},
+    board::{board_brep, device_matrix},
     materials::{Material, export_obj, export_step},
     mesh_stats,
     metadata::StepDocument,
@@ -85,7 +85,8 @@ fn main() -> Result<()> {
         board,
         Some(AssemblyVariantId(variant.uuid())),
     )?;
-    let bodies = board_solids(&data)?;
+    let body = board_brep(&data)?;
+    let bodies = &body.solids;
     std::fs::create_dir_all(&output)?;
     let pcb_solids: Vec<_> = bodies.iter().map(|solid| solid.compress()).collect();
     let pcb_models: save::StepModels<_, _, _> = pcb_solids.iter().collect();
@@ -158,7 +159,7 @@ fn main() -> Result<()> {
     let component_solids = solids.len();
     solids.extend(pcb_solids.clone());
     std::fs::write(output.join("assembly.step"), export_step(&solids)?)?;
-    let report = json!({"input":input,"board":board.name().to_string(),"variant":variant.name().to_string(),"devices":data.devices.len(),"pcb_solids":pcb_solids.len(),"component_solids":component_solids,"meshes":meshes,"contour_tolerance_mm":0.005,"tessellation_tolerance_mm":0.01,"surface_materials_preserved":true,"via_drills_omitted":true,"model_units_assumed_mm":false});
+    let report = json!({"input":input,"board":board.name().to_string(),"variant":variant.name().to_string(),"devices":data.devices.len(),"pcb_solids":pcb_solids.len(),"component_solids":component_solids,"meshes":meshes,"approximated_contours":body.approximated_contours,"contour_tolerance_mm":if body.approximated_contours==0 {0.} else {0.005},"tessellation_tolerance_mm":0.01,"surface_materials_preserved":true,"via_drills_omitted":true,"model_units_assumed_mm":false});
     std::fs::write(
         output.join("board.json"),
         serde_json::to_string_pretty(&report)?,

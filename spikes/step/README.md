@@ -242,3 +242,23 @@ Official LibrePCB 2.1.1 also reads and tessellates both new exports with
 the known-appearance plate reports 732 vertices / four colors. This checks
 that the original application can consume the output, in addition to the
 independent OCCT 8 oracle; it does not complete native CLI STEP integration.
+
+## Analytic PCB contours (2026-11-09)
+
+Whole source contours surviving planar subtraction now retain their analytic
+line/arc wires. Contour matching is independent of winding and cyclic start
+vertex, using Clipper's normalized boundary solely for classification. The
+profile kernel constructs the exact circular curves from source tangents;
+there is no custom Boolean/curve-intersection kernel. Boundaries changed by
+clipping still use 5 um polylines, counted in `approximated_contours` instead
+of being silently advertised as exact. This is not general analytic CSG.
+
+CAN–USB needs zero approximated contours. Its PCB volume differs from the
+official export by 0.000011741 mm3 (relative 7.6e-9), and bounds by 1e-7 mm;
+the previous 0.1466 mm3 approximation difference is gone. Small differences
+remain from analytic curve construction vs upstream's nanometre-rounded
+circle radii. Component BReps and all 2,024 face appearances remain matched.
+The analytic-body mesh has 67,932 total triangles at 0.01 mm tolerance, with
+no open/nonmanifold/misoriented edges. Ten Rust tests now also cover both
+arc winding directions, analytic side-face count and explicit fallback on
+intersecting curved cutouts.
