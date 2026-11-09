@@ -11,16 +11,22 @@
 //! and the validation in the project mutations. The cohesion check
 //! (`areAllNetPointsConnectedTogether()`) uses a union-find over the
 //! anchors instead of a recursive search.
+//!
+//! The via properties which depend on the board and the net class
+//! (upstream `BI_Via::getActualDrillDiameter()`, `getActualSize()`,
+//! `getDrillLayerSpan()`, `getStopMaskDiameterTop()`/`Bottom()`) are
+//! computed on demand ([`Board::via_properties()`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use petgraph::unionfind::UnionFind;
 
-use super::BoardPadData;
+use super::{Board, BoardPadData};
 use crate::geometry::{Junction, Trace, TraceAnchor, Via};
+use crate::project::circuit::Circuit;
 use crate::project::id::{ComponentInstanceId, NetSegmentId, NetSignalId};
 use crate::serialization::{self, DeserializeObject, List, SExpression, SerializeObject};
-use crate::types::{Layer, Uuid};
+use crate::types::{Layer, Length, MaskConfig, PositiveLength, Uuid};
 
 /// Elements of a board net segment, e.g. to add to or update in a segment
 /// (upstream `BI_NetSegment::addElements()` arguments).
@@ -278,6 +284,91 @@ impl BoardNetSegment {
                 elements.iter().all(|e| union_find.find(*e) == root)
             }
             None => true,
+        }
+    }
+}
+
+/// The properties of a via which depend on its board and net (the derived
+/// values upstream caches in `BI_Via`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BoardViaProperties {
+    /// Actual drill diameter (upstream `getActualDrillDiameter()`): the
+    /// via's drill, or the default of its net class resp. of the board.
+    pub drill_diameter: PositiveLength,
+    /// Actual size (upstream `getActualSize()`).
+    pub size: PositiveLength,
+    /// The drilled copper layers, `None` if the via is invalid with the
+    /// board's layer count (upstream `getDrillLayerSpan()`).
+    pub drill_layer_span: Option<(Layer, Layer)>,
+    /// Stop mask diameter on the top side (upstream
+    /// `getStopMaskDiameterTop()`).
+    pub stop_mask_diameter_top: Option<PositiveLength>,
+    /// Stop mask diameter on the bottom side (upstream
+    /// `getStopMaskDiameterBottom()`).
+    pub stop_mask_diameter_bot: Option<PositiveLength>,
+}
+
+impl Board {
+    /// Returns the derived properties of a via of a net segment of this
+    /// board with the net `net` (upstream `BI_Via::updateActualDrillAndSize()`,
+    /// `updateStopMaskDiameters()` and `getDrillLayerSpan()`).
+    pub fn via_properties(
+        &self,
+        via: &Via,
+        net: Option<NetSignalId>,
+        circuit: &Circuit,
+    ) -> BoardViaProperties {
+        let rules = self.design_rules();
+        let drill_diameter = via.drill_diameter().unwrap_or_else(|| {
+            net.and_then(|n| circuit.net_signal(n))
+                .and_then(|n| circuit.net_class(n.net_class()))
+                .and_then(|nc| nc.default_via_drill())
+                .unwrap_or_else(|| rules.default_via_drill_diameter())
+        });
+        let size = match via.size() {
+            // Avoid invalid via if drill is auto.
+            Some(size) => size.max(drill_diameter),
+            None => Via::calc_size_from_rules(drill_diameter, &rules.via_annular_ring()),
+        };
+        let config = via.exposure_config();
+        let diameter = if let MaskConfig::Manual(offset) = config {
+            *size + offset * 2
+        } else if config == MaskConfig::Automatic {
+            *size + *rules.stop_mask_clearance().calc_value(*size) * 2
+        } else if rules.does_via_require_stop_mask_opening(*drill_diameter) {
+            *drill_diameter + *rules.stop_mask_clearance().calc_value(*drill_diameter) * 2
+        } else {
+            Length::ZERO
+        };
+        let diameter = PositiveLength::new(diameter).ok();
+        BoardViaProperties {
+            drill_diameter,
+            size,
+            drill_layer_span: self.via_drill_layer_span(via),
+            stop_mask_diameter_top: diameter.filter(|_| via.start_layer().is_top()),
+            stop_mask_diameter_bot: diameter.filter(|_| via.end_layer().is_bottom()),
+        }
+    }
+
+    /// Returns the copper layers a via is drilled through, `None` if the
+    /// via is invalid with the board's inner layer count (upstream
+    /// `BI_Via::getDrillLayerSpan()`).
+    pub fn via_drill_layer_span(&self, via: &Via) -> Option<(Layer, Layer)> {
+        let inner = self.settings().inner_layer_count as usize;
+        // If start layer is not enabled, the via is invalid.
+        let start_number = via.start_layer().copper_number();
+        if start_number > inner {
+            return None;
+        }
+        // If the via ends at the bottom layer, the via is valid.
+        if via.end_layer().is_bottom() {
+            return Some((via.start_layer(), via.end_layer()));
+        }
+        // Via ends on an inner layer --> check layer span.
+        let end_number = via.end_layer().copper_number().min(inner);
+        match Layer::inner_copper(end_number) {
+            Some(end) if start_number < end_number => Some((via.start_layer(), end)),
+            _ => None,
         }
     }
 }

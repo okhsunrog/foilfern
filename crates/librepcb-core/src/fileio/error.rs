@@ -133,13 +133,13 @@ pub enum Error {
 
     // --- TransactionalFileSystem -------------------------------------------
     /// A file does not exist in a transactional file system.
-    #[error("{}", tr!("TransactionalFileSystem", "File '{0}' does not exist.", .0.to_native()))]
+    #[error("{}", tr!("librepcb::TransactionalFileSystem", "File '{0}' does not exist.", .0.to_native()))]
     TransactionalFileNotFound(FilePath),
     /// A relative path points outside of a transactional file system.
     #[error("Attempted to access file outside sandboxed file system: {0}")]
     SandboxBreakout(String),
     /// Attempted to save a read-only transactional file system.
-    #[error("{}", tr!("TransactionalFileSystem", "File system is read-only."))]
+    #[error("{}", tr!("librepcb::TransactionalFileSystem", "File system is read-only."))]
     ReadOnly,
     /// An autosave backup exists and the restore mode is
     /// [`RestoreMode::Abort`](super::RestoreMode::Abort).
@@ -238,13 +238,13 @@ pub enum Error {
     #[error("Output directory index not loaded.")]
     IndexNotLoaded,
     /// Invalid output file path.
-    #[error("{}", tr!("OutputDirectoryWriter", "The output file path '{0}' is invalid.", .0))]
+    #[error("{}", tr!("librepcb::OutputDirectoryWriter", "The output file path '{0}' is invalid.", .0))]
     InvalidOutputPath(String),
     /// Output file path outside the output directory.
     #[error(
         "{}",
         tr!(
-            "OutputDirectoryWriter",
+            "librepcb::OutputDirectoryWriter",
             "Attempted to write file '{0}' outside the output directory, which is not allowed!",
             .0
         )
@@ -254,7 +254,7 @@ pub enum Error {
     #[error(
         "{}",
         tr!(
-            "OutputDirectoryWriter",
+            "librepcb::OutputDirectoryWriter",
             "The file path '{0}' is absolute, but only relative paths are allowed!",
             .0
         )
@@ -269,9 +269,9 @@ pub enum Error {
     /// The same output file is written multiple times.
     #[error(
         "{} {}",
-        tr!("OutputDirectoryWriter", "Attempted to write the output file '{0}' multiple times!", .0),
+        tr!("librepcb::OutputDirectoryWriter", "Attempted to write the output file '{0}' multiple times!", .0),
         tr!(
-            "OutputDirectoryWriter",
+            "librepcb::OutputDirectoryWriter",
             "Make sure to specify unique output file paths, e.g. by using placeholders like '{0}' or '{1}'.",
             "{{BOARD}}",
             "{{VARIANT}}"

@@ -24,6 +24,12 @@ pub enum Error {
         )
     )]
     CurvedSlotG85,
+    /// The interactive HTML BOM could not be generated (invalid data).
+    #[error("Failed to generate interactive HTML BOM: {0}")]
+    InteractiveHtmlBom(String),
+    /// A polygon clipping operation failed (e.g. calculating pad outlines).
+    #[error(transparent)]
+    Clipper(#[from] crate::utils::clipper_helpers::Error),
     /// Writing the output file (or building the CSV content) failed.
     #[error(transparent)]
     FileIo(#[from] fileio::Error),

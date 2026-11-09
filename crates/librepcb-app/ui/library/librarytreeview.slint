@@ -1,0 +1,265 @@
+import { ListScrollView } from "../widgets.slint";
+import {
+    Data,
+    LibraryTreeViewItemData,
+    LibraryTreeViewItemType,
+} from "../api.slint";
+
+// Very similar to the TreeView component, but with some special features for
+// library tree views
+export component LibraryTreeView inherits FocusScope {
+    in-out property <[LibraryTreeViewItemData]> model;
+    in-out property <length> content-y <=> view.content-y;
+    in-out property <int> current-index: -1;
+    in property <length> item-height: 20px;
+    in property <length> font-size: 12px;
+    property <length> icon-size: item-height - 4px;
+
+    callback item-key-pressed(index: int, item: LibraryTreeViewItemData, event: KeyEvent) -> EventResult;
+    callback control-hovered(index: int, item: LibraryTreeViewItemData);
+    callback item-selected(index: int, item: LibraryTreeViewItemData);
+    item-selected(index, item) => {
+        current-index = index;
+    }
+    callback item-triggered(index: int, item: LibraryTreeViewItemData) -> bool;
+    callback item-right-clicked(index: int, item: LibraryTreeViewItemData, x: length, y: length);
+    callback item-deleted(index: int, item: LibraryTreeViewItemData) -> bool;
+    callback scrolled(pos: length);
+
+    preferred-height: model.length * item-height;
+
+    // Accessibility
+    accessible-role: list;
+    accessible-item-count: model.length;
+
+    function set-current-index(index: int) {
+        if ((index + 1) * item-height) > (view.height - view.content-y) {
+            view.content-y = -(index + 1) * item-height + view.height;
+        } else if (index * item-height) < -(view.content-y) {
+            view.content-y = -(index * item-height);
+        }
+        item-selected(index, model[index]);
+    }
+
+    view := ListScrollView {
+        x: 0;
+        y: 0;
+        width: 100%;
+        height: 100%;
+        preferred-height: model.length * item-height;
+        content-height: model.length * item-height;
+        content-width: root.width;
+        force-show-scrollbars: root.has-focus;
+
+        scrolled => {
+            scrolled(self.content-y);
+        }
+
+        for item[index] in model: item-ta := TouchArea {
+            width: parent.width;
+            height: item-height;
+
+            // Workaround for slow performance: Render only items in view.
+            visible: (self.y + view.content-y >= -item-height) && (self.y + item-height + view.content-y <= view.height);
+
+            // Accessibility
+            accessible-role: list-item;
+            accessible-enabled: self.enabled;
+            accessible-label: item.name;
+            accessible-item-selectable: true;
+            accessible-item-selected: (current-index == index);
+            accessible-item-index: index;
+
+            changed has-hover => {
+                if self.has-hover {
+                    control-hovered(index, item);
+                } else {
+                    control-hovered(-1, { });
+                }
+            }
+
+            Rectangle {
+                background: {
+                    if current-index == index {
+                        Data.theme.control-checked
+                    } else if parent.has-hover {
+                        Data.theme.control-hovered
+                    } else {
+                        transparent
+                    }
+                };
+
+                HorizontalLayout {
+                    spacing: 5px;
+                    padding-right: 7px;
+
+                    HorizontalLayout {
+                        for i in (item.level + 1): Rectangle {
+                            width: (i > 0) ? 20px : 3px;
+
+                            if i > 0: Rectangle {
+                                x: parent.width - 8px;
+                                y: 0;
+                                width: 1px;
+                                height: ((i < item.level) || (((index + 1) < model.length) && (model[index + 1].level >= item.level))) ? parent.height : (parent.height / 2);
+                                background: Data.theme.control-text-disabled;
+                            }
+
+                            if i == item.level: Rectangle {
+                                x: parent.width - 8px;
+                                width: parent.width - self.x;
+                                height: 1px;
+                                background: Data.theme.control-text-disabled;
+                            }
+                        }
+                    }
+
+                    property <image> icon: {
+                        if item.type == LibraryTreeViewItemType.all {
+                            @image-url("../resources/libs/font-awesome/svgs/solid/list.svg")
+                        } else if item.type == LibraryTreeViewItemType.uncategorized {
+                            @image-url("../resources/libs/font-awesome/svgs/solid/triangle-exclamation.svg")
+                        } else if item.type == LibraryTreeViewItemType.component-category {
+                            @image-url("../resources/img/places/folder.png")
+                        } else if item.type == LibraryTreeViewItemType.package-category {
+                            @image-url("../resources/img/places/folder_green.png")
+                        } else if (item.type == LibraryTreeViewItemType.symbol) && (item.level > 0) {
+                            @image-url("../resources/img/symbol.png")
+                        } else if (item.type == LibraryTreeViewItemType.package) && (item.level > 0) {
+                            @image-url("../resources/img/footprint.png")
+                        } else if (item.type == LibraryTreeViewItemType.component) && (item.level > 0) {
+                            @image-url("../resources/libs/bootstrap-icons/icons/cpu.svg")
+                        } else if (item.type == LibraryTreeViewItemType.device) && (item.level > 0) {
+                            @image-url("../resources/img/device.png")
+                        } else if (item.type == LibraryTreeViewItemType.organization) {
+                            @image-url("../resources/libs/bootstrap-icons/icons/buildings.svg")
+                        } else {
+                            @image-url("")
+                        }
+                    };
+                    if icon.width > 0: Image {
+                        y: (parent.height - self.height) / 2;
+                        width: icon-size;
+                        height: icon-size;
+                        image-fit: fill;
+                        source: icon;
+                        colorize: {
+                            if item.type == LibraryTreeViewItemType.all {
+                                Data.theme.control-text-muted
+                            } else if item.type == LibraryTreeViewItemType.uncategorized {
+                                Data.theme.base-text-warning
+                            } else if item.type == LibraryTreeViewItemType.organization {
+                                item.deprecated ? Data.theme.base-text-error : Data.theme.control-text-muted
+                            } else if item.type == LibraryTreeViewItemType.component {
+                                item.deprecated ? Data.theme.base-text-error : Data.theme.control-text-muted
+                            } else if item.type == LibraryTreeViewItemType.symbol {
+                                item.deprecated ? Data.theme.base-text-error : Data.theme.control-text-muted
+                            } else if item.is-external {
+                                Data.theme.control-text-muted
+                            } else {
+                                transparent
+                            }
+                        };
+                        accessible-role: none;
+                    }
+
+                    item-name-txt := Text {
+                        horizontal-stretch: 0;
+                        font-size: font-size;
+                        font-weight: ((item.level == 0) || (item.elements > 0)) ? 800 : 400;
+                        font-italic: item.is-external;
+                        color: item.deprecated ? Data.theme.base-text-error : Data.theme.control-text;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        text: {
+                            if item.type == LibraryTreeViewItemType.all {
+                                @tr("All Elements")
+                            } else if item.type == LibraryTreeViewItemType.uncategorized {
+                                @tr("Uncategorized")
+                            } else if (item.type == LibraryTreeViewItemType.component-category) && (item.level == 0) {
+                                @tr("Component Categories")
+                            } else if (item.type == LibraryTreeViewItemType.package-category) && (item.level == 0) {
+                                @tr("Package Categories")
+                            } else if (item.type == LibraryTreeViewItemType.symbol) && (item.level == 0) {
+                                @tr("Symbols")
+                            } else if (item.type == LibraryTreeViewItemType.package) && (item.level == 0) {
+                                @tr("Packages")
+                            } else if (item.type == LibraryTreeViewItemType.component) && (item.level == 0) {
+                                @tr("Components")
+                            } else if (item.type == LibraryTreeViewItemType.device) && (item.level == 0) {
+                                @tr("Devices")
+                            } else if (item.type == LibraryTreeViewItemType.organization) && (item.level == 0) {
+                                @tr("Organizations")
+                            } else {
+                                item.name
+                            }
+                        };
+                        accessible-role: none;
+                    }
+
+                    if item.deprecated || (!item.summary.is-empty): item-summary-txt := Text {
+                        property <bool> is-category: (item.type == LibraryTreeViewItemType.component-category) || (item.type == LibraryTreeViewItemType.package-category);
+
+                        horizontal-stretch: 1;
+                        // Note: For categories, the summary property is used for error messages.
+                        color: is-category ? Data.theme.base-text-error : item-name-txt.color;
+                        opacity: 0.8;
+                        font-size: 10.5px;
+                        font-weight: 300;
+                        horizontal-alignment: left;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        text: item.deprecated ? @tr("Deprecated").to-uppercase() : item.summary;
+                        accessible-role: none;
+                    }
+
+                    if item.elements > 0: item-count-txt := Text {
+                        width: self.preferred-width;
+                        color: Data.theme.control-text-muted;
+                        font-size: 11px;
+                        font-weight: 300;
+                        vertical-alignment: center;
+                        text: item.elements;
+                        accessible-role: none;
+                    }
+                }
+            }
+
+            clicked => {
+                root.focus();
+                set-current-index(index);
+            }
+
+            double-clicked => {
+                item-triggered(index, item);
+            }
+
+            pointer-event(event) => {
+                if (event.button == PointerEventButton.right) && (event.kind == PointerEventKind.up) {
+                    self.clicked();  // Handle focus & selection
+                    item-right-clicked(index, item, self.absolute-position.x - root.absolute-position.x + self.mouse-x, self.absolute-position.y - root.absolute-position.y + self.mouse-y);
+                }
+            }
+        }
+    }
+
+    key-pressed(event) => {
+        if event.text == Key.DownArrow {
+            set-current-index(min(current-index + 1, model.length - 1));
+            return accept;
+        } else if event.text == Key.UpArrow {
+            set-current-index(max(current-index - 1, 0));
+            return accept;
+        } else if (current-index >= 0) && (current-index < model.length) {
+            if (event.text == Key.Return) && item-triggered(current-index, model[current-index]) {
+                return accept;
+            } else if (event.text == Key.Delete) && item-deleted(current-index, model[current-index]) {
+                return accept;
+            } else if event.text == Key.Menu {
+                item-right-clicked(current-index, model[current-index], 0, item-height * (current-index + 1) + view.content-y);
+                return accept;
+            }
+        }
+        item-key-pressed(current-index, model[current-index], event)
+    }
+}

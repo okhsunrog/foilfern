@@ -1,6 +1,10 @@
 //! Port of apps/librepcb-cli/commandlineinterface.cpp's openStep().
 //! Uses the independent pure-Rust kernel, without a window system or GPU.
-use crate::{StepOptions, error::Result, support};
+use crate::{
+    args::OpenStepArgs,
+    error::CliResult as Result,
+    output::{absolute_path, pretty_path},
+};
 use librepcb_core::fileio::file_utils;
 use librepcb_step::{StepModel, minify_step};
 
@@ -16,12 +20,14 @@ fn grouped(value: usize) -> String {
     output
 }
 
-pub fn run(options: StepOptions) -> Result<bool> {
-    let path = support::path(&options.file)?;
-    println!(
-        "Open STEP file '{}'...",
-        support::pretty(&path, &options.file)
-    );
+pub fn run(options: &OpenStepArgs) -> Result<bool> {
+    let file = options
+        .positionals
+        .first()
+        .map(String::as_str)
+        .unwrap_or_default();
+    let path = absolute_path(file);
+    println!("Open STEP file '{}'...", pretty_path(&path, file));
     let mut bytes = file_utils::read_file(&path)?;
     let mut success = true;
     if options.minify {
@@ -46,9 +52,9 @@ pub fn run(options: StepOptions) -> Result<bool> {
     }
     // Upstream deliberately saves before validation so invalid input can be
     // inspected. FileUtils retains its atomic replacement semantics.
-    if let Some(destination) = options.save_to {
-        let path = support::path(&destination)?;
-        println!("Save to '{}'...", support::pretty(&path, &destination));
+    if let Some(destination) = &options.save_to {
+        let path = absolute_path(destination);
+        println!("Save to '{}'...", pretty_path(&path, destination));
         file_utils::write_file(&path, &bytes)?;
     }
     println!("Load model...");

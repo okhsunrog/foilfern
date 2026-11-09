@@ -1,0 +1,78 @@
+import {
+    AngleEdit,
+    ComboBox,
+    TextFlagsBox,
+} from "../../widgets.slint";
+import {
+    Board2dTabData,
+    WindowSectionData,
+} from "../../api.slint";
+
+export component DrawZoneToolBar inherits HorizontalLayout {
+    in property <int> section-index;
+    in-out property <WindowSectionData> section;
+    property <[Board2dTabData]> tabs: section.board-2d-tabs;
+
+    spacing: 2px;
+
+    layer-cbx := ComboBox {
+        model: tabs[section.current-tab-index].tool-layer.items;
+        current-index: tabs[section.current-tab-index].tool-layer.current-index;
+
+        current-index-changed(index) => {
+            tabs[section.current-tab-index].tool-layer.current-index = index;
+        }
+    }
+
+    rules := TextFlagsBox {
+        title: @tr("Keepout");
+        model: [
+            {
+                text: @tr("Copper"),
+                checked: tabs[section.current-tab-index].tool-no-copper,
+            },
+            {
+                text: @tr("Planes"),
+                checked: tabs[section.current-tab-index].tool-no-planes,
+            },
+            {
+                text: @tr("Exposures"),
+                checked: tabs[section.current-tab-index].tool-no-exposures,
+            },
+            {
+                text: @tr("Devices"),
+                checked: tabs[section.current-tab-index].tool-no-devices,
+            },
+        ];
+
+        toggled(idx, state) => {
+            if idx == 0 {
+                tabs[section.current-tab-index].tool-no-copper = state;
+            } else if idx == 1 {
+                tabs[section.current-tab-index].tool-no-planes = state;
+            } else if idx == 2 {
+                tabs[section.current-tab-index].tool-no-exposures = state;
+            } else if idx == 3 {
+                tabs[section.current-tab-index].tool-no-devices = state;
+            }
+        }
+    }
+
+    angle-edt := AngleEdit {
+        data: tabs[section.current-tab-index].tool-angle;
+        tooltip: @tr("Arc Angle");
+        min-width-text: "123.4 °";
+
+        value-changed(v) => {
+            tabs[section.current-tab-index].tool-angle.value = v;
+        }
+
+        increase-triggered => {
+            tabs[section.current-tab-index].tool-angle.increase = true;
+        }
+
+        decrease-triggered => {
+            tabs[section.current-tab-index].tool-angle.decrease = true;
+        }
+    }
+}

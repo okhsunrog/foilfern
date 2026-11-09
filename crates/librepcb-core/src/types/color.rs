@@ -31,6 +31,8 @@ impl Color {
     pub const WHITE: Self = Self::rgb(255, 255, 255);
     /// Opaque green (`Qt::green`).
     pub const GREEN: Self = Self::rgb(0, 255, 0);
+    /// Fully transparent black (`Qt::transparent`).
+    pub const TRANSPARENT: Self = Self::rgba(0, 0, 0, 0);
 
     /// Creates an opaque color.
     pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
@@ -80,6 +82,9 @@ impl FromStr for Color {
     }
 }
 
+// Serde: the `#aarrggbb` string.
+crate::utils::serde_string::serde_string!(Color);
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -98,5 +103,3 @@ mod tests {
         assert!("#gg0000".parse::<Color>().is_err());
     }
 }
-
-crate::utils::serde_string::serde_string!(Color);

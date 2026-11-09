@@ -136,6 +136,20 @@ fn parse_po(text: &str) -> Result<Vec<Entry>, String> {
     Ok(entries)
 }
 
+/// Returns the `(context, msgid)` keys of all entries of a catalog or
+/// template, including untranslated ones (entries without context have an
+/// empty context).
+#[cfg(test)]
+pub(crate) fn catalog_keys(
+    po: &str,
+) -> Result<std::collections::BTreeSet<(String, String)>, String> {
+    Ok(parse_po(po)?
+        .into_iter()
+        .filter(|e| !e.obsolete)
+        .filter_map(|e| Some((e.context.unwrap_or_default(), e.msgid?)))
+        .collect())
+}
+
 fn push_str(out: &mut Vec<u8>, s: &str) -> Result<(), String> {
     let len = u32::try_from(s.len()).map_err(|_| "string too long".to_owned())?;
     out.extend_from_slice(&len.to_le_bytes());

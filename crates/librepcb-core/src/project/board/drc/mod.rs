@@ -1,32 +1,34 @@
-//! Port of libs/librepcb/core/project/board/drc (board design rule checks).
+//! Port of libs/librepcb/core/project/board/drc (the board design rule
+//! check).
 //!
-//! Rule groups run synchronously on owned, thread-safe snapshots. Geometry,
-//! messages and approvals follow the upstream source; the existing native
-//! path/Clipper implementations preserve file-relevant geometric decisions.
+//! - [`BoardDrcData`]: the input data, a snapshot extracted from a project
+//!   and one of its boards (upstream `BoardDesignRuleCheckData`), so the
+//!   check can run in other threads without access to the project.
+//! - [`run_drc()`]: runs all checks on the data and returns a [`DrcResult`]
+//!   (upstream `BoardDesignRuleCheck`);
+//!   [`Project::run_drc()`](crate::project::Project::run_drc) rebuilds the
+//!   air wires, extracts the data and runs the checks.
+//! - [`DrcMessage`]: the messages (upstream `DrcMsg*` classes), with the
+//!   upstream texts and approvals.
+//! - [`BoardClipperPathGenerator`]: the copper and stop mask areas used by
+//!   the checks.
+//!
+//! The DRC settings (upstream `BoardDesignRuleCheckSettings`) live in the
+//! library module because organizations provide them too
+//! ([`BoardDesignRuleCheckSettings`](crate::library::org::BoardDesignRuleCheckSettings)).
 
-mod copper_clearances;
-mod copper_messages;
-mod cutouts;
+mod check;
+mod clipper_path_generator;
 mod data;
-mod drill_clearances;
-mod keepout;
-mod manufacturing;
+mod error;
 mod messages;
-mod outline_rules;
-mod paths;
-mod physical_data;
-mod placement;
-mod runner;
-mod structural;
-mod widths;
 
-pub use data::BoardDrcData;
-pub use messages::{
-    BoardDrcMessage, DrcCopperRef, DrcHoleRef, DrcMessageKind, DrcObjectRef, DrcPadRef,
+pub use check::{DrcProgress, DrcProgressCallback, DrcResult, run_drc};
+pub use clipper_path_generator::BoardClipperPathGenerator;
+pub use data::{
+    BoardDrcData, DrcAirWire, DrcAirWireAnchor, DrcAirWireObject, DrcCircle, DrcDevice, DrcHole,
+    DrcImpossibleConnection, DrcJunction, DrcNetClass, DrcPad, DrcPlane, DrcPolygon, DrcSegment,
+    DrcStrokeText, DrcTrace, DrcVia, DrcZone,
 };
-
-/// Board rule checker, independent of editor state and worker scheduling.
-#[derive(Debug, Clone, Copy)]
-pub struct BoardDesignRuleCheck;
-
-pub use runner::{BoardDrcResult, DrcMode};
+pub use error::{Error, Result};
+pub use messages::{DrcMessage, DrcMessageKind};

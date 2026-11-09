@@ -1,0 +1,43 @@
+import { Button, ComboBox } from "../../widgets.slint";
+import {
+    Backend,
+    Board2dTabData,
+    TabAction,
+    WindowSectionData,
+} from "../../api.slint";
+
+export component DrawPlaneToolBar inherits HorizontalLayout {
+    in property <int> section-index;
+    in-out property <WindowSectionData> section;
+    property <[Board2dTabData]> tabs: section.board-2d-tabs;
+
+    spacing: 2px;
+
+    layer-cbx := ComboBox {
+        model: tabs[section.current-tab-index].tool-layer.items;
+        current-index: tabs[section.current-tab-index].tool-layer.current-index;
+
+        current-index-changed(index) => {
+            tabs[section.current-tab-index].tool-layer.current-index = index;
+        }
+    }
+
+    net-cbx := ComboBox {
+        model: tabs[section.current-tab-index].tool-net.items;
+        current-index: tabs[section.current-tab-index].tool-net.current-index;
+
+        current-index-changed(index) => {
+            tabs[section.current-tab-index].tool-net.current-index = index;
+        }
+    }
+
+    auto-add-btn := Button {
+        text: @tr("Auto-Add");
+        status-tip: @tr("Automatically add a plane that covers the full board");
+        primary: true;
+
+        clicked => {
+            Backend.trigger-tab(section-index, section.current-tab-index, TabAction.board-add-plane);
+        }
+    }
+}

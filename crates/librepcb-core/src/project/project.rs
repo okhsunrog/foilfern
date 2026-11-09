@@ -73,6 +73,7 @@ pub struct Project {
     pub(crate) settings: ProjectSettings,
     /// Date/time of the last open or save.
     pub(crate) date_time: DateTime<Utc>,
+    /// Content of `project/jobs.lp`.
     pub(crate) output_jobs: OutputJobList,
     pub(crate) stroke_fonts: StrokeFontPool,
     pub(crate) library: ProjectLibrary,
@@ -217,7 +218,8 @@ impl Project {
         self.date_time
     }
 
-    /// Returns output jobs in execution order.
+    /// Returns the output jobs (upstream `getOutputJobs()`); modified with
+    /// [`Mutation::SetOutputJobs`](super::Mutation::SetOutputJobs).
     pub fn output_jobs(&self) -> &OutputJobList {
         &self.output_jobs
     }
@@ -449,11 +451,11 @@ impl Project {
             root.ensure_line_break();
             dir.write("project/settings.user.lp", &to_bytes(root)?)?;
         }
-        dir.write("project/jobs.lp", &{
+        {
             let mut root = List::new("librepcb_jobs");
             self.output_jobs.serialize(&mut root);
-            SExpression::from(root).to_byte_array(Mode::LibrePcb)?
-        })?;
+            dir.write("project/jobs.lp", &to_bytes(root)?)?;
+        }
         {
             let mut root = List::new("librepcb_circuit");
             self.circuit.serialize(&mut root);

@@ -1,0 +1,81 @@
+import { SceneButton, SceneButtonStyle } from "scenebutton.slint";
+import { HorizontalSlider } from "slider.slint";
+
+export component SliderSceneButton {
+    in property <image> icon;
+    in property <string> tooltip;
+    in property <float> value;
+    in property <color> base-color;
+    in property <color> base-text-color;
+    in property <bool> enabled: true;
+    in property <bool> slider-enabled: true;
+    in property <SceneButtonStyle> style: uncheckbox;
+    in property <float> icon-scale: 0.9;
+
+    callback button-clicked();
+    callback value-changed(value: float);
+
+    button-clicked => {
+        value-changed(btn.checked ? 1 : 0);
+    }
+
+    ta := TouchArea {
+        enabled: enabled && slider-enabled;
+
+        HorizontalLayout {
+            alignment: end;
+
+            if ta.enabled && ta.has-hover: VerticalLayout {
+                spacing: 5px;
+
+                Rectangle {
+                    x: (parent.width - self.width) / 2;
+                    width: self.preferred-width + 6px;
+                    height: self.preferred-height + 2px;
+                    background: base-color;
+                    border-radius: 5px;
+
+                    Text {
+                        color: base-text-color;
+                        horizontal-alignment: center;
+                        font-size: 10px;
+                        text: tooltip;
+                        accessible-role: none;
+                    }
+                }
+
+                slider := HorizontalSlider {
+                    min-width: 80px;
+                    value: value;
+                    focusable: false;
+                    accessible-label: tooltip;
+
+                    value-changed(value) => {
+                        value-changed(value);
+                    }
+                }
+            }
+
+            btn := SceneButton {
+                icon: icon;
+                icon-scale: icon-scale;
+                base-color: base-color;
+                base-text-color: base-text-color;
+                style: style;
+                checked: {
+                    if style == SceneButtonStyle.uncheckbox {
+                        slider-enabled && (value < 0.2)
+                    } else {
+                        slider-enabled
+                    }
+                };
+                enabled: enabled;
+                accessible-label: tooltip;
+
+                clicked => {
+                    root.button-clicked();
+                }
+            }
+        }
+    }
+}

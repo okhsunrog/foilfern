@@ -20,9 +20,9 @@ use crate::geometry::{ComponentSide, Pad, PadGeometry, StrokeTextList, TraceAnch
 use crate::library::LibraryBaseElement;
 use crate::library::dev::{Device, Part};
 use crate::library::pkg::{Footprint, FootprintPad, Package, PackagePad};
-use crate::project::circuit::Circuit;
+use crate::project::circuit::{Circuit, ComponentInstance};
 use crate::project::error::Result;
-use crate::project::id::{ComponentInstanceId, ComponentSignalRef, NetSignalId};
+use crate::project::id::{AssemblyVariantId, ComponentInstanceId, ComponentSignalRef, NetSignalId};
 use crate::project::library::ProjectLibrary;
 use crate::serialization::{self, DeserializeObject, List, SExpression, SerializeObject};
 use crate::types::{Angle, Layer, Length, MaskConfig, Point, Uuid};
@@ -51,35 +51,13 @@ pub struct BoardDevice {
 }
 
 impl BoardDevice {
-    /// Returns parts of this device for the selected assembly variant, or
-    /// all variants if `None` (upstream `BI_Device::getParts()`). Options
-    /// without parts yield an empty part carrying the option attributes.
-    pub fn parts(
+    /// Resolve the footprint from the project library without retaining a handle.
+    pub fn footprint<'a>(
         &self,
-        circuit: &Circuit,
-        variant: Option<crate::project::AssemblyVariantId>,
-    ) -> Result<Vec<Part>> {
-        let component = circuit
-            .component_instance(self.component)
-            .ok_or(crate::project::Error::InexistentComponent(self.component.0))?;
-        let mut parts = Vec::new();
-        for option in component.assembly_options() {
-            if option.device() == self.lib_device
-                && variant.is_none_or(|variant| option.assembly_variants().contains(&variant))
-            {
-                parts.extend(option.parts().iter().cloned());
-                if option.parts().is_empty() {
-                    parts.push(Part::new(
-                        Default::default(),
-                        Default::default(),
-                        option.attributes().clone(),
-                    ));
-                }
-            }
-        }
-        Ok(parts)
+        library: &'a ProjectLibrary,
+    ) -> Result<&'a crate::library::pkg::Footprint> {
+        Ok(ResolvedDevice::resolve(self, library)?.footprint)
     }
-
     /// Creates a device without attributes, stroke texts and 3D model.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -209,10 +187,6 @@ impl BoardDevice {
     pub fn transform(&self) -> Transform {
         Transform::from_obj(self)
     }
-    /// Resolves the placed library footprint without retaining cached state.
-    pub fn footprint<'a>(&self, library: &'a ProjectLibrary) -> Result<&'a Footprint> {
-        Ok(ResolvedDevice::resolve(self, library)?.footprint)
-    }
 
     /// Returns the stroke texts of the footprint, transformed to the device
     /// placement (upstream `getDefaultStrokeTexts()`).
@@ -262,6 +236,48 @@ impl BoardDevice {
                 (hole.uuid(), offset)
             })
             .collect()
+    }
+
+    /// Returns the parts of the device in an assembly variant (all variants
+    /// if `None`): the parts of the assembly options of `component` (the
+    /// device's component instance) for the device's library device; an
+    /// option without parts yields one empty part with the option's
+    /// attributes (upstream `BI_Device::getParts()`).
+    pub fn parts(
+        &self,
+        component: &ComponentInstance,
+        assembly_variant: Option<AssemblyVariantId>,
+    ) -> Vec<Part> {
+        let mut parts = Vec::new();
+        for option in component.assembly_options() {
+            if (option.device() == self.lib_device)
+                && assembly_variant.is_none_or(|av| option.assembly_variants().contains(&av))
+            {
+                parts.extend(option.parts().iter().cloned());
+                if option.parts().is_empty() {
+                    parts.push(Part::new(
+                        Default::default(),
+                        Default::default(),
+                        option.attributes().clone(),
+                    ));
+                }
+            }
+        }
+        parts
+    }
+
+    /// Whether the device is assembled in an assembly variant according to
+    /// the assembly options of `component` (the device's component
+    /// instance), upstream `BI_Device::isInAssemblyVariant()`.
+    pub fn is_in_assembly_variant(
+        &self,
+        component: &ComponentInstance,
+        assembly_variant: AssemblyVariantId,
+    ) -> bool {
+        component.assembly_options().iter().any(|option| {
+            (option.device() == self.lib_device)
+                && option.assembly_variants().contains(&assembly_variant)
+        })
     }
 
     /// Returns the footprint pads of the device, computed from the library
@@ -418,6 +434,12 @@ impl<'a> FootprintPadView<'a> {
     /// (upstream `getComponentSignalInstance()`).
     pub fn component_signal(&self) -> Option<ComponentSignalRef> {
         self.signal
+    }
+
+    /// Returns the name of the library component signal the pad is
+    /// connected to, if any.
+    pub fn component_signal_name(&self) -> Option<&'a str> {
+        self.signal_name
     }
 
     /// Returns the net of the pad (the net of its component signal).

@@ -3,8 +3,8 @@
 use crate::{Drawing, Error, GraphicsSettings, Result, drawing::svg_options};
 use kurbo::{Affine, Rect};
 use librepcb_core::{
+    export::PageOrientation,
     fileio::{FilePath, file_utils},
-    job::PageOrientation,
 };
 use std::path::Path;
 struct PageLayout {
@@ -48,7 +48,7 @@ impl GraphicsExport {
             .and_then(|e| e.to_str())
             .unwrap_or_default()
             .to_ascii_lowercase();
-        if !["svg", "png", "pdf"].contains(&ext.as_str()) {
+        if !["svg", "png", "pdf", "jpg", "jpeg", "bmp"].contains(&ext.as_str()) {
             return Err(Error::UnsupportedFormat(name.into()));
         }
         if ext == "pdf" && pages.is_empty() {
@@ -83,7 +83,7 @@ impl GraphicsExport {
             };
             let contents = match ext.as_str() {
                 "svg" => svg.into_bytes(),
-                "png" => {
+                "png" | "jpg" | "jpeg" | "bmp" => {
                     let w = (width * f64::from(page.settings.dpi) / 25.4)
                         .round()
                         .max(1.);
@@ -127,9 +127,35 @@ impl GraphicsExport {
                         );
                         resvg::render(&tree, transform, &mut pixmap.as_mut());
                     }
-                    pixmap
-                        .encode_png()
-                        .map_err(|e| Error::Image(e.to_string()))?
+                    if ext == "png" {
+                        pixmap
+                            .encode_png()
+                            .map_err(|e| Error::Image(e.to_string()))?
+                    } else {
+                        // Match the existing scene exporter: formats without
+                        // alpha retain the premultiplied RGB channels.
+                        let pixels = pixmap
+                            .data()
+                            .as_chunks::<4>()
+                            .0
+                            .iter()
+                            .flat_map(|pixel| pixel[..3].iter().copied())
+                            .collect();
+                        let image = image::RgbImage::from_raw(w as u32, h as u32, pixels)
+                            .ok_or(Error::Dimensions)?;
+                        let mut encoded = std::io::Cursor::new(Vec::new());
+                        image
+                            .write_to(
+                                &mut encoded,
+                                if ext == "bmp" {
+                                    image::ImageFormat::Bmp
+                                } else {
+                                    image::ImageFormat::Jpeg
+                                },
+                            )
+                            .map_err(|error| Error::Image(error.to_string()))?;
+                        encoded.into_inner()
+                    }
                 }
                 "pdf" => {
                     let mut options = svg2pdf::usvg::Options::default();

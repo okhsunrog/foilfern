@@ -1,6 +1,5 @@
 //! Ports of tests/unittests/core/export/*.cpp (except the graphics export
-//! and interactive HTML BOM tests, which are not ported yet), plus tests of
-//! the BOM.
+//! tests, which are not ported yet), plus tests of the BOM.
 
 mod bom_csv_writer_test;
 mod d356_netlist_generator_test;
@@ -9,6 +8,7 @@ mod gerber_aperture_list_test;
 mod gerber_attribute_test;
 mod gerber_attribute_writer_test;
 mod gerber_generator_test;
+mod interactive_html_bom_test;
 mod pick_place_csv_writer_test;
 
 use chrono::{FixedOffset, NaiveDate, TimeZone};

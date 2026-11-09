@@ -55,7 +55,7 @@
 //!
 //! The port was verified with a differential test against the original C++
 //! library (random and real-world inputs, all operations and fill types);
-//! `tests/golden.rs` replays a subset of these cases.
+//! `tests/clipper/golden.rs` replays a subset of these cases.
 //!
 //! Configuration of the original: 64 bit coordinates (no `use_int32`), no Z
 //! coordinate (no `use_xyz`), line clipping enabled (`use_lines`).

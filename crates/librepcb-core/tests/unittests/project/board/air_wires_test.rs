@@ -207,10 +207,8 @@ fn drc_pair_length(p: &Project, board: &Board, pair: &BTreeSet<String>) -> i64 {
 }
 
 /// The air wires of the DRC test board for missing connections equal the
-/// approved `missing_connection` messages of the upstream DRC, except
-/// where several equally long air wires are possible (the tie is resolved
-/// differently, see `algorithm::air_wires_builder`): then the total length
-/// is the same.
+/// approved `missing_connection` messages of the upstream DRC (including
+/// the choice among equally long air wires).
 #[test]
 fn drc_missing_connections() {
     let p = open_test_project("DRC", "project.lpp");
@@ -247,13 +245,7 @@ fn drc_missing_connections() {
         .map(|pair| drc_pair_length(&p, board, pair))
         .sum();
     assert_eq!(actual_length, expected_length);
-    // Only one wire differs (two pads at the same distance from a segment).
-    let differences: Vec<i64> = actual
-        .symmetric_difference(&expected)
-        .map(|pair| drc_pair_length(&p, board, pair))
-        .collect();
-    assert_eq!(differences.len(), 2);
-    assert_eq!(differences[0], differences[1]);
+    assert_eq!(actual, expected);
 }
 
 /// On every test board, the air wires of each net connect exactly the

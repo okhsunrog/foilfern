@@ -48,16 +48,16 @@ impl BoardPhysicalGeometry {
             let resolved = ResolvedDevice::resolve(device, project.library())?;
             let footprint = resolved.footprint;
             let transform = device.transform();
+            let component = project
+                .circuit()
+                .component_instance(device.component())
+                .ok_or(crate::project::Error::InexistentComponent(
+                    device.component().0,
+                ))?;
             if let (Some(variant), Some(model)) = (variant, device.lib_model())
-                && !device.parts(project.circuit(), Some(variant))?.is_empty()
+                && !device.parts(component, Some(variant)).is_empty()
                 && resolved.package.models().by_uuid(&model).is_some()
             {
-                let component = project
-                    .circuit()
-                    .component_instance(device.component())
-                    .ok_or(crate::project::Error::InexistentComponent(
-                        device.component().0,
-                    ))?;
                 result.devices.push(PhysicalDevice {
                     component: device.component(),
                     name: component.name().to_string(),

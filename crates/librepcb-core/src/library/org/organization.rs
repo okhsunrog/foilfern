@@ -3,9 +3,6 @@
 //! Differences to upstream:
 //! - The URL is stored verbatim as string instead of a `QUrl` (see
 //!   COMPAT.md).
-//! - Output jobs are kept as their raw `pcb_job`/`assembly_job`/`user_job`
-//!   S-expression nodes until `OutputJob` (libs/librepcb/core/job) is
-//!   ported; they are written back unchanged.
 //! - `getLogoPixmap()` is not ported (UI); [`Organization::logo_png()`]
 //!   returns the PNG file content.
 //! - `duplicate_from()` copies the output jobs (with new UUIDs); upstream
@@ -18,6 +15,7 @@ use super::organization_check::run_organization_checks;
 use super::organization_pcb_design_rules::OrganizationPcbDesignRules;
 use crate::fileio::{FileSystem, TransactionalDirectory};
 use crate::geometry::property;
+use crate::job::OutputJob;
 use crate::library::{
     BaseMetadata, LibraryBaseElement, LibraryCheckMessage, Result, save_element_files,
 };
@@ -40,9 +38,9 @@ pub struct Organization {
     is_sponsor: bool,
     priority: i32,
     pcb_design_rules: Vec<OrganizationPcbDesignRules>,
-    pcb_output_jobs: Vec<crate::job::OutputJob>,
-    assembly_output_jobs: Vec<crate::job::OutputJob>,
-    user_output_jobs: Vec<crate::job::OutputJob>,
+    pcb_output_jobs: Vec<OutputJob>,
+    assembly_output_jobs: Vec<OutputJob>,
+    user_output_jobs: Vec<OutputJob>,
     // Arbitrary options for forward compatibility in case we really need to
     // add new settings in a minor release.
     options: BTreeMap<String, Vec<SExpression>>,
@@ -108,16 +106,16 @@ impl Organization {
         ref pcb_design_rules: Vec<OrganizationPcbDesignRules>, set_pcb_design_rules
     );
     property!(
-        /// Returns the PCB output jobs (raw `pcb_job` nodes).
-        ref pcb_output_jobs: Vec<crate::job::OutputJob>, set_pcb_output_jobs
+        /// Returns the PCB output jobs (`pcb_job` nodes).
+        ref pcb_output_jobs: Vec<OutputJob>, set_pcb_output_jobs
     );
     property!(
-        /// Returns the assembly output jobs.
-        ref assembly_output_jobs: Vec<crate::job::OutputJob>, set_assembly_output_jobs
+        /// Returns the assembly output jobs (`assembly_job` nodes).
+        ref assembly_output_jobs: Vec<OutputJob>, set_assembly_output_jobs
     );
     property!(
-        /// Returns the user output jobs.
-        ref user_output_jobs: Vec<crate::job::OutputJob>, set_user_output_jobs
+        /// Returns the user output jobs (`user_job` nodes).
+        ref user_output_jobs: Vec<OutputJob>, set_user_output_jobs
     );
 
     /// Returns the PCB design rules with the given UUID.
@@ -126,11 +124,11 @@ impl Organization {
     }
 
     /// Returns the first PCB output job of the given type (e.g.
-    /// `"gerber_excellon"`).
-    pub fn pcb_output_job_by_type(&self, job_type: &str) -> Option<&crate::job::OutputJob> {
+    /// `"gerber_excellon"`, upstream `findPcbOutputJob()`).
+    pub fn pcb_output_job_by_type(&self, job_type: &str) -> Option<&OutputJob> {
         self.pcb_output_jobs
             .iter()
-            .find(|job| job.kind.type_name() == job_type)
+            .find(|job| job.type_name() == job_type)
     }
 
     /// Makes this organization a copy of `other` with new UUIDs of the PCB
@@ -156,13 +154,9 @@ impl Organization {
                 copy
             })
             .collect();
-        let copy_jobs = |jobs: &[crate::job::OutputJob]| -> Vec<crate::job::OutputJob> {
+        let copy_jobs = |jobs: &[OutputJob]| -> Vec<OutputJob> {
             jobs.iter()
-                .map(|job| {
-                    let mut copy = job.clone();
-                    copy.set_uuid(Uuid::new_random());
-                    copy
-                })
+                .map(|job| job.with_uuid(Uuid::new_random()))
                 .collect()
         };
         self.pcb_output_jobs = copy_jobs(&other.pcb_output_jobs);
@@ -206,18 +200,9 @@ impl LibraryBaseElement for Organization {
                 .children_named("pcb_design_rules")
                 .map(OrganizationPcbDesignRules::deserialize)
                 .collect::<crate::serialization::Result<_>>()?,
-            pcb_output_jobs: root
-                .children_named("pcb_job")
-                .map(crate::job::OutputJob::deserialize)
-                .collect::<crate::serialization::Result<_>>()?,
-            assembly_output_jobs: root
-                .children_named("assembly_job")
-                .map(crate::job::OutputJob::deserialize)
-                .collect::<crate::serialization::Result<_>>()?,
-            user_output_jobs: root
-                .children_named("user_job")
-                .map(crate::job::OutputJob::deserialize)
-                .collect::<crate::serialization::Result<_>>()?,
+            pcb_output_jobs: load_jobs(root, "pcb_job")?,
+            assembly_output_jobs: load_jobs(root, "assembly_job")?,
+            user_output_jobs: load_jobs(root, "user_job")?,
             options: load_options(root)?,
             directory,
         })
@@ -260,13 +245,14 @@ impl SerializeObject for Organization {
             rules.serialize(root.append_list("pcb_design_rules"));
             root.ensure_line_break();
         }
-        for (key, jobs) in [
+        let jobs = [
             ("pcb_job", &self.pcb_output_jobs),
             ("assembly_job", &self.assembly_output_jobs),
             ("user_job", &self.user_output_jobs),
-        ] {
+        ];
+        for (name, jobs) in jobs {
             for job in jobs {
-                job.serialize(root.append_list(key));
+                job.serialize(root.append_list(name));
                 root.ensure_line_break();
             }
         }
@@ -277,4 +263,11 @@ impl SerializeObject for Organization {
         self.metadata.serialize_message_approvals(root);
         root.ensure_line_break();
     }
+}
+
+/// Loads the output jobs stored as `name` children of `root`.
+fn load_jobs(root: &SExpression, name: &str) -> crate::serialization::Result<Vec<OutputJob>> {
+    root.children_named(name)
+        .map(OutputJob::deserialize)
+        .collect()
 }

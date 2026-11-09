@@ -370,7 +370,7 @@ fn remove_children(node: &mut SExpression, name: &str) -> usize {
     };
     let before = list.children().len();
     list.children_mut()
-        .retain(|c| !c.as_list().is_some_and(|l| l.name() == name));
+        .retain(|c| c.as_list().is_none_or(|l| l.name() != name));
     before - list.children().len()
 }
 

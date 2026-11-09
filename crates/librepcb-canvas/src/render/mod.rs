@@ -15,7 +15,7 @@
 mod cpu;
 mod filled_paths;
 
-pub use cpu::{CpuRenderer, CpuRendererSettings};
+pub use cpu::{CpuRenderer, CpuRendererSettings, Grid, GridStyle};
 pub use filled_paths::rasterize_filled_paths;
 
 use crate::{Scene, View};

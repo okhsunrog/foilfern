@@ -3,10 +3,11 @@
 //! Differences to upstream: the builder collects the anchors of all nets
 //! of a board in one pass ([`BoardAirWiresBuilder::new()`]) and then builds
 //! the air wires of single nets from it; the anchors are identified by
-//! [`TraceAnchor`]s. The points are added in a deterministic order
-//! (footprint pads by component and pad UUID, then per net segment the
-//! standalone pads, vias and junctions by UUID), upstream iterates
-//! registration lists. Point-in-fragment tests use the emulated
+//! [`TraceAnchor`]s. The points are added in the order of upstream's
+//! registration lists after loading a project (footprint pads by component,
+//! component signal and pad UUID, then per net segment the standalone
+//! pads, vias and junctions by UUID), since the order decides between
+//! equally long air wires. Point-in-fragment tests use the emulated
 //! `QPainterPath::contains()` like upstream.
 //!
 //! Also contains the project level entry points [`Project::rebuild_air_wires()`]
@@ -59,13 +60,16 @@ impl<'a> BoardAirWiresBuilder<'a> {
     /// project).
     pub fn new(board: &'a Board, library: &ProjectLibrary, circuit: &Circuit) -> Self {
         let mut nets: BTreeMap<NetSignalId, NetItems> = BTreeMap::new();
-        // Footprint pads.
+        // Footprint pads, in upstream's registration order: component
+        // signals of the net (by component, then signal), then the pads of
+        // each signal (by pad UUID).
+        let mut footprint_pads = Vec::new();
         for device in board.devices().values() {
             let Ok(pads) = device.pads(library, circuit) else {
                 continue;
             };
             for pad in pads {
-                let Some(net) = pad.net() else {
+                let (Some(net), Some(signal)) = (pad.net(), pad.component_signal()) else {
                     continue;
                 };
                 let (start_layer, end_layer) = if pad.properties().is_tht() {
@@ -77,13 +81,18 @@ impl<'a> BoardAirWiresBuilder<'a> {
                     let layer = pad.solder_layer().copper_number();
                     (layer, layer)
                 };
-                nets.entry(net).or_default().points.push(AnchorPoint {
+                let point = AnchorPoint {
                     anchor: pad.trace_anchor(),
                     position: pad.position(),
                     start_layer,
                     end_layer,
-                });
+                };
+                footprint_pads.push(((signal, pad.uuid()), net, point));
             }
+        }
+        footprint_pads.sort_by_key(|(key, _, _)| *key);
+        for (_, net, point) in footprint_pads {
+            nets.entry(net).or_default().points.push(point);
         }
         // Standalone pads, vias, junctions and traces.
         for segment in board.net_segments().values() {

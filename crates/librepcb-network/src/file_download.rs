@@ -61,8 +61,7 @@ impl Hasher {
 
 /// Finds the directory of interest in the extracted ZIP (e.g. to strip a
 /// root folder). Must return the passed directory or a subdirectory of it.
-pub type ZipDiscoveryCallback =
-    Box<dyn FnOnce(&FilePath) -> fileio::Result<FilePath> + Send + 'static>;
+pub type ZipDiscoveryCallback = Box<dyn FnOnce(&FilePath) -> Result<FilePath> + Send + 'static>;
 
 /// Called with the extraction directory after a successful extraction.
 pub type ZipCleanupCallback = Box<dyn FnOnce(&FilePath) + Send + 'static>;
@@ -264,7 +263,7 @@ impl FileSink {
         reporter: &ProgressReporter,
     ) -> Result<()> {
         if let (Some(hasher), Some(expected)) = (self.hasher.take(), expected) {
-            reporter.state(tr!("FileDownload", "Verify checksum..."));
+            reporter.state(tr!("librepcb::FileDownload", "Verify checksum..."));
             let result = hasher.finalize();
             if result != expected {
                 log::debug!(
@@ -278,7 +277,7 @@ impl FileSink {
         }
 
         let _permit = acquire(&self.semaphore).await?;
-        reporter.state(tr!("FileDownload", "Write file..."));
+        reporter.state(tr!("librepcb::FileDownload", "Write file..."));
         let (tmp, mut file) = self.file.take().ok_or_else(|| self.write_err("no data"))?;
         file.flush().await.map_err(|e| self.write_err(e))?;
         file.sync_all().await.map_err(|e| self.write_err(e))?;
@@ -366,7 +365,7 @@ fn extract(
     let backup_dir = sibling(".backup")?;
 
     // Clean up temporary files and folders in any case.
-    reporter.state(tr!("FileDownload", "Remove temporary files..."));
+    reporter.state(tr!("librepcb::FileDownload", "Remove temporary files..."));
     let _remove_zip = scopeguard::guard(zip_file.clone(), |fp| {
         let _ = std::fs::remove_file(&fp);
     });
@@ -380,7 +379,7 @@ fn extract(
     });
 
     // Extract ZIP to temporary directory.
-    reporter.state(tr!("FileDownload", "Extract ZIP..."));
+    reporter.state(tr!("librepcb::FileDownload", "Extract ZIP..."));
     ZipArchive::open(zip_file)?.extract_to(&tmp_dir)?;
 
     // Find the directory of interest in the temporary directory.

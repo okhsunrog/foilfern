@@ -469,10 +469,9 @@ fn reverse_poly_pt_links(pts: &mut [OutPt], pp: Option<usize>) {
     };
     let mut pp1 = pp;
     loop {
-        let pp2 = pts[pp1].next;
-        pts[pp1].next = pts[pp1].prev;
-        pts[pp1].prev = pp2;
-        pp1 = pp2;
+        let pt = &mut pts[pp1];
+        std::mem::swap(&mut pt.next, &mut pt.prev);
+        pp1 = pt.prev;
         if pp1 == pp {
             break;
         }

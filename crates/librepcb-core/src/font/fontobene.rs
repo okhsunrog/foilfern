@@ -245,9 +245,9 @@ impl Glyph {
             } else if let Some(reference) = line.strip_prefix('@') {
                 glyph.references.push(parse_codepoint(reference)?);
             } else if let Some(spacing) = line.strip_prefix('~') {
-                // FontoBene stores OptionalSpacing::value as float, even
-                // when qreal is double. This precision changes nanometer
-                // offsets when whitespace glyphs are stroked.
+                // Upstream stores the glyph spacing as `float`, which changes
+                // the stroked text geometry (e.g. 3.6 becomes 3.5999999), so
+                // round it to single precision like upstream.
                 glyph.spacing = Some(f64::from(parse_number(spacing)? as f32));
             } else if !line.is_empty() {
                 glyph.polylines.push(parse_polyline(line)?);
@@ -419,15 +419,6 @@ mod tests {
         assert_eq!(find_glyph_codepoint("[zz][10FFFF]"), "10FFFF");
         assert!(parse_codepoint("10FFFF").is_err());
         assert_eq!(parse_codepoint("00B5"), Ok(0xB5));
-    }
-
-    #[test]
-    fn whitespace_spacing_retains_upstream_float_precision() {
-        let glyph = Glyph::load(&mut "[0020] \n~3.6\n\n".lines()).unwrap();
-        let spacing = glyph.spacing.unwrap();
-        // At 1.5 mm cap height the float storage makes a space 599999 nm,
-        // rather than 600000 nm. Every following glyph is shifted by 1 nm.
-        assert_eq!((1_500_000.0 * spacing / 9.0) as i64, 599_999);
     }
 
     #[test]

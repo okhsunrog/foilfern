@@ -6,12 +6,11 @@
 //! then its inverse restores the previous state, and the reverse index
 //! stays consistent with a rebuild from scratch.
 
-mod attribute_lookup_test;
 mod board;
-mod bom_generator_test;
 mod circuit_test;
 mod erc_test;
 mod json_export_test;
+mod output_job_runner_test;
 mod project_test;
 mod schematic_test;
 mod serde_test;
@@ -20,6 +19,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::Utc;
 use librepcb_core::fileio::TransactionalDirectory;
+use librepcb_core::job::OutputJobList;
 use librepcb_core::library::BaseMetadata;
 use librepcb_core::library::cmp::{Component, ComponentSignal, ComponentSymbolVariant};
 use librepcb_core::project::board::Board;
@@ -145,6 +145,7 @@ pub fn add_component(
 pub struct Snapshot {
     metadata: ProjectMetadata,
     settings: ProjectSettings,
+    output_jobs: OutputJobList,
     erc_approvals: BTreeSet<SExpression>,
     circuit: Circuit,
     schematics: Vec<Schematic>,
@@ -157,6 +158,7 @@ pub fn snapshot(p: &Project) -> Snapshot {
     Snapshot {
         metadata: p.metadata().clone(),
         settings: p.settings().clone(),
+        output_jobs: p.output_jobs().clone(),
         erc_approvals: p.erc_approvals().clone(),
         circuit: p.circuit().clone(),
         schematics: p.schematics().to_vec(),
@@ -213,3 +215,5 @@ pub fn assert_fails(p: &mut Project, m: Mutation) -> librepcb_core::project::Err
     assert!(p.is_ref_index_consistent());
     error
 }
+
+mod attribute_lookup_test;

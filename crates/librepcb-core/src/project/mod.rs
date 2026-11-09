@@ -26,12 +26,18 @@
 //! - [`circuit`]: assembly variants, net classes, nets, buses, component
 //!   instances.
 //! - [`schematic`]: schematic pages and their items.
-//! - [`board`]: boards, their items and derived data.
+//! - [`board`]: boards, their items and derived data, the plane fragments
+//!   builder, the design rule check ([`board::drc`]) and the board exports
+//!   (Gerber/Excellon, pick&place, IPC-D-356A).
 //! - [`loader`]: the project loader.
 //! - `mutation`, `change`, `ref_index`, `library`, `project`, `id`,
 //!   `error`: see the re-exports below.
 //!
-//! Deferred: rendering jobs and Specctra/HTML BOM exports.
+//! - [`erc`]: the electrical rule check.
+//! - [`ProjectAttributeLookup`], [`BomGenerator`], [`json_export`]:
+//!   attribute lookup, BOM generation and the JSON export of projects.
+//!
+//! - [`OutputJobRunner`]: runs the output jobs of a project.
 
 mod attribute_lookup;
 pub mod board;
@@ -41,7 +47,7 @@ pub mod circuit;
 pub mod erc;
 mod error;
 mod id;
-mod json_export;
+pub mod json_export;
 mod library;
 pub mod loader;
 mod mutation;
@@ -61,13 +67,13 @@ pub use id::{
     ComponentInstanceId, ComponentSignalRef, DeviceRef, NetClassId, NetSegmentId, NetSegmentRef,
     NetSignalId, PlaneId, PlaneRef, SchematicId, SymbolId, SymbolRef,
 };
-pub use json_export::ProjectJsonExport;
 pub use library::{LibraryElementKind, ProjectLibrary};
 pub use loader::ProjectLoader;
 pub use mutation::{BoardMutation, Mutation, SchematicMutation};
 pub use output_job_runner::{
-    BoardStepExporter, BoardStepOutput, GraphicsJobExporter, GraphicsJobFile, OutputJobEvent,
-    OutputJobRunner, select_job_boards, select_job_variants,
+    BoardStepExporter, BoardStepOutput, GraphicsExportResult, GraphicsExporter, GraphicsJobFile,
+    GraphicsPage, GraphicsPageContent, OutputJobError, OutputJobEvent, OutputJobObserver,
+    OutputJobResult, OutputJobRunner, select_job_boards, select_job_variants,
 };
 pub use project::{Project, ProjectMetadata, ProjectSettings, ProjectView};
 pub use ref_index::{ComponentUses, NetUse, Reference};

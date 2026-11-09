@@ -2,8 +2,6 @@
 //! and error cases, symbol pin views, the net segment splitter and the
 //! serde representation.
 
-mod erc_test;
-
 use std::sync::Arc;
 
 use chrono::Utc;
@@ -1780,12 +1778,12 @@ fn symbol_attribute_lookup() {
     let schematic = f.p.schematic(f.schematic).unwrap();
     let variant = f.p.circuit().assembly_variants().first().unwrap();
     let lookup =
-        ProjectAttributeLookup::symbol(&f.p, schematic, &symbol, None, None, Some(variant));
-    assert_eq!(lookup.value("NAME").unwrap().as_deref(), Some("U1-A"));
-    assert_eq!(lookup.value("SHEET").unwrap().as_deref(), Some("Main"));
-    assert_eq!(lookup.value("VARIANT").unwrap().as_deref(), Some("Std"));
+        ProjectAttributeLookup::for_symbol(&f.p, schematic, &symbol, None, None, Some(variant));
+    assert_eq!(lookup.value("NAME").as_deref(), Some("U1-A"));
+    assert_eq!(lookup.value("SHEET").as_deref(), Some("Main"));
+    assert_eq!(lookup.value("VARIANT").as_deref(), Some("Std"));
     assert_eq!(
-        lookup.substitute("{{NAME}}: {{PAGE_X_OF_Y}}").unwrap(),
+        lookup.substitute("{{NAME}}: {{PAGE_X_OF_Y}}"),
         "U1-A: Page 1 of 1"
     );
     let part = librepcb_core::library::dev::Part::new(
@@ -1801,7 +1799,8 @@ fn symbol_attribute_lookup() {
             .unwrap(),
         ]),
     );
-    let lookup = ProjectAttributeLookup::symbol(&f.p, schematic, &symbol, None, Some(&part), None);
-    assert_eq!(lookup.value("NAME").unwrap().as_deref(), Some("part name"));
-    assert_eq!(lookup.value("VARIANT").unwrap(), None);
+    let lookup =
+        ProjectAttributeLookup::for_symbol(&f.p, schematic, &symbol, None, Some(&part), None);
+    assert_eq!(lookup.value("NAME").as_deref(), Some("part name"));
+    assert_eq!(lookup.value("VARIANT"), None);
 }

@@ -3,13 +3,21 @@ name = "librepcb-cli"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
+description = "Command line interface of LibrePCB (port of apps/librepcb-cli)"
+
+[[bin]]
+name = "librepcb-cli"
+path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4.6.7", features = ["derive", "string"] }
+clap = { version = "4.6.7", features = ["derive"] }
+env_logger = "0.11.11"
 librepcb-core = { version = "0.1.0", path = "../librepcb-core" }
 librepcb-graphics = { version = "0.1.0", path = "../librepcb-graphics" }
 librepcb-i18n = { version = "0.1.0", path = "../librepcb-i18n" }
+librepcb-scene = { version = "0.1.0", path = "../librepcb-scene" }
 librepcb-step = { version = "0.1.0", path = "../librepcb-step" }
+log = "0.4.34"
 thiserror = "2.0.21"
 
 [lints]
@@ -17,3 +25,4 @@ workspace = true
 
 [dev-dependencies]
 tempfile = "3.27.0"
+zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }

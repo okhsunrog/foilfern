@@ -1,0 +1,33 @@
+export global Constants {
+    // ATTENTION: Keep this list in sync with uihelpers.cpp!
+    out property <[string]> package-assembly-types: [
+        @tr("THT (all leads)"),
+        @tr("SMT (all leads)"),
+        @tr("THT+SMT (mixed leads)"),
+        @tr("Other (included in BOM/PnP)"),
+        @tr("None (excluded from BOM/PnP)"),
+        @tr("Auto-detect (not recommended)"),
+    ];
+    out property <[string]> footprint-tags-suggestions: [
+        "hand-soldering",
+        "reflow-soldering",
+        "wave-soldering",
+        "extra-large-pads",
+        "ipc-density-level-a (max protrusion)",
+        "ipc-density-level-b (median protrusion)",
+        "ipc-density-level-c (min protrusion)",
+    ];
+
+    out property <string> donate-url: "https://librepcb.org/donate/";
+    out property <string> no-device-found-url: "https://librepcb.org/faq/#error-no-dev-or-pkg-found";
+    out property <string> sources-url: "https://github.com/LibrePCB/LibrePCB";
+    out property <string> support-url: "https://librepcb.org/help/";
+    out property <string> user-manual-create-local-library-url: "https://librepcb.org/docs/quickstart/create-local-library/";
+    out property <string> user-manual-create-board-url: "https://librepcb.org/docs/quickstart/create-project/board/";
+    out property <string> user-manual-create-schematics-url: "https://librepcb.org/docs/quickstart/create-project/schematics/";
+    out property <string> user-manual-create-symbol-url: "https://librepcb.org/docs/quickstart/create-library-elements/symbol/";
+    out property <string> user-manual-url: "https://librepcb.org/docs/";
+    out property <string> video-tutorials-url: "https://www.youtube.com/@LibrePCB";
+    out property <string> website-url: "https://librepcb.org";
+    out property <string> where-is-library-element-url: "https://librepcb.org/faq/#where-is-library-element";
+}

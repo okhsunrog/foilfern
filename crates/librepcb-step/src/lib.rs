@@ -40,6 +40,28 @@ pub struct TessellationStats {
     pub colors: usize,
 }
 
+/// Adapter shared by CLI, standalone MCP and the desktop application's jobs.
+pub fn board_exporter() -> librepcb_core::project::BoardStepExporter {
+    Box::new(|project, board, variant| {
+        let model = StepModel::from_board(project, board, variant)
+            .map_err(|error| librepcb_core::project::OutputJobError::Step(error.to_string()))?;
+        let warnings = if model.approximated_contours() == 0 {
+            Vec::new()
+        } else {
+            vec![format!(
+                "STEP export approximated {} clipped board contours with 0.005 mm polylines.",
+                model.approximated_contours()
+            )]
+        };
+        Ok(librepcb_core::project::BoardStepOutput {
+            contents: model
+                .to_step()
+                .map_err(|error| librepcb_core::project::OutputJobError::Step(error.to_string()))?,
+            warnings,
+        })
+    })
+}
+
 fn operation<T>(result: anyhow::Result<T>) -> Result<T> {
     result.map_err(|error| Error::Geometry(format!("{error:#}")))
 }

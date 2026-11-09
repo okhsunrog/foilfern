@@ -8,6 +8,7 @@
 
 use librepcb_core::application::file_format_version;
 use librepcb_core::fileio::{FilePath, FileSystem, file_utils};
+use librepcb_core::job::{GraphicsContentType, OutputJob, OutputJobKind, OutputJobList};
 use librepcb_core::library::LibraryBaseElement;
 use librepcb_core::library::dev::Device;
 use librepcb_core::project::ProjectLoader;
@@ -41,7 +42,7 @@ fn html_files(dir: &FilePath) -> Vec<String> {
 /// Upstream `testUpgradeV01` / `testUpgradeV1`: open (upgrade), save and
 /// re-open the project `src`, which has the file format `version`.
 /// Returns the re-opened project's output jobs.
-fn assert_project_upgrade(src: &str, version: &str) -> SExpression {
+fn assert_project_upgrade(src: &str, version: &str) -> OutputJobList {
     // Copy project into temporary directory.
     let (_tmp, dir) = copy_to_temp(src, PROJECT_DIR);
 
@@ -75,9 +76,7 @@ fn assert_project_upgrade(src: &str, version: &str) -> SExpression {
     assert!(loader.migration_log().is_none());
     assert_eq!(project.schematics().len(), schematic_count);
     assert_eq!(project.boards().len(), board_count);
-    let mut root = librepcb_core::serialization::List::new("librepcb_jobs");
-    librepcb_core::serialization::SerializeObject::serialize(project.output_jobs(), &mut root);
-    root.into()
+    project.output_jobs().clone()
 }
 
 #[test]
@@ -89,21 +88,22 @@ fn test_upgrade_v01() {
 fn test_upgrade_v1() {
     let jobs = assert_project_upgrade("projects/v1", "1");
 
-    // Check if the "realistic" flag has been migrated (on the raw output
-    // jobs, as `core/job` is not ported yet).
-    let job = jobs.children_named("job").next().unwrap();
-    assert_eq!(job.child("type/@0").unwrap().value().unwrap(), "graphics");
-    let contents: Vec<_> = job.children_named("content").collect();
-    assert_eq!(contents.len(), 2);
-    let content_type = |i: usize| contents[i].child("type/@0").unwrap().value().unwrap();
+    // Check if the "realistic" flag has been migrated.
+    let Some(OutputJobKind::Graphics(job)) = jobs.first().map(OutputJob::kind) else {
+        panic!("first job is not a graphics job");
+    };
+    assert_eq!(job.content.len(), 2);
     // Output job without "(option realistic)" is not modified.
-    assert_eq!(content_type(0), "board");
-    assert_eq!(contents[0].children_named("option").count(), 0);
-    assert_eq!(contents[0].children_named("layer").count(), 22);
+    assert_eq!(job.content[0].content_type, GraphicsContentType::Board);
+    assert!(!job.content[0].options.contains_key("realistic"));
+    assert_eq!(job.content[0].layers.len(), 22);
     // Output job with "(option realistic)" is migrated.
-    assert_eq!(content_type(1), "board_rendering");
-    assert_eq!(contents[1].children_named("option").count(), 0);
-    assert_eq!(contents[1].children_named("layer").count(), 4);
+    assert_eq!(
+        job.content[1].content_type,
+        GraphicsContentType::BoardRendering
+    );
+    assert!(!job.content[1].options.contains_key("realistic"));
+    assert_eq!(job.content[1].layers.len(), 4);
 }
 
 #[test]

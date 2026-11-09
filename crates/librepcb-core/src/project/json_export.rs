@@ -1,280 +1,449 @@
 //! Port of libs/librepcb/core/project/projectjsonexport.{h,cpp}.
 //!
-//! This is upstream's versioned manufacturing summary, not the model's
-//! serde wire representation. Lengths are millimeters, colors use "none",
-//! and tool counts include repeated holes while diameters are deduplicated.
-//! `serde_json` supplies the JSON value model and escaping. The formatter
-//! preserves upstream's four-space layout (including empty containers) and
-//! shortest-number notation, which the standard pretty formatter cannot
-//! reproduce. See Qt's qjsonwriter.cpp and qlocale_tools.cpp::resolveFormat.
+//! Exports general information about a project and its boards (layer
+//! count, colors, drills, bounding box, ...) as JSON, e.g. for PCB
+//! fabrication services. The values are built as [`serde_json::Value`]s;
+//! [`to_utf8()`] writes them byte-identical to upstream's
+//! `QJsonDocument::toJson(Indented)`: keys sorted (`QJsonObject` is a sorted
+//! map), four spaces indentation, empty arrays as `[` newline `]`, and
+//! floating point numbers formatted like `QByteArray::number(d, 'g',
+//! QLocale::FloatingPointShortest)` (shortest round-trip digits, exponent
+//! form only where it is shorter). This formatting is ported by hand
+//! because no crate reproduces Qt's number format.
+//!
+//! Differences to upstream: the functions take the [`Project`] as context
+//! where upstream objects have back-pointers (e.g. [`board_to_json()`]).
 
-use super::board::{Board, ResolvedDevice, ViaView};
-use super::{Project, ProjectView, Result};
-use crate::geometry::PadHole;
-use crate::types::{Layer, Length, PcbColor, PositiveLength};
-use chrono::SecondsFormat;
-use serde_json::{Value, json};
 use std::collections::BTreeSet;
+use std::fmt::Write as _;
 
-#[derive(Default)]
-struct Tools {
-    diameters: Vec<Length>,
+use serde_json::{Map, Value, json};
+
+use super::Project;
+use super::board::{Board, BoardDevice};
+use super::circuit::AssemblyVariant;
+use crate::geometry::Path;
+use crate::library::pkg::Footprint;
+use crate::types::{Layer, Length, PcbColor, Point};
+use crate::utils::painter_path;
+
+/// A bounding box given by two opposite corners, or `None` if empty
+/// (upstream `ProjectJsonExport::BoundingBox`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BoundingBox(pub Option<(Point, Point)>);
+
+/// The diameters of drills of one kind (upstream
+/// `ProjectJsonExport::ToolList`).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ToolList {
+    /// The diameter of each drill (with duplicates).
+    pub diameters: Vec<Length>,
 }
-impl Tools {
-    fn add(&mut self, diameter: PositiveLength) {
-        self.diameters.push(*diameter);
-    }
-    fn json(&self) -> Value {
-        json!({"count": self.diameters.len(), "diameters": self.diameters.iter().copied()
-            .collect::<BTreeSet<_>>().into_iter().map(length_json).collect::<Vec<_>>()})
+
+/// Returns a JSON array of strings.
+pub fn string_list_to_json<S: AsRef<str>>(list: &[S]) -> Value {
+    Value::Array(
+        list.iter()
+            .map(|s| Value::String(s.as_ref().to_owned()))
+            .collect(),
+    )
+}
+
+/// Returns a length in millimeters.
+pub fn length_to_json(length: Length) -> Value {
+    f64_to_json(length.to_mm())
+}
+
+/// Returns a length in millimeters, or `null`.
+pub fn optional_length_to_json(length: Option<Length>) -> Value {
+    length.map_or(Value::Null, length_to_json)
+}
+
+/// Returns a sorted array of lengths in millimeters.
+pub fn length_set_to_json(lengths: &BTreeSet<Length>) -> Value {
+    Value::Array(lengths.iter().map(|l| length_to_json(*l)).collect())
+}
+
+/// Returns the color identifier, or `"none"` (not `null`, to distinguish
+/// it from an unknown color).
+pub fn pcb_color_to_json(color: Option<PcbColor>) -> Value {
+    Value::String(color.map_or("none", |c| c.id()).to_owned())
+}
+
+/// Returns an assembly variant.
+pub fn assembly_variant_to_json(av: &AssemblyVariant) -> Value {
+    json!({
+        "uuid": av.uuid().to_string(),
+        "name": av.name().to_string(),
+        "description": av.description(),
+    })
+}
+
+/// Returns the position (lower left corner) and size of a bounding box, or
+/// `null`.
+pub fn bounding_box_to_json(bbox: &BoundingBox) -> Value {
+    match bbox.0 {
+        Some((p1, p2)) => {
+            let size = p2 - p1;
+            json!({
+                "x": length_to_json(p1.x.min(p2.x)),
+                "y": length_to_json(p1.y.min(p2.y)),
+                "width": length_to_json(size.x.abs()),
+                "height": length_to_json(size.y.abs()),
+            })
+        }
+        None => Value::Null,
     }
 }
 
-/// Exports upstream's `librepcb-project` JSON format, major 1, minor 0.
-#[derive(Debug, Default, Clone, Copy)]
-pub struct ProjectJsonExport;
+/// Returns the number of drills and their (distinct) diameters.
+pub fn tool_list_to_json(tools: &ToolList) -> Value {
+    json!({
+        "count": tools.diameters.len(),
+        "diameters": length_set_to_json(&tools.diameters.iter().copied().collect()),
+    })
+}
 
-impl ProjectJsonExport {
-    /// Returns project metadata, ordered assembly variants and board summaries.
-    pub fn project(project: &Project) -> Result<Value> {
-        let metadata = project.metadata();
-        Ok(json!({
-            "filename": project.file_name(), "uuid": project.uuid().to_string(),
-            "name": metadata.name.as_str(), "author": metadata.author,
-            "version": metadata.version.as_str(),
-            "created": metadata.created.to_rfc3339_opts(SecondsFormat::Secs, true),
-            "locales": project.settings().locale_order, "norms": project.settings().norm_order,
-            "variants": project.circuit().assembly_variants().iter().map(|v| json!({
-                "uuid": v.uuid().to_string(), "name": v.name().as_str(), "description": v.description(),
-            })).collect::<Vec<_>>(),
-            "boards": project.boards().iter().map(|board| Self::board(board, project.view())).collect::<Result<Vec<_>>>()?,
-        }))
-    }
-
-    /// Returns a board manufacturing summary, including automatic via drill
-    /// diameters and the physical drill span clipped to enabled layers.
-    pub fn board(board: &Board, view: ProjectView<'_>) -> Result<Value> {
-        let (mut tht, mut blind, mut buried) =
-            (Tools::default(), Tools::default(), Tools::default());
-        let (mut pth_drills, mut pth_slots) = (Tools::default(), Tools::default());
-        let (mut npth_drills, mut npth_slots) = (Tools::default(), Tools::default());
-        let mut plated_cutouts = 0;
-        let mut copper_widths = BTreeSet::new();
-        for segment in board.net_segments().values() {
-            for pad in segment.pads().values() {
-                add_pad_holes(pad.pad().holes(), &mut pth_drills, &mut pth_slots);
-            }
-            for via in segment.vias().values() {
-                let geometry = ViaView::new(via, board, segment.net(), view.circuit)?;
-                let Some((start, end)) = geometry.drill_layer_span() else {
-                    continue;
-                };
-                let diameter = geometry.drill_diameter();
-                if start.is_top() && end.is_bottom() {
-                    tht.add(diameter);
-                } else if start.is_top() || end.is_bottom() {
-                    blind.add(diameter);
-                } else {
-                    buried.add(diameter);
-                }
-            }
-            copper_widths.extend(segment.traces().values().map(|trace| *trace.width()));
-        }
-        for device in board.devices().values() {
-            let footprint = ResolvedDevice::resolve(device, view.library)?.footprint;
-            for pad in footprint.pads() {
-                add_pad_holes(pad.pad().holes(), &mut pth_drills, &mut pth_slots);
-            }
-            for hole in footprint.holes() {
-                if hole.is_slot() {
-                    npth_slots.add(hole.diameter());
-                } else {
-                    npth_drills.add(hole.diameter());
-                }
-            }
-            plated_cutouts += footprint
-                .polygons()
-                .iter()
-                .filter(|p| p.layer() == Layer::BOARD_PLATED_CUTOUTS)
-                .count();
-            plated_cutouts += footprint
-                .circles()
-                .iter()
-                .filter(|c| c.layer() == Layer::BOARD_PLATED_CUTOUTS)
-                .count();
-        }
-        for hole in board.holes().values() {
-            if hole.path().vertices().len() > 1 {
-                npth_slots.add(hole.diameter());
+/// Returns the information about a board of `project`.
+pub fn board_to_json(project: &Project, board: &Board) -> Value {
+    let settings = board.settings();
+    let mut tht_vias = ToolList::default();
+    let mut blind_vias = ToolList::default();
+    let mut buried_vias = ToolList::default();
+    let mut pth_drills = ToolList::default();
+    let mut pth_slots = ToolList::default();
+    let mut npth_drills = ToolList::default();
+    let mut npth_slots = ToolList::default();
+    let mut plated_cutouts: usize = 0;
+    let mut copper_widths: BTreeSet<Length> = BTreeSet::new();
+    let mut add_pad_holes = |pad: &crate::geometry::Pad| {
+        for hole in pad.holes().iter() {
+            if hole.is_slot() {
+                pth_slots.diameters.push(*hole.diameter());
             } else {
-                npth_drills.add(hole.diameter());
+                pth_drills.diameters.push(*hole.diameter());
             }
         }
-        copper_widths.extend(board.planes().values().map(|plane| *plane.min_width()));
-        plated_cutouts += board
+    };
+    for segment in board.net_segments().values() {
+        for pad in segment.pads().values() {
+            add_pad_holes(pad.pad());
+        }
+        for via in segment.vias().values() {
+            let properties = board.via_properties(via, segment.net(), &project.circuit);
+            if let Some((start, end)) = properties.drill_layer_span {
+                let drill = *properties.drill_diameter;
+                if start.is_top() && end.is_bottom() {
+                    tht_vias.diameters.push(drill);
+                } else if start.is_top() || end.is_bottom() {
+                    blind_vias.diameters.push(drill);
+                } else {
+                    buried_vias.diameters.push(drill);
+                }
+            }
+        }
+        for trace in segment.traces().values() {
+            copper_widths.insert(*trace.width());
+        }
+    }
+    for device in board.devices().values() {
+        if let Ok(pads) = device.pads(&project.library, &project.circuit) {
+            for pad in pads {
+                add_pad_holes(pad.properties());
+            }
+        }
+        let Some(footprint) = lib_footprint(project, device) else {
+            continue;
+        };
+        for hole in footprint.holes().iter() {
+            if hole.is_slot() {
+                npth_slots.diameters.push(*hole.diameter());
+            } else {
+                npth_drills.diameters.push(*hole.diameter());
+            }
+        }
+        plated_cutouts += footprint
             .polygons()
-            .values()
+            .iter()
             .filter(|p| p.layer() == Layer::BOARD_PLATED_CUTOUTS)
             .count();
-        let bounding_box = match board.bounding_rect(view.library)? {
-            None => Value::Null,
-            Some((a, b)) => {
-                // i128 differences avoid overflowing on extreme valid coordinates.
-                let width = (i128::from(a.x.to_nm()) - i128::from(b.x.to_nm())).abs();
-                let height = (i128::from(a.y.to_nm()) - i128::from(b.y.to_nm())).abs();
-                json!({"x": length_json(a.x.min(b.x)), "y": length_json(a.y.min(b.y)),
-                    "width": mm_json(width as f64 / 1_000_000.0), "height": mm_json(height as f64 / 1_000_000.0)})
-            }
+        plated_cutouts += footprint
+            .circles()
+            .iter()
+            .filter(|c| c.layer() == Layer::BOARD_PLATED_CUTOUTS)
+            .count();
+    }
+    for hole in board.holes().values() {
+        if hole.path().vertices().len() > 1 {
+            npth_slots.diameters.push(*hole.diameter());
+        } else {
+            npth_drills.diameters.push(*hole.diameter());
+        }
+    }
+    for plane in board.planes().values() {
+        copper_widths.insert(*plane.min_width());
+    }
+    plated_cutouts += board
+        .polygons()
+        .values()
+        .filter(|p| p.layer() == Layer::BOARD_PLATED_CUTOUTS)
+        .count();
+    let min_copper_width = copper_widths.first().copied();
+
+    json!({
+        "uuid": board.uuid().to_string(),
+        "name": board.name().to_string(),
+        "directory": board.directory_name(),
+        "inner_layers": settings.inner_layer_count,
+        "pcb_thickness": length_to_json(*settings.pcb_thickness),
+        "solder_resist": pcb_color_to_json(settings.solder_resist),
+        "silkscreen_top": pcb_color_to_json(settings.silkscreen_color_top()),
+        "silkscreen_bottom": pcb_color_to_json(settings.silkscreen_color_bot()),
+        "bounding_box": bounding_box_to_json(&board_bounding_box(project, board)),
+        "vias_tht": tool_list_to_json(&tht_vias),
+        "vias_blind": tool_list_to_json(&blind_vias),
+        "vias_buried": tool_list_to_json(&buried_vias),
+        "pth_drills": tool_list_to_json(&pth_drills),
+        "pth_slots": tool_list_to_json(&pth_slots),
+        "npth_drills": tool_list_to_json(&npth_drills),
+        "npth_slots": tool_list_to_json(&npth_slots),
+        "plated_cutouts": plated_cutouts,
+        "min_copper_width": optional_length_to_json(min_copper_width),
+    })
+}
+
+/// Returns the information about a project and its boards.
+pub fn project_to_json(project: &Project) -> Value {
+    let metadata = project.metadata();
+    let settings = project.settings();
+    json!({
+        "filename": project.file_name(),
+        "uuid": project.uuid().to_string(),
+        "name": metadata.name.to_string(),
+        "author": metadata.author,
+        "version": metadata.version.to_string(),
+        "created": metadata.created.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+        "locales": string_list_to_json(&settings.locale_order),
+        "norms": string_list_to_json(&settings.norm_order),
+        "variants": project
+            .circuit()
+            .assembly_variants()
+            .iter()
+            .map(assembly_variant_to_json)
+            .collect::<Vec<_>>(),
+        "boards": project
+            .boards()
+            .iter()
+            .map(|b| board_to_json(project, b))
+            .collect::<Vec<_>>(),
+    })
+}
+
+/// Returns the complete JSON file content of a project (upstream
+/// `toUtf8()`).
+pub fn to_utf8(project: &Project) -> Vec<u8> {
+    let root = json!({
+        "format": {
+            "major": 1, // Only increment (when needed) for new major releases!!!
+            "minor": 0, // Increment on every backwards-compatible format addition.
+            "type": "librepcb-project",
+        },
+        "project": project_to_json(project),
+    });
+    to_indented_json(&root).into_bytes()
+}
+
+/// Formats a JSON object or array like `QJsonDocument::toJson(Indented)`
+/// (including the trailing newline). Other values are formatted like
+/// object members.
+pub fn to_indented_json(value: &Value) -> String {
+    let mut out = String::new();
+    write_value(&mut out, value, 0);
+    if value.is_object() || value.is_array() {
+        out.push('\n');
+    }
+    out
+}
+
+// --- Board helpers ---
+
+/// Upstream `Board::calculateBoundingRect()`: the bounding rectangle of the
+/// board outlines (board polygons and footprint polygons/circles), computed
+/// on the `QPainterPath` like upstream.
+fn board_bounding_box(project: &Project, board: &Board) -> BoundingBox {
+    let mut outlines: Vec<Path> = board
+        .polygons()
+        .values()
+        .filter(|p| p.layer() == Layer::BOARD_OUTLINES && !p.path().vertices().is_empty())
+        .map(|p| p.path().clone())
+        .collect();
+    for device in board.devices().values() {
+        let Some(footprint) = lib_footprint(project, device) else {
+            continue;
         };
-        let settings = board.settings();
-        Ok(json!({
-            "uuid": board.uuid().to_string(), "name": board.name().as_str(), "directory": board.directory_name(),
-            "inner_layers": settings.inner_layer_count, "pcb_thickness": length_json(*settings.pcb_thickness),
-            "solder_resist": color_json(settings.solder_resist), "silkscreen_top": color_json(settings.silkscreen_color_top()),
-            "silkscreen_bottom": color_json(settings.silkscreen_color_bot()), "bounding_box": bounding_box,
-            "vias_tht": tht.json(), "vias_blind": blind.json(), "vias_buried": buried.json(),
-            "pth_drills": pth_drills.json(), "pth_slots": pth_slots.json(),
-            "npth_drills": npth_drills.json(), "npth_slots": npth_slots.json(),
-            "plated_cutouts": plated_cutouts, "min_copper_width": copper_widths.first().copied().map(length_json),
-        }))
-    }
-
-    /// Serializes the versioned document as UTF-8, with a final newline.
-    pub fn to_utf8(project: &Project) -> Result<Vec<u8>> {
-        let document = json!({"format": {"major": 1, "minor": 0, "type": "librepcb-project"}, "project": Self::project(project)?});
-        let mut output = Vec::new();
-        write_json(&document, 0, &mut output)?;
-        output.push(b'\n');
-        Ok(output)
-    }
-}
-
-fn add_pad_holes<'a>(
-    holes: impl IntoIterator<Item = &'a PadHole>,
-    drills: &mut Tools,
-    slots: &mut Tools,
-) {
-    for hole in holes {
-        if hole.is_slot() {
-            slots.add(hole.diameter());
-        } else {
-            drills.add(hole.diameter());
+        let transform = device.transform();
+        for polygon in footprint.polygons().iter() {
+            if polygon.layer() == Layer::BOARD_OUTLINES && !polygon.path().vertices().is_empty() {
+                outlines.push(transform.map(polygon.path()));
+            }
+        }
+        for circle in footprint.circles().iter() {
+            if circle.layer() == Layer::BOARD_OUTLINES {
+                outlines.push(
+                    transform.map(&Path::circle(circle.diameter()).translated(circle.center())),
+                );
+            }
         }
     }
-}
-fn color_json(color: Option<PcbColor>) -> &'static str {
-    color.map_or("none", PcbColor::id)
-}
-fn length_json(length: Length) -> Value {
-    mm_json(length.to_mm())
-}
-fn mm_json(value: f64) -> Value {
-    // Lengths come from finite i64/i128 nanometers; all integral millimeter
-    // values here fit i64 and QJsonValue stores them as integers too.
-    if value.fract() == 0.0 {
-        json!(value as i64)
-    } else {
-        json!(value)
+    if outlines.is_empty() {
+        return BoundingBox(None);
     }
+    let rect = painter_path::bounding_rect_px(&outlines);
+    // The rectangle is built from coordinates of valid points, so the
+    // conversion back cannot overflow.
+    let bottom_left = Point::from_px(rect.left(), rect.bottom()).unwrap_or_default();
+    let top_right = Point::from_px(rect.right(), rect.top()).unwrap_or_default();
+    BoundingBox(Some((bottom_left, top_right)))
 }
 
-fn write_json(value: &Value, depth: usize, output: &mut Vec<u8>) -> Result<()> {
-    let indent = |output: &mut Vec<u8>, depth| output.extend(std::iter::repeat_n(b' ', depth * 4));
+/// Returns the library footprint of a device.
+fn lib_footprint<'a>(project: &'a Project, device: &BoardDevice) -> Option<&'a Footprint> {
+    let lib_device = project.library.device(&device.lib_device())?;
+    let package = project.library.package(&lib_device.package_uuid())?;
+    package.footprints().by_uuid(&device.lib_footprint())
+}
+
+// --- Qt compatible JSON formatting ---
+
+fn f64_to_json(value: f64) -> Value {
+    // Lengths in millimeters are always finite.
+    serde_json::Number::from_f64(value).map_or(Value::Null, Value::Number)
+}
+
+fn write_value(out: &mut String, value: &Value, indent: usize) {
     match value {
-        Value::Array(values) => {
-            output.extend_from_slice(b"[\n");
-            for (i, value) in values.iter().enumerate() {
-                indent(output, depth + 1);
-                write_json(value, depth + 1, output)?;
-                if i + 1 < values.len() {
-                    output.push(b',');
-                }
-                output.push(b'\n');
+        Value::Null => out.push_str("null"),
+        Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                let _ = write!(out, "{i}");
+            } else if let Some(u) = n.as_u64() {
+                let _ = write!(out, "{u}");
+            } else {
+                out.push_str(&format_double(n.as_f64().unwrap_or_default()));
             }
-            indent(output, depth);
-            output.push(b']');
         }
-        Value::Object(values) => {
-            output.extend_from_slice(b"{\n");
-            // Remain deterministic even if a downstream crate enables
-            // serde_json's preserve_order feature through feature unification.
-            let mut entries: Vec<_> = values.iter().collect();
-            entries.sort_unstable_by_key(|(key, _)| *key);
-            for (i, (key, value)) in entries.into_iter().enumerate() {
-                indent(output, depth + 1);
-                serde_json::to_writer(&mut *output, key)?;
-                output.extend_from_slice(b": ");
-                write_json(value, depth + 1, output)?;
-                if i + 1 < values.len() {
-                    output.push(b',');
-                }
-                output.push(b'\n');
+        Value::String(s) => write_string(out, s),
+        Value::Array(items) => {
+            out.push_str("[\n");
+            for (i, item) in items.iter().enumerate() {
+                push_indent(out, indent + 1);
+                write_value(out, item, indent + 1);
+                out.push_str(if i + 1 < items.len() { ",\n" } else { "\n" });
             }
-            indent(output, depth);
-            output.push(b'}');
+            push_indent(out, indent);
+            out.push(']');
         }
-        Value::Number(number) if number.is_f64() => output
-            .extend_from_slice(shortest_number(number.as_f64().unwrap_or_default()).as_bytes()),
-        _ => serde_json::to_writer(output, value)?,
+        Value::Object(map) => {
+            out.push_str("{\n");
+            write_object_content(out, map, indent + 1);
+            push_indent(out, indent);
+            out.push('}');
+        }
     }
-    Ok(())
 }
 
-/// Preserve the upstream file's choice between decimal and exponent form.
-/// Rust supplies shortest-round-trip digits; this rule changes only their
-/// notation. Exponents always include a sign and at least two digits.
-fn shortest_number(value: f64) -> String {
-    if value == 0.0 {
-        return "0".into();
+fn write_object_content(out: &mut String, map: &Map<String, Value>, indent: usize) {
+    // `QJsonObject` is sorted by key (`serde_json::Map` might preserve the
+    // insertion order if its `preserve_order` feature is enabled).
+    let mut entries: Vec<_> = map.iter().collect();
+    entries.sort_by(|a, b| a.0.cmp(b.0));
+    for (i, (key, value)) in entries.iter().enumerate() {
+        push_indent(out, indent);
+        write_string(out, key);
+        out.push_str(": ");
+        write_value(out, value, indent);
+        out.push_str(if i + 1 < entries.len() { ",\n" } else { "\n" });
     }
-    let text = value.abs().to_string();
-    let (mantissa, exponent) = text
-        .split_once(['e', 'E'])
-        .map_or((text.as_str(), 0), |(m, e)| {
-            (m, e.parse::<i32>().unwrap_or_default())
-        });
-    let mut point = mantissa.find('.').unwrap_or(mantissa.len()) as i32 + exponent;
+}
+
+fn push_indent(out: &mut String, indent: usize) {
+    out.extend(std::iter::repeat_n(' ', 4 * indent));
+}
+
+/// Writes a JSON string like Qt: `"` and `\` escaped, control characters
+/// as `\b`, `\f`, `\n`, `\r`, `\t` or `\u00xx`, everything else verbatim
+/// (same as `serde_json`).
+fn write_string(out: &mut String, s: &str) {
+    // Serializing a string cannot fail.
+    out.push_str(&serde_json::to_string(s).unwrap_or_default());
+}
+
+/// Formats a finite double like `QByteArray::number(d, 'g',
+/// QLocale::FloatingPointShortest)` (Qt 6 `qdtoAscii()`).
+fn format_double(d: f64) -> String {
+    if !d.is_finite() {
+        return "null".to_owned();
+    }
+    if d == 0.0 {
+        return "0".to_owned(); // Qt never returns "-0".
+    }
+    // Shortest round-trip digits and exponent, e.g. "1.25e-3".
+    let sci = format!("{:e}", d.abs());
+    let (mantissa, exponent) = sci.split_once('e').unwrap_or((&sci, "0"));
     let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
-    let leading = digits.len() - digits.trim_start_matches('0').len();
-    point -= leading as i32;
-    let digits = digits[leading..].trim_end_matches('0');
+    let decpt = exponent.parse::<i32>().unwrap_or(0) + 1;
     let length = digits.len() as i32;
-    let bias = 4 + i32::from(length <= point && length > 1) - i32::from(length == 1 && point <= 0);
-    let decimal = if point <= 0 {
-        1 - point <= bias
-    } else {
-        point <= length + bias
-    };
-    let mut output = if value < 0.0 {
-        "-".to_owned()
-    } else {
-        String::new()
-    };
-    if decimal {
-        if point <= 0 {
-            output.push_str("0.");
-            output.extend(std::iter::repeat_n('0', (-point) as usize));
-            output.push_str(digits);
-        } else if point >= length {
-            output.push_str(digits);
-            output.extend(std::iter::repeat_n('0', (point - length) as usize));
-        } else {
-            output.push_str(&digits[..point as usize]);
-            output.push('.');
-            output.push_str(&digits[point as usize..]);
-        }
-    } else {
-        output.push_str(&digits[..1]);
-        if length > 1 {
-            output.push('.');
-            output.push_str(&digits[1..]);
-        }
-        output.push('e');
-        let exponent = point - 1;
-        output.push(if exponent < 0 { '-' } else { '+' });
-        output.push_str(&format!("{:02}", exponent.abs()));
+
+    // Qt's `resolveFormat()`: use the shorter representation.
+    let mut bias = 2 + 2;
+    if length <= decpt && length > 1 {
+        bias += 1;
+    } else if length == 1 && decpt <= 0 {
+        bias -= 1;
     }
-    output
+    let use_decimal = if decpt <= 0 {
+        1 - decpt <= bias
+    } else if decpt <= length {
+        true
+    } else {
+        decpt <= length + bias
+    };
+
+    let mut result = String::new();
+    if d < 0.0 {
+        result.push('-');
+    }
+    if use_decimal {
+        if decpt <= 0 {
+            result.push_str("0.");
+            result.extend(std::iter::repeat_n('0', (-decpt) as usize));
+            result.push_str(&digits);
+        } else if decpt >= length {
+            result.push_str(&digits);
+            result.extend(std::iter::repeat_n('0', (decpt - length) as usize));
+        } else {
+            let (int, frac) = digits.split_at(decpt as usize);
+            result.push_str(int);
+            result.push('.');
+            result.push_str(frac);
+        }
+    } else {
+        let (first, rest) = digits.split_at(1);
+        result.push_str(first);
+        if !rest.is_empty() {
+            result.push('.');
+            result.push_str(rest);
+        }
+        let exp = decpt - 1;
+        let _ = write!(
+            result,
+            "e{}{:02}",
+            if exp < 0 { '-' } else { '+' },
+            exp.abs()
+        );
+    }
+    result
 }
 
 #[cfg(test)]
@@ -282,35 +451,42 @@ mod tests {
     use super::*;
 
     #[test]
-    fn upstream_shortest_number_notation() {
-        for (value, expected) in [
+    fn format_double_like_qt() {
+        let cases = [
             (0.0, "0"),
             (-0.0, "0"),
-            (0.000001, "1e-06"),
-            (0.00001, "1e-05"),
-            (0.0001, "1e-04"),
+            (1.0, "1"),
+            (1.5, "1.5"),
+            (-5.5, "-5.5"),
+            (0.1, "0.1"),
+            (0.3, "0.3"),
+            (100.0, "100"),
+            (1234.5678, "1234.5678"),
             (0.001, "0.001"),
-            (0.00012, "0.00012"),
-            (-0.000001, "-1e-06"),
-            (1234.5, "1234.5"),
-            (1.6, "1.6"),
-            (10_000.0, "10000"),
-            (100_000.0, "1e+05"),
-            (1_234_500_000.0, "1234500000"),
-            (12_345_000_000.0, "1.2345e+10"),
-        ] {
-            assert_eq!(shortest_number(value), expected, "{value}");
+            (0.0001, "1e-04"),
+            (0.00001, "1e-05"),
+            (0.000001, "1e-06"),
+            (0.0000015, "1.5e-06"),
+            (0.00015, "0.00015"),
+            (10000.0, "10000"),
+            (100000.0, "1e+05"),
+            (1000000.0, "1e+06"),
+            (1200000.0, "1200000"),
+            (12000000.0, "1.2e+07"),
+            (0.2 + 0.1, "0.30000000000000004"),
+        ];
+        for (value, expected) in cases {
+            assert_eq!(format_double(value), expected, "{value}");
         }
     }
 
     #[test]
-    fn escaping_empty_containers_and_number_formatting() {
-        let value = json!({"a": [], "b": {}, "c": "\"\\\n\u{0001}Ж", "d": 0.000001});
-        let mut bytes = Vec::new();
-        write_json(&value, 0, &mut bytes).unwrap();
+    fn indented_json_like_qt() {
+        let value = json!({"b": [], "a": {"x": 1, "y": [0.5, "s\"\n"]}, "c": {}});
         assert_eq!(
-            String::from_utf8(bytes).unwrap(),
-            "{\n    \"a\": [\n    ],\n    \"b\": {\n    },\n    \"c\": \"\\\"\\\\\\n\\u0001Ж\",\n    \"d\": 1e-06\n}"
+            to_indented_json(&value),
+            "{\n    \"a\": {\n        \"x\": 1,\n        \"y\": [\n            0.5,\n            \
+             \"s\\\"\\n\"\n        ]\n    },\n    \"b\": [\n    ],\n    \"c\": {\n    }\n}\n"
         );
     }
 }

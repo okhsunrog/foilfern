@@ -1,5 +1,8 @@
 //! Port of tests/unittests/core/types/pointtest.cpp.
 
+// The comparison tests negate operators on purpose (`!(a < b)`), as upstream.
+#![allow(clippy::nonminimal_bool)]
+
 use librepcb_core::types::{Angle, Length, Point, UnsignedLength};
 
 fn p(x: i64, y: i64) -> Point {

@@ -87,7 +87,7 @@ impl AsyncCopyOperation {
         if let Err(e) = &result {
             on_progress(CopyProgress::Status(format!(
                 "{} {e}",
-                tr!("AsyncCopyOperation", "Failed to copy files:")
+                tr!("librepcb::AsyncCopyOperation", "Failed to copy files:")
             )));
         }
         result
@@ -116,7 +116,7 @@ impl AsyncCopyOperation {
 
         // First copy to a temporary directory and rename it afterwards.
         on_progress(status(tr!(
-            "AsyncCopyOperation",
+            "librepcb::AsyncCopyOperation",
             "Removing temporary directory..."
         )));
         let tmp_dst = FilePath::new(format!("{}~", self.destination))
@@ -125,7 +125,7 @@ impl AsyncCopyOperation {
         file_utils::make_path(&tmp_dst)?;
 
         on_progress(status(tr!(
-            "AsyncCopyOperation",
+            "librepcb::AsyncCopyOperation",
             "Looking for files to copy..."
         )));
         let files = file_utils::files_in_directory(&self.source, &[], true, false)?;
@@ -139,7 +139,7 @@ impl AsyncCopyOperation {
                 let dst = tmp_dst.path_to(&src.to_relative(&self.source));
                 if i % (count / 100 + 1) == 0 {
                     on_progress(status(tr!(
-                        "AsyncCopyOperation",
+                        "librepcb::AsyncCopyOperation",
                         "Copy file {0} of {1}...",
                         i + 1,
                         count
@@ -155,13 +155,16 @@ impl AsyncCopyOperation {
             }
 
             on_progress(status(tr!(
-                "AsyncCopyOperation",
+                "librepcb::AsyncCopyOperation",
                 "Renaming temporary directory..."
             )));
             on_progress(CopyProgress::Percent(98));
             file_utils::move_path(&tmp_dst, &self.destination)?;
 
-            on_progress(status(tr!("AsyncCopyOperation", "Successfully finished!")));
+            on_progress(status(tr!(
+                "librepcb::AsyncCopyOperation",
+                "Successfully finished!"
+            )));
             on_progress(CopyProgress::Percent(100));
             Ok(())
         })();

@@ -13,9 +13,11 @@
 //!   (board data); [`SymbolPinView::numbers_text()`] takes them as argument.
 //!   The truncation uses the length of the text built so far (upstream
 //!   accidentally uses the previously cached text, see `COMPAT.md`).
-//! - Not ported: the attribute substitution of texts (`SI_Text::updateText()`,
-//!   needs `ProjectAttributeLookup`) and the forced net name / `hasError()`
-//!   of pins; the `attributesChanged` signals.
+//! - The attribute substitution of texts (`SI_Text::updateText()`) is done
+//!   by the renderer with
+//!   [`ProjectAttributeLookup::for_symbol()`](crate::project::ProjectAttributeLookup::for_symbol).
+//!   Not ported: the forced net name / `hasError()` of pins; the
+//!   `attributesChanged` signals.
 
 use std::collections::{BTreeMap, BTreeSet};
 

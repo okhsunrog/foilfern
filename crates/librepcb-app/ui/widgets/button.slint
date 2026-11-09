@@ -1,0 +1,147 @@
+import { Data } from "../api.slint";
+
+export component Button inherits Rectangle {
+    in property <string> text;
+    in property <string> status-tip;
+    in property <image> icon;
+    in property <bool> enabled: true;
+    in property <bool> primary: false;
+    out property has-focus <=> fs.has-focus;
+    out property has-hover <=> ta.has-hover;
+    out property pressed <=> ta.pressed;
+    property <color> text-color: {
+        if !enabled {
+            Data.theme.control-text-disabled
+        } else if primary {
+            Data.theme.accent-text
+        } else {
+            Data.theme.control-text
+        }
+    };
+
+    callback clicked;
+
+    height: 25px;
+    min-width: fs.min-width;
+    background: {
+        if !enabled {
+            Data.theme.control-disabled
+        } else if primary {
+            if ta.pressed {
+                Data.theme.accent.mix(Data.theme.accent-text, 0.8)
+            } else if ta.has-hover {
+                Data.theme.accent.mix(Data.theme.accent-text, 0.9)
+            } else {
+                Data.theme.accent
+            }
+        } else if ta.pressed {
+            Data.theme.control-checked
+        } else if ta.has-hover {
+            Data.theme.control-hovered
+        } else {
+            Data.theme.control
+        }
+    };
+    border-color: {
+        if !enabled {
+            Data.theme.control-border-disabled
+        } else if has-focus {
+            Data.theme.accent
+        } else {
+            Data.theme.control-border
+        }
+    };
+    // We used 0px for enabled, primary buttons before, but it doesn't look
+    // good on special backgrounds (e.g. error or warning messages).
+    border-width: 1px;
+    forward-focus: fs;
+
+    // Accessibility
+    accessible-role: button;
+    accessible-description: status-tip;
+    accessible-enabled: enabled;
+    accessible-label: text;
+    accessible-action-default => {
+        ta.clicked();
+    }
+
+    // Focus rectangle for primary button.
+    if enabled && primary && has-focus: Rectangle {
+        width: parent.width - 4px;
+        height: parent.height - 4px;
+        background: Data.theme.accent-text;
+
+        Rectangle {
+            width: parent.width - 2px;
+            height: parent.height - 2px;
+            background: Data.theme.accent;
+        }
+    }
+
+    fs := FocusScope {
+        enabled: enabled;
+
+        ta := TouchArea {
+            enabled: enabled;
+
+            HorizontalLayout {
+                padding-top: 2px;
+                padding-bottom: 2px;
+                padding-left: 10px;
+                padding-right: self.padding-left;
+                spacing: 7px;
+                alignment: center;
+
+                if icon.width > 0: Rectangle {
+                    width: 17px;
+
+                    Image {
+                        width: 100%;
+                        height: self.width;
+                        image-fit: contain;
+                        colorize: text-color;
+                        source: icon;
+                        accessible-role: none;
+                    }
+                }
+
+                text-txt := Text {
+                    font-size: 13px;
+                    vertical-alignment: center;
+                    color: text-color;
+                    text: text;
+                    accessible-role: none;
+                    overflow: elide;
+                }
+            }
+
+            changed has-hover => {
+                if !root.status-tip.is-empty {
+                    if self.has-hover {
+                        Data.status-tip = root.status-tip;
+                    } else {
+                        Data.status-tip = "";
+                    }
+                }
+            }
+
+            clicked => {
+                // The click may destroy this element without calling the
+                // has-hover handler anymore, so we clear the status tip
+                // manually to be on the safe side.
+                if !root.status-tip.is-empty {
+                    Data.status-tip = "";
+                }
+                root.clicked();
+            }
+        }
+
+        key-pressed(event) => {
+            if (event.text == Key.Return) || (event.text == Key.Space) {
+                root.clicked();
+                return accept;
+            }
+            reject
+        }
+    }
+}

@@ -1,0 +1,149 @@
+import { Badge } from "badge.slint";
+import { ScrollView } from "scrollview.slint";
+import { TextInput } from "textinput.slint";
+import { Data } from "../api.slint";
+
+export component TextEdit inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder-text;
+    in property <string> validation-error: validate(edt.text);
+    in property <bool> has-error: !validation-error.is-empty;
+    in property <bool> enabled: true;
+    in property <bool> read-only: false;
+    in property <length> font-size: 13px;
+    out property <bool> has-focus <=> edt.has-focus;
+    property <bool> show-error-badge: enabled && (!read-only) && has-error && (!validation-error.is-empty);
+
+    pure callback validate(string) -> string;
+
+    callback text-edited(string);
+    text-edited(text) => {
+        self.text = text;
+    }
+
+    callback text-accepted(string);
+
+    callback key-pressed(KeyEvent) -> EventResult;
+
+    public function select-all() {
+        edt.select-all();
+    }
+
+    changed text => {
+        if text != edt.text {
+            edt.text = text;
+        }
+    }
+
+    changed has-focus => {
+        if !has-focus {
+            text-accepted(edt.text);
+            edt.text = self.text;
+        }
+    }
+
+    min-height: 25px;
+    preferred-width: max(placeholder-txt.preferred-width, edt.preferred-width) + (2 * view.x);
+    preferred-height: max(placeholder-txt.preferred-height, edt.preferred-height) + (2 * view.y);
+    horizontal-stretch: 1;
+    background: {
+        if !enabled {
+            Data.theme.control-disabled
+        } else {
+            Data.theme.control
+        }
+    };
+    border-color: {
+        if (!enabled) || read-only {
+            Data.theme.control-border-disabled
+        } else if edt.has-focus {
+            if has-error {
+                Data.theme.base-text-error
+            } else {
+                Data.theme.accent
+            }
+        } else if has-error {
+            Data.theme.control-border.mix(Data.theme.base-text-error, 0.7)
+        } else {
+            Data.theme.control-border
+        }
+    };
+    border-width: 1px;
+    forward-focus: edt;
+
+    // Accessibility
+    accessible-role: text-input;
+    accessible-enabled: enabled;
+    accessible-value: edt.text;
+    accessible-placeholder-text: placeholder-text;
+    accessible-read-only: read-only;
+    accessible-action-set-value(t) => {
+        text-edited(t)
+    }
+
+    placeholder-txt := Text {
+        x: 5px;
+        y: 5px;
+        width: root.width - (2 * self.x);
+        height: parent.height - (2 * self.y);
+        font-size: font-size;
+        font-italic: true;
+        color: enabled ? Data.theme.control-text-muted : Data.theme.control-text-disabled;
+        text: placeholder-text;
+        wrap: word-wrap;
+        overflow: elide;
+        visible: edt.text.is-empty && (!placeholder-text.is-empty);
+        accessible-role: none;
+    }
+
+    view := ScrollView {
+        x: placeholder-txt.x;
+        y: placeholder-txt.y;
+        width: parent.width - (2 * self.x);
+        height: parent.height - (2 * self.y);
+        content-width: self.width;
+        content-height: edt.preferred-height;
+        thin-scrollbars: true;
+
+        edt := TextInput {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            height: max(self.preferred-height, parent.height);
+            font-size: font-size;
+            enabled: enabled;
+            read-only: read-only;
+            single-line: false;
+            wrap: word-wrap;
+            text: text;
+            accessible-role: none;
+
+            cursor-position-changed(position) => {
+                if position.y < -view.content-y {
+                    view.content-y = -position.y;
+                } else if (position.y + self.font-metrics.ascent - self.font-metrics.descent) > (view.height - view.content-y) {
+                    view.content-y = view.height - (position.y + self.font-metrics.ascent - self.font-metrics.descent);
+                }
+            }
+
+            edited => {
+                text-edited(self.text);
+            }
+
+            key-pressed(event) => {
+                root.key-pressed(event)
+            }
+        }
+    }
+
+    if show-error-badge: validation-error-badge := Badge {
+        x: root.width - self.width - 20px;
+        y: -8px;
+        width: min(self.preferred-width, root.width * 0.8);
+        background: parent.background;
+        text-color: root.border-color;
+        font-size: 10px;
+        text: validation-error;
+        description: "validation error";  // Accessibility
+    }
+}

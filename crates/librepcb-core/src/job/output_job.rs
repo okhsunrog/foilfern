@@ -1,536 +1,442 @@
-//! Port of libs/librepcb/core/job/{outputjob,unknownoutputjob,
-//! gerberexcellonoutputjob,gerberx3outputjob,pickplaceoutputjob,bomoutputjob,
-//! netlistoutputjob,projectjsonoutputjob,lppzoutputjob,copyoutputjob,
-//! archiveoutputjob,board3doutputjob,interactivehtmlbomoutputjob}.{h,cpp}.
+//! Port of libs/librepcb/core/job/outputjob.{h,cpp}.
+//!
+//! Differences to upstream:
+//! - The class hierarchy (`OutputJob` base class with one subclass per job
+//!   type) is replaced by the struct [`OutputJob`] with the common data
+//!   (UUID, name, forward compatibility options) and the enum
+//!   [`OutputJobKind`] holding the type specific settings, so a job runner
+//!   can `match` on the kind. The `deserialize<std::shared_ptr<OutputJob>>()`
+//!   factory is [`OutputJob::deserialize()`].
+//! - `ObjectSet<T>` (the all/default/custom flags) is the enum
+//!   [`ObjectSet`].
+//! - Signals (`onEdited`) are not ported; setters return whether the value
+//!   changed. Icons (`getTypeIcon()`) are not ported (UI).
+//! - Unlike upstream's copy constructor, `Clone` also copies the forward
+//!   compatibility options (see COMPAT.md).
 
-use super::{GraphicsJob, ObjectSet};
-use crate::project::board::BoardFabricationOutputSettings;
-use crate::serialization::{
-    self, DeserializeObject, HasName, HasUuid, List, ListTagName, SExpression,
-    SerializableObjectList, SerializeObject,
-};
-use crate::types::{Angle, ElementName, Uuid};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// Optional output file.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct EnabledOutput {
-    pub create: bool,
-    pub output: String,
+use super::{
+    ArchiveOutputJob, Board3DOutputJob, BomOutputJob, CopyOutputJob, GerberExcellonOutputJob,
+    GerberX3OutputJob, GraphicsOutputJob, InteractiveHtmlBomOutputJob, LppzOutputJob,
+    NetlistOutputJob, PickPlaceOutputJob, ProjectJsonOutputJob, UnknownOutputJob,
+};
+use crate::geometry::object_list;
+use crate::serialization::{
+    self, DeserializeObject, FromSExpression, List, SExpression, SerializeObject, ToSExpression,
+};
+use crate::types::{ElementName, Uuid};
+
+/// A set of objects (boards, assembly variants) an output job is run for
+/// (upstream `OutputJob::ObjectSet<T>`).
+///
+/// Serialized as one `(<key> all)`, one `(<key> default)` or one
+/// `(<key> <value>)` per custom value (sorted).
+///
+/// Serde: externally tagged (`"All"`, `"Default"`, `{"Custom": [...]}`).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum ObjectSet<T: Ord> {
+    /// All objects.
+    All,
+    /// The default object (e.g. the primary board).
+    Default,
+    /// A custom set of objects (`None` elements mean "no object", e.g.
+    /// "no assembly variant").
+    Custom(BTreeSet<T>),
 }
-impl DeserializeObject for EnabledOutput {
-    fn deserialize(n: &SExpression) -> serialization::Result<Self> {
-        Ok(Self {
-            create: n.child_value("create/@0")?,
-            output: n.child_value("output/@0")?,
-        })
+
+impl<T: Ord> ObjectSet<T> {
+    /// Creates a custom set (upstream `ObjectSet::set()`).
+    pub fn custom(values: impl IntoIterator<Item = T>) -> Self {
+        Self::Custom(values.into_iter().collect())
     }
-}
-impl SerializeObject for EnabledOutput {
-    fn serialize(&self, r: &mut List) {
-        r.append_child("create", &self.create);
-        r.append_child("output", &self.output);
+
+    /// Returns whether all objects are selected.
+    pub fn is_all(&self) -> bool {
+        matches!(self, Self::All)
     }
-}
-/// Pick and place CSV configuration.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct PickPlaceJob {
-    pub boards: ObjectSet<Uuid>,
-    pub variants: ObjectSet<Uuid>,
-    pub comment: bool,
-    pub tht: bool,
-    pub smt: bool,
-    pub mixed: bool,
-    pub fiducial: bool,
-    pub other: bool,
-    pub top: EnabledOutput,
-    pub bottom: EnabledOutput,
-    pub both: EnabledOutput,
-}
-/// Gerber X3 components and glue configuration.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct GerberX3Job {
-    pub boards: ObjectSet<Uuid>,
-    pub variants: ObjectSet<Uuid>,
-    pub components_top: EnabledOutput,
-    pub components_bottom: EnabledOutput,
-    pub glue_top: EnabledOutput,
-    pub glue_bottom: EnabledOutput,
-}
-/// Standalone interactive HTML assembly BOM configuration.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct InteractiveBomJob {
-    pub view_mode: BomViewMode,
-    pub highlight_pin1: HighlightPin1,
-    pub dark_mode: bool,
-    pub rotation: Angle,
-    pub offset_back_rotation: bool,
-    pub show_silkscreen: bool,
-    pub show_fabrication: bool,
-    pub show_pads: bool,
-    pub show_tracks: bool,
-    pub show_zones: bool,
-    pub checkboxes: Vec<String>,
-    pub component_order: Vec<String>,
-    pub custom_attributes: Vec<String>,
-    pub boards: ObjectSet<Uuid>,
-    pub variants: ObjectSet<Uuid>,
-    pub output: String,
-}
-macro_rules! token_enum {
-    ($name:ident {$($v:ident => $s:literal),+ $(,)?}) => {
-        #[derive(Debug,Clone,Copy,PartialEq,Eq,serde::Serialize,serde::Deserialize)]
-        pub enum $name {$($v),+}
-        impl crate::serialization::ToSExpression for $name {
-            fn to_sexpression(&self)->SExpression {SExpression::token(match self {$(Self::$v=>$s),+})}
+
+    /// Returns whether only the default object is selected.
+    pub fn is_default(&self) -> bool {
+        matches!(self, Self::Default)
+    }
+
+    /// Returns whether a custom set is selected.
+    pub fn is_custom(&self) -> bool {
+        matches!(self, Self::Custom(_))
+    }
+
+    /// Returns the custom set (upstream `getSet()`), `None` for
+    /// [`All`](Self::All) and [`Default`](Self::Default).
+    pub fn custom_set(&self) -> Option<&BTreeSet<T>> {
+        match self {
+            Self::Custom(set) => Some(set),
+            _ => None,
         }
-        impl crate::serialization::FromSExpression for $name {
-            fn from_sexpression(n:&SExpression)->serialization::Result<Self> {Ok(match n.value()? {$($s=>Self::$v),+, s=>return Err(serialization::Error::InvalidToken(s.into()))})}
+    }
+}
+
+impl<T: Ord + FromSExpression> ObjectSet<T> {
+    /// Loads the set from the `key` children of `node` (upstream
+    /// constructor `ObjectSet(node, childName)`).
+    pub fn deserialize(node: &SExpression, key: &str) -> serialization::Result<Self> {
+        match node.child(&format!("{key}/@0")).map(SExpression::value) {
+            Some(Ok("all")) => Ok(Self::All),
+            Some(Ok("default")) => Ok(Self::Default),
+            _ => Ok(Self::Custom(
+                node.children_named(key)
+                    .map(|child| child.child_value("@0"))
+                    .collect::<serialization::Result<_>>()?,
+            )),
+        }
+    }
+}
+
+impl<T: Ord + ToSExpression> ObjectSet<T> {
+    /// Appends the set as `key` children to `root` (upstream `serialize()`).
+    pub fn serialize(&self, root: &mut List, key: &str) {
+        match self {
+            Self::All => {
+                root.ensure_line_break();
+                root.append_child(key, &SExpression::token("all"));
+            }
+            Self::Default => {
+                root.ensure_line_break();
+                root.append_child(key, &SExpression::token("default"));
+            }
+            Self::Custom(set) => {
+                for value in set {
+                    root.ensure_line_break();
+                    root.append_child(key, value);
+                }
+            }
+        }
+        root.ensure_line_break();
+    }
+}
+
+/// Common interface of the type specific settings of output jobs (the
+/// upstream `OutputJob` subclasses).
+pub trait OutputJobType: Clone + Into<OutputJobKind> + SerializeObject + DeserializeObject {
+    /// The type name in files, e.g. `"gerber_excellon"` (upstream
+    /// `getTypeName()`).
+    const TYPE_NAME: &'static str;
+
+    /// Returns the translated type name for the UI (upstream
+    /// `getTypeTrStatic()`).
+    fn type_tr() -> String;
+
+    /// Returns the (translated) name of new jobs of this type.
+    fn default_name() -> ElementName;
+}
+
+/// The type specific part of an [`OutputJob`].
+///
+/// Serde: externally tagged enum.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
+// Jobs are few and not moved around in hot paths; boxing the larger
+// variants would only complicate matching on them.
+#[allow(clippy::large_enum_variant)]
+pub enum OutputJobKind {
+    /// PDF/SVG/image export of schematics and boards.
+    Graphics(GraphicsOutputJob),
+    /// Gerber/Excellon fabrication data.
+    GerberExcellon(GerberExcellonOutputJob),
+    /// Pick&place CSV files.
+    PickPlace(PickPlaceOutputJob),
+    /// Pick&place and glue mask Gerber X3 files.
+    GerberX3(GerberX3OutputJob),
+    /// IPC-D-356A netlist.
+    Netlist(NetlistOutputJob),
+    /// Bill of materials CSV.
+    Bom(BomOutputJob),
+    /// Interactive HTML bill of materials.
+    InteractiveHtmlBom(InteractiveHtmlBomOutputJob),
+    /// 3D model (STEP) of boards.
+    Board3D(Board3DOutputJob),
+    /// Project data as JSON.
+    ProjectJson(ProjectJsonOutputJob),
+    /// Project archive (`*.lppz`).
+    Lppz(LppzOutputJob),
+    /// Copy of a (template) file.
+    Copy(CopyOutputJob),
+    /// ZIP archive of the output of other jobs.
+    Archive(ArchiveOutputJob),
+    /// A job of a type unknown to this version (kept verbatim).
+    Unknown(UnknownOutputJob),
+}
+
+/// Calls `$f` with the type specific settings as `$job` and its type as
+/// `$ty`, for each known kind; `$unknown` handles unknown jobs.
+macro_rules! dispatch {
+    ($kind:expr, $job:ident => $f:expr, $unknown:ident => $u:expr) => {
+        match $kind {
+            OutputJobKind::Graphics($job) => $f,
+            OutputJobKind::GerberExcellon($job) => $f,
+            OutputJobKind::PickPlace($job) => $f,
+            OutputJobKind::GerberX3($job) => $f,
+            OutputJobKind::Netlist($job) => $f,
+            OutputJobKind::Bom($job) => $f,
+            OutputJobKind::InteractiveHtmlBom($job) => $f,
+            OutputJobKind::Board3D($job) => $f,
+            OutputJobKind::ProjectJson($job) => $f,
+            OutputJobKind::Lppz($job) => $f,
+            OutputJobKind::Copy($job) => $f,
+            OutputJobKind::Archive($job) => $f,
+            OutputJobKind::Unknown($unknown) => $u,
         }
     };
 }
-pub(super) use token_enum;
-token_enum!(BomViewMode {BomOnly=>"bom_only",LeftRight=>"left_right",TopBottom=>"top_bottom"});
-token_enum!(HighlightPin1 {None=>"none",Selected=>"selected",All=>"all"});
-/// Configuration of an output job. UUID/name/options are common to all jobs.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum JobKind {
-    Graphics(GraphicsJob),
-    GerberExcellon {
-        boards: ObjectSet<Uuid>,
-        settings: Box<BoardFabricationOutputSettings>,
-    },
-    PickPlace(PickPlaceJob),
-    GerberX3(GerberX3Job),
-    Netlist {
-        boards: ObjectSet<Uuid>,
-        output: String,
-    },
-    Bom {
-        custom_attributes: Vec<String>,
-        boards: ObjectSet<Option<Uuid>>,
-        variants: ObjectSet<Uuid>,
-        output: String,
-    },
-    InteractiveBom(InteractiveBomJob),
-    Board3d {
-        boards: ObjectSet<Uuid>,
-        variants: ObjectSet<Option<Uuid>>,
-        output: String,
-    },
-    ProjectJson {
-        output: String,
-    },
-    Lppz {
-        output: String,
-    },
-    Copy {
-        substitute_variables: bool,
-        boards: ObjectSet<Option<Uuid>>,
-        variants: ObjectSet<Option<Uuid>>,
-        input: String,
-        output: String,
-    },
-    Archive {
-        inputs: BTreeMap<Uuid, String>,
-        output: String,
-    },
-    /// Original complete node, including common fields, for forward compatibility.
-    Unknown(SExpression),
+
+/// Returns `T::TYPE_NAME` for the type of a value.
+fn type_name_of<T: OutputJobType>(_: &T) -> &'static str {
+    T::TYPE_NAME
 }
-impl JobKind {
+
+/// Returns `T::type_tr()` for the type of a value.
+fn type_tr_of<T: OutputJobType>(_: &T) -> String {
+    T::type_tr()
+}
+
+/// Returns `T::default_name()` for the type of a value.
+fn default_name_of<T: OutputJobType>(_: &T) -> ElementName {
+    T::default_name()
+}
+
+impl OutputJobKind {
+    /// Returns the type name in files (upstream `getType()`), e.g.
+    /// `"graphics"`.
     pub fn type_name(&self) -> &str {
+        dispatch!(self, job => type_name_of(job), unknown => unknown.type_name())
+    }
+
+    /// Returns the translated type name for the UI (upstream
+    /// `getTypeTr()`).
+    pub fn type_tr(&self) -> String {
+        dispatch!(self, job => type_tr_of(job), unknown => unknown.type_tr())
+    }
+
+    /// Returns the (translated) name of new jobs of this kind, `None` for
+    /// unknown jobs.
+    pub fn default_name(&self) -> Option<ElementName> {
+        dispatch!(self, job => Some(default_name_of(job)), _unknown => None)
+    }
+
+    /// Returns the UUIDs of the jobs this job depends on (upstream
+    /// `getDependencies()`).
+    pub fn dependencies(&self) -> BTreeSet<Uuid> {
         match self {
-            Self::Graphics(_) => "graphics",
-            Self::GerberExcellon { .. } => "gerber_excellon",
-            Self::PickPlace(_) => "pnp",
-            Self::GerberX3(_) => "gerber_x3",
-            Self::Netlist { .. } => "netlist",
-            Self::Bom { .. } => "bom",
-            Self::InteractiveBom(_) => "interactive_bom",
-            Self::Board3d { .. } => "3d_model",
-            Self::ProjectJson { .. } => "project_json",
-            Self::Lppz { .. } => "lppz",
-            Self::Copy { .. } => "copy",
-            Self::Archive { .. } => "archive",
-            Self::Unknown(n) => n
-                .child("type/@0")
-                .and_then(|v| v.value().ok())
-                .unwrap_or("unknown"),
+            Self::Archive(job) => job.input_jobs.keys().copied().collect(),
+            _ => BTreeSet::new(),
+        }
+    }
+
+    /// Removes the dependency to the job with the UUID `job` (upstream
+    /// `removeDependency()`), returns whether something changed.
+    pub fn remove_dependency(&mut self, job: &Uuid) -> bool {
+        match self {
+            Self::Archive(archive) => archive.input_jobs.remove(job).is_some(),
+            _ => false,
+        }
+    }
+
+    /// Deserializes the type specific settings of the job `node` of type
+    /// `type_name` (upstream `deserialize<std::shared_ptr<OutputJob>>()`).
+    fn deserialize(type_name: &str, node: &SExpression) -> serialization::Result<Self> {
+        fn load<T: OutputJobType>(node: &SExpression) -> serialization::Result<OutputJobKind> {
+            T::deserialize(node).map(Into::into)
+        }
+        match type_name {
+            GraphicsOutputJob::TYPE_NAME => load::<GraphicsOutputJob>(node),
+            GerberExcellonOutputJob::TYPE_NAME => load::<GerberExcellonOutputJob>(node),
+            PickPlaceOutputJob::TYPE_NAME => load::<PickPlaceOutputJob>(node),
+            GerberX3OutputJob::TYPE_NAME => load::<GerberX3OutputJob>(node),
+            NetlistOutputJob::TYPE_NAME => load::<NetlistOutputJob>(node),
+            BomOutputJob::TYPE_NAME => load::<BomOutputJob>(node),
+            InteractiveHtmlBomOutputJob::TYPE_NAME => load::<InteractiveHtmlBomOutputJob>(node),
+            Board3DOutputJob::TYPE_NAME => load::<Board3DOutputJob>(node),
+            ProjectJsonOutputJob::TYPE_NAME => load::<ProjectJsonOutputJob>(node),
+            LppzOutputJob::TYPE_NAME => load::<LppzOutputJob>(node),
+            CopyOutputJob::TYPE_NAME => load::<CopyOutputJob>(node),
+            ArchiveOutputJob::TYPE_NAME => load::<ArchiveOutputJob>(node),
+            _ => Ok(Self::Unknown(UnknownOutputJob::new(
+                type_name,
+                node.clone(),
+            ))),
         }
     }
 }
-/// Named, UUID-identified output job. Fields are edited on detached values,
-/// then installed with `Mutation::SetOutputJobs` for projects.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+
+macro_rules! impl_from_kind {
+    ($($variant:ident($ty:ident)),* $(,)?) => {
+        $(
+            impl From<$ty> for OutputJobKind {
+                fn from(job: $ty) -> Self {
+                    Self::$variant(job)
+                }
+            }
+        )*
+    };
+}
+
+impl_from_kind!(
+    Graphics(GraphicsOutputJob),
+    GerberExcellon(GerberExcellonOutputJob),
+    PickPlace(PickPlaceOutputJob),
+    GerberX3(GerberX3OutputJob),
+    Netlist(NetlistOutputJob),
+    Bom(BomOutputJob),
+    InteractiveHtmlBom(InteractiveHtmlBomOutputJob),
+    Board3D(Board3DOutputJob),
+    ProjectJson(ProjectJsonOutputJob),
+    Lppz(LppzOutputJob),
+    Copy(CopyOutputJob),
+    Archive(ArchiveOutputJob),
+    Unknown(UnknownOutputJob),
+);
+
+/// An output job of a project (or an organization template): common data
+/// plus the type specific settings ([`OutputJobKind`]).
+///
+/// Serde: an object with the fields `uuid`, `name`, `options` and `kind`.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct OutputJob {
     uuid: Uuid,
     name: ElementName,
-    pub kind: JobKind,
-    pub options: BTreeMap<String, Vec<SExpression>>,
+    /// Arbitrary options for forward compatibility (`option` children, by
+    /// their first value), written back unchanged.
+    options: BTreeMap<String, Vec<SExpression>>,
+    kind: OutputJobKind,
 }
-static_assertions::assert_impl_all!(OutputJob:Send,Sync);
+
+crate::geometry::impl_uuid!(OutputJob);
+
 impl OutputJob {
-    pub fn new(uuid: Uuid, name: ElementName, kind: JobKind) -> Self {
+    /// Creates a job.
+    pub fn new(uuid: Uuid, name: ElementName, kind: impl Into<OutputJobKind>) -> Self {
         Self {
             uuid,
             name,
-            kind,
             options: BTreeMap::new(),
+            kind: kind.into(),
         }
     }
-    pub fn uuid(&self) -> Uuid {
-        self.uuid
+
+    /// Creates a job of type `T` with the upstream default settings, a
+    /// random UUID and the default name (upstream default constructors).
+    pub fn new_default<T: OutputJobType + Default>() -> Self {
+        Self::new(Uuid::new_random(), T::default_name(), T::default())
     }
+
+    /// Returns the name.
     pub fn name(&self) -> &ElementName {
         &self.name
     }
-    pub fn set_uuid(&mut self, uuid: Uuid) {
-        self.uuid = uuid;
-    }
-    pub fn set_name(&mut self, name: ElementName) {
-        self.name = name;
-    }
-    pub fn dependencies(&self) -> BTreeSet<Uuid> {
-        if let JobKind::Archive { inputs, .. } = &self.kind {
-            inputs.keys().copied().collect()
-        } else {
-            BTreeSet::new()
-        }
-    }
-    pub fn remove_dependency(&mut self, uuid: Uuid) {
-        if let JobKind::Archive { inputs, .. } = &mut self.kind {
-            inputs.remove(&uuid);
-        }
-    }
-}
-impl HasUuid for OutputJob {
-    fn uuid(&self) -> Uuid {
-        self.uuid
-    }
-}
-impl HasName for OutputJob {
-    fn name(&self) -> &str {
-        self.name.as_str()
-    }
-}
-pub struct OutputJobTag;
-impl ListTagName for OutputJobTag {
-    const TAG_NAME: &'static str = "job";
-}
-pub type OutputJobList = SerializableObjectList<OutputJob, OutputJobTag>;
 
-pub(super) fn read_options(
-    n: &SExpression,
-) -> serialization::Result<BTreeMap<String, Vec<SExpression>>> {
-    let mut options: BTreeMap<String, Vec<SExpression>> = BTreeMap::new();
-    for c in n.children_named("option") {
-        options
-            .entry(c.child_value("@0")?)
-            .or_default()
-            .push(c.clone());
+    /// Sets the name, returns whether it changed.
+    pub fn set_name(&mut self, name: ElementName) -> bool {
+        if name == self.name {
+            return false;
+        }
+        self.name = name;
+        // upstream: emits onEdited(NameChanged)
+        true
     }
-    Ok(options)
-}
-pub(super) fn write_options(r: &mut List, options: &BTreeMap<String, Vec<SExpression>>) {
-    for n in options.values().flatten() {
-        r.ensure_line_break();
-        r.append_value(n);
+
+    /// Sets the UUID, returns whether it changed.
+    pub fn set_uuid(&mut self, uuid: Uuid) -> bool {
+        if uuid == self.uuid {
+            return false;
+        }
+        self.uuid = uuid;
+        // upstream: emits onEdited(UuidChanged)
+        true
+    }
+
+    /// Returns the forward compatibility options (by option name).
+    pub fn options(&self) -> &BTreeMap<String, Vec<SExpression>> {
+        &self.options
+    }
+
+    /// Returns the type specific settings.
+    pub fn kind(&self) -> &OutputJobKind {
+        &self.kind
+    }
+
+    /// Returns the type specific settings for modification.
+    pub fn kind_mut(&mut self) -> &mut OutputJobKind {
+        &mut self.kind
+    }
+
+    /// Returns the type name in files, e.g. `"graphics"`.
+    pub fn type_name(&self) -> &str {
+        self.kind.type_name()
+    }
+
+    /// Returns the translated type name (upstream `getTypeTr()`).
+    pub fn type_tr(&self) -> String {
+        self.kind.type_tr()
+    }
+
+    /// Returns the UUIDs of the jobs this job depends on.
+    pub fn dependencies(&self) -> BTreeSet<Uuid> {
+        self.kind.dependencies()
+    }
+
+    /// Removes the dependency to the job `job`, returns whether something
+    /// changed.
+    pub fn remove_dependency(&mut self, job: &Uuid) -> bool {
+        self.kind.remove_dependency(job)
     }
 }
-fn strings(n: &SExpression, key: &str) -> serialization::Result<Vec<String>> {
-    n.children_named(key).map(|n| n.child_value("@0")).collect()
-}
-impl DeserializeObject for OutputJob {
-    fn deserialize(n: &SExpression) -> serialization::Result<Self> {
-        let kind = match n.required_child("type/@0")?.value()? {
-            "graphics" => JobKind::Graphics(GraphicsJob::deserialize(n)?),
-            "gerber_excellon" => {
-                // The board format uses the same fields under a different order
-                // and names its output path `base_path` instead of `output`.
-                let mut copy = n.clone();
-                if let Some(r) = copy.as_list_mut() {
-                    r.append_child("base_path", &n.child_value::<String>("output/@0")?);
-                }
-                JobKind::GerberExcellon {
-                    boards: ObjectSet::deserialize(n, "board")?,
-                    settings: Box::new(BoardFabricationOutputSettings::deserialize(&copy)?),
-                }
+
+impl SerializeObject for OutputJob {
+    fn serialize(&self, root: &mut List) {
+        if let OutputJobKind::Unknown(unknown) = &self.kind {
+            // Upstream `UnknownOutputJob::serialize()`: written verbatim.
+            if let Some(node) = unknown.node().as_list() {
+                *root = node.clone();
+                return;
             }
-            "pnp" => JobKind::PickPlace(PickPlaceJob {
-                boards: ObjectSet::deserialize(n, "board")?,
-                variants: ObjectSet::deserialize(n, "variant")?,
-                comment: n.child_value("comment/@0")?,
-                tht: n.child_value("tht/@0")?,
-                smt: n.child_value("smt/@0")?,
-                mixed: n.child_value("mixed/@0")?,
-                fiducial: n.child_value("fiducial/@0")?,
-                other: n.child_value("other/@0")?,
-                top: EnabledOutput::deserialize(n.required_child("top")?)?,
-                bottom: EnabledOutput::deserialize(n.required_child("bottom")?)?,
-                both: EnabledOutput::deserialize(n.required_child("both")?)?,
-            }),
-            "gerber_x3" => JobKind::GerberX3(GerberX3Job {
-                boards: ObjectSet::deserialize(n, "board")?,
-                variants: ObjectSet::deserialize(n, "variant")?,
-                components_top: EnabledOutput::deserialize(n.required_child("components_top")?)?,
-                components_bottom: EnabledOutput::deserialize(n.required_child("components_bot")?)?,
-                glue_top: EnabledOutput::deserialize(n.required_child("glue_top")?)?,
-                glue_bottom: EnabledOutput::deserialize(n.required_child("glue_bot")?)?,
-            }),
-            "netlist" => JobKind::Netlist {
-                boards: ObjectSet::deserialize(n, "board")?,
-                output: n.child_value("output/@0")?,
-            },
-            "bom" => JobKind::Bom {
-                custom_attributes: strings(n, "custom_attribute")?,
-                boards: ObjectSet::deserialize(n, "board")?,
-                variants: ObjectSet::deserialize(n, "variant")?,
-                output: n.child_value("output/@0")?,
-            },
-            "interactive_bom" => JobKind::InteractiveBom(InteractiveBomJob {
-                view_mode: n.child_value("view_mode/@0")?,
-                highlight_pin1: n.child_value("highlight_pin1/@0")?,
-                dark_mode: n.child_value("dark_mode/@0")?,
-                rotation: n.child_value("rotation/@0")?,
-                offset_back_rotation: n.child_value("offset_back_rotation/@0")?,
-                show_silkscreen: n.child_value("show_silkscreen/@0")?,
-                show_fabrication: n.child_value("show_fabrication/@0")?,
-                show_pads: n.child_value("show_pads/@0")?,
-                show_tracks: n.child_value("show_tracks/@0")?,
-                show_zones: n.child_value("show_zones/@0")?,
-                checkboxes: n
-                    .child_value::<String>("checkboxes/@0")?
-                    .split(',')
-                    .map(str::to_owned)
-                    .collect(),
-                component_order: n
-                    .child_value::<String>("component_order/@0")?
-                    .split(',')
-                    .map(str::to_owned)
-                    .collect(),
-                custom_attributes: strings(n, "custom_attribute")?,
-                boards: ObjectSet::deserialize(n, "board")?,
-                variants: ObjectSet::deserialize(n, "variant")?,
-                output: n.child_value("output/@0")?,
-            }),
-            "3d_model" => JobKind::Board3d {
-                boards: ObjectSet::deserialize(n, "board")?,
-                variants: ObjectSet::deserialize(n, "variant")?,
-                output: n.child_value("output/@0")?,
-            },
-            "project_json" => JobKind::ProjectJson {
-                output: n.child_value("output/@0")?,
-            },
-            "lppz" => JobKind::Lppz {
-                output: n.child_value("output/@0")?,
-            },
-            "copy" => JobKind::Copy {
-                substitute_variables: n.child_value("substitute_variables/@0")?,
-                boards: ObjectSet::deserialize(n, "board")?,
-                variants: ObjectSet::deserialize(n, "variant")?,
-                input: n.child_value("input/@0")?,
-                output: n.child_value("output/@0")?,
-            },
-            "archive" => JobKind::Archive {
-                inputs: n
-                    .children_named("input")
-                    .map(|c| Ok((c.child_value("@0")?, c.child_value("destination/@0")?)))
-                    .collect::<serialization::Result<_>>()?,
-                output: n.child_value("output/@0")?,
-            },
-            _ => JobKind::Unknown(n.clone()),
-        };
+        }
+        root.append_value(&self.uuid);
+        root.append_child("name", &self.name);
+        root.ensure_line_break();
+        root.append_child("type", &SExpression::token(self.kind.type_name()));
+        dispatch!(&self.kind, job => job.serialize(root), _unknown => {});
+        for node in self.options.values().flatten() {
+            root.ensure_line_break();
+            root.push(node.clone());
+        }
+        root.ensure_line_break();
+    }
+}
+
+impl DeserializeObject for OutputJob {
+    fn deserialize(node: &SExpression) -> serialization::Result<Self> {
+        let type_name: String = node.child_value("type/@0")?;
+        let mut options: BTreeMap<String, Vec<SExpression>> = BTreeMap::new();
+        for child in node.children_named("option") {
+            options
+                .entry(child.child_value("@0")?)
+                .or_default()
+                .push(child.clone());
+        }
         Ok(Self {
-            uuid: n.child_value("@0")?,
-            name: n.child_value("name/@0")?,
-            kind,
-            options: read_options(n)?,
+            uuid: node.child_value("@0")?,
+            name: node.child_value("name/@0")?,
+            options,
+            kind: OutputJobKind::deserialize(&type_name, node)?,
         })
     }
 }
-impl SerializeObject for OutputJob {
-    fn serialize(&self, r: &mut List) {
-        if let JobKind::Unknown(n) = &self.kind {
-            // UnknownOutputJob::serialize ignores all edits to common fields.
-            if let Some(n) = n.as_list() {
-                *r = n.clone();
-            }
-            return;
-        }
-        r.append_value(&self.uuid);
-        r.append_child("name", &self.name);
-        r.ensure_line_break();
-        r.append_child("type", &SExpression::token(self.kind.type_name()));
-        match &self.kind {
-            JobKind::Graphics(j) => j.serialize(r),
-            JobKind::GerberExcellon {
-                boards,
-                settings: s,
-            } => {
-                let mut tmp = List::new("settings");
-                s.serialize(&mut tmp);
-                let tmp = SExpression::from(tmp);
-                for key in [
-                    "outlines",
-                    "copper_top",
-                    "copper_inner",
-                    "copper_bot",
-                    "soldermask_top",
-                    "soldermask_bot",
-                    "silkscreen_top",
-                    "silkscreen_bot",
-                    "solderpaste_top",
-                    "solderpaste_bot",
-                    "drills",
-                ] {
-                    r.ensure_line_break();
-                    // All named nodes are emitted by the serializer above.
-                    if let Some(c) = tmp.child(key) {
-                        r.append_value(c);
-                    }
-                }
-                r.ensure_line_break();
-                boards.serialize(r, "board");
-                r.ensure_line_break();
-                r.append_child("output", &s.output_base_path);
-            }
-            JobKind::PickPlace(j) => {
-                r.append_child("comment", &j.comment);
-                r.ensure_line_break();
-                for (k, v) in [
-                    ("tht", j.tht),
-                    ("smt", j.smt),
-                    ("mixed", j.mixed),
-                    ("fiducial", j.fiducial),
-                    ("other", j.other),
-                ] {
-                    r.append_child(k, &v);
-                }
-                r.ensure_line_break();
-                j.boards.serialize(r, "board");
-                r.ensure_line_break();
-                j.variants.serialize(r, "variant");
-                for (k, v) in [("top", &j.top), ("bottom", &j.bottom), ("both", &j.both)] {
-                    r.ensure_line_break();
-                    v.serialize(r.append_list(k));
-                }
-            }
-            JobKind::GerberX3(j) => {
-                r.ensure_line_break();
-                j.boards.serialize(r, "board");
-                r.ensure_line_break();
-                j.variants.serialize(r, "variant");
-                for (k, v) in [
-                    ("components_top", &j.components_top),
-                    ("components_bot", &j.components_bottom),
-                    ("glue_top", &j.glue_top),
-                    ("glue_bot", &j.glue_bottom),
-                ] {
-                    r.ensure_line_break();
-                    v.serialize(r.append_list(k));
-                    r.ensure_line_break();
-                }
-            }
-            JobKind::Netlist { boards, output } => {
-                r.ensure_line_break();
-                boards.serialize(r, "board");
-                r.ensure_line_break();
-                r.append_child("output", output);
-            }
-            JobKind::Bom {
-                custom_attributes,
-                boards,
-                variants,
-                output,
-            } => {
-                r.ensure_line_break();
-                for a in custom_attributes {
-                    r.append_child("custom_attribute", a);
-                    r.ensure_line_break();
-                }
-                boards.serialize(r, "board");
-                r.ensure_line_break();
-                variants.serialize(r, "variant");
-                r.ensure_line_break();
-                r.append_child("output", output);
-            }
-            JobKind::InteractiveBom(j) => {
-                r.ensure_line_break();
-                r.append_child("view_mode", &j.view_mode);
-                r.append_child("highlight_pin1", &j.highlight_pin1);
-                r.append_child("dark_mode", &j.dark_mode);
-                r.ensure_line_break();
-                r.append_child("rotation", &j.rotation);
-                r.append_child("offset_back_rotation", &j.offset_back_rotation);
-                r.ensure_line_break();
-                r.append_child("show_silkscreen", &j.show_silkscreen);
-                r.append_child("show_fabrication", &j.show_fabrication);
-                r.ensure_line_break();
-                r.append_child("show_pads", &j.show_pads);
-                r.append_child("show_tracks", &j.show_tracks);
-                r.append_child("show_zones", &j.show_zones);
-                r.ensure_line_break();
-                r.append_child("checkboxes", &j.checkboxes.join(","));
-                r.ensure_line_break();
-                r.append_child("component_order", &j.component_order.join(","));
-                r.ensure_line_break();
-                for a in &j.custom_attributes {
-                    r.append_child("custom_attribute", a);
-                    r.ensure_line_break();
-                }
-                j.boards.serialize(r, "board");
-                r.ensure_line_break();
-                j.variants.serialize(r, "variant");
-                r.ensure_line_break();
-                r.append_child("output", &j.output);
-            }
-            JobKind::Board3d {
-                boards,
-                variants,
-                output,
-            } => {
-                r.ensure_line_break();
-                boards.serialize(r, "board");
-                r.ensure_line_break();
-                variants.serialize(r, "variant");
-                r.ensure_line_break();
-                r.append_child("output", output);
-            }
-            JobKind::ProjectJson { output } | JobKind::Lppz { output } => {
-                r.ensure_line_break();
-                r.append_child("output", output);
-            }
-            JobKind::Copy {
-                substitute_variables,
-                boards,
-                variants,
-                input,
-                output,
-            } => {
-                r.append_child("substitute_variables", substitute_variables);
-                r.ensure_line_break();
-                boards.serialize(r, "board");
-                r.ensure_line_break();
-                variants.serialize(r, "variant");
-                r.ensure_line_break();
-                r.append_child("input", input);
-                r.ensure_line_break();
-                r.append_child("output", output);
-            }
-            JobKind::Archive { inputs, output } => {
-                r.ensure_line_break();
-                for (uuid, destination) in inputs {
-                    let c = r.append_list("input");
-                    c.append_value(uuid);
-                    c.append_child("destination", destination);
-                    r.ensure_line_break();
-                }
-                r.append_child("output", output);
-            }
-            JobKind::Unknown(_) => {}
-        }
-        write_options(r, &self.options);
-        r.ensure_line_break();
-    }
-}
+
+object_list!(
+    /// List of output jobs (upstream `OutputJobList`), serialized as `job`
+    /// children.
+    OutputJobList,
+    OutputJobListTag,
+    OutputJob,
+    "job"
+);

@@ -21,12 +21,12 @@ fn attributes(values: &[(&str, &str)]) -> AttributeList {
 fn check(lookup: Lookup<'_>, values: &[(&str, &str)]) {
     for (key, expected) in values {
         assert_eq!(
-            lookup.value(key).unwrap().as_deref(),
+            lookup.try_value(key).unwrap().as_deref(),
             Some(*expected),
             "{key}"
         );
     }
-    assert_eq!(lookup.value("unknown").unwrap(), None);
+    assert_eq!(lookup.try_value("unknown").unwrap(), None);
 }
 
 #[test]
@@ -40,7 +40,7 @@ fn project_builtins_paths_and_local_dates() {
         .with_timezone(&Utc);
     metadata.author = "Author".into();
     p.apply(Mutation::SetProjectMetadata(metadata)).unwrap();
-    let lookup = Lookup::project(&p, None);
+    let lookup = Lookup::for_project(&p, None);
     check(
         lookup,
         &[
@@ -55,24 +55,24 @@ fn project_builtins_paths_and_local_dates() {
         ],
     );
     assert_eq!(
-        lookup.value("PROJECT_FILEPATH").unwrap(),
+        lookup.try_value("PROJECT_FILEPATH").unwrap(),
         p.file_path().map(|p| p.to_native())
     );
     assert_eq!(
-        lookup.value("PROJECT_DIRPATH").unwrap(),
+        lookup.try_value("PROJECT_DIRPATH").unwrap(),
         p.path().map(|p| p.to_native())
     );
     assert_eq!(
-        lookup.value("PROJECT_BASENAME").unwrap().as_deref(),
+        lookup.try_value("PROJECT_BASENAME").unwrap().as_deref(),
         Some("test")
     );
     let now = p.date_time().with_timezone(&Local);
     assert_eq!(
-        lookup.value("DATE").unwrap(),
+        lookup.try_value("DATE").unwrap(),
         Some(now.format("%Y-%m-%d").to_string())
     );
     assert_eq!(
-        lookup.value("TIME").unwrap(),
+        lookup.try_value("TIME").unwrap(),
         Some(now.format("%H:%M:%S").to_string())
     );
 }
@@ -127,17 +127,20 @@ fn pages_boards_and_variant_precedence() {
         .unwrap();
     let variant = p.circuit().assembly_variants().first().unwrap();
     check(
-        Lookup::project(&p, Some(variant)),
+        Lookup::for_project(&p, Some(variant)),
         &[("VARIANT", "Std"), ("VARIANT_INDEX", "0"), ("PAGES", "2")],
     );
-    let lookup = Lookup::schematic(&p, p.schematic(second).unwrap(), Some(variant));
+    let lookup = Lookup::for_schematic(&p, p.schematic(second).unwrap(), Some(variant));
     check(
         lookup,
         &[("SHEET", "Second"), ("PAGE", "2"), ("VARIANT", "Std")],
     );
-    assert_eq!(lookup.substitute("{{PAGE_X_OF_Y}}").unwrap(), "Page 2 of 2");
+    assert_eq!(
+        lookup.try_substitute("{{PAGE_X_OF_Y}}").unwrap(),
+        "Page 2 of 2"
+    );
     check(
-        Lookup::board(&p, p.board(board).unwrap(), Some(variant)),
+        Lookup::for_board(&p, p.board(board).unwrap(), Some(variant)),
         &[
             ("BOARD", "Second Board"),
             ("BOARD_DIRNAME", "board2"),
@@ -146,7 +149,7 @@ fn pages_boards_and_variant_precedence() {
         ],
     );
     check(
-        Lookup::project(&p, None),
+        Lookup::for_project(&p, None),
         &[("VARIANT", "project"), ("BOARD", "project")],
     );
 }
@@ -179,7 +182,7 @@ fn component_device_part_precedence_and_empty_values() {
     );
     let p = &f.p;
     let board = p.board(f.board).unwrap();
-    let lookup = Lookup::component(p, &component, Some(&device), Some(&part));
+    let lookup = Lookup::for_component(p, &component, Some(&device), Some(&part));
     check(
         lookup,
         &[
@@ -195,16 +198,16 @@ fn component_device_part_precedence_and_empty_values() {
             ("AUTHOR", "custom author"),
         ],
     );
-    assert_eq!(lookup.substitute("{{VALUE}}").unwrap(), "Part Number");
+    assert_eq!(lookup.try_substitute("{{VALUE}}").unwrap(), "Part Number");
     assert_eq!(
-        Lookup::component(p, &component, Some(&device), None)
-            .value("CUSTOM")
+        Lookup::for_component(p, &component, Some(&device), None)
+            .try_value("CUSTOM")
             .unwrap()
             .as_deref(),
         Some("component")
     );
     check(
-        Lookup::device(p, board, &device, None),
+        Lookup::for_device(p, board, &device, None),
         &[
             ("CUSTOM", "device"),
             ("EMPTY", "device"),
@@ -213,7 +216,7 @@ fn component_device_part_precedence_and_empty_values() {
         ],
     );
     check(
-        Lookup::device(p, board, &device, Some(&part)),
+        Lookup::for_device(p, board, &device, Some(&part)),
         &[("CUSTOM", "part"), ("MPN", "Part Number")],
     );
     let empty_part = Part::new(
@@ -222,7 +225,7 @@ fn component_device_part_precedence_and_empty_values() {
         attributes(&[("CUSTOM", ""), ("MPN", "override")]),
     );
     check(
-        Lookup::component(p, &component, None, Some(&empty_part)),
+        Lookup::for_component(p, &component, None, Some(&empty_part)),
         &[("CUSTOM", ""), ("MPN", "override")],
     );
 }
@@ -233,14 +236,14 @@ fn invalid_device_reference_is_fallible_and_lower_scopes_are_lazy() {
     let mut device = f.device(f.r1, Point::ORIGIN);
     device.set_lib_device(Uuid::new_random());
     let component = f.p.circuit().component_instance(f.r1).unwrap();
-    let lookup = Lookup::component(&f.p, component, Some(&device), None);
-    assert_eq!(lookup.value("NAME").unwrap().as_deref(), Some("R1"));
+    let lookup = Lookup::for_component(&f.p, component, Some(&device), None);
+    assert_eq!(lookup.try_value("NAME").unwrap().as_deref(), Some("R1"));
     assert!(matches!(
-        lookup.value("DEVICE"),
+        lookup.try_value("DEVICE"),
         Err(Error::MissingLibraryDevice(_))
     ));
     assert!(matches!(
-        lookup.substitute("{{DEVICE}}"),
+        lookup.try_substitute("{{DEVICE}}"),
         Err(Error::MissingLibraryDevice(_))
     ));
 }
@@ -258,14 +261,14 @@ fn library_names_follow_project_locale_order() {
     p.add_library_component(lib).unwrap();
     let component = component_instance(&p, id, variant, "R1");
     check(
-        Lookup::component(&p, &component, None, None),
+        Lookup::for_component(&p, &component, None, None),
         &[("COMPONENT", "Test Component")],
     );
     let mut settings = p.settings().clone();
     settings.locale_order = vec!["fr_FR".into(), "de_DE".into()];
     p.apply(Mutation::SetProjectSettings(settings)).unwrap();
     check(
-        Lookup::component(&p, &component, None, None),
+        Lookup::for_component(&p, &component, None, None),
         &[("COMPONENT", "Bauteil")],
     );
 }
@@ -287,7 +290,7 @@ fn project_attributes_override_builtins_and_include_units() {
         .unwrap(),
     );
     p.apply(Mutation::SetProjectMetadata(metadata)).unwrap();
-    let lookup = Lookup::project(&p, None);
+    let lookup = Lookup::for_project(&p, None);
     check(
         lookup,
         &[
@@ -296,9 +299,9 @@ fn project_attributes_override_builtins_and_include_units() {
             ("RESISTANCE", "4.7kΩ"),
         ],
     );
-    assert_eq!(lookup.value("project").unwrap(), None);
+    assert_eq!(lookup.try_value("project").unwrap(), None);
     assert_eq!(
-        lookup.substitute("{{AUTHOR or 'fallback'}}").unwrap(),
+        lookup.try_substitute("{{AUTHOR or 'fallback'}}").unwrap(),
         "fallback"
     );
 }

@@ -7,8 +7,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use librepcb_i18n::tr;
-
 use super::symbol::Symbol;
 use super::symbol_check_messages::{ImageFileError, SymbolCheckMessage as Msg};
 use super::symbol_pin::SymbolPin;
@@ -88,44 +86,7 @@ fn image_file_error(symbol: &Symbol, image: &Image) -> Option<(ImageFileError, S
 /// extension), returning the error message if not (upstream
 /// `Image::tryLoad()`).
 fn try_load_image(data: &[u8], format: &str) -> Result<(), String> {
-    if !Image::SUPPORTED_EXTENSIONS.contains(&format) {
-        return Err(tr!(
-            "Image",
-            "Unsupported image file format '{0}'. Supported formats are: {1}",
-            format,
-            Image::SUPPORTED_EXTENSIONS.join(", ")
-        ));
-    }
-    if data.is_empty() {
-        return Err("Image file seems to be empty (0 bytes).".into());
-    }
-    if format == "svg" {
-        // Upstream renders the SVG with its default size; an invalid SVG has
-        // no (i.e. an empty) default size.
-        let size = usvg::Tree::from_data(data, &usvg::Options::default())
-            .map(|tree| tree.size())
-            .ok();
-        match size {
-            Some(size) if size.width().round() >= 1.0 && size.height().round() >= 1.0 => Ok(()),
-            _ => Err("The SVG's image size appears to be zero.".into()),
-        }
-    } else {
-        // Like `QImage::loadFromData(data, format)`, only the given format is
-        // tried (no detection from the content).
-        let format_hint = if format == "png" {
-            image::ImageFormat::Png
-        } else {
-            image::ImageFormat::Jpeg
-        };
-        match image::load_from_memory_with_format(data, format_hint) {
-            Ok(img) if img.width() > 0 && img.height() > 0 => Ok(()),
-            Ok(_) => Err("The loaded image seems to be empty.".into()),
-            Err(_) => Err(format!(
-                "Failed to load the image. Please check that the file is valid and the \
-                 provided file extension '{format}' is correct."
-            )),
-        }
-    }
+    Image::try_load(data, format).map(|_| ())
 }
 
 fn check_duplicate_pin_names(symbol: &Symbol, msgs: &mut MsgList) {

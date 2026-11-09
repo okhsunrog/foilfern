@@ -1,0 +1,160 @@
+import { Data } from "../api.slint";
+
+component Slider inherits Rectangle {
+    in-out property <float> value;
+    in property <bool> enabled: true;
+    in property <length> handle-size: 18px;
+    in property <bool> focusable: true;
+
+    callback value-changed(value: float);
+    value-changed(value) => {
+        self.value = value;
+    }
+    callback value-accepted();
+
+    // Accessibility
+    accessible-role: slider;
+    accessible-value: value;
+    accessible-value-minimum: 0.0;
+    accessible-value-maximum: 1.0;
+    accessible-enabled: enabled;
+    accessible-action-set-value(value) => {
+        value-changed(max(min(value.to-float(), 1), 0));
+    }
+}
+
+export component HorizontalSlider inherits Slider {
+    out property has-focus <=> fs.has-focus;
+
+    preferred-width: 100px;
+    preferred-height: self.handle-size;
+    forward-focus: fs;
+
+    fs := FocusScope {
+        enabled: root.enabled && root.focusable;
+
+        ta := TouchArea {
+            height: root.height;
+            mouse-cursor: pointer;
+            enabled: root.enabled;
+
+            Rectangle {
+                x: root.handle-size / 2;
+                width: parent.width - root.handle-size;
+                height: 5px;
+                background: Data.theme.control-checked;
+                border-radius: self.height / 2;
+                border-color: root.enabled ? Data.theme.control-border : Data.theme.control-border-disabled;
+                border-width: 1px;
+            }
+
+            pointer-event(event) => {
+                if (event.kind == PointerEventKind.down) && root.focusable {
+                    fs.focus();
+                }
+                if ta.pressed {
+                    root.value-changed(max(min((self.mouse-x - (root.handle-size / 2)) / (self.width - root.handle-size), 1), 0));
+                }
+                if (event.kind == PointerEventKind.up) && root.has-focus {
+                    root.value-accepted();
+                }
+            }
+        }
+
+        Rectangle {
+            x: (parent.width - self.width) * root.value;
+            width: root.handle-size;
+            height: root.handle-size;
+            border-color: Data.theme.accent;
+            border-width: (root.enabled && root.has-focus) ? 1px : 0;
+            border-radius: self.width / 2;
+
+            Rectangle {
+                width: 75%;
+                height: self.width;
+                background: root.enabled ? Data.theme.accent : Data.theme.control-text-disabled;
+                border-radius: self.width / 2;
+            }
+        }
+
+        key-pressed(event) => {
+            if event.text == Key.LeftArrow {
+                root.value-changed(max(root.value - 0.05, 0));
+                root.value-accepted();
+                return accept;
+            } else if event.text == Key.RightArrow {
+                root.value-changed(min(root.value + 0.05, 1));
+                root.value-accepted();
+                return accept;
+            }
+            reject
+        }
+    }
+}
+
+export component VerticalSlider inherits Slider {
+    out property has-focus <=> fs.has-focus;
+
+    preferred-width: self.handle-size;
+    preferred-height: 100px;
+    forward-focus: fs;
+
+    fs := FocusScope {
+        enabled: root.enabled && root.focusable;
+
+        ta := TouchArea {
+            width: root.width;
+            mouse-cursor: pointer;
+            enabled: root.enabled;
+
+            Rectangle {
+                y: root.handle-size / 2;
+                width: 5px;
+                height: parent.height - root.handle-size;
+                background: Data.theme.control-checked;
+                border-radius: self.height / 2;
+                border-color: root.enabled ? Data.theme.control-border : Data.theme.control-border-disabled;
+                border-width: 1px;
+            }
+
+            pointer-event(event) => {
+                if (event.kind == PointerEventKind.down) && root.focusable {
+                    fs.focus();
+                }
+                if ta.pressed {
+                    root.value-changed(max(min(1 - ((self.mouse-y - (root.handle-size / 2)) / (self.height - root.handle-size)), 1), 0));
+                }
+                if (event.kind == PointerEventKind.up) && root.has-focus {
+                    root.value-accepted();
+                }
+            }
+        }
+
+        Rectangle {
+            y: (parent.height - self.height) * (1 - root.value);
+            width: root.handle-size;
+            height: root.handle-size;
+            border-color: Data.theme.accent;
+            border-width: (root.enabled && root.has-focus) ? 1px : 0;
+            border-radius: self.width / 2;
+
+            Rectangle {
+                width: 75%;
+                height: self.width;
+                background: root.enabled ? Data.theme.accent : Data.theme.control-text-disabled;
+                border-radius: self.width / 2;
+            }
+        }
+
+        key-pressed(event) => {
+            if event.text == Key.DownArrow {
+                root.value-changed(max(root.value - 0.05, 0));
+                return accept;
+            } else if event.text == Key.UpArrow {
+                root.value-changed(min(root.value + 0.05, 1));
+                return accept;
+            }
+            reject
+        }
+    }
+}

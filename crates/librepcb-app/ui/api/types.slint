@@ -1,0 +1,1598 @@
+////////////////////////////////////////////////////////////////////////////////
+// General
+////////////////////////////////////////////////////////////////////////////////
+
+// Triggerable actions
+export enum Action {
+    // Application
+    keyboard-shortcuts-reference,
+    quit,
+
+    // Window
+    window-new,
+    window-close,
+
+    // Workspace
+    workspace-open-folder,
+    workspace-switch,
+    workspace-settings,
+    workspace-libraries-rescan,
+
+    // Library
+    library-create,
+    library-download,
+    library-panel-ensure-populated,
+    library-panel-check-for-updates,  // Reload remote libs without cache
+    library-panel-cancel-update-check,  // Abort fetching remote libraries
+    library-panel-toggle-all,
+    library-panel-apply,
+    library-panel-cancel,
+
+    // Project
+    project-new,
+    project-open,
+    project-import-examples,
+    project-import-eagle,
+}
+
+// Pages which can be shown in the side panel
+export enum PanelPage {
+    home,
+    libraries,
+    documents,
+    layers,
+    place-devices,
+    rule-check,
+    order,
+    about,
+    none,
+}
+
+// Dynamic information about editor commands, e.g. used in menus
+export struct EditorCommand {
+    id: string,
+    icon: image,
+    text: string,
+    status-tip: string,
+    shortcut: string,
+    modifiers: KeyboardModifiers,
+    key: string,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Basic types
+////////////////////////////////////////////////////////////////////////////////
+
+// Base type for representing values of our C++ types Length, Angle etc.
+export struct Int64 {
+    msb: int,
+    lsb: int,
+}
+
+// Enum reflecting all our length units
+export enum LengthUnit {
+    millimeters,
+    micrometers,
+    nanometers,
+    inches,
+    mils,
+}
+
+// Enum for the different grid styles
+export enum GridStyle {
+    none,
+    dots,
+    lines,
+}
+
+// Graphics layer data structure
+export struct GraphicsLayerData {
+    name: string,
+    color: color,
+    color-highlighted: color,
+    visible: bool,
+}
+
+// Actions for AttributeData
+export enum AttributeAction {
+    none,
+    move-up,
+    delete,
+}
+
+// Attribute data structure
+export struct AttributeData {
+    key: string,
+    key-error: string,
+    type: int,  // Index corresponds to AttributeType::getAllTypes()
+    value: string,
+    value-valid: bool,
+    unit: int,  // Index corresponds to AttributeType::getAvailableUnits()
+    action: AttributeAction,  // Set by UI, reset by backend
+}
+
+// Soldering technology selector
+export enum SolderTechnology {
+    none,
+    hand-large,
+    hand,
+    reflow,
+    wave,
+}
+
+// IPC density level selector
+export enum IpcDensityLevel {
+    none,
+    a,
+    b,
+    c,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Widgets data
+////////////////////////////////////////////////////////////////////////////////
+
+// General-purpose list item data structure
+export struct SimpleListItemData {
+    icon: image,
+    text: string,
+}
+
+// Underlying data structure for LineEdit elements
+export struct LineEditData {
+    enabled: bool,
+    text: string,
+    placeholder: string,
+    suggestions: [string],
+}
+
+// Underlying data structure for ComboBox elements
+export struct ComboBoxData {
+    items: [string],
+    current-index: int,
+}
+
+// Underlying data structure for LengthEdit elements
+export struct LengthEditData {
+    value: Int64,
+    unit: LengthUnit,
+    minimum: Int64,
+    can-increase: bool,
+    can-decrease: bool,
+    increase: bool,  // Set by UI, reset by backend.
+    decrease: bool,  // Set by UI, reset by backend.
+}
+
+// Text parse result as used in the LengthEdit component
+export struct LengthEditParseResult {
+    valid: bool,
+    evaluated-value: Int64,
+    evaluated-unit: LengthUnit,
+}
+
+// Underlying data structure for AngleEdit elements
+export struct AngleEditData {
+    value: int,  // Microdegrees like in the backend
+    increase: bool,  // Set by UI, reset by backend
+    decrease: bool,  // Set by UI, reset by backend
+}
+
+// Text parse result as used in the AngleEdit component
+export struct AngleEditParseResult {
+    valid: bool,
+    evaluated-value: int,
+}
+
+// Underlying data structure for RatioEdit elements
+export struct RatioEditData {
+    value: int,  // PPM like in the backend
+    minimum: int,  // PPM like in the backend
+    maximum: int,  // PPM like in the backend
+    can-increase: bool,
+    can-decrease: bool,
+    increase: bool,  // Set by UI, reset by backend
+    decrease: bool,  // Set by UI, reset by backend
+}
+
+// Text parse result as used in the RatioEdit component
+export struct RatioEditParseResult {
+    valid: bool,
+    evaluated-value: int,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Tree views
+////////////////////////////////////////////////////////////////////////////////
+
+// Tree view item actions
+export enum TreeViewItemAction {
+    none,
+    open,
+    delete,
+    new-folder,
+    new-project,
+}
+
+// Generic tree view item data structure
+export struct TreeViewItemData {
+    level: int,  // 0 = top level items
+    icon: image,
+    text: string,
+    hint: string,
+    user-data: string,  // User data to uniquely reference this item
+    is-project-file-or-folder: bool,
+    has-children: bool,
+    expanded: bool,
+    supports-pinning: bool,
+    pinned: bool,
+    action: TreeViewItemAction,  // Set by UI, handled in backend
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Notifications
+////////////////////////////////////////////////////////////////////////////////
+
+// ATTENTION: The backend sorts notifications by type, therefore the order of
+// the enum values must be sorted by severity.
+export enum NotificationType {
+    progress,
+    tip,
+    info,
+    warning,
+    critical,
+}
+
+export struct NotificationData {
+    type: NotificationType,
+    title: string,
+    description: string,
+    button-text: string,  // Optional (empty = no button)
+    progress: int,  // [%], ignored if type is not NotificationType.progress
+    supports-dont-show-again: bool,
+    unread: bool,
+    button-clicked: bool,  // Set by UI, handled in backend
+    dismissed: bool,  // Set by UI, handled in backend
+    dont-show-again: bool,  // Set by UI, handled in backend
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Dismissable messages
+////////////////////////////////////////////////////////////////////////////////
+
+export enum DismissableMessageAction {
+    none,
+    dismiss,
+    dont-show-again,
+}
+
+export struct DismissableMessageData {
+    visible: bool,
+    supports-dont-show-again: bool,
+    action: DismissableMessageAction,  // Set by UI, handled in backend
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Rule check
+////////////////////////////////////////////////////////////////////////////////
+
+export enum RuleCheckType {
+    none,
+    erc,
+    drc,
+    library-check,
+    component-category-check,
+    package-category-check,
+    symbol-check,
+    package-check,
+    component-check,
+    device-check,
+    organization-check,
+}
+
+export enum RuleCheckState {
+    not-run-yet,
+    running,
+    outdated,
+    up-to-date,
+}
+
+export enum RuleCheckMessageAction {
+    none,
+    highlight,
+    highlight-and-zoom-to,
+    autofix,
+}
+
+export struct RuleCheckMessageData {
+    severity: NotificationType,
+    message: string,
+    description: string,
+    approved: bool,
+    autofixed: bool,  // A temporary state after triggering auto-fix
+    supports-autofix: bool,
+    action-window-id: int,  // Set by UI *before* action is set
+    action: RuleCheckMessageAction,  // Set by UI, handled in backend
+}
+
+export struct RuleCheckData {
+    type: RuleCheckType,
+    state: RuleCheckState,
+    messages: [RuleCheckMessageData],
+    unapproved: int,  // Number of unapproved messages
+    errors: int,  // Messages of error severity, no matter if approved or not
+    execution-error: string,  // Empty if no error
+    read-only: bool,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Workspace library database
+////////////////////////////////////////////////////////////////////////////////
+
+// Library database entry for organization PCB design rules
+export struct OrganizationPcbDesignRulesDbData {
+    uuid: string,
+    name: string,
+    url: string,
+}
+
+// Library database entry for organizations
+export struct OrganizationDbData {
+    uuid: string,
+    name: string,
+    priority: int,
+    pcb-design-rules: [OrganizationPcbDesignRulesDbData],
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Editor tools
+////////////////////////////////////////////////////////////////////////////////
+
+export enum EditorTool {
+    select,
+    line,
+    rect,
+    polygon,
+    circle,
+    arc,
+    text,
+    name,
+    value,
+    image,
+    hole,
+    pin,
+    pad-tht,
+    pad-smt,
+    wire,
+    bus,
+    label,
+    via,
+    plane,
+    zone,
+    renumber-pads,
+    component,
+    measure,
+}
+
+export enum WireMode {
+    h-v,
+    v-h,
+    deg90-45,
+    deg45-90,
+    straight,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Library Editor
+////////////////////////////////////////////////////////////////////////////////
+
+// Library element actions (for libraries, symbols, components, ...)
+export enum LibraryElementAction {
+    open,
+    close,
+    open-folder,
+    import-eagle-library,
+    import-kicad-library,
+}
+
+// Move or copy actions for LibraryTabData
+export enum LibraryElementsMoveAction {
+    none,
+    copy-categories,
+    move-categories,
+    copy-elements,
+    move-elements,
+}
+
+// Type of LibraryTreeViewItemData
+// Note: The order of items defines the sort order in the UI.
+export enum LibraryTreeViewItemType {
+    all,
+    uncategorized,
+    component-category,
+    package-category,
+    device,
+    component,
+    symbol,
+    package,
+    organization,
+}
+
+// Library content tree view item data structure
+export struct LibraryTreeViewItemData {
+    type: LibraryTreeViewItemType,
+    level: int,  // 0 = top level items
+    name: string,
+    summary: string,
+    deprecated: bool,  // Deprecated library element
+    elements: int,  // Number of contained elements
+    is-external: bool,  // External category, not from this library
+    user-data: string,  // File path for internal elements, UUID for external
+}
+
+// A possible dependency of a library (either marked as dependent or not)
+export struct LibraryDependency {
+    uuid: string,
+    icon: image,
+    name: string,
+    checked: bool,
+}
+
+// Opened library (editor) data
+export struct LibraryData {
+    valid: bool,
+    path: string,
+    name: string,
+    writable: bool,
+}
+
+// Library element category (e.g. "Integrated Circuits -> Timers")
+export struct LibraryElementCategoryData {
+    uuid: string,  // Just for reference in the backend
+    names: [string],  // Category level names, starting from root category
+    delete: bool,  // Set by UI, reset by backend
+}
+
+// Enum of footprint pad shapes available in the toolbar
+export enum PadShape {
+    round,
+    rounded-rect,
+    rect,
+    octagon,
+}
+
+// Actions for FootprintData
+export enum FootprintAction {
+    none,
+    move-up,
+    duplicate,
+    delete,
+}
+
+// Footprint data structure
+export struct FootprintData {
+    id: string,
+    name: string,
+    tags: [string],
+    model-x: Int64,
+    model-y: Int64,
+    model-z: Int64,
+    model-rx: int,
+    model-ry: int,
+    model-rz: int,
+    models: [bool],  // One flag for each 3D model
+
+    new-tag: string,  // Set by UI, reset in backend
+    remove-tag: string,  // Set by UI, reset in backend
+    action: FootprintAction,  // Set by UI, handled in backend
+}
+
+// Package pad data structure
+export struct PackagePadData {
+    id: string,
+    name: string,
+    name-error: string,
+    delete: bool,  // Set by UI, reset by backend
+    sort-index: int,  // Used by backend for sorting
+}
+
+// Actions for PackageModelData
+export enum PackageModelAction {
+    none,
+    move-up,
+    browse,
+    delete,
+}
+
+// Package 3D model data structure
+export struct PackageModelData {
+    id: string,
+    name: string,
+    action: PackageModelAction,  // Set by UI, handled in backend
+}
+
+// Component signal data structure
+export struct ComponentSignalData {
+    id: string,
+    name: string,
+    name-error: string,
+    forced-net-name: string,
+    required: bool,
+    sort-index: int,  // Used by backend for sorting
+    delete: bool,  // Set by UI, reset by backend
+}
+
+// Component pinout display mode
+export enum ComponentPinoutDisplayMode {
+    none,
+    pin-name,
+    signal-name,
+    net-name,
+}
+
+// Component pinout data structure
+export struct ComponentPinoutData {
+    pin-name: string,
+    signal-index: int,  // Corresponds to ComponentTabData::cmp-signal-names
+    display-mode: ComponentPinoutDisplayMode,
+}
+
+// Actions for ComponentGateData
+export enum ComponentGateAction {
+    none,
+    move-up,
+    choose-symbol,
+    delete,
+}
+
+// Component gate data structure
+export struct ComponentGateData {
+    id: string,
+    symbol-name: string,
+    symbol-x: Int64,
+    symbol-y: Int64,
+    symbol-rotation: int,
+    required: bool,
+    suffix: string,
+    pinout: [ComponentPinoutData],
+    action: ComponentGateAction,
+    frame-index: int,  // For repainting the symbol preview
+}
+
+// Actions for ComponentVariantData
+export enum ComponentVariantAction {
+    none,
+    move-up,
+    set-as-default,
+    add-gate,
+    auto-connect-pins,
+    delete,
+}
+
+// Component symbol variant data structure
+export struct ComponentVariantData {
+    id: string,
+    name: string,
+    description: string,
+    norm: string,
+    gates: [ComponentGateData],
+    has-unassigned-signals: bool,
+    action: ComponentVariantAction,
+    frame-index: int,  // For repainting the symbol preview
+}
+
+// Actions for PartData
+export enum PartAction {
+    none,
+    move-up,
+    duplicate,
+    delete,
+}
+
+// Part data structure
+export struct PartData {
+    mpn: string,
+    manufacturer: string,
+    attributes: [AttributeData],
+    action: PartAction,  // Set by UI, reset by backend
+}
+
+// Device pinout data structure
+export struct DevicePinoutData {
+    pad-name: string,  // 8-char UUID if not found (error case)
+    signal-uuid: string,  // Full UUID (empty if not connected)
+    signal-index: int,  // -1 if not found (error case)
+}
+
+// Signal data structure for interactive pinout assignment in device editor
+export struct DeviceInteractivePinoutSignalData {
+    name: string,  // Empty string = unconnected
+    used: bool,  // Whether any pad is already assigned to this signal
+}
+
+// Actions for OrganizationPcbDesignRulesData
+export enum OrganizationPcbDesignRulesAction {
+    none,
+    edit,
+    rename,
+    duplicate,
+    delete,
+}
+
+// Organization PCB design rules data structure
+export struct OrganizationPcbDesignRulesData {
+    name: string,
+    action: OrganizationPcbDesignRulesAction,  // Set by UI, reset by backend
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Project Editor
+////////////////////////////////////////////////////////////////////////////////
+
+// Actions for ProjectLibraryItemData
+export enum ProjectLibraryItemAction {
+    none,
+    open,
+}
+
+// Project library item data structure
+export struct ProjectLibraryItemData {
+    type: LibraryTreeViewItemType,
+    path: string,  // Unique identifier of library element
+    name: string,
+    version: string,
+    latest-version: string,  // Empty if not in a workspace library
+    library-icon: image,  // Empty if not in a workspace library
+    library-name: string,  // Empty if not in a workspace library
+    deprecated: bool,
+    downgrade: bool,  // If workspace library version is older than project
+    checked: bool,
+    copy-in-progress: bool,
+
+    // Actions
+    action: ProjectLibraryItemAction,  // Set by UI, reset by backend
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Tabs
+////////////////////////////////////////////////////////////////////////////////
+
+// Availability of editor features
+export enum FeatureState {
+    not-supported,
+    disabled,
+    enabled,
+}
+
+// Features available in a tab (see TabData)
+export struct TabFeatures {
+    save: FeatureState,
+    undo: FeatureState,
+    redo: FeatureState,
+    grid: FeatureState,
+    zoom: FeatureState,
+    background-image: FeatureState,
+    import-graphics: FeatureState,
+    export-graphics: FeatureState,
+    select: FeatureState,
+    cut: FeatureState,
+    copy: FeatureState,
+    paste: FeatureState,
+    remove: FeatureState,
+    rotate: FeatureState,
+    mirror: FeatureState,
+    flip: FeatureState,
+    move-align: FeatureState,
+    snap-to-grid: FeatureState,
+    reset-texts: FeatureState,
+    lock: FeatureState,
+    unlock: FeatureState,
+    modify-line-width: FeatureState,
+    edit-properties: FeatureState,
+    find: FeatureState,
+}
+
+// All the different kinds of window tabs
+export enum TabType {
+    controls-gallery, // For development purposes only
+    home,
+    create-library,
+    download-library,
+    library,
+    component-category,
+    package-category,
+    symbol,
+    package,
+    component,
+    device,
+    organization,
+    schematic,
+    board-2d,
+    board-3d,
+    project-library,
+}
+
+// Tab actions
+export enum TabAction {
+    close,
+    apply,
+    cancel,
+    accept,
+    back,
+    next,
+
+    // General
+    save,
+    save-as,
+    reload-from-disk,
+    print,
+    export-image,
+    export-pdf,
+    export-fabrication-data,
+    export-pick-place,
+    export-d356-netlist,
+    export-specctra,
+    import-specctra,
+    import-dxf,
+    bill-of-materials,
+    open-datasheet,
+    abort,
+
+    // Selection
+    select-all,
+
+    // Modify
+    undo,
+    redo,
+    cut,
+    copy,
+    paste,
+    delete,
+    rotate-ccw,
+    rotate-cw,
+    mirror-horizontally,
+    mirror-vertically,
+    flip-horizontally,
+    flip-vertically,
+    move-align,
+    move-left,
+    move-right,
+    move-up,
+    move-down,
+    snap-to-grid,
+    reset-texts,
+    lock,
+    unlock,
+    line-width-increase,
+    line-width-decrease,
+    line-width-set,
+    edit-properties,
+
+    // View
+    grid-interval-increase,
+    grid-interval-decrease,
+    layers-none,
+    layers-top,
+    layers-bottom,
+    layers-top-bottom,
+    layers-all,
+    planes-hide,
+    planes-show,
+    planes-rebuild,
+    zoom-in,
+    zoom-out,
+    zoom-fit,
+    toggle-background-image,
+
+    // Find
+    find-refresh-suggestions,
+    find-next,
+    find-previous,
+
+    // Library tab
+    library-choose-icon,
+    library-categories-duplicate,
+    library-categories-remove,
+    library-elements-duplicate,
+    library-elements-remove,
+
+    // Symbol tab
+    symbol-import-pins,
+
+    // Package tab
+    package-add-pads,
+    package-add-model,
+    package-generate-outline,
+    package-generate-courtyard,
+
+    // Component tab
+    component-add-signals,
+    component-add-variant,
+
+    // Device tab
+    device-select-component,
+    device-select-package,
+    device-open-component,
+    device-open-package,
+    device-pinout-reset,
+    device-pinout-connect-auto,
+    device-pinout-connect-interactively,
+    device-pinout-load-from-file,
+
+    // Organization tab
+    organization-add-pcb-design-rules,
+    organization-edit-pcb-output-jobs,
+    organization-edit-assembly-output-jobs,
+
+    // Board 2D tab
+    board-place-component,
+    board-place-components-similar,
+    board-place-components-all,
+    board-add-plane,
+
+    // Tools
+    tool-select,
+    tool-line,
+    tool-rect,
+    tool-polygon,
+    tool-circle,
+    tool-arc,
+    tool-text,
+    tool-name,
+    tool-value,
+    tool-image,
+    tool-hole,
+    tool-pin,
+    tool-pad-tht,
+    tool-pad-smt,
+    tool-pad-thermal,
+    tool-pad-bga,
+    tool-pad-edge-connector,
+    tool-pad-test-point,
+    tool-pad-local-fiducial,
+    tool-pad-global-fiducial,
+    tool-wire,
+    tool-bus,
+    tool-label,
+    tool-via,
+    tool-plane,
+    tool-zone,
+    tool-renumber-pads,
+    tool-component,
+    tool-component-frame,
+    tool-component-resistor,
+    tool-component-inductor,
+    tool-component-capacitor-bipolar,
+    tool-component-capacitor-unipolar,
+    tool-component-gnd,
+    tool-component-vcc,
+    tool-measure,
+
+    // Toolbar
+    toolbar-trace-width-save-in-board,
+    toolbar-trace-width-save-in-netclass,
+    toolbar-via-drill-save-in-board,
+    toolbar-via-drill-save-in-netclass,
+}
+
+// Window tab base data
+//
+// For various kinds of tabs, an additional "derived" data structure is
+// defined, see below.
+export struct TabData {
+    // Meta
+    type: TabType,
+    title: string,
+    features: TabFeatures,
+    read-only: bool,
+    unsaved-changes: bool,
+
+    // Undo/redo
+    undo-text: string,
+    redo-text: string,
+
+    // Find
+    find-term: string,  // Set by UI, handled in backend
+    find-autocompletions: [SimpleListItemData],
+
+    // Layers
+    layers: [GraphicsLayerData],
+}
+
+// Additional data for "create library" tabs
+export struct CreateLibraryTabData {
+    name: string,
+    name-error: string,
+    description: string,
+    author: string,
+    version: string,
+    version-default: string,
+    version-error: string,
+    url: string,
+    url-error: string,
+    cc0: bool,
+    directory: string,
+    directory-default: string,
+    directory-error: string,
+    valid: bool,
+    creation-error: string,
+}
+
+// Additional data for "download library" tabs
+export struct DownloadLibraryTabData {
+    url: string,
+    url-error: string,
+    url-suggestion: string,
+    directory: string,
+    directory-default: string,
+    directory-error: string,
+    valid: bool,
+    download-running: bool,
+    download-progress: int,
+    download-status: string,  // Status or error
+}
+
+// Additional data for library editor tabs
+export struct LibraryTabData {
+    // General
+    library-index: int,
+    wizard-mode: bool,
+    page-index: int,
+
+    // Metadata
+    icon: image,
+    name: string,
+    name-error: string,
+    description: string,
+    keywords: string,
+    author: string,
+    version: string,
+    version-error: string,
+    deprecated: bool,
+    url: string,
+    url-error: string,
+    dependencies: [LibraryDependency],
+    manufacturer: string,
+
+    // Content
+    categories: [LibraryTreeViewItemData],
+    categories-index: int,
+    categories-content-y: length,  // Ignored by the backend
+    filtered-elements: [LibraryTreeViewItemData],
+    filtered-elements-index: int,
+    filtered-elements-content-y: length,  // Ignored by the backend
+
+    // Checks
+    checks: RuleCheckData,
+
+    // Actions
+    move-or-copy-to-lib: string,  // File path to a local library
+    move-or-copy-action: LibraryElementsMoveAction,
+}
+
+// Additional data for component- or package category editor tabs
+export struct CategoryTabData {
+    // General
+    library-index: int,
+    path: string,
+
+    // Metadata
+    name: string,
+    name-error: string,
+    description: string,
+    keywords: string,
+    author: string,
+    version: string,
+    version-error: string,
+    deprecated: bool,
+    parents: [string],
+    parents-tree: [TreeViewItemData],
+    choose-parent: bool,  // If true, the dialog is shown
+
+    // Checks
+    checks: RuleCheckData,
+
+    // Actions
+    new-parent: string,  // Set to UUID or "null" by UI, reset by backend,
+}
+
+// Additional data for symbol editor tabs
+export struct SymbolTabData {
+    // General
+    library-index: int,
+    path: string,
+    wizard-mode: bool,
+    page-index: int,
+
+    // Metadata
+    name: string,
+    name-error: string,
+    description: string,
+    keywords: string,
+    author: string,
+    age-days: float,
+    version: string,
+    version-error: string,
+    deprecated: bool,
+    categories: [LibraryElementCategoryData],
+    categories-tree: [TreeViewItemData],
+    choose-category: bool,  // If true, the dialog is shown
+
+    // Checks
+    checks: RuleCheckData,
+
+    // View
+    background-color: brush,
+    foreground-color: brush,
+    overlay-color: brush,
+    overlay-text-color: brush,
+    grid-style: GridStyle,
+    grid-interval: Int64,
+    unit: LengthUnit,
+
+    // Messages
+    files-modified: bool,  // From the file system watcher
+    interface-broken-msg: bool,
+    element-duplicated-msg: bool,
+    import-pins-msg: DismissableMessageData,
+
+    // Data about the currently active tool
+    tool: EditorTool,
+    tool-cursor: MouseCursor,
+    tool-overlay-text: string,
+    tool-layer: ComboBoxData,
+    tool-line-width: LengthEditData,
+    tool-size: LengthEditData,
+    tool-angle: AngleEditData,
+    tool-filled: bool,
+    tool-grab-area: bool,
+    tool-value: LineEditData,
+    tool-halign: TextHorizontalAlignment,
+    tool-valign: TextVerticalAlignment,
+
+    // Misc
+    compact-layout: bool,  // Set by UI
+    scene-image-pos: Point,  // Absolute position of graphics scene
+    frame: int,  // Frame index to trigger repainting
+
+    // Actions
+    new-category: string,  // Set to UUID by UI, reset by backend.
+}
+
+// Additional data for package editor tabs
+export struct PackageTabData {
+    // General
+    library-index: int,
+    path: string,
+    wizard-mode: bool,
+    page-index: int,
+    view-3d: bool,
+
+    // Metadata
+    name: string,
+    name-error: string,
+    description: string,
+    keywords: string,
+    author: string,
+    age-days: float,
+    version: string,
+    version-error: string,
+    deprecated: bool,
+    categories: [LibraryElementCategoryData],
+    categories-tree: [TreeViewItemData],
+    choose-category: bool,  // If true, the dialog is shown
+    assembly-type: int,
+    min-copper-clearance: LengthEditData,
+    pads: [PackagePadData],
+    new-pad-name: string,
+    new-pad-name-error: string,
+    footprints: [FootprintData],
+    footprint-index: int,
+    models: [PackageModelData],
+    model-index: int,
+
+    // Checks
+    checks: RuleCheckData,
+
+    // View
+    background-color: brush,
+    foreground-color: brush,
+    overlay-color: brush,
+    overlay-text-color: brush,
+    grid-style: GridStyle,
+    grid-interval: Int64,
+    unit: LengthUnit,
+    background-image-set: bool,
+    background-image-alpha: float,
+    solderresist-alpha: float,  // 3D view
+    silkscreen-alpha: float,  // 3D view
+    solderpaste-alpha: float,  // 3D view
+    devices-alpha: float,  // 3D view
+    refreshing: bool,  // 3D view
+    opengl-error: string,  // 3D view
+
+    // Messages
+    files-modified: bool,  // From the file system watcher
+    interface-broken-msg: bool,
+    element-duplicated-msg: bool,
+
+    // Data about the currently active tool
+    tool: EditorTool,
+    tool-cursor: MouseCursor,
+    tool-overlay-text: string,
+    tool-layer: ComboBoxData,
+    tool-line-width: LengthEditData,
+    tool-size: LengthEditData,
+    tool-drill: LengthEditData,
+    tool-angle: AngleEditData,
+    tool-ratio: RatioEditData,
+    tool-filled: bool,
+    tool-grab-area: bool,
+    tool-value: LineEditData,
+    tool-halign: TextHorizontalAlignment,
+    tool-valign: TextVerticalAlignment,
+    tool-package-pad: ComboBoxData,
+    tool-bottom: bool,
+    tool-shape: PadShape,
+    tool-fiducial: bool,  // Read-only
+    tool-pressfit: bool,
+    tool-layer-top: bool,
+    tool-layer-inner: bool,
+    tool-layer-bottom: bool,
+    tool-no-copper: bool,
+    tool-no-planes: bool,
+    tool-no-exposures: bool,
+    tool-no-devices: bool,
+
+    // Misc
+    scene-image-pos: Point,  // Absolute position of graphics scene
+    frame: int,  // Frame index to trigger repainting
+
+    // Actions
+    new-category: string,  // Set to UUID by UI, reset by backend
+    new-footprint: string,  // Set to new name by UI, reset by backend
+}
+
+// Additional data for component editor tabs
+export struct ComponentTabData {
+    // General
+    library-index: int,
+    path: string,
+    wizard-mode: bool,
+    page-index: int,
+
+    // Metadata
+    name: string,
+    name-error: string,
+    description: string,
+    keywords: string,
+    author: string,
+    age-days: float,
+    version: string,
+    version-error: string,
+    deprecated: bool,
+    categories: [LibraryElementCategoryData],
+    categories-tree: [TreeViewItemData],
+    choose-category: bool,  // If true, the dialog is shown
+    datasheet-url: string,
+    datasheet-url-error: string,
+    schematic-only: bool,
+    prefix: string,
+    prefix-error: string,
+    default-value: string,
+    default-value-error: string,
+    attributes: [AttributeData],  // With additional row for "add attribute"!
+    cmp-signals: [ComponentSignalData],  // Name conflict with Qt's "signals"
+    new-signal-name: string,
+    new-signal-name-error: string,
+    signal-names: [string],  // Used for the pinout combobox, first item is "unconnected"
+    variants: [ComponentVariantData],
+
+    // Checks
+    checks: RuleCheckData,
+
+    // View
+    unit: LengthUnit,
+
+    // Messages
+    interface-broken-msg: bool,
+    element-duplicated-msg: bool,
+
+    // Actions
+    new-category: string,  // Set to UUID by UI, reset by backend
+}
+
+// Additional data for device editor tabs
+export struct DeviceTabData {
+    // General
+    library-index: int,
+    path: string,
+    wizard-mode: bool,
+    page-index: int,
+
+    // Metadata
+    name: string,
+    name-error: string,
+    description: string,
+    keywords: string,
+    author: string,
+    age-days: float,
+    version: string,
+    version-error: string,
+    deprecated: bool,
+    categories: [LibraryElementCategoryData],
+    categories-tree: [TreeViewItemData],
+    choose-category: bool,  // If true, the dialog is shown
+    datasheet-url: string,
+    datasheet-url-error: string,
+    attributes: [AttributeData],
+    component-error: bool,  // If failed to load
+    component-name: string,  // Empty if not loaded or on error
+    component-description: string,  // Error message if component-error
+    package-error: bool,  // If failed to load
+    package-name: string,  // Empty if not loaded or on error
+    package-description: string,  // Error message if package-error
+    signal-names: [string],  // Used for the pinout combobox, first item is "unconnected"
+    pinout: [DevicePinoutData],
+    parts: [PartData],
+
+    // Checks
+    checks: RuleCheckData,
+
+    // View
+    component-background-color: brush,
+    component-foreground-color: brush,
+    package-background-color: brush,
+    package-foreground-color: brush,
+
+    // Messages
+    interface-broken-msg: bool,
+    element-duplicated-msg: bool,
+
+    // Data about the currently active tool
+    tool-cursor: MouseCursor,
+
+    // Pinout assignment
+    has-unconnected-pads: bool,
+    has-auto-connectable-pads: bool,
+    all-pads-unconnected: bool,
+    interactive-pinout-number: int,  // 0 = inactive
+    interactive-pinout-pad: string,  // Current pad name
+    interactive-pinout-filter: string,  // User input (signal name)
+    interactive-pinout-signals: [DeviceInteractivePinoutSignalData],  // Filtered & sorted
+    interactive-pinout-signal-index: int,  // Index of interactive-pinout-signals, UI can set to -2 to select "unconnected"
+
+    // Misc
+    frame: int,  // Frame index to trigger repainting
+
+    // Actions
+    new-category: string,  // Set to UUID by UI, reset by backend
+}
+
+// Additional data for organization editor tabs
+export struct OrganizationTabData {
+    // General
+    library-index: int,
+    path: string,
+
+    // Metadata
+    logo: image,
+    name: string,
+    name-error: string,
+    description: string,
+    keywords: string,
+    author: string,
+    version: string,
+    version-error: string,
+    deprecated: bool,
+    url: string,
+    url-error: string,
+    priority: int,
+    pcb-design-rules: [OrganizationPcbDesignRulesData],
+    pcb-output-jobs: int,
+    assembly-output-jobs: int,
+
+    // Checks
+    checks: RuleCheckData,
+}
+
+// Additional data for schematic editor tabs
+export struct SchematicTabData {
+    project-index: int,
+    schematic-index: int,
+    background-color: brush,
+    foreground-color: brush,
+    overlay-color: brush,
+    overlay-text-color: brush,
+    grid-style: GridStyle,
+    grid-interval: Int64,
+    unit: LengthUnit,
+    show-pin-numbers: bool,
+    ignore-placement-locks: bool,
+
+    // Messages
+    install-libraries-msg: DismissableMessageData,
+    add-drawing-frame-msg: DismissableMessageData,
+
+    // Data about the currently active tool
+    tool: EditorTool,
+    tool-cursor: MouseCursor,
+    tool-overlay-text: string,
+    tool-wire-mode: WireMode,
+    tool-layer: ComboBoxData,
+    tool-line-width: LengthEditData,
+    tool-size: LengthEditData,
+    tool-filled: bool,
+    tool-value: LineEditData,
+    tool-attribute-value: LineEditData,
+    tool-attribute-unit: ComboBoxData,
+
+    // Misc
+    scene-image-pos: Point,  // Absolute position of graphics scene
+    frame: int,  // Frame index to trigger repainting
+
+    // Actions
+    new-bus-uuid: string,  // Set to UUID by UI, reset by backend
+}
+
+// Additional data for board editor tabs
+export struct Board2dTabData {
+    project-index: int,
+    board-index: int,
+    background-color: brush,
+    foreground-color: brush,
+    overlay-color: brush,
+    overlay-text-color: brush,
+    grid-style: GridStyle,
+    grid-interval: Int64,
+    unit: LengthUnit,
+    flip-view: bool,
+    background-image-set: bool,
+    background-image-alpha: float,
+    ignore-placement-locks: bool,
+    refreshing: bool,
+
+    // Messages
+    empty-schematics-msg: DismissableMessageData,
+    setup-design-rules-msg: DismissableMessageData,
+    place-devices-msg: DismissableMessageData,
+
+    // Unplaced components.
+    unplaced-components: [string],
+    unplaced-components-index: int,
+    unplaced-components-devices: [string],
+    unplaced-components-devices-index: int,
+    unplaced-components-footprints: [string],
+    unplaced-components-footprints-index: int,
+    unplaced-components-preview: image,
+
+    // Data about the currently active tool.
+    tool: EditorTool,
+    tool-cursor: MouseCursor,
+    tool-overlay-text: string,
+    tool-wire-mode: WireMode,
+    tool-net: ComboBoxData,
+    tool-netclass-name: string,  // Read-only, empty if not in routing state
+    tool-layer: ComboBoxData,
+    tool-line-width: LengthEditData,
+    tool-size: LengthEditData,
+    tool-drill: LengthEditData,
+    tool-angle: AngleEditData,
+    tool-filled: bool,  // Also used for 'auto' trace width
+    tool-mirrored: bool,  // Also used for 'auto' via size
+    tool-value: LineEditData,
+    tool-bottom: bool,
+    tool-shape: PadShape,
+    tool-ratio: RatioEditData,
+    tool-fiducial: bool,  // Read-only
+    tool-pressfit: bool,  // Also used for 'auto' via drill
+    tool-no-copper: bool,
+    tool-no-planes: bool,
+    tool-no-exposures: bool,
+    tool-no-devices: bool,
+
+    // Misc
+    scene-image-pos: Point,  // Absolute position of graphics scene
+    frame: int,  // Frame index to trigger repainting
+
+    // Actions
+    set-design-rules: string,  // Set to "UUID:UUID" by UI, reset by backend
+}
+
+// Additional data for board 3D viewer tabs
+export struct Board3dTabData {
+    project-index: int,
+    board-index: int,
+    background-color: brush,
+    foreground-color: brush,
+    cursor: MouseCursor,
+    solderresist-alpha: float,
+    silkscreen-alpha: float,
+    solderpaste-alpha: float,
+    devices-alpha: float,
+    refreshing: bool,
+    error: string,
+    frame: int,  // Frame index to trigger repainting
+}
+
+// Additional data for project library tabs
+export struct ProjectLibraryTabData {
+    project-index: int,
+    items: [ProjectLibraryItemData],
+    items-content-y: length,  // Ignored by the backend
+    downgraded-items: int,
+    checkable-items: int,
+    checked-items: int,
+    all-checked: bool,
+
+    // Actions
+    copy-to-library: string,  // Set to filepath by UI, reset by backend
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Window sections
+////////////////////////////////////////////////////////////////////////////////
+
+// Window section actions
+export enum WindowSectionAction {
+    split,
+    close,
+}
+
+// Window section data structure
+export struct WindowSectionData {
+    tabs: [TabData],
+    create-library-tabs: [CreateLibraryTabData],  // Proxy view for `tabs`
+    download-library-tabs: [DownloadLibraryTabData],  // Proxy view for `tabs`
+    library-tabs: [LibraryTabData],  // Proxy view for `tabs`
+    component-category-tabs: [CategoryTabData],  // Proxy view for `tabs`
+    package-category-tabs: [CategoryTabData],  // Proxy view for `tabs`
+    symbol-tabs: [SymbolTabData],  // Proxy view for `tabs`
+    package-tabs: [PackageTabData],  // Proxy view for `tabs`
+    component-tabs: [ComponentTabData],  // Proxy view for `tabs`
+    device-tabs: [DeviceTabData],  // Proxy view for `tabs`
+    organization-tabs: [OrganizationTabData],  // Proxy view for `tabs`.
+    schematic-tabs: [SchematicTabData],  // Proxy view for `tabs`
+    board-2d-tabs: [Board2dTabData],  // Proxy view for `tabs`
+    board-3d-tabs: [Board3dTabData],  // Proxy view for `tabs`
+    project-library-tabs: [ProjectLibraryTabData],  // Proxy view for `tabs`
+    current-tab-index: int,
+    highlight: bool,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Libraries
+////////////////////////////////////////////////////////////////////////////////
+
+// Library actions
+export enum LibraryAction {
+    open,
+    uninstall,
+    new-component-category,
+    new-package-category,
+    new-symbol,
+    new-package,
+    new-component,
+    new-device,
+    new-organization,
+}
+
+// Workspace library data structure
+export struct LibraryInfoData {
+    uuid: string,
+    path: string,  // Empty if not installed
+    icon: image,
+    name: string,
+    description: string,
+    installed-version: string,  // Empty if not installed
+    online-version: string,  // Empty if not a remote library
+    outdated: bool,  // Only for outdated remote libraries
+    duplicate: bool,  // Only for remote libraries --> make read-only
+    recommended: bool,  // Only for remote libraries
+    progress: int,  // [%], 0 if not installing
+    checked: bool,
+    highlight: bool,
+}
+
+// Metadata for a list of LibraryInfoData
+export struct LibraryListData {
+    refreshing: bool,  // If data is not ready yet
+    refreshing-error: string,
+    count: int,  // Count before filtering
+    installed: int,  // Only for remote libraries
+    outdated: int,  // Only for remote libraries
+    all-up-to-date: bool,  // Only for remote libraries
+    pending-installs: int,  // Only for remote libraries
+    pending-updates: int,  // Only for remote libraries
+    pending-uninstalls: int,  // // Only for remote libraries
+    pending-oneway-uninstalls: int,  // Only for remote libraries
+    operation-in-progress: bool,
+    operation-error: string,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Schematics
+////////////////////////////////////////////////////////////////////////////////
+
+export enum SchematicAction {
+    open,
+    rename,
+    delete,
+}
+
+export struct SchematicData {
+    name: string,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Boards
+////////////////////////////////////////////////////////////////////////////////
+
+export enum BoardAction {
+    open-2d,
+    open-3d,
+    copy,
+    delete,
+    export-step,
+    run-quick-check,
+    run-drc,
+    open-setup-dialog,
+    open-drc-setup-dialog,
+    prepare-order,  // Get API server availability.
+    start-order,  // Start uploading the project.
+}
+
+export struct BoardData {
+    name: string,
+    drc: RuleCheckData,
+
+    // Place Devices
+    has-preferred-footprint-tags: bool,
+    tht-soldering: SolderTechnology,
+    smt-soldering: SolderTechnology,
+    ipc-density-level: IpcDensityLevel,
+
+    // Order PCB
+    order-status: string,  // Either progress status or error message.
+    order-info-url: string,
+    order-upload-progress: int,  // In percent, -1 means idle.
+    order-upload-url: string,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Projects
+////////////////////////////////////////////////////////////////////////////////
+
+export struct BusData {
+    uuid: string,
+    name: string,
+}
+
+export enum ProjectAction {
+    close,
+    save,
+    bill-of-materials,
+    export-lppz,
+    open-folder,
+    open-output-jobs,
+    open-setup-dialog,
+    open-library-manager,
+    new-sheet,
+    new-board,
+}
+
+export struct ProjectData {
+    valid: bool,
+    path: string,
+    name: string,
+    schematics: [SchematicData],
+    boards: [BoardData],
+    writable: bool,
+    ieee315-symbols: bool,
+    unsaved-changes: bool,
+    buses: [BusData],
+    erc: RuleCheckData,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// End
+////////////////////////////////////////////////////////////////////////////////

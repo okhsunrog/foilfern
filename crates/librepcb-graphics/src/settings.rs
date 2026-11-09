@@ -1,7 +1,8 @@
 //! Port of libs/librepcb/core/export/graphicsexportsettings.{h,cpp}.
 use crate::{Error, Result};
 use librepcb_core::{
-    job::{GraphicsContent, PageOrientation},
+    export::{GraphicsExportSettings, PageOrientation},
+    job::GraphicsContent,
     types::{Color, Layer},
 };
 use std::collections::BTreeMap;
@@ -127,21 +128,39 @@ impl Default for GraphicsSettings {
 impl GraphicsSettings {
     pub fn from_content(c: &GraphicsContent) -> Self {
         let mut s = Self {
-            paper: c.paper.clone(),
+            paper: c.page_size.clone(),
             orientation: c.orientation,
-            margins: c.margins.map(|l| l.to_mm()),
+            margins: [c.margin_left, c.margin_top, c.margin_right, c.margin_bottom]
+                .map(|l| l.to_mm()),
             rotate: c.rotate,
             mirror: c.mirror,
             scale: c.scale.map(|r| r.to_normalized()),
-            dpi: c.dpi,
+            dpi: c.pixmap_dpi,
             monochrome: c.monochrome,
-            background: c.background,
+            background: c.background_color,
             min_line_width: c.min_line_width.to_mm(),
             ..Default::default()
         };
         s.colors = c.layers.clone();
         s.paint_order.retain(|r| s.colors.contains_key(r));
         s
+    }
+    pub fn from_export_settings(c: &GraphicsExportSettings) -> Self {
+        Self {
+            paper: c.page_size.clone(),
+            orientation: c.orientation,
+            margins: [c.margin_left, c.margin_top, c.margin_right, c.margin_bottom]
+                .map(|l| l.to_mm()),
+            rotate: c.rotate,
+            mirror: c.mirror,
+            scale: c.scale.map(|r| r.to_normalized()),
+            dpi: c.pixmap_dpi,
+            monochrome: c.black_white,
+            background: c.background_color,
+            min_line_width: c.min_line_width.to_mm(),
+            colors: c.colors.iter().cloned().collect(),
+            paint_order: c.colors.iter().map(|(role, _)| role.clone()).collect(),
+        }
     }
     pub fn color(&self, role: &str) -> Option<Color> {
         self.colors.get(role).copied().map(|c| {

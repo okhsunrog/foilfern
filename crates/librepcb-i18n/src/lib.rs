@@ -48,6 +48,8 @@
 mod catalog;
 #[cfg(test)]
 mod compile;
+#[cfg(test)]
+mod context_check;
 mod language;
 mod plural;
 
@@ -348,7 +350,14 @@ pub mod build_support {
                 println!("cargo::rerun-if-changed={}", po.display());
                 let target_dir = dst.join(entry.file_name()).join("LC_MESSAGES");
                 std::fs::create_dir_all(&target_dir)?;
-                std::fs::copy(&po, target_dir.join(format!("{domain}.po")))?;
+                // Copy only if changed: slint-build reruns the build script
+                // when the staged files are newer than its last run, so
+                // rewriting them would rebuild the UI crate every time.
+                let target = target_dir.join(format!("{domain}.po"));
+                let content = std::fs::read(&po)?;
+                if std::fs::read(&target).ok().as_ref() != Some(&content) {
+                    std::fs::write(&target, content)?;
+                }
             }
         }
         Ok(dst)

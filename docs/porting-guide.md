@@ -88,10 +88,10 @@ format.
 Round-trip test pattern (`tests/unittests/geometry/mod.rs`): serialize,
 deserialize, serialize again and compare the strings (`assert_roundtrip()`);
 plus a test deserializing the upstream test vector string. Real files are
-covered by `tests/geometry_roundtrip.rs` and `tests/sexpression_roundtrip.rs`,
-which re-serialize everything in the upstream `tests/data` and require
-byte-identical output. Add new object types there. Library elements are
-covered by `tests/library_roundtrip.rs`, which opens and saves every
+covered by `tests/unittests/compat/geometry_roundtrip.rs` and
+`compat/sexpression_roundtrip.rs`, which re-serialize everything in the
+upstream `tests/data` and require byte-identical output. Add new object types there. Library elements are
+covered by `compat/library_roundtrip.rs`, which opens and saves every
 current-format element (add new element types there).
 
 ## Errors and translations
@@ -106,6 +106,12 @@ current-format element (add new element types there).
   context lupdate recorded):
   `#[error("{}", tr!("Length", "Value must be > 0!"))]`. Replace `%1`, `%2`
   by `{0}`, `{1}`; `{{`/`}}` are literal braces. Plurals: `trn!` with `{n}`.
+  The context is the `msgctxt` of `lang/librepcb.pot`, including the
+  namespace for classes outside the `librepcb` root namespace
+  (`librepcb::editor::CmdBoardEdit`, `librepcb::eagleimport::...`). The
+  test `context_check` in `librepcb-i18n` fails for contexts or source
+  strings missing from the catalog; genuinely new strings go into its
+  allow-list.
 - Untranslated upstream strings (logic errors, debug messages) stay plain
   `#[error("...")]`.
 - No panics on file or user input. `expect()` only for real invariants, with
@@ -156,10 +162,12 @@ current-format element (add new element types there).
 - Floating point: basic arithmetic and `sqrt` native, every transcendental
   function (`sin`, `atan2`, `hypot`, ...) from `libm`, for identical results
   on all platforms. Integer nanometer rounding must match upstream exactly.
-- `COMPAT.md` (workspace root) lists every intentional divergence from
-  upstream, grouped by module ("General" for crate-wide rules), including
-  exotic edge cases. Add an entry whenever behavior differs, even if no
-  realistic file is affected, and say whether file output can change.
+- `COMPAT.md` (workspace root) lists every divergence from upstream,
+  grouped by module ("General" for crate-wide rules), including exotic
+  edge cases. Part 1 holds intentional differences (design decisions, not
+  work items), Part 2 features not ported yet (work items, removed when
+  done). Add an entry whenever behavior differs, even if no realistic file
+  is affected, and say whether file output can change.
 
 ## Tests
 
@@ -167,8 +175,8 @@ current-format element (add new element types there).
   `crates/librepcb-core/tests/unittests/<module>/<name>_test.rs` (one
   integration-test binary per crate, declared in `tests/unittests/main.rs`;
   other crates follow the same pattern, e.g.
-  `librepcb-network/tests/network/main.rs`), keeping the upstream test vectors and
-  names in snake_case
+  `librepcb-network/tests/network/main.rs`), keeping the upstream test
+  vectors and names in snake_case
   (`testSerializeAndDeserialize` → `test_serialize_and_deserialize`).
   Parametrized suites become loops over data tables.
 - Small tests of private helpers go into `#[cfg(test)] mod tests` in the

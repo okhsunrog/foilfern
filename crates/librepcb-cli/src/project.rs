@@ -1,847 +1,746 @@
-//! Project command from apps/librepcb-cli/commandlineinterface.cpp.
-use crate::{
-    ProjectOptions,
-    error::{Error, Result},
-    support::*,
+//! The `open-project` command (upstream
+//! `CommandLineInterface::openProject()`).
+
+use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex, PoisonError};
+
+use librepcb_core::export::BomCsvWriter;
+use librepcb_core::export::{BoardSide, GraphicsExportSettings, PickPlaceSides, Timestamp};
+use librepcb_core::fileio::{
+    CleanFileNameOptions, FileNameCase, FilePath, RestoreMode, TransactionalDirectory,
+    TransactionalFileSystem, file_utils,
 };
-use librepcb_core::project::board::drc::{BoardDesignRuleCheck, BoardDrcData};
-use librepcb_core::{
-    export::{BoardSide, BomCsvWriter, PickPlaceCsvWriter, PickPlaceSides, Timestamp},
-    fileio::{CleanFileNameOptions, FilePath, OutputDirectoryEvent, file_utils},
-    job::OutputJobList,
-    project::{
-        AssemblyVariantId, BoardId, BomGenerator, Mutation, OutputJobEvent, OutputJobRunner,
-        Project, ProjectAttributeLookup, ProjectLoader,
-        board::{
-            BoardD356NetlistExport, BoardFabricationOutputSettings, BoardGerberExport,
-            BoardPickPlaceGenerator,
-        },
-        erc::ElectricalRuleCheck,
-    },
-    serialization::DeserializeObject,
+use librepcb_core::job::OutputJobList;
+use librepcb_core::library::org::BoardDesignRuleCheckSettings;
+use librepcb_core::project::board::{
+    BoardFabricationOutputSettings, BoardGerberExport, ExportInfo, export_component_layer,
+    export_d356_netlist, export_pick_place_csv,
 };
+use librepcb_core::project::{
+    AssemblyVariantId, BoardId, BomGenerator, GraphicsExporter, GraphicsPage, GraphicsPageContent,
+    Mutation, OutputJobEvent, OutputJobRunner, ProjectAttributeLookup, ProjectLoader, erc,
+};
+use librepcb_core::serialization::{DeserializeObject, Mode, SExpression};
+use librepcb_graphics::ProjectGraphicsExporter;
 use librepcb_i18n::tr;
-use std::{collections::BTreeMap, path::Path};
-const VERSION: &str = env!("CARGO_PKG_VERSION");
-fn selected<I: Copy + Eq>(
-    names: &[String],
-    indices: &[String],
-    items: &[(I, String)],
-    kind: &str,
-) -> (Vec<I>, bool) {
-    let mut result = Vec::new();
+
+use crate::APP_VERSION;
+use crate::args::{OpenProjectArgs, TR};
+use crate::drc;
+use crate::error::CliResult;
+use crate::output::{
+    absolute_path, current_dir, fail_if_file_format_unstable, format_check_summary,
+    prepare_rule_check_messages, pretty_path, print, print_err,
+};
+
+/// Filter for substituted attribute values in output paths.
+pub fn clean_file_name(value: &str) -> String {
+    FilePath::clean_file_name(
+        value,
+        CleanFileNameOptions::new(true, FileNameCase::Keep),
+        120,
+    )
+}
+
+/// Returns the lower case suffix after the last `.` of a path given by the
+/// user (upstream `destStr.split('.').last().toLower()`).
+fn user_suffix(path: &str) -> String {
+    path.rsplit('.').next().unwrap_or_default().to_lowercase()
+}
+
+/// Reads and parses an S-expression file given on the command line.
+fn read_sexpression_file(path: &str) -> CliResult<SExpression> {
+    let fp = absolute_path(path);
+    let content = file_utils::read_file(&fp)?;
+    Ok(SExpression::parse(
+        &content,
+        Some(fp.as_path()),
+        Mode::LibrePcb,
+    )?)
+}
+
+/// The creator written into exported PDF files (upstream
+/// `"LibrePCB " + Application::getVersion()`).
+pub fn graphics_creator() -> String {
+    format!("LibrePCB {APP_VERSION}")
+}
+
+/// Runs `open-project`, returns whether it succeeded.
+pub fn open_project(args: &OpenProjectArgs) -> bool {
+    match open_project_impl(args) {
+        Ok(success) => success,
+        Err(e) => {
+            print_err(&tr!(TR, "ERROR: {0}", e));
+            false
+        }
+    }
+}
+
+fn open_project_impl(a: &OpenProjectArgs) -> CliResult<bool> {
+    let project_file = a
+        .positionals
+        .first()
+        .map(String::as_str)
+        .unwrap_or_default();
     let mut success = true;
-    for name in names {
-        if let Some((id, _)) = items.iter().find(|(_, n)| n == name) {
-            if !result.contains(id) {
-                result.push(*id);
-            }
-        } else {
-            eprintln!(
-                "{}",
-                if kind == "board" {
-                    tr!(
-                        "CommandLineInterface",
-                        "ERROR: No board with the name '{0}' found.",
-                        name
-                    )
-                } else {
-                    tr!(
-                        "CommandLineInterface",
-                        "ERROR: No assembly variant with the name '{0}' found.",
-                        name
-                    )
-                }
-            );
-            success = false;
-        }
-    }
-    for index in indices {
-        if let Some((id, _)) = index
-            .trim()
-            .parse::<usize>()
-            .ok()
-            .and_then(|i| items.get(i))
-        {
-            if !result.contains(id) {
-                result.push(*id);
-            }
-        } else {
-            let title = if kind == "board" {
-                tr!(
-                    "CommandLineInterface",
-                    "ERROR: Board index '{0}' is invalid.",
-                    index
-                )
-            } else {
-                tr!(
-                    "CommandLineInterface",
-                    "ERROR: Assembly variant index '{0}' is invalid.",
-                    index
-                )
-            };
-            eprintln!("{title}");
-            success = false;
-        }
-    }
-    if names.is_empty() && indices.is_empty() {
-        result = items.iter().map(|(id, _)| *id).collect();
-    }
-    (result, success)
-}
-fn lookup<'a>(
-    project: &'a Project,
-    board: Option<BoardId>,
-    variant: Option<AssemblyVariantId>,
-) -> ProjectAttributeLookup<'a> {
-    let variant = variant.and_then(|v| project.circuit().assembly_variant(v));
-    if let Some(b) = board.and_then(|b| project.board(b)) {
-        ProjectAttributeLookup::board(project, b, variant)
-    } else {
-        ProjectAttributeLookup::project(project, variant)
-    }
-}
-fn substitute(
-    project: &Project,
-    template: &str,
-    board: Option<BoardId>,
-    variant: Option<AssemblyVariantId>,
-) -> Result<String> {
-    let lookup = lookup(project, board, variant);
-    let mut error = None;
-    let value = librepcb_core::attribute::substitute(
-        template,
-        |key| match lookup.value(key) {
-            Ok(v) => v,
-            Err(e) => {
-                error = Some(e);
-                None
-            }
-        },
-        Some(&mut |s| {
-            FilePath::clean_file_name(
-                s,
-                CleanFileNameOptions {
-                    replace_spaces: true,
-                    ..Default::default()
-                },
-                120,
-            )
-        }),
-    );
-    if let Some(e) = error {
-        return Err(e.into());
-    }
-    Ok(value)
-}
-fn write(path: &str, data: &[u8], counts: &mut BTreeMap<FilePath, usize>) -> Result<()> {
-    let fp = crate::support::path(path)?;
-    file_utils::write_file(&fp, data)?;
-    *counts.entry(fp).or_default() += 1;
-    Ok(())
-}
-fn extension(value: &str) -> String {
-    Path::new(value)
-        .extension()
-        .and_then(|s| s.to_str())
-        .unwrap_or_default()
-        .to_lowercase()
-}
-fn board_name(project: &Project, board: BoardId) -> Result<String> {
-    project
-        .board(board)
-        .map(|b| b.name().to_string())
-        .ok_or_else(|| {
-            Error::Message(tr!(
-                "CommandLineInterface",
-                "Board does not exist: {0}",
-                board
-            ))
-        })
-}
-pub fn run(options: ProjectOptions) -> Result<bool> {
-    println!(
-        "{}",
-        tr!(
-            "CommandLineInterface",
-            "Open project '{0}'...",
-            pretty(&path(&options.project)?, &options.project)
-        )
-    );
-    let fp = path(&options.project)?;
-    let zipped = fp.suffix() == "lppz";
-    let parent = fp.parent_dir().ok_or_else(|| {
-        Error::Message(tr!(
-            "CommandLineInterface",
-            "Invalid project path: '{0}'",
-            options.project
-        ))
-    })?;
-    let directory = open_directory(&parent, options.save && !zipped)?;
-    let fs = directory.file_system().clone();
-    let filename = if zipped {
-        fs.remove_dir_recursively("")?;
-        fs.load_from_zip(&fp)?;
-        fs.files("")
+    let mut written_files: BTreeMap<FilePath, usize> = BTreeMap::new();
+    let written_job_files: Arc<Mutex<BTreeMap<FilePath, usize>>> = Arc::default();
+    let info = ExportInfo::now(APP_VERSION);
+
+    // Open project.
+    let project_fp = absolute_path(project_file);
+    print(&tr!(
+        TR,
+        "Open project '{0}'...",
+        pretty_path(&project_fp, project_file)
+    ));
+    let is_lppz = project_fp.suffix() == "lppz";
+    let parent_dir = project_fp.parent_dir().unwrap_or_else(current_dir);
+    let (fs, project_file_name) = if is_lppz {
+        let fs = TransactionalFileSystem::open_ro(&parent_dir)?;
+        fs.remove_dir_recursively("")?; // 1) get a clean initial state
+        fs.load_from_zip(&project_fp)?; // 2) load files from ZIP
+        let name = fs
+            .files("")
             .into_iter()
             .rfind(|f| f.ends_with(".lpp"))
-            .unwrap_or_default()
+            .unwrap_or_default();
+        (Arc::new(fs), name)
     } else {
-        fp.file_name().to_owned()
+        let fs = TransactionalFileSystem::open(&parent_dir, a.save, RestoreMode::No, None)?;
+        (Arc::new(fs), project_fp.file_name().to_owned())
     };
     let mut loader = ProjectLoader::new();
-    loader.set_application_version(VERSION);
-    let mut project = loader.open(directory, &filename)?;
+    loader.set_application_version(APP_VERSION);
+    let mut project = loader.open(
+        TransactionalDirectory::new(Arc::clone(&fs), ""),
+        &project_file_name,
+    )?;
     if let Some(log) = loader.migration_log() {
-        println!(
-            "{}",
-            tr!(
-                "CommandLineInterface",
-                "Attention: Project has been migrated to a newer file format!"
-            )
-        );
+        print(&tr!(
+            TR,
+            "Attention: Project has been migrated to a newer file format!"
+        ));
         for msg in &log.messages {
-            let multiplier = if msg.affected_items.is_some_and(|n| n > 0) {
-                format!(" ({}x)", msg.affected_items.unwrap_or_default())
-            } else {
-                String::new()
+            let multiplier = match msg.affected_items {
+                Some(n) if n > 0 => format!(" ({n}x)"),
+                _ => String::new(),
             };
-            println!(
+            print(&format!(
                 " - {}{multiplier}: {}",
                 msg.severity.to_tr_string(),
                 msg.message
-            );
+            ));
         }
     }
-    let mut success = true;
-    if let Some(name) = &options.set_default_variant {
-        println!(
-            "{}",
-            tr!(
-                "CommandLineInterface",
-                "Set default assembly variant to '{0}'...",
-                name
-            )
-        );
-        if let Some(variant) = project.circuit().assembly_variants().by_name(name, true) {
-            project.apply(Mutation::MoveAssemblyVariant {
-                variant: AssemblyVariantId(variant.uuid()),
-                index: 0,
-            })?;
-        } else {
-            eprintln!(
-                "{}",
-                tr!(
-                    "CommandLineInterface",
+
+    // Set the default assembly variant.
+    if let Some(name) = a.set_default_variant.as_deref().filter(|s| !s.is_empty()) {
+        print(&tr!(TR, "Set default assembly variant to '{0}'...", name));
+        let variants = project.circuit().assembly_variants();
+        match variants.iter().position(|av| av.name().as_str() == name) {
+            Some(0) => {}
+            Some(index) => {
+                let variant = variants.iter().nth(index).cloned();
+                if let Some(variant) = variant {
+                    project.apply(Mutation::MoveAssemblyVariant {
+                        variant: AssemblyVariantId(variant.uuid()),
+                        index: 0,
+                    })?;
+                }
+            }
+            None => {
+                print_err(&tr!(
+                    TR,
                     "ERROR: No assembly variant with the name '{0}' found.",
                     name
-                )
-            );
-            success = false;
+                ));
+                success = false;
+            }
         }
     }
-    let (variants, ok) = selected(
-        &options.variant,
-        &options.variant_index,
-        &project
-            .circuit()
-            .assembly_variants()
-            .iter()
-            .map(|v| (AssemblyVariantId(v.uuid()), v.name().to_string()))
-            .collect::<Vec<_>>(),
-        "assembly variant",
-    );
-    success &= ok;
-    let (mut boards, ok) = selected(
-        &options.board,
-        &options.board_index,
-        &project
+
+    // Parse list of assembly variants.
+    let mut assembly_variants: Vec<AssemblyVariantId> = Vec::new();
+    let all_variants: Vec<(AssemblyVariantId, String)> = project
+        .circuit()
+        .assembly_variants()
+        .iter()
+        .map(|av| (AssemblyVariantId(av.uuid()), av.name().to_string()))
+        .collect();
+    for name in &a.variant {
+        match all_variants.iter().find(|(_, n)| n == name) {
+            Some((id, _)) => {
+                if !assembly_variants.contains(id) {
+                    assembly_variants.push(*id);
+                }
+            }
+            None => {
+                print_err(&tr!(
+                    TR,
+                    "ERROR: No assembly variant with the name '{0}' found.",
+                    name
+                ));
+                success = false;
+            }
+        }
+    }
+    for index in &a.variant_index {
+        let variant = parse_index(index).and_then(|i| all_variants.get(i));
+        match variant {
+            Some((id, _)) => {
+                if !assembly_variants.contains(id) {
+                    assembly_variants.push(*id);
+                }
+            }
+            None => {
+                print_err(&tr!(
+                    TR,
+                    "ERROR: Assembly variant index '{0}' is invalid.",
+                    index
+                ));
+                success = false;
+            }
+        }
+    }
+
+    // If no assembly variants are specified, export all variants.
+    if a.variant.is_empty() && a.variant_index.is_empty() {
+        assembly_variants = all_variants.iter().map(|(id, _)| *id).collect();
+    }
+
+    // Parse list of boards.
+    let mut boards: Vec<BoardId> = Vec::new();
+    for name in &a.board {
+        match project.board_by_name(name) {
+            Some(board) => {
+                if !boards.contains(&board.id()) {
+                    boards.push(board.id());
+                }
+            }
+            None => {
+                print_err(&tr!(TR, "ERROR: No board with the name '{0}' found.", name));
+                success = false;
+            }
+        }
+    }
+    for index in &a.board_index {
+        let board = parse_index(index).and_then(|i| project.boards().get(i));
+        match board {
+            Some(board) => {
+                if !boards.contains(&board.id()) {
+                    boards.push(board.id());
+                }
+            }
+            None => {
+                print_err(&tr!(TR, "ERROR: Board index '{0}' is invalid.", index));
+                success = false;
+            }
+        }
+    }
+
+    // Remove other boards (note: do this at the very beginning to make all
+    // the other commands, e.g. the ERC, working without the removed boards).
+    if a.remove_other_boards {
+        print(&tr!(TR, "Remove other boards..."));
+        let others: Vec<(BoardId, String)> = project
             .boards()
             .iter()
-            .map(|b| (b.id(), b.name().to_string()))
-            .collect::<Vec<_>>(),
-        "board",
-    );
-    success &= ok;
-    if options.remove_other_boards {
-        println!("{}", tr!("CommandLineInterface", "Remove other boards..."));
-        let keep = if options.board.is_empty() && options.board_index.is_empty() {
-            vec![]
-        } else {
-            boards.clone()
-        };
-        let remove: Vec<_> = project
-            .boards()
-            .iter()
-            .filter(|b| !keep.contains(&b.id()))
-            .map(|b| (b.id(), b.name().to_string()))
+            .filter(|b| !boards.contains(&b.id()))
+            .map(|b| (b.id(), b.properties().name.to_string()))
             .collect();
-        for (id, name) in remove {
-            println!("  - '{name}'");
-            project.remove_board(id)?;
+        for (id, name) in others {
+            print(&format!("  - '{name}'"));
+            project.apply(Mutation::RemoveBoard(id))?;
         }
-        boards = keep;
     }
-    if options.strict {
-        println!(
-            "{}",
-            tr!("CommandLineInterface", "Check for non-canonical files...")
-        );
-        if zipped {
-            eprintln!(
+
+    // If no boards are specified, export all boards.
+    if a.board.is_empty() && a.board_index.is_empty() {
+        boards = project.boards().iter().map(|b| b.id()).collect();
+    }
+
+    // Build planes, if needed.
+    let run_jobs = !a.run_job.is_empty() || a.run_jobs;
+    if a.drc || a.export_pcb_fabrication_data || run_jobs {
+        for board in &boards {
+            if let Some(b) = project.board(*board) {
+                log::info!(
+                    "Rebuilding all planes of board '{}'...",
+                    b.properties().name
+                );
+            }
+            project.rebuild_planes(*board, None)?;
+        }
+    } else {
+        log::info!("No need to rebuild planes, thus skipped.");
+    }
+
+    // Check for non-canonical files (strict mode).
+    if a.strict {
+        print(&tr!(TR, "Check for non-canonical files..."));
+        if is_lppz {
+            print_err(&format!(
                 "  {}",
                 tr!(
-                    "CommandLineInterface",
+                    TR,
                     "ERROR: The option '--strict' is not available for *.lppz files!"
                 )
-            );
+            ));
             success = false;
         } else {
             project.save()?;
-            for name in fs
+            let mut paths: Vec<String> = fs
                 .check_for_modifications()?
                 .into_iter()
-                .filter(|n| !n.contains(".user.lp"))
-            {
-                eprintln!(
-                    "    - {}",
-                    tr!(
-                        "CommandLineInterface",
-                        "Non-canonical file: '{0}'",
-                        pretty(&parent.path_to(&name), &options.project)
-                    )
-                );
+                .filter(|p| !p.contains(".user.lp")) // Ignore user config files.
+                .collect();
+            // Sort file paths to increase readability of console output.
+            paths.sort();
+            for path in &paths {
+                let fp = fs.path().path_to(path);
+                print_err(&format!(
+                    "    - Non-canonical file: '{}'",
+                    pretty_path(&fp, project_file)
+                ));
+            }
+            if !paths.is_empty() {
                 success = false;
             }
         }
     }
-    if options.erc {
-        println!("{}", tr!("CommandLineInterface", "Run ERC..."));
-        let messages = ElectricalRuleCheck::new(&project).run_checks()?;
-        let (approved, remaining) = findings(
-            messages.iter().map(|m| m.rule_message().clone()),
-            project.erc_approvals(),
-        );
-        summary("  ", approved, remaining.len());
-        for message in remaining {
-            eprintln!("    - {message}");
+
+    // ERC
+    if a.erc {
+        print(&tr!(TR, "Run ERC..."));
+        let messages = erc::run_erc(&project)
+            .into_iter()
+            .map(|m| m.message().clone())
+            .collect();
+        let (non_approved, approved) =
+            prepare_rule_check_messages(messages, project.erc_approvals());
+        for line in format_check_summary(approved, non_approved.len(), "  ") {
+            print(&line);
+        }
+        for msg in &non_approved {
+            print_err(&format!("    - {msg}"));
             success = false;
         }
     }
-    if options.drc {
-        println!("{}", tr!("CommandLineInterface", "Run DRC..."));
-        let custom = options
-            .drc_settings
-            .as_deref()
-            .map(parse_file)
-            .transpose()
-            .and_then(|n| {
-                n.map(|n| {
-                    librepcb_core::library::org::BoardDesignRuleCheckSettings::deserialize(&n)
-                        .map_err(Error::from)
-                })
-                .transpose()
-            });
-        match custom {
-            Err(e) => {
-                eprintln!(
-                    "{}",
-                    tr!(
-                        "CommandLineInterface",
-                        "ERROR: Failed to load custom settings: {0}",
-                        e
-                    )
-                );
-                success = false;
-            }
-            Ok(custom) => {
-                for id in &boards {
-                    let board = project.board(*id).ok_or_else(|| {
-                        Error::Message(tr!("CommandLineInterface", "Board does not exist: {0}", id))
-                    })?;
-                    println!(
-                        "  {}",
-                        tr!("CommandLineInterface", "Board '{0}':", board.name())
-                    );
-                    let settings = custom.as_ref().unwrap_or(&board.settings().drc_settings);
-                    match BoardDrcData::extract(&project, board, settings)
-                        .map_err(Error::from)
-                        .and_then(|d| BoardDesignRuleCheck::run(&d).map_err(Error::from))
-                    {
-                        Ok(result) => {
-                            let (approved, remaining) = findings(
-                                result.messages().iter().map(|m| m.rule_message().clone()),
-                                board.drc_approvals(),
-                            );
-                            summary("    ", approved, remaining.len());
-                            for message in remaining {
-                                eprintln!("      - {message}");
-                                success = false;
-                            }
-                        }
-                        Err(e) => {
-                            eprintln!("{}", tr!("CommandLineInterface", "FATAL ERROR: {0}", e));
-                            success = false;
-                        }
-                    }
+
+    // DRC
+    if a.drc {
+        print(&tr!(TR, "Run DRC..."));
+        let mut custom_settings: Option<BoardDesignRuleCheckSettings> = None;
+        let mut boards_to_check = boards.clone();
+        if let Some(path) = a.drc_settings.as_deref().filter(|p| !p.is_empty()) {
+            log::debug!("Load custom DRC settings: {path}");
+            let result = read_sexpression_file(path)
+                .and_then(|root| Ok(BoardDesignRuleCheckSettings::deserialize(&root)?));
+            match result {
+                Ok(settings) => custom_settings = Some(settings),
+                Err(e) => {
+                    print_err(&tr!(TR, "ERROR: Failed to load custom settings: {0}", e));
+                    success = false;
+                    boards_to_check.clear(); // Avoid exporting any boards.
                 }
             }
         }
-    }
-    let mut counts = BTreeMap::new();
-    if options.run_jobs || !options.run_job.is_empty() {
-        let jobs = options
-            .jobs
-            .as_deref()
-            .map(|p| OutputJobList::deserialize(&parse_file(p)?).map_err(Error::from))
-            .transpose();
-        match jobs {
-            Err(e) => {
-                eprintln!(
-                    "{}",
-                    tr!(
-                        "CommandLineInterface",
-                        "ERROR: Failed to load custom output jobs: {0}",
-                        e
-                    )
-                );
-                success = false;
-            }
-            Ok(jobs) => {
-                let all = jobs.as_ref().unwrap_or(project.output_jobs());
-                let jobs = if options.run_jobs {
-                    all.as_slice().to_vec()
-                } else {
-                    let mut selected = vec![];
-                    for name in &options.run_job {
-                        if let Some(job) = all.by_name(name, true) {
-                            selected.push(job.clone());
-                        } else {
-                            eprintln!(
-                                "{}",
-                                tr!(
-                                    "CommandLineInterface",
-                                    "ERROR: No output job with the name '{0}' found.",
-                                    name
-                                )
-                            );
-                            success = false;
-                        }
+        for board in boards_to_check {
+            let Some(b) = project.board(board) else {
+                continue;
+            };
+            print(&format!(
+                "  {}",
+                tr!(TR, "Board '{0}':", b.properties().name)
+            ));
+            let settings = custom_settings
+                .clone()
+                .unwrap_or_else(|| b.settings().drc_settings.clone());
+            let approvals = b.drc_approvals().clone();
+            match drc::run_drc(&mut project, board, &settings) {
+                Ok(result) => {
+                    for msg in &result.errors {
+                        print_err(&format!("FATAL ERROR: {msg}"));
+                        success = false;
                     }
-                    selected
-                };
-                let output = if let Some(output) = &options.outdir {
-                    path(output)?
-                } else {
-                    parent.path_to(&substitute(&project, "output/{{VERSION}}", None, None)?)
-                };
-                let mut runner =
-                    OutputJobRunner::new(&mut project, &output, VERSION, Timestamp::now());
-                runner.set_graphics_exporter(Some(Box::new(|project, job| {
-                    librepcb_graphics::graphics_job_files(project, job)
-                        .map(|files| {
-                            files
-                                .into_iter()
-                                .map(|file| librepcb_core::project::GraphicsJobFile {
-                                    name: file.name,
-                                    contents: file.contents,
-                                })
-                                .collect()
-                        })
-                        .map_err(|error| librepcb_core::job::Error::Graphics(error.to_string()))
-                })));
-                runner.set_step_exporter(Some(Box::new(|project, board, variant| {
-                    let model = librepcb_step::StepModel::from_board(project, board, variant)
-                        .map_err(|error| librepcb_core::job::Error::Step(error.to_string()))?;
-                    let warnings = if model.approximated_contours() == 0 {
-                        Vec::new()
-                    } else {
-                        vec![tr!(
-                            "StepExport",
-                            "Approximating {0} clipped board contours within 0.005 mm.",
-                            model.approximated_contours()
-                        )]
-                    };
-                    let contents = model
-                        .to_step()
-                        .map_err(|error| librepcb_core::job::Error::Step(error.to_string()))?;
-                    // Generic job warnings are suppressed for upstream CLI
-                    // compatibility; CAD approximation must remain visible.
-                    for warning in &warnings {
-                        eprintln!("{}", tr!("CommandLineInterface", "WARNING: {0}", warning));
+                    let (non_approved, approved) =
+                        prepare_rule_check_messages(result.messages, &approvals);
+                    for line in format_check_summary(approved, non_approved.len(), "    ") {
+                        print(&line);
                     }
-                    Ok(librepcb_core::project::BoardStepOutput { contents, warnings })
-                })));
-                let style = options.project.clone();
-                runner.set_file_observer(Some(Box::new(move |event| {
-                    if let OutputDirectoryEvent::AboutToWriteFile(fp) = event {
-                        println!("  => '{}'", pretty(fp, &style));
+                    for msg in &non_approved {
+                        print_err(&format!("      - {msg}"));
+                        success = false;
                     }
-                })));
-                if let Err(e) = runner.run_with_observer(&jobs, |event| match event {
-                    OutputJobEvent::Started(id) => {
-                        if let Some(job) = jobs.iter().find(|j| j.uuid() == id) {
-                            println!(
-                                "{}",
-                                tr!(
-                                    "CommandLineInterface",
-                                    "Run output job '{0}'...",
-                                    job.name()
-                                )
-                            );
-                        }
-                    }
-                    OutputJobEvent::Warning(_) => {}
-                }) {
-                    eprintln!("{}", tr!("CommandLineInterface", "ERROR: {0}", e));
+                }
+                Err(e) => {
+                    print_err(&format!("    {}", tr!(TR, "ERROR: {0}", e)));
                     success = false;
                 }
-                for files in runner.written_files().values() {
-                    for fp in files {
-                        *counts.entry(fp.clone()).or_default() += 1;
-                    }
-                }
             }
         }
     }
-    for template in &options.export_schematics {
-        println!(
-            "{}",
-            tr!(
-                "CommandLineInterface",
-                "Export schematics to '{0}'...",
-                template
-            )
-        );
-        let dest = substitute(&project, template, None, None)?;
-        let output = path(&dest)?;
-        let settings = librepcb_graphics::GraphicsSettings::default();
-        let pages = project
-            .schematics()
-            .iter()
-            .map(|schematic| {
-                Ok(librepcb_graphics::GraphicsPage {
-                    drawing: librepcb_graphics::schematic_drawing(&project, schematic, &settings)?,
-                    settings: settings.clone(),
-                })
-            })
-            .collect::<librepcb_graphics::Result<Vec<_>>>();
-        let exporter = librepcb_graphics::GraphicsExport {
-            title: project.metadata().name.to_string(),
-            creator: format!("LibrePCB {VERSION}"),
-            ..Default::default()
-        };
-        match pages.and_then(|pages| exporter.write(&pages, &output)) {
-            Ok(files) => {
-                for file in files {
-                    println!("  => '{}'", pretty(&file, &dest));
-                    *counts.entry(file).or_default() += 1;
+
+    // Run output jobs.
+    if run_jobs {
+        // Determine jobs.
+        let all_jobs: Option<OutputJobList> =
+            match a.jobs.as_deref().map(str::trim).filter(|p| !p.is_empty()) {
+                Some(path) => {
+                    log::debug!("Load custom output jobs: {path}");
+                    let result = read_sexpression_file(path)
+                        .and_then(|root| Ok(OutputJobList::deserialize(&root)?));
+                    match result {
+                        Ok(jobs) => Some(jobs),
+                        Err(e) => {
+                            print_err(&tr!(TR, "ERROR: Failed to load custom output jobs: {0}", e));
+                            success = false;
+                            None
+                        }
+                    }
+                }
+                None => Some(project.output_jobs().clone()),
+            };
+        if let Some(all_jobs) = all_jobs {
+            let mut jobs = Vec::new();
+            if a.run_jobs {
+                jobs = all_jobs.iter().cloned().collect();
+            } else {
+                for name in &a.run_job {
+                    match all_jobs.iter().find(|job| job.name().as_str() == name) {
+                        Some(job) => jobs.push(job.clone()),
+                        None => {
+                            print_err(&tr!(
+                                TR,
+                                "ERROR: No output job with the name '{0}' found.",
+                                name
+                            ));
+                            success = false;
+                        }
+                    }
                 }
             }
-            Err(e) => {
-                eprintln!("  {}", tr!("CommandLineInterface", "ERROR: {0}", e));
+            let result = (|| -> CliResult<()> {
+                let mut runner = OutputJobRunner::new(&mut project, info.clone())?;
+                runner.set_step_exporter(Some(librepcb_step::board_exporter()));
+                runner.set_graphics_exporter(Some(Arc::new(ProjectGraphicsExporter::new(
+                    graphics_creator(),
+                ))));
+                let counter = Arc::clone(&written_job_files);
+                let style = project_file.to_owned();
+                runner.set_observer(Some(Box::new(move |event| match event {
+                    OutputJobEvent::JobStarted(job) => {
+                        print(&tr!(TR, "Run output job '{0}'...", job.name()));
+                    }
+                    OutputJobEvent::AboutToWriteFile(fp) => {
+                        print(&format!("  => '{}'", pretty_path(fp, &style)));
+                        *counter
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .entry(fp.clone())
+                            .or_default() += 1;
+                    }
+                    OutputJobEvent::Warning(message)
+                        if message.starts_with("STEP export approximated ") =>
+                    {
+                        print_err(&format!("WARNING: {message}"));
+                    }
+                    OutputJobEvent::AboutToRemoveFile(_) | OutputJobEvent::Warning(_) => {}
+                })));
+                if let Some(dir) = a.outdir.as_deref().map(str::trim).filter(|d| !d.is_empty()) {
+                    runner.set_output_directory(&absolute_path(dir));
+                }
+                log::debug!(
+                    "Using output base directory: {}",
+                    runner.output_directory().to_native()
+                );
+                runner.run(&jobs)?;
+                Ok(())
+            })();
+            if let Err(e) = result {
+                print_err(&format!("{} {e}", tr!(TR, "ERROR:")));
                 success = false;
             }
         }
     }
-    success &= legacy_exports(&mut project, &options, &boards, &variants, &mut counts)?;
-    if options.save {
-        println!("{}", tr!("CommandLineInterface", "Save project..."));
-        project.save()?;
-        if zipped {
-            file_utils::write_file(&fp, &fs.export_to_zip(None)?)?;
-        } else {
-            fs.save()?;
-        }
-    }
-    let mut overwritten = false;
-    for (fp, count) in counts {
-        if count > 1 {
-            eprintln!(
-                "{}",
-                tr!(
-                    "CommandLineInterface",
-                    "ERROR: The file '{0}' was written multiple times!",
-                    pretty(&fp, &options.project)
-                )
-            );
-            overwritten = true;
-        }
-    }
-    if overwritten {
-        eprintln!(
-            "{}",
-            tr!(
-                "CommandLineInterface",
-                "NOTE: To avoid writing files multiple times, make sure to pass unique filepaths to all export functions. For board output files, you could either add the placeholder '{0}' to the path or specify the boards to export with the '{1}' argument.",
-                "{{BOARD}}",
-                "--board"
-            )
+
+    // Export schematics.
+    for dest in &a.export_schematics {
+        print(&tr!(TR, "Export schematics to '{0}'...", dest));
+        let lookup = ProjectAttributeLookup::for_project(&project, None);
+        let dest_path = lookup.substitute_filtered(dest, &mut clean_file_name);
+        let fp = absolute_path(&dest_path);
+        let settings = GraphicsExportSettings::default();
+        let pages: Vec<GraphicsPage> = project
+            .schematics()
+            .iter()
+            .map(|s| GraphicsPage {
+                content: GraphicsPageContent::Schematic(s.id()),
+                settings: settings.clone(),
+            })
+            .collect();
+        let result = ProjectGraphicsExporter::new(graphics_creator()).export(
+            &project,
+            &pages,
+            &fp,
+            project.metadata().name.as_str(),
         );
-        success = false;
+        for written in &result.written_files {
+            print(&format!("  => '{}'", pretty_path(written, &dest_path)));
+            *written_files.entry(written.clone()).or_default() += 1;
+        }
+        for error in &result.errors {
+            print_err(&format!("  {}: {}", tr!(TR, "ERROR"), error));
+            success = false;
+        }
     }
-    Ok(success)
-}
-#[allow(clippy::result_large_err)] // The core export callback requires project::Error.
-fn legacy_exports(
-    project: &mut Project,
-    options: &ProjectOptions,
-    boards: &[BoardId],
-    variants: &[AssemblyVariantId],
-    counts: &mut BTreeMap<FilePath, usize>,
-) -> Result<bool> {
-    let mut success = true;
-    let timestamp = Timestamp::now();
-    let attributes = options
-        .bom_attributes
-        .as_deref()
-        .map(|a| {
-            a.split(',')
+
+    // Export BOM.
+    if !a.export_bom.is_empty() || !a.export_board_bom.is_empty() {
+        let jobs = a
+            .export_bom
+            .iter()
+            .map(|fp| (fp, false))
+            .chain(a.export_board_bom.iter().map(|fp| (fp, true)));
+        let attributes: Vec<String> = match a.bom_attributes.as_deref() {
+            None | Some("") => project.settings().custom_bom_attributes.clone(),
+            Some(attributes) => attributes
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .split(',')
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
                 .map(str::to_owned)
-                .collect()
-        })
-        .unwrap_or_else(|| project.settings().custom_bom_attributes.clone());
-    for (paths, specific) in [
-        (&options.export_bom, false),
-        (&options.export_board_bom, true),
-    ] {
-        for template in paths {
-            println!(
-                "{}",
-                if specific {
-                    tr!(
-                        "CommandLineInterface",
-                        "Export board-specific BOM to '{0}'...",
-                        template
-                    )
-                } else {
-                    tr!(
-                        "CommandLineInterface",
-                        "Export generic BOM to '{0}'...",
-                        template
-                    )
-                }
-            );
-            let targets: Vec<_> = if specific {
+                .collect(),
+        };
+        for (dest, board_specific) in jobs {
+            let boards_to_export: Vec<Option<BoardId>> = if board_specific {
+                print(&tr!(TR, "Export board-specific BOM to '{0}'...", dest));
                 boards.iter().copied().map(Some).collect()
             } else {
+                print(&tr!(TR, "Export generic BOM to '{0}'...", dest));
                 vec![None]
             };
-            for board in targets {
-                for variant in variants {
-                    let dest = substitute(project, template, board, Some(*variant))?;
-                    if let Some(board) = board {
-                        println!(
-                            "  - '{}' => '{}'",
-                            board_name(project, board)?,
-                            pretty(&path(&dest)?, template)
-                        );
-                    } else {
-                        println!("  => '{}'", pretty(&path(&dest)?, template));
-                    }
-                    if extension(template) != "csv" {
-                        eprintln!(
-                            "  {}",
-                            tr!(
-                                "CommandLineInterface",
-                                "ERROR: Unknown extension '{0}'.",
-                                extension(template)
-                            )
-                        );
-                        success = false;
-                        continue;
-                    }
-                    let mut generator = BomGenerator::new(project);
+            for board in &boards_to_export {
+                let board = board.and_then(|id| project.board(id));
+                for av in &assembly_variants {
+                    let variant = project.circuit().assembly_variant(*av);
+                    let lookup = match board {
+                        Some(b) => ProjectAttributeLookup::for_board(&project, b, variant),
+                        None => ProjectAttributeLookup::for_project(&project, variant),
+                    };
+                    let dest_path = lookup.substitute_filtered(dest, &mut clean_file_name);
+                    let fp = absolute_path(&dest_path);
+                    let mut generator = BomGenerator::new(&project);
                     generator.set_additional_attributes(attributes.clone());
-                    let bom = generator.generate(board.and_then(|b| project.board(b)), *variant)?;
-                    let csv = BomCsvWriter::new(&bom).generate_csv()?.to_csv_string()?;
-                    write(&dest, csv.as_bytes(), counts)?;
+                    let bom = generator.generate(board, *av);
+                    match board {
+                        Some(b) => print(&format!(
+                            "  - '{}' => '{}'",
+                            b.properties().name,
+                            pretty_path(&fp, &dest_path)
+                        )),
+                        None => print(&format!("  => '{}'", pretty_path(&fp, &dest_path))),
+                    }
+                    let suffix = user_suffix(dest);
+                    if suffix == "csv" {
+                        BomCsvWriter::new(&bom).generate_csv()?.save_to_file(&fp)?;
+                        *written_files.entry(fp).or_default() += 1;
+                    } else {
+                        print_err(&format!(
+                            "  {}",
+                            tr!(TR, "ERROR: Unknown extension '{0}'.", suffix)
+                        ));
+                        success = false;
+                    }
                 }
             }
         }
     }
-    if options.export_pcb_fabrication_data {
-        println!(
-            "{}",
-            tr!("CommandLineInterface", "Export PCB fabrication data...")
-        );
-        let custom = options
+
+    // Export PCB fabrication data.
+    if a.export_pcb_fabrication_data {
+        print(&tr!(TR, "Export PCB fabrication data..."));
+        let mut custom_settings: Option<BoardFabricationOutputSettings> = None;
+        let mut boards_to_export = boards.clone();
+        if let Some(path) = a
             .pcb_fabrication_settings
             .as_deref()
-            .map(|p| {
-                BoardFabricationOutputSettings::deserialize(&parse_file(p)?).map_err(Error::from)
-            })
-            .transpose();
-        match custom {
-            Err(e) => {
-                eprintln!(
-                    "{}",
-                    tr!(
-                        "CommandLineInterface",
-                        "ERROR: Failed to load custom settings: {0}",
-                        e
-                    )
-                );
-                success = false;
-            }
-            Ok(custom) => {
-                for board in boards {
-                    println!(
-                        "  {}",
-                        tr!(
-                            "CommandLineInterface",
-                            "Board '{0}':",
-                            board_name(project, *board)?
-                        )
-                    );
-                    project.rebuild_planes(*board, None)?;
-                    let board = project.board(*board).ok_or_else(|| {
-                        Error::from(librepcb_core::project::Error::NotFound {
-                            kind: librepcb_core::project::EntityKind::Board,
-                            uuid: board.0,
-                        })
-                    })?;
-                    let base = project.path().ok_or_else(|| {
-                        Error::Message(tr!(
-                            "CommandLineInterface",
-                            "Project directory is not available."
-                        ))
-                    })?;
-                    let exporter = BoardGerberExport::new(project, board, VERSION, timestamp);
-                    let generated = exporter.generate_pcb_layers_with_callback(
-                        custom
-                            .as_ref()
-                            .unwrap_or(&board.settings().fabrication_output_settings),
-                        |name, data| {
-                            let fp = base.path_to(name);
-                            // Normal loaded projects always have a filesystem path.
-                            println!("    => '{}'", pretty(&fp, &options.project));
-                            file_utils::write_file(&fp, data.as_bytes())?;
-                            *counts.entry(fp).or_default() += 1;
-                            Ok(())
-                        },
-                    )?;
-                    for name in exporter.disabled_pcb_output_paths(
-                        custom
-                            .as_ref()
-                            .unwrap_or(&board.settings().fabrication_output_settings),
-                    )? {
-                        let fp = base.path_to(&name);
-                        if !generated.keys().any(|written| base.path_to(written) == fp)
-                            && fp.is_existing_file()
-                        {
-                            file_utils::remove_file(&fp)?;
-                        }
-                    }
+            .filter(|p| !p.is_empty())
+        {
+            log::debug!("Load custom fabrication output settings: {path}");
+            let result = read_sexpression_file(path)
+                .and_then(|root| Ok(BoardFabricationOutputSettings::deserialize(&root)?));
+            match result {
+                Ok(settings) => custom_settings = Some(settings),
+                Err(e) => {
+                    print_err(&tr!(TR, "ERROR: Failed to load custom settings: {0}", e));
+                    success = false;
+                    boards_to_export.clear(); // Avoid exporting any boards.
                 }
             }
         }
-    }
-    for (paths, side) in [
-        (&options.export_pnp_top, BoardSide::Top),
-        (&options.export_pnp_bottom, BoardSide::Bottom),
-    ] {
-        for template in paths {
-            println!(
-                "{}",
-                tr!(
-                    "CommandLineInterface",
-                    "Export {0} assembly data to '{1}'...",
-                    if side == BoardSide::Top {
-                        "top"
-                    } else {
-                        "bottom"
-                    },
-                    template
-                )
-            );
-            for id in boards {
-                for variant in variants {
-                    let dest = substitute(project, template, Some(*id), Some(*variant))?;
-                    println!(
-                        "  - '{}' => '{}'",
-                        board_name(project, *id)?,
-                        pretty(&path(&dest)?, template)
-                    );
-                    let board = project.board(*id).ok_or_else(|| {
-                        Error::from(librepcb_core::project::Error::NotFound {
-                            kind: librepcb_core::project::EntityKind::Board,
-                            uuid: id.0,
-                        })
-                    })?;
-                    let data = match extension(template).as_str() {
-                        "csv" => {
-                            let data = BoardPickPlaceGenerator::new(project, board, *variant)
-                                .generate()?;
-                            let mut writer = PickPlaceCsvWriter::new(&data, VERSION);
-                            writer.set_generation_date(timestamp);
-                            writer.set_board_sides(if side == BoardSide::Top {
-                                PickPlaceSides::Top
-                            } else {
-                                PickPlaceSides::Bottom
-                            });
-                            writer.generate_csv()?.to_csv_string()?
-                        }
-                        "gbr" => BoardGerberExport::new(project, board, VERSION, timestamp)
-                            .generate_component_layer(side, *variant)?,
-                        _ => {
-                            eprintln!(
-                                "  {}",
-                                tr!(
-                                    "CommandLineInterface",
-                                    "ERROR: Unknown extension '{0}'.",
-                                    extension(template)
-                                )
-                            );
-                            success = false;
-                            continue;
-                        }
-                    };
-                    write(&dest, data.as_bytes(), counts)?;
-                }
-            }
-        }
-    }
-    for template in &options.export_netlist {
-        println!(
-            "{}",
-            tr!(
-                "CommandLineInterface",
-                "Export netlist to '{0}'...",
-                template
-            )
-        );
-        for id in boards {
-            let dest = substitute(project, template, Some(*id), None)?;
-            println!(
-                "  - '{}' => '{}'",
-                board_name(project, *id)?,
-                pretty(&path(&dest)?, template)
-            );
-            if extension(template) != "d356" {
-                eprintln!(
-                    "  {}",
-                    tr!(
-                        "CommandLineInterface",
-                        "ERROR: Unknown extension '{0}'.",
-                        extension(template)
-                    )
-                );
-                success = false;
+        for board in &boards_to_export {
+            let Some(b) = project.board(*board) else {
                 continue;
+            };
+            print(&format!(
+                "  {}",
+                tr!(TR, "Board '{0}':", b.properties().name)
+            ));
+            let settings = custom_settings
+                .clone()
+                .unwrap_or_else(|| b.settings().fabrication_output_settings.clone());
+            let mut export = BoardGerberExport::new(&project, *board, &info)?;
+            export.export_pcb_layers(&settings)?;
+            for fp in export.written_files() {
+                print(&format!("    => '{}'", pretty_path(fp, project_file)));
+                *written_files.entry(fp.clone()).or_default() += 1;
             }
-            let board = project.board(*id).ok_or_else(|| {
-                Error::from(librepcb_core::project::Error::NotFound {
-                    kind: librepcb_core::project::EntityKind::Board,
-                    uuid: id.0,
-                })
-            })?;
-            let data =
-                BoardD356NetlistExport::new(project, board, VERSION, timestamp).generate()?;
-            write(&dest, data.as_bytes(), counts)?;
         }
     }
+
+    // Export pick&place files.
+    let pnp_jobs = a
+        .export_pnp_top
+        .iter()
+        .map(|dest| (tr!(TR, "top"), PickPlaceSides::Top, BoardSide::Top, dest))
+        .chain(a.export_pnp_bottom.iter().map(|dest| {
+            (
+                tr!(TR, "bottom"),
+                PickPlaceSides::Bottom,
+                BoardSide::Bottom,
+                dest,
+            )
+        }));
+    for (side_str, csv_side, gbr_side, dest) in pnp_jobs {
+        print(&tr!(
+            TR,
+            "Export {0} assembly data to '{1}'...",
+            side_str,
+            dest
+        ));
+        for board in &boards {
+            let Some(b) = project.board(*board) else {
+                continue;
+            };
+            for av in &assembly_variants {
+                let variant = project.circuit().assembly_variant(*av);
+                let lookup = ProjectAttributeLookup::for_board(&project, b, variant);
+                let dest_path = lookup.substitute_filtered(dest, &mut clean_file_name);
+                let fp = absolute_path(&dest_path);
+                print(&format!(
+                    "  - '{}' => '{}'",
+                    b.properties().name,
+                    pretty_path(&fp, &dest_path)
+                ));
+                let suffix = user_suffix(dest);
+                if suffix == "csv" {
+                    export_pick_place_csv(
+                        &project,
+                        *board,
+                        *av,
+                        csv_side,
+                        &fp,
+                        APP_VERSION,
+                        Timestamp::now(),
+                    )?;
+                    *written_files.entry(fp).or_default() += 1;
+                } else if suffix == "gbr" {
+                    export_component_layer(&project, *board, gbr_side, *av, &fp, &info)?;
+                    *written_files.entry(fp).or_default() += 1;
+                } else {
+                    print_err(&format!(
+                        "  {}",
+                        tr!(TR, "ERROR: Unknown extension '{0}'.", suffix)
+                    ));
+                    success = false;
+                }
+            }
+        }
+    }
+
+    // Export netlist files.
+    for dest in &a.export_netlist {
+        print(&tr!(TR, "Export netlist to '{0}'...", dest));
+        for board in &boards {
+            let Some(b) = project.board(*board) else {
+                continue;
+            };
+            let lookup = ProjectAttributeLookup::for_board(&project, b, None);
+            let dest_path = lookup.substitute_filtered(dest, &mut clean_file_name);
+            let fp = absolute_path(&dest_path);
+            print(&format!(
+                "  - '{}' => '{}'",
+                b.properties().name,
+                pretty_path(&fp, &dest_path)
+            ));
+            let suffix = user_suffix(dest);
+            if suffix == "d356" {
+                export_d356_netlist(&project, *board, &fp, &info)?;
+                *written_files.entry(fp).or_default() += 1;
+            } else {
+                print_err(&format!(
+                    "  {}",
+                    tr!(TR, "ERROR: Unknown extension '{0}'.", suffix)
+                ));
+                success = false;
+            }
+        }
+    }
+
+    // Save project.
+    if a.save {
+        print(&tr!(TR, "Save project..."));
+        if fail_if_file_format_unstable() {
+            success = false;
+        } else {
+            project.save()?;
+            if is_lppz {
+                fs.export_to_zip_file(&project_fp, None)?;
+            } else {
+                fs.save()?;
+            }
+        }
+    }
+
+    // Fail if some files were written multiple times.
+    let job_files = written_job_files
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    let mut files_overwritten = false;
+    for (fp, count) in &written_files {
+        let total = count + job_files.get(fp).copied().unwrap_or(0);
+        if total > 1 {
+            files_overwritten = true;
+            print_err(&tr!(
+                TR,
+                "ERROR: The file '{0}' was written multiple times!",
+                pretty_path(fp, project_file)
+            ));
+        }
+    }
+    if files_overwritten {
+        print_err(&tr!(
+            TR,
+            "NOTE: To avoid writing files multiple times, make sure to pass unique filepaths to all export functions. For board output files, you could either add the placeholder '{0}' to the path or specify the boards to export with the '{1}' argument.",
+            "{{BOARD}}",
+            "--board"
+        ));
+        success = false;
+    }
+
     Ok(success)
+}
+
+/// Parses an index given on the command line (upstream
+/// `str.trimmed().toInt()`), `None` if invalid or negative.
+fn parse_index(s: &str) -> Option<usize> {
+    s.trim()
+        .parse::<i64>()
+        .ok()
+        .and_then(|i| usize::try_from(i).ok())
 }

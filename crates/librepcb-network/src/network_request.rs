@@ -91,7 +91,7 @@ impl ProgressReporter {
         }
         let percent = percent(received_i, estimated);
         let state = tr!(
-            "NetworkRequestBase",
+            "librepcb::NetworkRequestBase",
             "Receive data: {0}",
             format_file_size(received)
         );
@@ -111,7 +111,7 @@ impl ProgressReporter {
             percent(sent_i, total_i)
         };
         let state = tr!(
-            "NetworkRequestBase",
+            "librepcb::NetworkRequestBase",
             "Send data: {0}",
             format_file_size(sent)
         );
@@ -255,7 +255,7 @@ impl NetworkRequest {
                 tokio::select! {
                     result = fut => result,
                     () = token.cancelled() => {
-                        self.progress.state(tr!("NetworkRequestBase", "Abort request..."));
+                        self.progress.state(tr!("librepcb::NetworkRequestBase", "Abort request..."));
                         Err(Error::Aborted)
                     }
                 }
@@ -268,18 +268,23 @@ impl NetworkRequest {
         match &result {
             Ok(_) => {
                 log::debug!("Request succeeded: {}", self.url);
-                self.progress
-                    .state(tr!("NetworkRequestBase", "Request successfully finished."));
+                self.progress.state(tr!(
+                    "librepcb::NetworkRequestBase",
+                    "Request successfully finished."
+                ));
             }
             Err(Error::Aborted) => {
                 log::debug!("Request aborted: {}", self.url);
                 self.progress
-                    .state(tr!("NetworkRequestBase", "Request aborted."));
+                    .state(tr!("librepcb::NetworkRequestBase", "Request aborted."));
             }
             Err(e) => {
                 log::error!("Request failed: {}: {e}", self.url);
-                self.progress
-                    .state(tr!("NetworkRequestBase", "Request failed: {0}", e));
+                self.progress.state(tr!(
+                    "librepcb::NetworkRequestBase",
+                    "Request failed: {0}",
+                    e
+                ));
             }
         }
         result
@@ -293,12 +298,12 @@ impl NetworkRequest {
         sink: &mut S,
     ) -> Result<Option<String>> {
         self.progress
-            .state(tr!("NetworkRequestBase", "Start request..."));
+            .state(tr!("librepcb::NetworkRequestBase", "Start request..."));
         let mut url = self.url.clone();
         let mut redirected_urls: Vec<Url> = Vec::new();
         loop {
             self.progress
-                .state(tr!("NetworkRequestBase", "Request started..."));
+                .state(tr!("librepcb::NetworkRequestBase", "Request started..."));
             sink.begin().await?;
 
             if url.scheme() == "file" {
@@ -328,8 +333,11 @@ impl NetworkRequest {
                     return Err(Error::TooManyRedirects);
                 }
                 log::debug!("Redirect from {url} to {target}.");
-                self.progress
-                    .state(tr!("NetworkRequestBase", "Redirect to {0}...", target));
+                self.progress.state(tr!(
+                    "librepcb::NetworkRequestBase",
+                    "Redirect to {0}...",
+                    target
+                ));
                 redirected_urls.push(std::mem::replace(&mut url, target));
                 continue;
             }

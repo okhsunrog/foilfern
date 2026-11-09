@@ -1,5 +1,8 @@
 //! Port of tests/unittests/core/geometry/pathtest.cpp.
 
+// The comparison tests negate operators on purpose (`!(a < b)`), as upstream.
+#![allow(clippy::nonminimal_bool)]
+
 use librepcb_core::geometry::{Path, Vertex};
 use librepcb_core::types::{Angle, Length, Point, PositiveLength, UnsignedLength};
 

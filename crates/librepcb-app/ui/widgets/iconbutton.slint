@@ -1,0 +1,212 @@
+import { ToolTip } from "tooltip.slint";
+import { Backend, Data, EditorCommand } from "../api.slint";
+
+export enum IconButtonStyle {
+    standard,  // Background filled, arrow cursor, smaller icon
+    hyperlink,  // Background transparent, hand pointer
+    checkable-hyperlink,  // Like hyperlink, but different colors
+    read-only,  // Static image, no hover effect, immediate tooltip
+}
+
+export enum ToolTipPosition {
+    bottom,
+    bottom-left,
+    left,
+    right,
+    top,
+}
+
+export component IconButton inherits Rectangle {
+    in property <EditorCommand> cmd;
+    in property <image> icon: cmd.icon;
+    in property <float> icon-scale: (style == IconButtonStyle.standard) ? 0.8 : 1;
+    in property <length> icon-size: min(root.width, root.height) * icon-scale;
+    in property <length> icon-offset-y: 0;
+    in property <angle> icon-rotation: 0deg;
+    in property <bool> colorize: true;
+    in property <color> color-disabled: Data.theme.base-text-disabled;
+    in property <color> color-enabled: (style == IconButtonStyle.checkable-hyperlink) ? Data.theme.base-text-muted : Data.theme.base-text-muted.mix(Data.theme.base-text, 0.3);
+    in property <color> color-checked: Data.theme.base-text;
+    in property <color> color-hovered: (style == IconButtonStyle.checkable-hyperlink) ? self.color-checked : Data.theme.base-text-hovered;
+    in property <color> background-color: transparent;
+    in property <color> background-color-hovered: (style == IconButtonStyle.standard) ? Data.theme.control-hovered : background-color;
+    in property <color> background-color-checked: ((style == IconButtonStyle.standard) || (style == IconButtonStyle.read-only)) ? Data.theme.control-checked : background-color;
+    in property <string> tooltip: cmd.text;
+    in property <bool> tooltip-delayed: style != IconButtonStyle.read-only;
+    in property <ToolTipPosition> tooltip-position: bottom;
+    in property <string> status-tip: cmd.status-tip;
+    in property <IconButtonStyle> style: standard;
+    in property <bool> checked: false;
+    in property <bool> enabled: true;
+    out property has-hover <=> ta.has-hover;
+    out property pressed <=> ta.pressed;
+    property <bool> read-only: style == IconButtonStyle.read-only;
+
+    callback clicked;
+
+    width: self.preferred-width;
+    preferred-width: self.height;
+    preferred-height: 20px;
+    background: {
+        if checked {
+            background-color-checked
+        } else if enabled && ta.has-hover {
+            background-color-hovered
+        } else {
+            background-color
+        }
+    }
+
+    // Accessibility
+    accessible-role: button;
+    accessible-description: status-tip;
+    accessible-enabled: enabled && (!read-only);
+    accessible-label: tooltip;
+    accessible-checked: checked;
+    //accessible-read-only: read-only;  Causing compiler warning :-/
+    accessible-action-default => {
+        ta.clicked();
+    }
+
+    ta := TouchArea {
+        enabled: enabled;
+        mouse-cursor: ((style == IconButtonStyle.hyperlink) || (style == IconButtonStyle.checkable-hyperlink)) ? pointer : default;
+
+        Image {
+            y: ((parent.height - self.height) / 2) + icon-offset-y;
+            // Note: Do not scale pressed size with a factor, as it sometimes leads
+            // to non-centered images. Thus using an fixed, even number of pixels.
+            width: icon-size - (((!read-only) && ta.pressed) ? 2px : 0);
+            height: self.width;
+            image-fit: contain;
+            colorize: {
+                if !colorize {
+                    transparent
+                } else if checked {
+                    color-checked
+                } else if !enabled {
+                    color-disabled
+                } else if (!read-only) && ta.has-hover {
+                    color-hovered
+                } else {
+                    color-enabled
+                }
+            };
+            transform-rotation: icon-rotation;
+            source: icon;
+            accessible-role: none;
+        }
+
+        if self.has-hover && (!self.pressed) && (!tooltip.is-empty): tt := ToolTip {
+            x: {
+                if tooltip-position == ToolTipPosition.left {
+                    -5px - self.width;
+                } else if tooltip-position == ToolTipPosition.right {
+                    parent.width + 5px
+                } else if tooltip-position == ToolTipPosition.bottom-left {
+                    parent.width - self.width
+                } else {
+                    (parent.width - self.width) / 2
+                }
+            };
+            y: {
+                if (tooltip-position == ToolTipPosition.left) || (tooltip-position == ToolTipPosition.right) {
+                    (parent.height - self.height) / 2
+                } else if tooltip-position == ToolTipPosition.top {
+                    -self.height - 5px
+                } else {
+                    parent.height + 5px
+                }
+            };
+            text: tooltip;
+            delayed: tooltip-delayed;
+        }
+
+        changed has-hover => {
+            if !root.status-tip.is-empty {
+                if self.has-hover {
+                    Data.status-tip = root.status-tip;
+                } else {
+                    Data.status-tip = "";
+                }
+            }
+        }
+
+        clicked => {
+            // The click may destroy this element without calling the
+            // has-hover handler anymore, so we clear the status tip
+            // manually to be on the safe side.
+            if !root.status-tip.is-empty {
+                Data.status-tip = "";
+            }
+            root.clicked();
+        }
+    }
+}
+
+// IconButton with colors preconfigured for use as controls, or as hyperlinks
+// within other controls (e.g. LineEdit).
+export component ControlIconButton inherits IconButton {
+    color-disabled: Data.theme.control-text-disabled;
+    color-enabled: (self.style == IconButtonStyle.checkable-hyperlink) ? Data.theme.control-text-disabled : Data.theme.control-text-muted;
+    color-checked: Data.theme.control-text;
+    color-hovered: Data.theme.control-text;
+    background-color: {
+        if self.style == IconButtonStyle.standard {
+            self.enabled ? Data.theme.control : Data.theme.control-disabled
+        } else {
+            transparent
+        }
+    };
+    background-color-hovered: {
+        if self.style == IconButtonStyle.standard {
+            Data.theme.control-hovered
+        } else {
+            self.background-color
+        }
+    };
+    background-color-checked: {
+        if (self.style == IconButtonStyle.standard) || (self.style == IconButtonStyle.read-only) {
+            Data.theme.control-checked
+        } else {
+            self.background-color
+        }
+    };
+}
+
+export component CopyToClipboardIconButton inherits IconButton {
+    in property <string> text-to-copy;
+
+    callback copy-to-clipboard(text: string) -> bool;
+    copy-to-clipboard(text) => {
+        Backend.copy-to-clipboard(text)
+    }
+
+    icon: {
+        if timer.running {
+            @image-url("../resources/libs/font-awesome/svgs/solid/check.svg")
+        } else {
+            @image-url("../resources/libs/font-awesome/svgs/regular/copy.svg")
+        }
+    };
+    icon-scale: (self.style == IconButtonStyle.standard) ? 0.5 : 1;
+    color-enabled: timer.running ? Data.theme.base-text-success : Data.theme.base-text;
+    color-hovered: timer.running ? Data.theme.base-text-success : Data.theme.base-text-hovered;
+    tooltip: timer.running ? @tr("Copied!") : @tr("Copy to Clipboard");
+    tooltip-delayed: false;
+
+    timer := Timer {
+        interval: 1s;
+        running: false;
+
+        triggered => {
+            self.running = false;
+        }
+    }
+
+    clicked => {
+        if copy-to-clipboard(text-to-copy) {
+            timer.running = true;
+        }
+    }
+}

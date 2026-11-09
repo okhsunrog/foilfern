@@ -206,15 +206,24 @@ impl BoardStrokeTextData {
     ) -> crate::project::Result<Vec<crate::geometry::Path>> {
         use crate::font::StrokeTextPathBuilder;
         use crate::project::ProjectAttributeLookup;
-        let parts = device
-            .map(|device| device.parts(project.circuit(), None))
-            .transpose()?
-            .unwrap_or_default();
-        let lookup = match device {
-            Some(device) => ProjectAttributeLookup::device(project, board, device, parts.first()),
-            None => ProjectAttributeLookup::board(project, board, None),
+        let parts = if let Some(device) = device {
+            let component = project
+                .circuit()
+                .component_instance(device.component())
+                .ok_or(crate::project::Error::InexistentComponent(
+                    device.component().0,
+                ))?;
+            device.parts(component, None)
+        } else {
+            Vec::new()
         };
-        let text = lookup.substitute(self.text())?;
+        let lookup = match device {
+            Some(device) => {
+                ProjectAttributeLookup::for_device(project, board, device, parts.first())
+            }
+            None => ProjectAttributeLookup::for_board(project, board, None),
+        };
+        let text = lookup.substitute(self.text());
         let font = project
             .stroke_fonts()
             .font(&board.settings().default_font)?;

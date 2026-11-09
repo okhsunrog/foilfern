@@ -1,0 +1,368 @@
+import {
+    Action,
+    AngleEditParseResult,
+    BoardAction,
+    EditorCommand,
+    EditorTool,
+    Int64,
+    LengthEditParseResult,
+    LengthUnit,
+    LibraryAction,
+    LibraryElementAction,
+    OrganizationDbData,
+    ProjectAction,
+    RatioEditParseResult,
+    SchematicAction,
+    TabAction,
+    WindowSectionAction,
+} from "types.slint";
+import { Theme } from "themes.slint";
+import { Data } from "data.slint";
+
+// Note: The callback implementations are just for the live preview, they will
+// be overridden by the backend in the real use-case.
+export global Backend {
+    // Check if a key event belongs to an EditorCommand
+    //
+    // Note that a basic check is performed in Slint in preview mode only
+    // (no support for multiple shortcuts etc.). The real, more accurate
+    // check is done in the C++ backend by overriding this callback.
+    pure callback is-shortcut(event: KeyEvent, command: EditorCommand) -> bool;
+    is-shortcut(event, command) => {
+        (event.text == command.key) && (event.modifiers == command.modifiers)
+    }
+
+    // Trigger some action
+    //
+    // Note: This callback is executed asynchronously in the backend to
+    // guarantee there are no side effects changing the UI from within the
+    // callback. Otherwise we couldn't declare it as 'pure'.
+    pure callback trigger(action: Action);
+    trigger(action) => {
+        debug("Trigger action:", action);
+    }
+
+    // Trigger some window section action
+    //
+    // Note: This callback is executed asynchronously in the backend to
+    // guarantee there are no side effects changing the UI from within the
+    // callback. Otherwise we couldn't declare it as 'pure'.
+    pure callback trigger-section(section: int, action: WindowSectionAction);
+    trigger-section(section, action) => {
+        debug("Trigger section action:", section, action);
+    }
+
+    // Trigger some window tab action
+    //
+    // Note: This callback is executed asynchronously in the backend to
+    // guarantee there are no side effects changing the UI from within the
+    // callback.
+    callback trigger-tab(section: int, tab: int, action: TabAction);
+    trigger-tab(section, tab, action) => {
+        debug("Trigger tab action:", section, tab, action);
+
+        if action == TabAction.tool-select {
+            Data.sections[section].symbol-tabs[tab].tool = EditorTool.select;
+            Data.sections[section].package-tabs[tab].tool = EditorTool.select;
+            Data.sections[section].schematic-tabs[tab].tool = EditorTool.select;
+            Data.sections[section].board-2d-tabs[tab].tool = EditorTool.select;
+        } else if action == TabAction.tool-line {
+            Data.sections[section].symbol-tabs[tab].tool = EditorTool.line;
+            Data.sections[section].package-tabs[tab].tool = EditorTool.line;
+        } else if action == TabAction.tool-rect {
+            Data.sections[section].symbol-tabs[tab].tool = EditorTool.rect;
+            Data.sections[section].package-tabs[tab].tool = EditorTool.rect;
+        } else if action == TabAction.tool-polygon {
+            Data.sections[section].symbol-tabs[tab].tool = EditorTool.polygon;
+            Data.sections[section].package-tabs[tab].tool = EditorTool.polygon;
+            Data.sections[section].schematic-tabs[tab].tool = EditorTool.polygon;
+            Data.sections[section].board-2d-tabs[tab].tool = EditorTool.polygon;
+        } else if action == TabAction.tool-circle {
+            Data.sections[section].symbol-tabs[tab].tool = EditorTool.circle;
+            Data.sections[section].package-tabs[tab].tool = EditorTool.circle;
+        } else if action == TabAction.tool-arc {
+            Data.sections[section].symbol-tabs[tab].tool = EditorTool.arc;
+            Data.sections[section].package-tabs[tab].tool = EditorTool.arc;
+        } else if action == TabAction.tool-text {
+            Data.sections[section].symbol-tabs[tab].tool = EditorTool.text;
+            Data.sections[section].package-tabs[tab].tool = EditorTool.text;
+            Data.sections[section].schematic-tabs[tab].tool = EditorTool.text;
+            Data.sections[section].board-2d-tabs[tab].tool = EditorTool.text;
+        } else if action == TabAction.tool-name {
+            Data.sections[section].symbol-tabs[tab].tool = EditorTool.name;
+            Data.sections[section].package-tabs[tab].tool = EditorTool.name;
+        } else if action == TabAction.tool-value {
+            Data.sections[section].symbol-tabs[tab].tool = EditorTool.value;
+            Data.sections[section].package-tabs[tab].tool = EditorTool.value;
+        } else if action == TabAction.tool-image {
+            Data.sections[section].symbol-tabs[tab].tool = EditorTool.image;
+            Data.sections[section].schematic-tabs[tab].tool = EditorTool.image;
+        } else if action == TabAction.tool-pin {
+            Data.sections[section].symbol-tabs[tab].tool = EditorTool.pin;
+        } else if action == TabAction.tool-pad-tht {
+            Data.sections[section].package-tabs[tab].tool = EditorTool.pad-tht;
+            Data.sections[section].board-2d-tabs[tab].tool = EditorTool.pad-tht;
+        } else if action == TabAction.tool-pad-smt {
+            Data.sections[section].package-tabs[tab].tool = EditorTool.pad-smt;
+            Data.sections[section].board-2d-tabs[tab].tool = EditorTool.pad-smt;
+        } else if action == TabAction.tool-wire {
+            Data.sections[section].schematic-tabs[tab].tool = EditorTool.wire;
+            Data.sections[section].board-2d-tabs[tab].tool = EditorTool.wire;
+        } else if action == TabAction.tool-bus {
+            Data.sections[section].schematic-tabs[tab].tool = EditorTool.bus;
+        } else if action == TabAction.tool-label {
+            Data.sections[section].schematic-tabs[tab].tool = EditorTool.label;
+        } else if action == TabAction.tool-via {
+            Data.sections[section].board-2d-tabs[tab].tool = EditorTool.via;
+        } else if action == TabAction.tool-plane {
+            Data.sections[section].board-2d-tabs[tab].tool = EditorTool.plane;
+        } else if action == TabAction.tool-zone {
+            Data.sections[section].package-tabs[tab].tool = EditorTool.zone;
+            Data.sections[section].board-2d-tabs[tab].tool = EditorTool.zone;
+        } else if action == TabAction.tool-hole {
+            Data.sections[section].package-tabs[tab].tool = EditorTool.hole;
+            Data.sections[section].board-2d-tabs[tab].tool = EditorTool.hole;
+        } else if action == TabAction.tool-renumber-pads {
+            Data.sections[section].package-tabs[tab].tool = EditorTool.renumber-pads;
+        } else if action == TabAction.tool-component {
+            Data.sections[section].schematic-tabs[tab].tool = EditorTool.component;
+            Data.sections[section].board-2d-tabs[tab].tool = EditorTool.component;
+        } else if action == TabAction.tool-measure {
+            Data.sections[section].symbol-tabs[tab].tool = EditorTool.measure;
+            Data.sections[section].package-tabs[tab].tool = EditorTool.measure;
+            Data.sections[section].schematic-tabs[tab].tool = EditorTool.measure;
+            Data.sections[section].board-2d-tabs[tab].tool = EditorTool.measure;
+        } else if action == TabAction.abort {
+            Data.sections[section].symbol-tabs[tab].tool = EditorTool.select;
+            Data.sections[section].package-tabs[tab].tool = EditorTool.select;
+            Data.sections[section].schematic-tabs[tab].tool = EditorTool.select;
+            Data.sections[section].board-2d-tabs[tab].tool = EditorTool.select;
+        }
+    }
+
+    // Trigger some library action
+    //
+    // Note: This callback is executed asynchronously in the backend to
+    // guarantee there are no side effects changing the UI from within the
+    // callback. Otherwise we couldn't declare it as 'pure'.
+    pure callback trigger-library(path: string, action: LibraryAction);
+    trigger-library(path, action) => {
+        debug("Trigger library action:", path, action);
+    }
+
+    // Trigger some library element action
+    //
+    // Note: This callback is executed asynchronously in the backend to
+    // guarantee there are no side effects changing the UI from within the
+    // callback. Otherwise we couldn't declare it as 'pure'.
+    pure callback trigger-library-element(path: string, action: LibraryElementAction);
+    trigger-library-element(path, action) => {
+        debug("Trigger library element action:", path, action);
+    }
+
+    // Trigger some project action
+    //
+    // Note: This callback is executed asynchronously in the backend to
+    // guarantee there are no side effects changing the UI from within the
+    // callback. Otherwise we couldn't declare it as 'pure'.
+    pure callback trigger-project(project-index: int, action: ProjectAction);
+    trigger-project(project-index, action) => {
+        debug("Trigger project action:", project-index, action);
+    }
+
+    // Trigger some project schematic action
+    //
+    // Note: This callback is executed asynchronously in the backend to
+    // guarantee there are no side effects changing the UI from within the
+    // callback. Otherwise we couldn't declare it as 'pure'.
+    pure callback trigger-schematic(project-index: int, schematic-index: int, action: SchematicAction);
+    trigger-schematic(project-index, schematic-index, action) => {
+        debug("Trigger schematic action:", project-index, schematic-index, action);
+    }
+
+    // Trigger some project board action
+    //
+    // Note: This callback is executed asynchronously in the backend to
+    // guarantee there are no side effects changing the UI from within the
+    // callback. Otherwise we couldn't declare it as 'pure'.
+    pure callback trigger-board(project-index: int, board-index: int, action: BoardAction);
+    trigger-board(project-index, board-index, action) => {
+        debug("Trigger board action:", project-index, board-index, action);
+    }
+
+    // Create a drag&drop data-transfer for a given tab
+    pure callback create-tab-transfer(window-id: int, section-index: int, tab-index: int) -> data-transfer;
+
+    // Check if a tab can be dropped at another location
+    pure callback can-drop-tab(src-data: data-transfer, dst-data: data-transfer) -> bool;
+
+    // Move a tab with drag&drop
+    //
+    // The source & destination data are coming from the drag event and contain
+    // the window ID, section index, and tab index. A destination tab index
+    // of -1 will create a new section for the moved tab.
+    pure callback drop-tab(src-data: data-transfer, dst-data: data-transfer, force-switch-to-tab: bool);
+
+    // Open an URL by an external application (usually the web browser)
+    //
+    // The return value indicates whether the operation was successful or not.
+    pure callback open-url(url: string) -> bool;
+    open-url(url) => {
+        debug("Open URL:", url);
+        true
+    }
+
+    // Copy a string into the clipboard
+    //
+    // The return value indicates whether the operation was successful or not.
+    pure callback copy-to-clipboard(s: string) -> bool;
+    copy-to-clipboard(s) => {
+        Data.preview-mode  // Make it fail if callback not bound in backend.
+    }
+
+    // Key pressed event on the libraries list
+    //
+    // Used for the filtering feature in the libraries panel.
+    callback libraries-key-pressed(event: KeyEvent) -> EventResult;
+    libraries-key-pressed(event) => {
+        if event.text == Key.Escape {
+            Data.libraries-panel-filter = "";
+        } else {
+            Data.libraries-panel-filter += event.text;
+        }
+        reject
+    }
+
+    // Render a graphics scene image
+    pure callback render-scene(section: int, width: length, height: length, scene: int, frame-dummy: int) -> image;
+
+    // Process a graphics scene pointer event
+    pure callback scene-pointer-event(section: int, x: length, y: length, event: PointerEvent, scene: int);
+
+    // Process graphics scene scrolled event
+    pure callback scene-scrolled(section: int, x-rel: length, y-rel: length, event: PointerScrollEvent, scene: int) -> bool;
+
+    // Process graphics scene key pressed event
+    pure callback scene-key-pressed(section: int, event: KeyEvent) -> bool;
+
+    // Process graphics scene key released event
+    pure callback scene-key-released(section: int, event: KeyEvent) -> bool;
+
+    // Request generating the preview of a project (e.g. its README.md)
+    //
+    // Lets the backend building the preview asynchronously, and updating the
+    // following data members accordingly:
+    //  - Data.project-preview-rendering
+    //  - Data.project-preview-image
+    //
+    // The return value is a dummy and must always be `true` to allow
+    // declarative, automatic re-evaluation.
+    pure callback request-project-preview(path: string, width: length, theme: Theme) -> bool;
+    request-project-preview(path, width, theme) => {
+        debug("Request project preview:", path, width);
+        true
+    }
+
+    // Request the model of all organizations with provide board design rules
+    //
+    // ATTENTION: For now, this model contains only featured organizations,
+    // e.g. organizations that are LibrePCB sponsors.
+    pure callback get-organizations-with-design-rules() -> [OrganizationDbData];
+    get-organizations-with-design-rules() => {
+        return [
+            {
+                name: "LibrePCB Fab",
+                priority: 100,
+                pcb-design-rules: [
+                    {
+                        name: "All Manufacturers",
+                    },
+                    {
+                        name: "AISLER",
+                    },
+                ],
+            },
+            {
+                name: "AISLER",
+                pcb-design-rules: [
+                    {
+                        name: "2 Layer 1.6 mm HASL",
+                    },
+                    {
+                        name: "4 Layer 1.6 mm ENIG",
+                    },
+                    {
+                        name: "4 Layer 1.6 mm ENIG",
+                    },
+                    {
+                        name: "4 Layer 1.6 mm ENIG",
+                    },
+                    {
+                        name: "4 Layer 1.6 mm ENIG",
+                    },
+                    {
+                        name: "4 Layer 1.6 mm ENIG",
+                    },
+                ],
+            },
+            {
+                name: "PCBWay",
+                pcb-design-rules: [
+                    {
+                        name: "Standard",
+                    },
+                ],
+            },
+        ];
+    }
+
+    // Format a Length value as a string
+    //
+    // Used by LengthEdit to convert a Length value to a string in the specified
+    // unit.
+    pure callback format-length(value: Int64, unit: LengthUnit) -> string;
+    format-length => {
+        return "123.456789";
+    }
+
+    // Parse the input text of a LengthEdit element
+    //
+    // The backend parses the input string and returns whether it is a valid
+    // number, and the parsed length value plus unit.
+    pure callback parse-length-input(s: string, unit: LengthUnit, minimum: Int64) -> LengthEditParseResult;
+
+    // Format an Angle value as a string
+    //
+    // Used by AngleEdit to convert an Angle value to a string.
+    pure callback format-angle(value: int) -> string;
+    format-angle => {
+        return "123.456";
+    }
+
+    // Parse the input text of an AngleEdit element
+    //
+    // The backend parses the input string and returns whether it is a valid
+    // number, and the parsed angle value.
+    pure callback parse-angle-input(s: string) -> AngleEditParseResult;
+
+    // Format a Ratio value as a string
+    //
+    // Used by RatioEdit to convert a Ratio value to a string.
+    pure callback format-ratio(value: int) -> string;
+    format-ratio => {
+        return "123.455";
+    }
+
+    // Parse the input text of a RatioEdit element
+    //
+    // The backend parses the input string and returns whether it is a valid
+    // ratio, and the parsed length value.
+    pure callback parse-ratio-input(s: string, minimum: int, maximum: int) -> RatioEditParseResult;
+
+    // Toggle UI theme (only for development)
+    pure callback toggle-theme();
+
+    // Start or stop the embedded LibrePCB MCP server (librepcb-rs, no
+    // upstream counterpart; executed asynchronously in the backend).
+    pure callback toggle-mcp-server();
+}

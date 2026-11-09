@@ -435,8 +435,9 @@ impl Scene {
     // ------------------------------------------------------------------
 
     /// Adds an item. Filled paths are normalized so that every closed
-    /// subpath adds to the filled area (like a union); express holes as
-    /// cut-ins, as LibrePCB paths do.
+    /// subpath adds to the filled area (like a union), except for subpaths
+    /// nested in others (within their bounding box and covered by them),
+    /// which become holes like with the odd-even rule (e.g. pad drills).
     pub fn insert(&mut self, item: Item) -> ItemId {
         self.bump();
         let id = self.insert_entry(item);
@@ -444,27 +445,16 @@ impl Scene {
         id
     }
 
-    /// Adds many items; faster than [`insert`](Self::insert) in a loop
-    /// because the spatial index is bulk-loaded.
+    /// Adds many items.
+    ///
+    /// The spatial index is not bulk-loaded: rstar 0.13.0
+    /// `RTree::bulk_load()` builds trees which panic ("This is a bug in
+    /// rstar.") on later insertions after removals, i.e. on item updates.
     pub fn extend(&mut self, items: impl IntoIterator<Item = Item>) -> Vec<ItemId> {
         self.bump();
         let ids: Vec<ItemId> = items.into_iter().map(|i| self.insert_entry(i)).collect();
-        if ids.len() > self.index.size() {
-            // Rebuild the whole index at once.
-            let entries: Vec<IndexEntry> = self
-                .items
-                .iter_mut()
-                .filter(|(_, e)| !e.item.geometry.is_empty())
-                .map(|(id, e)| {
-                    e.indexed = true;
-                    index_entry(e.bbox, id)
-                })
-                .collect();
-            self.index = RTree::bulk_load(entries);
-        } else {
-            for id in &ids {
-                self.index_item(*id);
-            }
+        for id in &ids {
+            self.index_item(*id);
         }
         ids
     }
@@ -924,14 +914,14 @@ impl Scene {
             self.index.remove(&index_entry(bbox, id));
         }
         for slot in slots.into_iter().flatten() {
-            self.remove_from_group(id, slot);
+            self.remove_from_group(id, slot, bbox);
         }
         if !self.items[id].item.geometry.is_empty() {
             self.add_damage(bbox);
         }
     }
 
-    fn remove_from_group(&mut self, id: ItemId, slot: Slot) {
+    fn remove_from_group(&mut self, id: ItemId, slot: Slot, bbox: Rect) {
         let rev = self.rev;
         let Some(g) = self.groups.get_mut(slot.group) else {
             return;
@@ -962,8 +952,10 @@ impl Scene {
             }
             self.group_index.remove(&key);
             self.groups.remove(slot.group);
-        } else {
-            // Shrink the bounding box again.
+        } else if touches_border(bbox, g.bbox) {
+            // Shrink the bounding box again (it cannot shrink if the item
+            // was strictly inside, which keeps removals from large groups
+            // cheap).
             let bbox = g
                 .items
                 .iter()
@@ -973,4 +965,9 @@ impl Scene {
             self.groups[slot.group].bbox = bbox;
         }
     }
+}
+
+/// Whether `inner` (contained in `outer`) reaches the border of `outer`.
+fn touches_border(inner: Rect, outer: Rect) -> bool {
+    inner.x0 <= outer.x0 || inner.y0 <= outer.y0 || inner.x1 >= outer.x1 || inner.y1 >= outer.y1
 }

@@ -10,15 +10,10 @@ Open real upstream projects and libraries, run ERC/DRC, export
 manufacturing data. Validated with upstream `tests/cli` (pytest) and by
 diffing outputs against the official `librepcb-cli`.
 
-- Wave 3b (complete): schematic items, board items, file format migrations.
-- Wave 3c (complete): board export data and plane fragments, DRC, ERC + BOM + project
+- Wave 3b: schematic items, board items, file format migrations.
+- Wave 3c: board export data and plane fragments, DRC, ERC + BOM + project
   attribute lookup.
-- Wave 4 (in progress): output job model and manufacturing runner complete;
-  native CLI, interactive HTML BOM, schematic/library graphics and 2D board
-  exports and mechanical STEP jobs available (149 of 178 upstream cases
-  pass; the focused supported command suite has 145 cases). Full acceptance
-  still needs standalone open-step/minification coverage and
-  parser/help/version expectations.
+- Wave 4: output jobs and the CLI.
 
 ## M1.5 — AI track (MCP)
 
@@ -35,20 +30,28 @@ diffing outputs against the official `librepcb-cli`.
 
 ## M2 — viewer
 
-Read-only Slint app: schematic and board tabs on `librepcb-canvas`, layers
-panel, live updates from the change journal (watch an AI agent work).
-Schematic PDF export is already available in the headless CLI.
+Slint app on upstream's `.slint` UI (see `ui-design.md`): home tab,
+schematic and board tabs on `librepcb-scene`, layers panel, navigation,
+live updates from the change journal with the embedded MCP server (watch
+an AI agent work), ERC/DRC panels, graphics export and output jobs.
 
-## M3 — editing
+## M3 — schematic and board editors
 
-Selection, move/rotate/delete, wires and traces, placing components,
-property dialogs (batched per area), save.
+Editing in the tabs through the ported FSMs (select, move, rotate, flip,
+delete, wires, components, labels, traces, vias, planes, polygons, zones,
+holes, texts), clipboard compatible with upstream, cross-probing, all
+project dialogs as Slint dialogs (properties, board/project setup, BOM
+review, output jobs, graphics export, new project wizard), workspace
+settings.
 
-## M4 — library editor
+## M4 — library editors
 
-Symbol, package, component and device editors.
+Library management (download, create, libraries panel), symbol, package,
+component, device, category and organization editors with their FSMs and
+dialogs, library checks with fixes, Eagle/KiCad library import.
 
 ## M5 — the rest
 
-3D view, broader STEP support, PCB ordering API, Eagle and KiCad
-importers.
+Interactive 3D view, broader STEP representation coverage, Eagle/KiCad project
+import, PCB ordering API and printing. Mechanical STEP jobs and standalone
+STEP/minification tools are already available through the pure-Rust backend.

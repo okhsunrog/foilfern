@@ -1,5 +1,8 @@
 //! Port of tests/unittests/core/types/versiontest.cpp.
 
+// The comparison tests negate operators on purpose (`!(a < b)`), as upstream.
+#![allow(clippy::nonminimal_bool)]
+
 use librepcb_core::serialization::{FromSExpression, Mode, SExpression, ToSExpression};
 use librepcb_core::types::Version;
 

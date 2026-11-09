@@ -65,9 +65,13 @@ pub fn schematic_drawing(
             if let Some(net) = pin.net().and_then(|id| project.circuit().net_signal(id))
                 && pin.lib_signal().is_net_signal_name_forced()
             {
-                let forced =
-                    ProjectAttributeLookup::component(project, resolved.component, primary, None)
-                        .substitute(pin.lib_signal().forced_net_name())?;
+                let forced = ProjectAttributeLookup::for_component(
+                    project,
+                    resolved.component,
+                    primary,
+                    None,
+                )
+                .substitute(pin.lib_signal().forced_net_name());
                 if !forced.is_empty() && net.name().as_str() != forced {
                     length /= 2;
                 }
@@ -154,14 +158,15 @@ pub fn schematic_drawing(
             .boards()
             .iter()
             .find_map(|b| b.device(symbol.component()));
-        let lookup = ProjectAttributeLookup::symbol(project, schematic, symbol, device, None, None);
+        let lookup =
+            ProjectAttributeLookup::for_symbol(project, schematic, symbol, device, None, None);
         for text in symbol.texts().values() {
-            drawing.text(text, &lookup.substitute(text.text())?, settings);
+            drawing.text(text, &lookup.substitute(text.text()), settings);
         }
     }
     for text in schematic.texts().values() {
         let value =
-            ProjectAttributeLookup::schematic(project, schematic, None).substitute(text.text())?;
+            ProjectAttributeLookup::for_schematic(project, schematic, None).substitute(text.text());
         drawing.text(text, &value, settings);
     }
     for segment in schematic.net_segments().values() {

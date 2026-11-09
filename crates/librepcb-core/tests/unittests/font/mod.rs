@@ -89,9 +89,10 @@ fn test_newstroke() {
     assert_eq!(paths.len(), 2);
     assert_eq!(paths[0].vertices()[0].pos, Point::from_nm(430_000, 860_000));
 
-    // Space: only spacing, truncated after upstream float storage.
+    // Space: only spacing.
     let (paths, spacing) = font.stroke_glyph(' ', pos(9_000_000));
     assert!(paths.is_empty());
+    // The glyph spacing 3.6 is stored as `float` (3.5999999), like upstream.
     assert_eq!(spacing, Length::new(3_599_999));
 
     // References are resolved (Â references the glyph parts of A).

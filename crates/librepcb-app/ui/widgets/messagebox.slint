@@ -1,0 +1,65 @@
+import { IconButton } from "iconbutton.slint";
+import { LinkText } from "linktext.slint";
+import { Data } from "../api.slint";
+
+export component MessageBox inherits Rectangle {
+    in property <string> title;
+    in property <bool> supports-dont-show-again: false;
+    out property <color> text-color: Data.theme.base-text;
+    out property <color> hover-color: Data.theme.base-text-hovered;
+
+    callback dismiss-clicked;
+    callback dont-show-again-clicked;
+
+    height: self.preferred-height;
+    border-radius: 10px;
+    border-color: Data.theme.base-border;
+    border-width: 1px;
+    background: Data.theme.base;
+
+    ta := TouchArea {
+        VerticalLayout {
+            padding: 8px;
+            spacing: 8px;
+
+            HorizontalLayout {
+                spacing: 8px;
+
+                title-txt := Text {
+                    color: text-color;
+                    font-size: 14px;
+                    font-weight: 700;
+                    text: title;
+                }
+
+                if supports-dont-show-again && ta.has-hover: dont-show-again-btn := LinkText {
+                    width: self.preferred-width;
+                    vertical-alignment: center;
+                    text-color: Data.theme.control-text-muted;
+                    font-size: 10px;
+                    text: @tr("Don't show again");
+                    accessible-role: none;
+
+                    clicked => {
+                        dont-show-again-clicked();
+                    }
+                }
+
+                dismiss-btn := IconButton {
+                    width: 12px;
+                    height: title-txt.preferred-height;
+                    color-enabled: Data.theme.control-text-muted;
+                    style: hyperlink;
+                    icon: @image-url("../resources/libs/font-awesome/svgs/solid/xmark.svg");
+                    accessible-role: none;
+
+                    clicked => {
+                        dismiss-clicked();
+                    }
+                }
+            }
+
+            @children
+        }
+    }
+}

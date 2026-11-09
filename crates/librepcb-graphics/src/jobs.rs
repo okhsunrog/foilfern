@@ -6,13 +6,127 @@ use crate::{
 };
 use librepcb_core::{
     fileio::{CleanFileNameOptions, FilePath},
-    job::{GraphicsContentType, GraphicsJob},
+    job::{GraphicsContentType, GraphicsOutputJob},
     project::{
         Project, ProjectAttributeLookup, board::BoardPhysicalGeometry, select_job_boards,
         select_job_variants,
     },
 };
 use std::collections::{BTreeMap, BTreeSet};
+
+/// The shared output-job adapter used by CLI, MCP and the desktop application.
+pub struct ProjectGraphicsExporter {
+    creator: String,
+}
+impl ProjectGraphicsExporter {
+    pub fn new(creator: String) -> Self {
+        Self { creator }
+    }
+}
+impl ProjectGraphicsExporter {
+    fn encoded(
+        &self,
+        project: &Project,
+        pages: &[librepcb_core::project::GraphicsPage],
+        file_path: &FilePath,
+        document_name: &str,
+    ) -> Result<Vec<librepcb_core::project::GraphicsJobFile>> {
+        use librepcb_core::project::{GraphicsJobFile, GraphicsPageContent};
+        let pages: Vec<_> = pages
+            .iter()
+            .map(|page| {
+                let settings = GraphicsSettings::from_export_settings(&page.settings);
+                let drawing = match page.content {
+                    GraphicsPageContent::Schematic(id) => schematic_drawing(
+                        project,
+                        project
+                            .schematic(id)
+                            .ok_or_else(|| Error::Model(format!("Missing schematic {id}")))?,
+                        &settings,
+                    )?,
+                    GraphicsPageContent::Board(id) => board_drawing(
+                        project,
+                        project
+                            .board(id)
+                            .ok_or_else(|| Error::Model(format!("Missing board {id}")))?,
+                        &settings,
+                    )?,
+                    GraphicsPageContent::BoardRendering(id) => {
+                        let board = project
+                            .board(id)
+                            .ok_or_else(|| Error::Model(format!("Missing board {id}")))?;
+                        realistic_board_drawing(
+                            &BoardPhysicalGeometry::from_project(project, board, None)?,
+                            &settings,
+                        )
+                    }
+                };
+                Ok(GraphicsPage { drawing, settings })
+            })
+            .collect::<Result<_>>()?;
+        let exporter = GraphicsExport {
+            title: document_name.to_owned(),
+            creator: self.creator.clone(),
+            ..Default::default()
+        };
+        let files = exporter.generate(&pages, file_path.as_str())?;
+        files
+            .into_iter()
+            .map(|file| {
+                Ok(GraphicsJobFile {
+                    path: FilePath::new(file.name).ok_or(Error::Dimensions)?,
+                    contents: file.contents,
+                })
+            })
+            .collect()
+    }
+}
+impl librepcb_core::project::GraphicsExporter for ProjectGraphicsExporter {
+    fn prepare(
+        &self,
+        project: &Project,
+        pages: &[librepcb_core::project::GraphicsPage],
+        file_path: &FilePath,
+        document_name: &str,
+    ) -> Option<librepcb_core::project::OutputJobResult<Vec<librepcb_core::project::GraphicsJobFile>>>
+    {
+        Some(
+            self.encoded(project, pages, file_path, document_name)
+                .map_err(|error| {
+                    librepcb_core::project::OutputJobError::Graphics(error.to_string())
+                }),
+        )
+    }
+    fn export(
+        &self,
+        project: &Project,
+        pages: &[librepcb_core::project::GraphicsPage],
+        file_path: &FilePath,
+        document_name: &str,
+    ) -> librepcb_core::project::GraphicsExportResult {
+        use librepcb_core::{fileio::file_utils, project::GraphicsExportResult};
+        let result = (|| -> Result<Vec<FilePath>> {
+            let files = self.encoded(project, pages, file_path, document_name)?;
+            let mut written = Vec::new();
+            for file in files {
+                file_utils::write_file(&file.path, &file.contents)?;
+                written.push(file.path);
+            }
+            Ok(written)
+        })();
+        match result {
+            Ok(written_files) => GraphicsExportResult {
+                written_files,
+                errors: Vec::new(),
+            },
+            Err(error) => GraphicsExportResult {
+                errors: vec![error.to_string()],
+                ..Default::default()
+            },
+        }
+    }
+}
+
 fn single<T: Copy + Ord>(set: &BTreeSet<Option<T>>) -> Option<T> {
     if set.len() == 1 {
         set.first().copied().flatten()
@@ -23,7 +137,7 @@ fn single<T: Copy + Ord>(set: &BTreeSet<Option<T>>) -> Option<T> {
 
 /// Encodes every configured page. Board/variant contexts affect filenames and
 /// document titles; like upstream, they do not filter schematic components.
-pub fn graphics_job_files(project: &Project, job: &GraphicsJob) -> Result<Vec<GraphicsFile>> {
+pub fn graphics_job_files(project: &Project, job: &GraphicsOutputJob) -> Result<Vec<GraphicsFile>> {
     let mut pages = Vec::new();
     let mut physical = BTreeMap::new();
     let mut all_boards = BTreeSet::new();
@@ -31,10 +145,10 @@ pub fn graphics_job_files(project: &Project, job: &GraphicsJob) -> Result<Vec<Gr
     for content in &job.content {
         let settings = GraphicsSettings::from_content(content);
         let boards = select_job_boards(project, &content.boards)?;
-        let variants = select_job_variants(project, &content.variants)?;
+        let variants = select_job_variants(project, &content.assembly_variants)?;
         all_boards.extend(boards.iter().copied());
         all_variants.extend(variants.iter().copied());
-        match content.kind {
+        match content.content_type {
             GraphicsContentType::Schematic => {
                 for _ in &variants {
                     for _ in &boards {
@@ -86,20 +200,13 @@ pub fn graphics_job_files(project: &Project, job: &GraphicsJob) -> Result<Vec<Gr
     let board = single(&all_boards).and_then(|id| project.board(id));
     let variant = single(&all_variants).and_then(|id| project.circuit().assembly_variant(id));
     let lookup = if let Some(board) = board {
-        ProjectAttributeLookup::board(project, board, variant)
+        ProjectAttributeLookup::for_board(project, board, variant)
     } else {
-        ProjectAttributeLookup::project(project, variant)
+        ProjectAttributeLookup::for_project(project, variant)
     };
-    let mut error = None;
     let output = librepcb_core::attribute::substitute(
-        &job.output,
-        |key| match lookup.value(key) {
-            Ok(value) => value,
-            Err(e) => {
-                error = Some(e);
-                None
-            }
-        },
+        &job.output_path,
+        |key| lookup.value(key),
         Some(&mut |value| {
             FilePath::clean_file_name(
                 value,
@@ -111,17 +218,14 @@ pub fn graphics_job_files(project: &Project, job: &GraphicsJob) -> Result<Vec<Gr
             )
         }),
     );
-    if let Some(error) = error {
-        return Err(error.into());
-    }
-    let title = if job.title.as_str().is_empty() {
+    let title = if job.document_title.as_str().is_empty() {
         "{{PROJECT}} {{VERSION}}"
     } else {
-        job.title.as_str()
+        job.document_title.as_str()
     };
     let exporter = GraphicsExport {
         title: lookup
-            .substitute(title)?
+            .substitute(title)
             .split_whitespace()
             .collect::<Vec<_>>()
             .join(" "),

@@ -40,7 +40,7 @@ static_assertions::assert_impl_all!(ProjectAttributeLookup<'_>: Send, Sync);
 
 impl<'a> ProjectAttributeLookup<'a> {
     /// Queries assembly variant, then project attributes.
-    pub fn project(project: &'a Project, variant: Option<&'a AssemblyVariant>) -> Self {
+    pub fn for_project(project: &'a Project, variant: Option<&'a AssemblyVariant>) -> Self {
         Self {
             project,
             scope: Scope::Project,
@@ -51,7 +51,7 @@ impl<'a> ProjectAttributeLookup<'a> {
     }
 
     /// Queries part, component, optional device, then project attributes.
-    pub fn component(
+    pub fn for_component(
         project: &'a Project,
         component: &'a ComponentInstance,
         device: Option<&'a BoardDevice>,
@@ -61,37 +61,37 @@ impl<'a> ProjectAttributeLookup<'a> {
             scope: Scope::Component(component),
             device,
             part,
-            ..Self::project(project, None)
+            ..Self::for_project(project, None)
         }
     }
 
     /// Queries schematic, assembly variant, then project attributes.
-    pub fn schematic(
+    pub fn for_schematic(
         project: &'a Project,
         schematic: &'a Schematic,
         variant: Option<&'a AssemblyVariant>,
     ) -> Self {
         Self {
             scope: Scope::Schematic(schematic),
-            ..Self::project(project, variant)
+            ..Self::for_project(project, variant)
         }
     }
 
     /// Queries board, assembly variant, then project attributes.
-    pub fn board(
+    pub fn for_board(
         project: &'a Project,
         board: &'a Board,
         variant: Option<&'a AssemblyVariant>,
     ) -> Self {
         Self {
             scope: Scope::Board(board),
-            ..Self::project(project, variant)
+            ..Self::for_project(project, variant)
         }
     }
 
     /// Queries part, symbol, component, optional device, schematic,
     /// assembly variant, then project attributes.
-    pub fn symbol(
+    pub fn for_symbol(
         project: &'a Project,
         schematic: &'a Schematic,
         symbol: &'a SchematicSymbol,
@@ -103,12 +103,12 @@ impl<'a> ProjectAttributeLookup<'a> {
             scope: Scope::Symbol(schematic, symbol),
             device,
             part,
-            ..Self::project(project, variant)
+            ..Self::for_project(project, variant)
         }
     }
 
     /// Queries part, device, component, board, then project attributes.
-    pub fn device(
+    pub fn for_device(
         project: &'a Project,
         board: &'a Board,
         device: &'a BoardDevice,
@@ -117,13 +117,13 @@ impl<'a> ProjectAttributeLookup<'a> {
         Self {
             scope: Scope::Device(board, device),
             part,
-            ..Self::project(project, None)
+            ..Self::for_project(project, None)
         }
     }
 
     /// Returns the first matching value, including empty values. Keys are
     /// case sensitive, like upstream. Unknown keys return `None`.
-    pub fn value(&self, key: &str) -> Result<Option<String>> {
+    pub fn try_value(&self, key: &str) -> Result<Option<String>> {
         if let Some(part) = self.part {
             let value = custom(part.attributes(), key).or_else(|| match key {
                 "MPN" => Some(part.mpn().to_string()),
@@ -195,11 +195,11 @@ impl<'a> ProjectAttributeLookup<'a> {
 
     /// Expands placeholders with the shared attribute substitutor. Invalid
     /// model references are propagated instead of producing partial text.
-    pub fn substitute(&self, text: &str) -> Result<String> {
+    pub fn try_substitute(&self, text: &str) -> Result<String> {
         let mut error = None;
         let output = substitute(
             text,
-            |key| match self.value(key) {
+            |key| match self.try_value(key) {
                 Ok(value) => value,
                 Err(err) => {
                     if error.is_none() {
@@ -214,6 +214,21 @@ impl<'a> ProjectAttributeLookup<'a> {
             Some(error) => Err(error),
             None => Ok(output),
         }
+    }
+
+    /// Optional lookup for already validated models. Use try_value() to report invalid references.
+    pub fn value(&self, key: &str) -> Option<String> {
+        self.try_value(key).ok().flatten()
+    }
+    pub fn substitute(&self, text: &str) -> String {
+        substitute(text, |key| self.value(key), None)
+    }
+    pub fn substitute_filtered(
+        &self,
+        text: &str,
+        filter: &mut dyn FnMut(&str) -> String,
+    ) -> String {
+        substitute(text, |key| self.value(key), Some(filter))
     }
 
     fn required_component(&self, id: super::ComponentInstanceId) -> Result<&'a ComponentInstance> {

@@ -244,6 +244,15 @@ fn signed_area(elements: &[PathEl]) -> f64 {
     area
 }
 
+/// Maximum number of subpaths for which holes are detected (the nesting
+/// test is quadratic); larger paths get all subpaths wound positively.
+const MAX_NESTING_SUBPATHS: usize = 256;
+
+/// Orients the subpaths of a filled path for the non-zero rule like the
+/// odd-even rule would fill them: subpaths nested in an even number of
+/// other subpaths (outlines) wind positively, the others (holes, e.g. pad
+/// drills) negatively. Mirroring or arbitrary input orientation thus does
+/// not matter.
 fn normalize_winding(path: &mut BezPath) {
     let els = path.elements();
     let starts: Vec<usize> = els
@@ -252,18 +261,62 @@ fn normalize_winding(path: &mut BezPath) {
         .filter(|(_, el)| matches!(el, PathEl::MoveTo(_)))
         .map(|(i, _)| i)
         .collect();
-    let needs_fix = starts.iter().enumerate().any(|(k, &s)| {
-        let end = starts.get(k + 1).copied().unwrap_or(els.len());
-        signed_area(&els[s..end]) < 0.0
-    });
+    let subpaths: Vec<&[PathEl]> = starts
+        .iter()
+        .enumerate()
+        .map(|(k, &s)| &els[s..starts.get(k + 1).copied().unwrap_or(els.len())])
+        .collect();
+    let positive: Vec<bool> = if subpaths.len() < 2 || subpaths.len() > MAX_NESTING_SUBPATHS {
+        vec![true; subpaths.len()]
+    } else {
+        let closed: Vec<BezPath> = subpaths
+            .iter()
+            .map(|sub| {
+                let mut p = BezPath::from_vec(sub.to_vec());
+                if !matches!(sub.last(), Some(PathEl::ClosePath)) {
+                    p.close_path();
+                }
+                p
+            })
+            .collect();
+        subpaths
+            .iter()
+            .enumerate()
+            .map(|(k, sub)| {
+                let Some(PathEl::MoveTo(pt)) = sub.first().copied() else {
+                    return true;
+                };
+                // Nested: inside the other subpath's bounding box and
+                // covered by it (overlapping outlines stay a union).
+                let bbox = closed[k].bounding_box();
+                let depth = closed
+                    .iter()
+                    .enumerate()
+                    .filter(|(j, other)| {
+                        let o = other.bounding_box();
+                        *j != k
+                            && o.x0 <= bbox.x0
+                            && o.y0 <= bbox.y0
+                            && o.x1 >= bbox.x1
+                            && o.y1 >= bbox.y1
+                            && other.winding(pt) != 0
+                    })
+                    .count();
+                depth % 2 == 0
+            })
+            .collect()
+    };
+    let needs_fix = subpaths
+        .iter()
+        .zip(&positive)
+        .any(|(sub, pos)| (signed_area(sub) >= 0.0) != *pos);
     if !needs_fix {
         return;
     }
     let mut out = BezPath::new();
-    for (k, &s) in starts.iter().enumerate() {
-        let end = starts.get(k + 1).copied().unwrap_or(els.len());
-        let sub = BezPath::from_vec(els[s..end].to_vec());
-        if signed_area(sub.elements()) < 0.0 {
+    for (sub, pos) in subpaths.iter().zip(&positive) {
+        let sub = BezPath::from_vec(sub.to_vec());
+        if (signed_area(sub.elements()) >= 0.0) != *pos {
             out.extend(sub.reverse_subpaths().elements().iter().copied());
         } else {
             out.extend(sub.elements().iter().copied());
@@ -316,6 +369,23 @@ mod tests {
         normalize_winding(&mut cw);
         assert!(signed_area(ccw.elements()) > 0.0);
         assert!(signed_area(cw.elements()) > 0.0);
+    }
+
+    #[test]
+    fn holes_wind_negatively() {
+        let outer = Rect::new(0.0, 0.0, 10.0, 10.0).to_path(0.1);
+        let hole = Rect::new(2.0, 2.0, 4.0, 4.0).to_path(0.1);
+        let other = Rect::new(20.0, 0.0, 21.0, 1.0)
+            .to_path(0.1)
+            .reverse_subpaths();
+        let mut p = outer.reverse_subpaths();
+        p.extend(hole.elements().iter().copied());
+        p.extend(other.elements().iter().copied());
+        normalize_winding(&mut p);
+        let g = Geometry::Path(p);
+        assert!(g.contains(Point::new(1.0, 1.0)));
+        assert!(!g.contains(Point::new(3.0, 3.0)));
+        assert!(g.contains(Point::new(20.5, 0.5)));
     }
 
     #[test]

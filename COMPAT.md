@@ -1,9 +1,27 @@
-# Intentional divergences from upstream LibrePCB
+# Differences from upstream LibrePCB
 
 Behavior differences of the Rust port compared to the C++ reference
-(`../LibrePCB`), including exotic edge cases, usually because upstream relies
-on Qt semantics that are not reproduced. File formats are unaffected unless
-stated otherwise. Entries are grouped by module.
+(`../LibrePCB`), including exotic edge cases. File formats are unaffected
+unless stated otherwise. The file has two parts, each grouped by module in
+the same order:
+
+- **Part 1: Intentional differences** are permanent design decisions:
+  Rust-native semantics instead of Qt emulation (see "No Qt emulation" in
+  `AGENTS.md`), a different internal architecture, deliberate fixes of
+  upstream bugs, differences that do not affect files, and things that are
+  different by design (e.g. PDF/SVG output not byte-identical to Qt). They
+  are **not work items**: do not "fix" them to match upstream.
+- **Part 2: Not ported yet / known gaps** lists missing features and
+  behavior we intend to match eventually (3D/STEP, printing, missing
+  dialogs, missing application wiring, ...). These **are work items**;
+  remove an entry (or move the remaining difference to Part 1) once it is
+  done.
+
+Rule for new entries: a divergence that is meant to stay goes into Part 1;
+anything that is missing or differs only because it is not done yet goes
+into Part 2. An entry that mixes both is split.
+
+# Part 1: Intentional differences
 
 ## General
 
@@ -108,13 +126,13 @@ stated otherwise. Entries are grouped by module.
 
 ## algorithm
 
-- **Air wires**: the Delaunay triangulation comes from `spade` and the
-  minimum spanning forest from `petgraph`. The total air wire length is the
-  same, but among several equally long alternatives (e.g. points on a
-  regular grid) a different one may be chosen; upstream's choice depends on
-  the unstable `std::sort` anyway. Upstream's workarounds for its
-  triangulation library (fallback chain edges, manual triangles for 3
-  points) are not needed.
+- **Air wires**: ported literally, including upstream's Delaunay
+  triangulation library (with its single precision circumcircle test),
+  the fallback edges and libstdc++'s `std::sort()` (`clipper::std_sort`),
+  so the same air wires are chosen among equally long alternatives as by
+  upstream built with GCC/libstdc++ (the DRC "missing connection"
+  approvals depend on it). Upstream built with another standard library
+  (MSVC, libc++) may choose differently.
 - **Net segment simplification**: junctions are merged in ascending anchor
   ID order; upstream iterates a `QHash` (unspecified, per-process random
   order), so the surviving line IDs may differ when several merges are
@@ -166,9 +184,7 @@ stated otherwise. Entries are grouped by module.
   Lithuanian or Estonian letter order) and between ICU/Unicode versions.
   Callers use a stable sort; upstream uses `std::sort`, whose order of
   elements comparing equal (e.g. `r1` vs. `R1`) is unspecified. Affects the
-  row order of exported BOM and pick&place files in these edge cases. This
-  includes interactive BOM rows: Qt under `C.UTF-8` sorts lexicographically
-  (`C1, C10, C2`), while Rust keeps numeric order (`C1, C2, C10`).
+  row order of exported BOM and pick&place files in these edge cases.
 
 ## export
 
@@ -186,6 +202,71 @@ stated otherwise. Entries are grouped by module.
   Unicode versions (for characters new in one of them).
 - Invalid paths and failed arc computations are logged with `log` instead of
   `qWarning()`/`qCritical()`; the output is the same.
+- **`GraphicsExportSettings`** is plain data: the page size is its
+  `QPageSize` key string, and the painting helpers (`getFillColor()`,
+  `convertImageColors()`) are not ported. The adjustment of board colors
+  for white backgrounds deliberately ports Qt 6's `QColor` HSV conversion
+  (single precision, 16 bit channels, `qt_div_257()` rounding), because the
+  resulting colors are written to `jobs.lp` by the default graphics jobs.
+  (Embedded default colors: see Part 2, export.)
+- **Graphics export** (port of `GraphicsExport`, `GraphicsPainter` and the
+  painters, in the scene crate as `librepcb_scene::export`): no Qt, so the
+  written bytes differ completely from upstream's `QPdfWriter`,
+  `QSvgGenerator` and `QImageWriter` output. The page layout follows
+  upstream (fixed or content-derived page size, orientation incl. the
+  automatic one, margins, rotation, mirroring, fixed scale or fit,
+  background, minimum line width, black/white, one PDF with all pages,
+  numbered SVG/image files for several pages, output directory creation,
+  error messages). Differences:
+  - PDF: vector paths through `pdf-writer` at the page size in points
+    (upstream: 1200 DPI device units); creator and producer are
+    `LibrePCB <version>` (upstream producer: Qt). No invisible texts for
+    selection/search (upstream draws transparent TrueType texts on boards
+    and footprints), no embedded fonts (all texts are stroke paths, see
+    scene).
+  - SVG: hand-written, one `<path>` per paint, `<desc>Generated with
+    LibrePCB</desc>`; size in millimeters rounded to 0.1 µm.
+  - Images: PNG, JPEG and BMP only (upstream: every Qt image format), via
+    vello_cpu and the `image` crate; anti-aliasing differs. JPEG/BMP drop
+    the alpha channel like Qt (transparent areas become black).
+  - The source rectangle (upstream `QPicture::boundingRect()`) is the
+    bounding box of the paths plus half the stroke widths; Qt's is
+    slightly larger (about 0.3 mm on a schematic page), so derived page
+    sizes can differ by a few points.
+  - Page sizes are Qt 6's `QPageSize` table (`PageSize`); the page size in
+    whole points is used for all output devices.
+  - Pages with nothing to paint get the device's real-size scale instead
+    of Qt's infinite fit scale.
+  - Unknown extensions fail before painting (upstream paints the page
+    first, then fails to save it); the message is the same.
+- **Interactive HTML BOM** (`InteractiveHtmlBom`): generated by the
+  `interactive-html-bom` crate in the same version as upstream (0.2.0),
+  with the same conversions as upstream's C++/FFI wrapper (`f32`
+  millimeters, Y axis negated as floating point value, so zero becomes
+  `-0`), so the HTML is byte-identical (verified against `librepcb-cli`
+  on all test projects, `tests/unittests/compat/interactive_html_bom.rs`). `add_footprint()`
+  returns an error if a pad outline cannot be calculated (upstream's
+  `noexcept` method would terminate the application).
+
+## job
+
+- **Class hierarchy → enum:** `OutputJob` holds UUID, name and options,
+  and `OutputJobKind` the type specific settings (one struct per upstream
+  subclass, plain data with public fields). Signals and icons are not
+  ported. Output is identical.
+- **Copies keep the forward compatibility options:** upstream's
+  `OutputJob` copy constructor (used by `cloneShared()`, e.g. when copying
+  a job in the output jobs dialog) drops the `option` nodes of the base
+  job; `Clone` keeps them. Only differs for copied jobs of a future minor
+  version with options.
+- **Ordering of options and layer colors** (upstream `QMap<QString, ...>`)
+  is `str` ordering, see "String ordering" under General.
+- **Colors** (`layer`/`background` of graphics jobs) are parsed with
+  `Color` (hex forms only, see types); `QColor` also accepts SVG color
+  names, which LibrePCB never writes.
+- **Default job set:** upstream creates it in the editor's output jobs
+  dialog; here it is `job::default_output_jobs()` in core, taking the
+  Gerber settings and custom BOM attributes as parameters.
 
 ## sqlite_database
 
@@ -288,9 +369,6 @@ differ between platforms/implementations:
   identically; a hand-edited, non-normalized or invalid URL is written back
   unchanged instead of being normalized or cleared. **File output can
   differ** in that case.
-- **Old file formats**: elements in a file format older than the current
-  one are rejected (`Error::MigrationRequired`) since the file format
-  migrations are not ported yet. Upstream upgrades them when opening.
 - **Title case check** (`is_title_case()`, `title_case_fixed_name()`):
   "lowercase letter" is general category Ll (upstream `QChar::isLetter() &&
   isLower()` on UTF-16 code units, identical for BMP names). The fixed name
@@ -321,7 +399,7 @@ differ between platforms/implementations:
   Sources are always empty in organizations.
 - **`Organization::duplicate_from()`** copies the output jobs with new UUIDs;
   upstream clears the job lists before iterating over them and thus drops
-  all jobs of the duplicate. Output jobs use the same typed model as projects.
+  all jobs of the duplicate.
 - **`Component::duplicate_from()`**: a pin-signal-map entry referring to a
   non-existent signal becomes unconnected (upstream: undefined behavior).
 - **Package check geometry** (pad clearances, legend clearance, annular
@@ -338,16 +416,13 @@ differ between platforms/implementations:
   (`QPainterPath::united()`) is approximated by the outlines with winding
   fill. Both can only matter if a distance is within about 1 nm of a check
   threshold.
-- Not ported (UI specific, will live in the rendering layer):
-  `FootprintPainter`.
+- `FootprintPainter` is not part of core; it is ported in the scene crate
+  as `FootprintScene` (see scene).
 
 ## network (crate librepcb-network)
 
 - Async (tokio/reqwest); progress is a `watch` channel, so intermediate
   progress states may be coalesced (upstream emits every signal).
-- The HTTP disk cache is not ported (`setCacheLoadControl()`,
-  `setMinimumCacheTime()`, `AlwaysCache`); `ApiEndpoint`'s `forceNoCache`
-  parameter is therefore dropped.
 - User agent: `LibrePCB/<version> (<os>; <arch>; <locale>)` (upstream:
   `LibrePCB/<version> (<pretty OS name>; <arch>; <locale>) Qt/<version>`).
 - Error messages: HTTP errors read
@@ -369,42 +444,11 @@ differ between platforms/implementations:
   the "project is too large" message formats the size like
   `formatFileSize()` (`"1.50 MB"`) instead of
   `QLocale::formattedDataSize()` (`"2 MiB"`).
-
-## project/json_export
-
-- Bounding-box extents use widened integer subtraction before conversion to
-  millimeters. Opposite corners more than `i64::MAX` nanometers apart are
-  exported without integer overflow; upstream subtracts in its length type.
-  Realistic boards and all upstream fixture exports are byte-identical.
-
-## project/erc
-
-- Findings and representative highlighting locations are selected in
-  deterministic model order (UUID-keyed collections and library pin order)
-  where upstream traverses unordered sets/hashes or registration lists.
-  The selected schematic/segment/pin may differ
-  when several locations represent the same finding. Approval contents
-  are unchanged; the two bus-net findings can appear in a different order.
-- A wire width of `i64::MAX` cannot be expanded by 1 nm for highlighting:
-  ERC returns a range error instead of overflowing. Realistic widths and
-  their highlighting match upstream.
-
-## project/bom_generator
-
-- Value cleanup uses Rust Unicode whitespace (`regex` and
-  `str::split_whitespace()`) instead of Qt regular expressions and
-  `QString::simplified()`. Non-ASCII whitespace around redundant part names
-  can therefore change the cleaned BOM value. Oversized escaped part-name
-  patterns return a project error if they exceed the regex engine's limits.
-
-## project/attribute_lookup
-
-- Lookups borrow a project and explicit context instead of holding Qt weak
-  pointers and following parent pointers. For detached objects with missing
-  library/component references, `value()` and `substitute()` return project
-  errors; upstream assumes these references were resolved during construction.
-  Values and precedence for valid project objects are unchanged. Dates and
-  times use the local time zone, including creation timestamps stored in UTC.
+- `LibraryDownload` (upstream in the editor) is part of this crate; it
+  returns the library directory or an error instead of emitting
+  `finished(bool, QString)`. The library installer (`library_installer`,
+  selecting libraries by name/UUID with their dependencies) has no upstream
+  counterpart; upstream does this in the library manager UI.
 
 ## project/schematic
 
@@ -425,43 +469,6 @@ differ between platforms/implementations:
   items first (a page can only be removed when empty, like upstream).
 
 ## project/board
-
-- DRC runs synchronously on an owned snapshot,
-  without Qt worker lifecycle callbacks or model changes. Findings are
-  deterministic in snapshot order; callers must not depend on the ordering
-  of upstream's concurrently scheduled checks. Approval tokens, UUID fields,
-  formatting and severities are unchanged, except for the already documented
-  equal-length airwire choices. Extraction rebuilds planes and air wires in a
-  private copy instead of applying derived geometry to the live board.
-  Progress/cancellation is reported between rule groups, rather than Qt
-  worker jobs. Errors or cancellation return no partially applicable result;
-  approval cleanup therefore only consumes successful results.
-  The source rules which ignore footprint circle centers during cutout
-  checking and leave `%2` in invalid-pad-connection titles are retained.
-
-- Gerber/Excellon board exports return expanded output names and contents
-  instead of writing files or removing obsolete outputs. Relative names are
-  relative to the project directory; the caller owns filesystem resolution,
-  write callbacks and cleanup. Version/time are explicit, as in the low-level
-  generators. Rebuild planes before fabrication export, as upstream does.
-  Successful fabrication, glue and component files match upstream; X3 string
-  simplification follows Rust's whitespace rule. The upstream component
-  outline rule which omits circle centers is deliberately retained.
-
-- Plane calculation is synchronous and reports progress/cancellation between
-  planes instead of exposing Qt's asynchronous builder lifecycle. Errors or
-  cancellation retain the previous fragments and dirty state atomically;
-  upstream can return partial results with per-plane errors. Successful
-  copper geometry uses the same 5um arc tolerance and algorithms.
-
-- Pick&place values use `str::split_whitespace()` to simplify whitespace
-  after substitution instead of `QString::simplified()` (the crate-wide
-  Rust whitespace rule). Typical values and all fixture CSV bodies match
-  upstream; exotic Unicode whitespace may differ between Unicode versions.
-
-- Derived via copper/mask diameters use widened addition and return a range
-  error for dimensions outside `i64`, instead of overflowing. Ordinary
-  dimensions, rule rounding and layer spans match upstream.
 
 - Loading rejects duplicate item UUIDs first and then validates each board
   as a whole (upstream adds the empty board and then item by item); for a
@@ -485,57 +492,697 @@ differ between platforms/implementations:
   the loader for each board and by the editor after each command) from the
   nets marked dirty by the mutations, a superset of upstream's
   `scheduleAirWiresRebuild()` calls (e.g. also when only traces change).
-  The anchors are added in a deterministic order, and ties between equally
-  long air wires can be resolved differently (see algorithm). Display and
-  DRC "missing connection" approvals only.
-- DRC approval cleanup goes through `Project::update_drc_approvals()` and the
-  existing approval mutation/journal, with a nonpersistent session cache in
-  `BoardDerived`. Quick runs and unknown current-format approvals are
-  preserved; a full run after a format upgrade removes all obsolete entries,
-  as upstream does.
+  The anchors are added in the order of upstream's registration lists after
+  loading a project (component, component signal and pad UUID; net
+  segments by UUID). After editing, upstream's lists are in modification
+  order, so ties between equally long air wires can be resolved
+  differently (display and DRC "missing connection" approvals only), and
+  the same holds for hand-written files whose elements are not sorted by
+  UUID.
 - `BoardNetSegmentSplitter`: new junction UUIDs come from a caller provided
   generator, and the elements of a resulting segment may be listed in
   another order. Files are unaffected (elements are saved sorted by UUID).
 
-## job
+## scene (crate librepcb-scene)
 
-- Jobs use owned enum variants instead of a class hierarchy. Graphics,
-  interactive BOM and 3D settings can be read and written independently of
-  execution. Unknown jobs retain the original complete node,
-  including when common fields are edited, matching `UnknownOutputJob`.
-- Cloning a known job preserves arbitrary option nodes. Upstream's base
-  copy constructor omits them, accidentally losing forward-compatible
-  options. This difference can affect files after cloning such jobs.
-- Output job execution is synchronous, with caller-provided file and job
-  observers replacing Qt signals/event processing. Manufacturing jobs
-  rebuild copper planes before exporting, including callers' detached
-  geometry without dirty flags. Application version/time are explicit.
-  Graphics encoding is injected by the caller, keeping core independent of
-  the graphics crate. Schematic/2D-board jobs use the same indexed writer;
-  realistic 2D board rendering shares physical geometry with future 3D
-  consumers. Interactive HTML BOM uses the upstream Rust generator directly.
-  3D jobs still fail explicitly.
-  ZIP timestamps/compression follow the existing Rust ZIP implementation;
-  archive contents and output filenames are compatible.
+Rendering only; no file is affected.
 
-## cli
+- Schematic texts, pin names and numbers and net/bus labels are drawn with
+  the project's stroke font (`newstroke.bene`) instead of the Noto Sans /
+  Noto Sans Mono TrueType fonts upstream draws through Qt. The stroke text
+  is placed in the box the TrueType text would occupy (Noto Sans descent
+  and cap height), with upstream's alignment, auto-rotation, multi-line
+  and overline rules; glyph shapes and widths differ.
+- Pad and via drills are cut out of the copper (filled subpaths nested in
+  others become holes, like Qt's odd-even rule); all drills are also
+  filled with the background color on a separate layer (the editor look,
+  hidden in graphics exports).
+- Planes are drawn with the fragments stored in the board's derived data
+  (if computed) plus their outline as a hairline.
+- Board colors are the dark scheme's primary colors (the editor look); the
+  graphics export's color adjustment for white backgrounds is not applied.
+  Graphics exports build the scenes with the colors of the export
+  settings (`ColorScheme::custom()`).
+- Symbols and footprints (`SymbolScene`, `FootprintScene`, upstream
+  `SymbolPainter`/`FootprintPainter`) draw their texts raw (e.g.
+  `{{NAME}}`) like upstream; footprint texts use the default stroke font
+  found at runtime (`LIBREPCB_SHARE`, `../share/librepcb` next to the
+  executable, or the upstream checkout the crate was built against); without
+  it, no footprint texts are drawn.
+- Board graphics export (`BoardPainter`): THT pads and vias are drawn once
+  in the pads/vias color if no copper layer is enabled (upstream
+  deduplicates identical paths; here only the top copper instance, see
+  Part 2 for the vias this misses). Plane outlines are drawn as minimum
+  width lines (upstream: fragments only). Zones and air wires are not
+  drawn (like upstream).
+- Project graphics jobs and schematic exports use `librepcb-graphics`;
+  interactive canvas scenes and library previews use `librepcb-scene`.
+  Realistic project output uses the shared `BoardPhysicalGeometry`, retaining
+  drill spans, face-dependent blind-hole projection, mask and legend clipping
+  for future 3D consumers. Rasterization uses vello_cpu; vector output retains
+  even-odd contours. Antialiasing and font shaping differ from Qt.
 
-- The native CLI uses clap instead of Qt's argument parser. Help layout,
-  parser diagnostics and parser-error exit codes follow clap. Version output
-  reports this Rust package's version, without fictitious Qt/OpenCascade
-  versions. Application messages still use the upstream translation context.
-- Implemented commands are `open-project`, `open-library`, `open-symbol` and
-  `open-package` and `open-step`, including symbol/package and schematic graphics exports.
-  Schematic, 2D-board, realistic top/bottom and interactive HTML BOM output
-  jobs and mechanical STEP jobs are supported. Standalone STEP loading,
-  CPU tessellation, `--minify`/`--save-to`, and library `--minify-step` are
-  supported. Curved-surface vertex counts follow
-  Monstertruck's subdivision instead of OpenCascade's. See `docs/status.md`
-  for the current supported-command and full-suite acceptance counts.
-- Saving `.lppz` builds the updated archive in memory, then writes it
-  atomically through the existing file utility. A failed archive export
-  therefore retains the original file. The project root is isolated from
-  sibling files before loading ZIP contents, like upstream.
+## project (ERC, attribute lookup, BOM, JSON export)
+
+- ERC (`project::erc`): where upstream iterates a `QHash`/`QSet` (nets
+  attached to a bus) or a registration list (net segments of a net: here
+  schematic page order, then segment UUID order; bus segments of a bus:
+  schematic UUID order, then segment UUID order; symbol pins of a
+  component signal: gate order), items are visited in a deterministic
+  order. This only affects the order of the messages and which of several
+  equivalent items a message location (highlighting) points to; the
+  messages and approvals (`circuit/erc.lp`) are identical. Symbols whose
+  pins cannot be computed from the project library are skipped (the loader
+  rejects such projects, upstream cannot represent them at all).
+- `ProjectAttributeLookup` borrows the project and the objects (upstream:
+  `QPointer`s which silently yield empty values after deletion). Built-in
+  keys whose library element is missing from the project library
+  (`COMPONENT`, `DEVICE`, `PACKAGE`, `FOOTPRINT`) resolve to an empty
+  string (upstream cannot represent that state). `PROJECT_DIRPATH` and
+  `PROJECT_FILEPATH` are empty for projects not on disk. `CREATED_DATE`,
+  `CREATED_TIME`, `DATE` and `TIME` are formatted with chrono in local
+  time (`%Y-%m-%d`, `%H:%M:%S`), the same text as Qt's `ISODate`.
+- `BomGenerator`: the value cleanup uses the `regex` crate with ASCII `\s`,
+  the same set as upstream's `QRegularExpression` without Unicode
+  properties; `QString::simplified()` is `split_whitespace()` (see
+  General).
+- `json_export`: the output is written by a port of `QJsonDocument`'s
+  indented format and of Qt 6's `QByteArray::number(d, 'g',
+  FloatingPointShortest)` (shortest round-trip digits, exponent form like
+  `1e-05` only where shorter). Older Qt versions may format numbers in
+  exponent form differently; lengths realistically exported (multiples of
+  1 nm between 0.001 mm and 1 m) are formatted identically. Keys are sorted
+  like `QJsonObject`.
+
+## workspace
+
+- **Library database** (`libraries/cache_v8.sqlite`): same file name,
+  schema, database version and row contents as upstream, so both
+  implementations can use the same workspace (not at the same time, the
+  data directory is locked). Values are bound like the Qt SQLite driver:
+  empty icons/logos and empty `generated_by` are `NULL`, strings upstream
+  passes through `nonNull()` are empty strings. URLs (organizations,
+  resources, PCB design rules) are stored verbatim instead of normalized by
+  `QUrl::toString()`; they are only read for display.
+- **Scanner** runs synchronously on a caller provided thread instead of
+  an owned `QThread`; progress is a callback. Libraries are scanned in the
+  order of their directory names compared case insensitively with
+  `str::to_lowercase()` (upstream: `QDir` default sorting), which only
+  changes the database row IDs and thus which of two elements with the
+  same UUID *and* version is returned as "latest".
+- `WorkspaceLibraryDb::Part` is `library::dev::Part`; parts are sorted
+  like upstream, with attribute values compared by the natural order of
+  `natural_cmp_case_insensitive()` instead of `QCollator` (see library). If
+  two attribute values compare equal there, the next attribute decides
+  (upstream: the parts compare equal).
+- **Workspace settings**: color schemes (`schematic_color_schemes`,
+  `board_color_schemes`, `3d_color_schemes`) are kept as raw S-expressions
+  and written back unchanged (upstream re-serializes them canonically when
+  they are written, i.e. after an edit or a file format upgrade). Keyboard
+  shortcuts keep their key sequences as strings without
+  `QKeySequence` normalization. The migration of the legacy `themes` entry
+  writes the user color schemes like upstream (as raw S-expressions).
+  API endpoint URLs are stored verbatim (upstream: `QUrl`), and an endpoint
+  counts as valid if its URL is non-empty (upstream: `QUrl::isValid()`).
+- The "workspace requires LibrePCB %2 or later" message fills in both
+  placeholders (path and version); upstream passes only the version, so its
+  message shows the version as path and a literal `%2`.
+- The most recently used workspace path (`QSettings`) is not ported (it
+  belongs to the application). `Workspace::open_or_create()` performs the
+  steps of the upstream workspace initialization wizard (create, choose and
+  copy the data directory) without UI and without downloading the example
+  projects.
+
+### Plane fragments and board exports
+
+- **Plane fragments builder**: creating a `PlaneJob` does not modify the
+  board; the processed layers are unscheduled when the result is applied,
+  and only if the project was not modified since the job was created
+  (upstream takes the scheduled layers when creating the job). Planes may
+  therefore be rebuilt more often, the fragments are the same.
+- The fragments of a plane are sorted by their first point with a stable
+  sort (upstream `std::sort`); the order can only differ for two fragments
+  starting at the same point, which Clipper does not produce.
+- Cancellation is an `AtomicBool` checked between planes of a layer
+  (upstream also checks between the steps of one plane).
+- **Missing stroke font**: upstream fails to load a board whose default
+  stroke font does not exist in the project (`StrokeFontPool::getFont()`
+  throws in the `BI_StrokeText` constructor); here the board loads, and the
+  plane rebuild and the exports fail with the same message.
+- **Export metadata**: the application version and creation date written
+  into Gerber, Excellon, pick&place and IPC-D-356A files are passed in by
+  the caller (`ExportInfo`), see "export".
+- **Output paths** are resolved relative to the project directory like
+  upstream; a project without a directory on disk (in-memory file system)
+  cannot export to relative paths (error instead of a path relative to an
+  empty directory).
+- **Interactive HTML BOM generator** (`BoardInteractiveHtmlBomGenerator`):
+  the generation date is a `Timestamp` (the date of the `ExportInfo`,
+  written as `yyyy-MM-dd hh:mm:ss` in the time zone of the value). The
+  designator prefix for the component order strips trailing
+  `char::is_numeric` characters (upstream: `QChar::isDigit()`, i.e.
+  only decimal digits; differs for other numeric characters like `²`).
+  BOM rows are grouped by their field values in Rust `String` order
+  (upstream: `QStringList` in UTF-16 order) and sorted with a stable sort
+  (upstream: `std::sort`); the resulting order only differs for rows whose
+  first designators compare equal (e.g. `r1` and `R1`).
+  `Board::calculateBoundingRect()` is ported as a private helper of the
+  generator.
+
+### Specctra DSN export
+
+- The DSN output is byte-identical to upstream (upstream unit test
+  expectation), including upstream's quirks that define the bytes: blind
+  and buried via padstack IDs contain a literal `%2` (nested
+  `QString::arg()`), vertical oblong pads are exported as a zero-length
+  path.
+- The host CAD name and version in the `parser` node are parameters
+  (default "LibrePCB" and the crate version; upstream: the application
+  name and version).
+- The pins of a net are ordered by (component UUID, signal UUID, pad UUID)
+  and (net segment UUID, pad UUID); upstream iterates its registration
+  lists, which is the same order for a freshly opened project but can
+  differ after editing (only the order of the `pins` list changes).
+
+## project/board/drc
+
+- **Iteration order**: the input data keeps net segments, devices, pads,
+  vias and junctions in `BTreeMap`s (UUID order) and layers in `BTreeSet`s;
+  upstream iterates `QHash`es/`QSet`s. Approvals are identical (upstream
+  sorts the objects of an approval canonically), but the order of the two
+  objects in the text of a copper clearance message (`'GND' pad ↔ 'VCC'
+  pad`) and the order of the messages may differ. Merging of copper
+  clearance violations per object pair is order independent.
+- **Keepout zones**: upstream tests the intersection with
+  `QPainterPath::intersects()` against the union (`|=`, `QPathClipper`) of
+  the object areas; here each area is tested with the ported Qt predicate
+  (`PainterPathPx::intersects()`) and the object intersects if any area
+  does. Via areas are circles drawn with arcs (same Bézier quarter curves)
+  instead of `QPainterPath::addEllipse()`. Results only differ for objects
+  touching a zone within Qt's curve sampling tolerance.
+- **Device names** in "Device in courtyard"/"Device overlap" messages are
+  ordered by `str` ordering instead of `QString` (UTF-16) ordering; only
+  names with characters outside the BMP can be affected.
+- **Plane fragments**: like upstream, a full check rebuilds all planes;
+  if the plane job cannot be created (e.g. missing stroke font, see
+  "Plane fragments and board exports"), `Project::run_drc()` fails with
+  that error.
+- **Errors**: checks that fail (e.g. a non-positive calculated diameter)
+  report the error in `DrcResult::errors` like upstream, with the Rust error
+  message. A panic of a check thread is reported as error as well.
+- **Approval cleanup** (`Board::updateDrcMessageApprovals()`):
+  `Project::drc_approvals_update()` returns a `SetDrcApprovals` mutation
+  instead of modifying the board; the set of approvals seen during the
+  session is derived data of the board. `ProjectEditor::update_drc_approvals()`
+  applies it without undo step and marks the project as manually modified,
+  like upstream's board editor. `librepcb-cli` does not clean up approvals
+  (like upstream).
+- `DrcMsgInvalidPadConnection` keeps upstream's untranslated `'%2'` in its
+  message (upstream substitutes only the first placeholder).
+
+## editor (crate librepcb-editor)
+
+- **Undo stack**: every change is recorded in a group (upstream `execCmd()`
+  of a single command is a group with one operation). The redo history is
+  discarded when a group is *committed*; upstream discards it when a group
+  is started, so an aborted group also loses the redo history there. If
+  undoing or redoing fails (a violated model invariant), the applied steps
+  are rolled back and the history is cleared; upstream rethrows and leaves
+  the stack as it is. `state_id()` replaces `getUniqueStateId()`/the
+  `stateModified` signal.
+- **Combining net segments** (`CmdCombineSchematicNetSegments`,
+  `CmdCombineBoardNetSegments`, used when a wire or trace connects two
+  segments) moves the elements with their UUIDs; upstream re-creates
+  junctions, pads, vias and labels with new random UUIDs. Likewise the
+  segments re-added after removing items keep the UUIDs of their elements
+  (upstream: new junction and label UUIDs). Files differ only in these
+  (random) UUIDs.
+- **Forced net names** of component signals (e.g. `{{VALUE}}` of supply
+  symbols) are applied like upstream by the wiring commands and to the
+  segments re-added after removals, but only if the substituted name is a
+  valid net name (upstream collects the raw strings, and the wiring tool
+  shows a message box for invalid ones; we log a warning). An explicit
+  `net` parameter of a wiring command takes precedence over a forced name.
+- **`AddBoard`** with `copy_from` (upstream `Board::copyFrom()`) does not
+  copy the calculated plane fragments; the planes of the copy are rebuilt
+  like any other planes.
+- **Adding a via** connects it to the traces and junctions of its net at
+  its position like upstream's add-via tool (hit test: the trace width
+  resp. the widest trace at a junction instead of the graphics items'
+  shapes), but builds the combined segment in one step: split traces are
+  replaced by two traces to the via (upstream first adds a split junction,
+  then replaces it), the element UUIDs of the combined segments are kept.
+- **Autorouter** (`Autoroute`): no upstream counterpart (upstream only
+  exports Specctra DSN); see the `commands::autoroute` module docs.
+- **`create_project()`** copies the stroke fonts from a given directory
+  (upstream: the application resources directory), because the core's
+  `Project::create()` does not know the application resources yet.
+- Interactive steps are replaced by parameters: no snapping to the grid or
+  to items, gates of a multi-gate component are placed with a fixed offset
+  unless placed individually, and the default device of `AddDevice` is the
+  first device of the component's assembly options.
+
+### Schematic editor FSM (`fsm::schematic`)
+
+- **Undo steps** are upstream's: a drag is one group, followed by a
+  separate group simplifying the modified net and bus segments (also
+  after removing items); a paste and the one-shot operations (rotate,
+  mirror, move by keys, snap) do not simplify, like upstream. Drawing a
+  wire or bus is one group per clicked segment plus a simplification group
+  when finishing.
+- **Live previews** are mutations in the open undo group, replaced on
+  every pointer move; upstream modifies the objects without undo and
+  records the command at the end. While a tool keeps a group open, other
+  commands (e.g. from the embedded MCP server) join that group.
+- **Clipboard:** the format is upstream's (`schematic.lp` in a ZIP under
+  `application/x-librepcb-clipboard.schematic; version=<app version>`).
+  When pasting, net lines at bus junctions of a bus segment which was
+  split while copying are attached to the right part (upstream keeps only
+  the junctions of the last part). Symbol clipboard data (from the symbol
+  editor) pastes its polygons, texts and images like upstream.
+- **Hit testing:** net and bus junctions are tested on the model with
+  upstream's 1.2 mm grab square; items of equal priority keep the item
+  order (upstream: `QMultiMap` insertion order).
+- **Images:** the file name of an added image is derived from the file
+  name without asking the user (upstream: an input dialog), the image
+  chooser is requested from the application.
+- **Find:** component candidates are the symbol names (with gate suffix)
+  resolved through the symbols of the page, so symbols of multi-gate
+  components are found too (upstream looks them up as component names).
+- **Cross-probing** is an output of the FSM (`cross_probe()`); the
+  application highlights the objects in the other editors.
+
+### Board editor FSM (`fsm::board`)
+
+- **Live previews** are mutations in the open undo group, replaced on
+  every change (dragging, trace positioning, placing vias, pads, devices,
+  texts and holes, drawing polygons, planes and zones); upstream modifies
+  the objects without undo and records the edit commands at the end. The
+  resulting undo steps are upstream's ("Drag Board Elements", one "Draw
+  Board Trace" group per clicked segment, one "Draw board polygon/plane/
+  zone" group per vertex, ...). Air wires are rebuilt during previews.
+- **Draw trace:** net segments are combined keeping the element UUIDs
+  (upstream creates new segments); a pad without traces is attached to the
+  current segment directly (upstream first creates a segment for it).
+- **Add pad:** changing the net re-creates the preview segment with the
+  new net (upstream removes, edits and re-adds it).
+- **Hit testing:** grab areas are the scene items of `librepcb-scene`
+  (device grab area: its footprint graphics); junctions are tested on the
+  model with a circle of the widest trace at them (upstream
+  `BGI_NetPoint`). Items of equal priority are ordered by item reference
+  (upstream: `QMultiMap` insertion order).
+- **Selection:** held by the FSM; selecting a device selects its texts
+  (like upstream). The rubber band selects junctions whose position is in
+  the rectangle (upstream: whose circle touches it).
+- **Clipboard:** upstream's format (`board.lp` plus `dev/`, `pkg/` in a
+  ZIP under `application/x-librepcb-clipboard.board; version=<app
+  version>`). Footprint clipboard data (from the package editor) pastes
+  its polygons, stroke texts and holes like upstream. Like upstream, a
+  pasted net whose name does not exist becomes a new net with an automatic
+  name.
+- **Change device:** the devices offered in the context menu come from the
+  editor's library element source (upstream: the workspace library
+  database).
+- **Cross-probing** is an output of the FSM (`cross_probe()`,
+  `highlighted_nets()`); the application highlights the objects in the
+  other editors.
+- Plane visibility (context menu "Visible") and aborting blocking tools
+  of other editors are handled by the application (the FSM reports the
+  context menu action).
+
+### DXF reader (`import::dxf_reader`)
+
+- Based on the `dxf` crate instead of dxflib: an empty file is read as a
+  drawing without entities like upstream, but other files the crate
+  rejects are reported as errors even where dxflib silently reads
+  nothing.
+
+### Library element editors (`library_editor`, `fsm::library`)
+
+- **Undo stack:** a group stores snapshots of the element content before
+  and after it (upstream: undo command objects). The grid interval and
+  message approvals are not part of the snapshots; changing them marks the
+  element as modified without undo, like upstream. A group without changes
+  is dropped.
+- **Auxiliary files:** image files of removed symbol images and STEP files
+  of removed 3D models are deleted when saving (upstream: immediately, by
+  `CmdImageRemove` / `CmdPackageModelRemove`, restored on undo). Writing a
+  STEP file (`AddPackageModel`, `EditPackageModel`) is not undone; files
+  written since the last save which are unreferenced at the next save are
+  deleted.
+- **Live previews** modify the element inside the open undo group (upstream:
+  edit commands with `immediate = true`); the undo steps are upstream's.
+- **Hit testing:** the FSMs query a view (`LibraryView`); the model based
+  `ModelHitTester` approximates texts by rectangles (0.7 × height per
+  character) and pins by their line; `SymbolScene`/`FootprintScene` map
+  their items to objects (zones are not drawn by `FootprintScene`, like the
+  upstream graphics export).
+- **Dialogs** (pin/pad/polygon properties, import pins, courtyard excess,
+  fix parameters) are requests to the application; check fixes take their
+  answers as `FixParams`.
+- **Images** (symbol editor): the file name of an added image is derived
+  from the base name passed by the application (upstream asks for it in
+  an input dialog); an existing file with the same content is reused
+  like upstream. The clipboard data has no pixmap.
+
+## project (output job runner)
+
+- **Graphics jobs** need a `GraphicsExporter` set by the caller
+  (`set_graphics_exporter()`, the CLI uses the scene crate's
+  `ProjectGraphicsExporter`) since the painters live in the scene crate;
+  without one they fail like unsupported job types. `build_pages()` ports
+  `buildPages()`; for board contents with "no board" (a project without
+  boards and the default board set), no page is created (upstream would
+  dereference a null board).
+- Unknown job types fail with the upstream message.
+- The Qt signals (`jobStarted`, `aboutToWriteFile`, `aboutToRemoveFile`,
+  `warning`) are one observer callback (`OutputJobEvent`).
+- The application version and creation date written into the files are
+  passed in (`ExportInfo`), one date for the whole run (upstream takes the
+  current time for each file).
+- Archive jobs collect their input files in an in-memory transactional
+  file system; upstream opens a writable one in a random temporary
+  directory, which is left behind. The archive content is the same (of
+  several input files with the same name, the first written one wins like
+  upstream's `QMultiHash` iteration), but the ZIP entries are sorted (see
+  TransactionalFileSystem). The same applies to `*.lppz` output jobs.
+- A project without a directory on disk cannot run output jobs (the
+  output directory is relative to it).
+
+## import (crate librepcb-import)
+
+- EAGLE XML (parseagle): numbers are parsed with `str::parse` after
+  trimming instead of `QString::toDouble()`/`toInt()`, and XML is read
+  with `roxmltree` (DTDs allowed) instead of `QDomDocument`; realistic
+  files are read the same, exotic number spellings Qt accepts may be
+  rejected.
+- HTML descriptions (EAGLE) are converted to plain text by a small
+  converter (`html::html_to_plain_text`: block elements become line
+  breaks, entities are decoded) instead of `QTextDocument::toPlainText()`;
+  whitespace can differ in unusual markup.
+- Grab areas of EAGLE symbols: the union of the filled outlines is
+  computed with Clipper (only overlapping shapes are united) instead of
+  `QPainterPath::united()`, and "is the text inside the grab area" uses the
+  same union; the imported files of the upstream test data are identical.
+- KiCad footprints: lines are grouped into polygons per (layer, width) in
+  a deterministic order (layer order, then width) instead of upstream's
+  `QMap` order keyed by `Layer` pointers, so the order of polygons in
+  `package.lp` can differ from upstream (upstream's own order is not
+  stable either).
+- Directory scans list entries sorted by Rust string ordering instead of
+  `QDir::Name` ordering (UTF-16 based; differs only for exotic names).
+- KiCad datasheet URLs are taken as written instead of being normalized
+  by `QUrl` (and not checked with `QUrl::isValid()`).
+- `MessageLogger` child loggers prefix messages with `"[group] "` and
+  forward them synchronously (no Qt signals); scan, parse and import run
+  on the caller's thread and report through `Progress` (percent, status,
+  cancellation) instead of `QThread`/`QFuture` and signals.
+- The KiCad import's lookup of already imported elements
+  (`ImportedElementLookup`, implemented for `LibraryDb`) does not wait
+  for a running workspace library scan like upstream; the caller
+  rescans first if needed.
+- EAGLE project import: `Project::create()` of the core does not copy the
+  stroke fonts; callers (MCP `project_create`, tests) write
+  `resources/fontobene` themselves before creating the project.
+- `EagleLibraryImport` enables the "EAGLE Import" categories by default
+  (upstream's class has none, the wizard enables them);
+  `KiCadLibraryImport` keeps upstream's class default (disabled). The
+  MCP tool `library_import` uses the wizards' defaults (name prefix off,
+  categories on) for both.
+
+## CLI (crate librepcb-cli)
+
+The console output (messages, help texts, exit codes) is identical to
+upstream `librepcb-cli` 2.1.1 except for:
+
+- **Graphics exports** (`open-project --export-schematics`, `open-symbol
+  --export`, `open-package --export`, graphics output jobs) print the same
+  lines as upstream, but the files differ (see export). The help texts
+  list `pdf, svg, bmp, jpeg, jpg, png` as supported extensions (upstream:
+  PDF, SVG and all image formats of the Qt installation).
+- **`--version`** prints `Implementation librepcb-rs (Rust, no Qt)`
+  instead of the Qt version line, `OpenCascade N/A`, and the Git revision
+  `unknown`; the application version is the crate version (also written
+  into exported files as generating software).
+- **`--verbose`** log messages use the `env_logger` format and the
+  messages of the Rust port (upstream: Qt's message handler format).
+- **Parser errors**: the command line is parsed with `clap`; the error
+  texts of `QCommandLineParser` are reproduced for unknown options
+  (all of them, like `Unknown options: a, b, c.`), missing and unexpected
+  values. The parser strings of Qt (`Usage: {0}`, `Options:`,
+  `Arguments:`, the error texts) are not in LibrePCB's translation
+  catalogs, so they are always English (upstream: Qt's catalogs).
+- **Specctra session import** (`ImportSpecctraSession`, upstream
+  `CmdBoardSpecctraImport`): messages are returned (and logged with the
+  `log` crate) instead of a `MessageLogger`; net segments without net are
+  matched by their exported dummy net name (`~anonymous~<uuid>`), so each
+  keeps its own pads (upstream adds the pads of all segments without net to
+  every such net); only footprint pads of the imported board are anchors
+  (upstream also considers pads of the same component on other boards);
+  old traces are matched regardless of their direction; zero-length wire
+  segments are skipped. Via padstack names mangled by FreeRouting 2.x
+  (fractional digits dropped, e.g. `via-0:auto-0:auto-tht`) are mapped back
+  to the exported names, so drill, size and exposure are kept (upstream
+  falls back to automatic values). Additionally, a strict mode validates
+  the session against the export (unchanged project revision and
+  placement, known nets and padstacks) before modifying the board.
+- **FreeRouting** (`FreeroutingRouter`, no upstream counterpart: upstream
+  only exports/imports files): the DSN passed to FreeRouting uses the
+  resolution 1/100000 mm instead of the export's 1/1000000 mm, because
+  FreeRouting 2.4.1 reports bogus clearance violations and leaves
+  connections unrouted with the finer resolution.
+
+## app (crate librepcb-app)
+
+- **Number formatting in the UI** (`Backend.format-length` etc.) uses `.`
+  as decimal separator and no group separators instead of `QLocale`; input
+  parsing uses the math parser with `.` (upstream accepts the locale's
+  decimal separator too).
+- **Workspace selection (M3c):** the workspace comes from
+  `LIBREPCB_WORKSPACE` or upstream's client settings
+  (`workspaces/most_recently_used` in `~/.config/LibrePCB/LibrePCB.conf`,
+  Linux; the chosen workspace is written back there like upstream, other
+  entries of the file are kept); the initialize workspace wizard asks if
+  none is set, it does not exist, or it needs an upgrade or initialization.
+  `--workspace` (and the headless `--screenshot` mode) skip the wizard and
+  create the workspace without asking. Differences to upstream's wizard:
+  the data directory is copied synchronously (no progress bar), the
+  example projects are not downloaded when a workspace is created, the
+  language list shows the locale codes (upstream: native language names),
+  and the dialogs are overlays of the main window. "Switch Workspace"
+  shows the same wizard and stores the choice for the next start.
+- **Opening projects (M3c):** a project locked by another application
+  shows upstream's directory lock dialog ("Open anyway" after "I accept
+  the risk." for locks of other users or unknown applications); in
+  addition to upstream, "Open Read-Only" opens it without lock. Other
+  errors while locking the directory (e.g. no write permission) open the
+  project read-only with a notification. An autosave backup (after a
+  crash) is restored after upstream's question (Yes/No/Cancel). Opening
+  works in steps (the file system reports the lock or the backup, the
+  prompt is shown, opening continues with the answer) instead of blocking
+  callbacks. `*.lppz` archives are extracted into a new temporary
+  directory and opened read-only, like upstream.
+- **File format upgrade notification:** like upstream; the migration log
+  is written to `logs/migration_preview.html` of the project and opened
+  with the default application (not the configured external web
+  browser). Libraries opened in an older file format show no message
+  (upstream neither).
+- **Autosave (M3c):** one timer for all open projects with the interval of
+  the workspace settings (upstream: a timer per project); a project which
+  is busy (locked by a worker or the MCP server, or an undo group is
+  active) is skipped until the next interval (upstream retries after 10 s).
+- **New project wizard (M3c):** the pages are shown in a form dialog with
+  "Back"/"Next"/"Finish" (upstream `QWizard`); the EAGLE files are parsed
+  synchronously when their paths change; the location is not remembered
+  per workspace (upstream client setting `new_project_wizard/location`)
+  and the EAGLE file paths are not remembered; the EAGLE import messages
+  are shown in a notification (upstream: a separate log window). "New
+  project" in a folder of the home tab's folder tree creates the project
+  in that folder (upstream `setLocationOverride()`).
+- **Project library tab and updater (M3c):** the updater does not close a
+  project with unsaved changes (upstream asks whether to save it); the
+  update is aborted with a message instead. The updater dialog is closed
+  and shown again with the log after the update (upstream keeps the
+  window open). Opening an element of the project library tab opens the
+  workspace library element (like upstream).
+- **Workspace settings dialog (M3c):** all settings are applied with
+  "OK"/"Apply" (upstream applies the theme, language, grid styles and
+  color schemes immediately and reverts them on "Cancel"); the language
+  change applies to the running application. "Restore Defaults" asks by
+  showing the question as an error message and restores on the second
+  click (upstream: a message box). Keyboard shortcuts are edited as text
+  (Qt portable key sequences, one per line; only the first chord of
+  multi-chord sequences is used) instead of recording key presses, the
+  commands are listed without upstream's categories (the `.slint` command
+  set has none) and overridden shortcuts are marked with a color swatch
+  (upstream: bold). The API endpoint table is a list with check boxes for
+  the selected endpoint; the library locale/norm order lists take free
+  text (upstream: combo boxes of all locales/norms). The desktop
+  integration and the 3D view color schemes are not available; the
+  rendering method setting is stored but has no effect.
+- **Color schemes:** the schematic and board color schemes of the
+  workspace settings (user defined schemes, active scheme) are read and
+  written like upstream (`(active <uuid> "<name>")`, `(scheme ...)` with
+  the loaded nodes kept); the default (no user scheme, first base scheme
+  active) removes the settings entry. The color scheme editor is upstream's
+  `colorschemedialog.slint` shown as overlay. The schematic and board tabs
+  use the primary colors of the active schemes (applied after "OK"); the
+  secondary (highlight) colors and the grid color of the schemes are not
+  used by the scenes yet, and the library element editors (symbol,
+  package) and the previews always use the default schemes.
+- **Grid interval and unit** changed in a tab modify the schematic or the
+  board settings like upstream (so the editor tools snap to the shown
+  grid), but as an undoable step ("Change Grid Properties"); upstream
+  changes them without undo command.
+- **Scene editing (schematic and board tabs):** the editor FSMs of
+  `librepcb-editor` get the Slint pointer/key events; double clicks are
+  detected like upstream (500 ms) but allow 2 px of movement between the
+  presses (upstream: same scene position). Overlays (selection rectangle,
+  ruler, scene cursor, gray-out) are canvas items. Cross-probing highlights
+  the selected symbols/devices and the nets of selected wires, traces and
+  vias (and the nets of the trace being drawn) in the other tabs of the
+  project with the selection color (upstream: a separate highlight
+  state, also driven by hovering). A tool which keeps an undo group open
+  is aborted when another tab of the project is used, becomes current or
+  is closed, and before undo, redo and save.
+- **Context menus** of the scenes are a Slint popup built from the FSM's
+  entries (upstream: `QMenu`).
+- **Dialogs (M3b):** upstream's Qt Widgets dialogs are Slint overlays of
+  the main window (one at a time; the application keeps running). Most
+  are generic *form dialogs* (`ui/dialogs/formdialog.slint`,
+  `src/dialogs/`) built from upstream's widgets with the labels of the
+  upstream `.ui` files; the layout differs (one column of labeled fields,
+  pages as tabs, radio buttons drawn as check boxes). Each dialog applies
+  its changes as one undo group ("OK"/"Apply"); "Cancel" discards them.
+  Details per dialog are in the module docs of `src/dialogs/*.rs`; the
+  main differences by design (missing parts: see Part 2, app):
+  - *Symbol properties:* the name swap question is shown in the dialog
+    ("click OK again to swap"); library names are plain text.
+  - *Device properties:* the device and footprint are chosen from combo
+    boxes (upstream: context menu only).
+  - *Path vertices* (polygons, zones, ...) are edited in place.
+  - *Board setup:* the inner layer count is a combo box.
+  - *Project setup:* net classes are renamed below the list; assembly
+    variants are applied with the other settings (upstream: immediately).
+  - *Add component:* choosing a part selects its device. "Add more"
+    reopens the dialog whenever the placement ends with the select tool
+    (upstream: after Escape).
+  - *Graphics export:* edits a graphics output job (like the output jobs
+    dialog) and writes into the output directory (`output/<version>/`,
+    path with `{{PROJECT}}` etc.) instead of asking with a file dialog;
+    format by file extension. Colors are named by their color role where
+    no layer exists.
+  - *Output jobs:* jobs are added from a combo box; running reports in
+    notifications instead of a log panel.
+  - *BOM review:* the custom attributes are stored (undoable) when
+    closing with "OK" (upstream: while typing, without undo).
+  - *Pick&place generator:* generates through an output job in a worker
+    thread with paths relative to `output/<version>/` (upstream:
+    `./output/{{VERSION}}/...` relative to the project), closes the
+    dialog.
+  - *Move/align:* the new positions are applied when accepting (upstream:
+    live while editing); used by the package editor.
+  - The workspace settings, directory lock, autosave restore, new
+    project wizard, project library updater, initialize workspace and
+    library import wizards (M3c/M4c) are described in their own entries.
+- **Clipboard:** copy/paste uses the system clipboard with upstream's MIME
+  types through `clipboard-rs` (X11, Wayland, macOS, Windows). Exchange
+  with upstream LibrePCB (same version) works on X11/Wayland; on Windows
+  and macOS Qt stores custom MIME types under its own format names, which
+  are not reproduced. Without a system clipboard (no display, or
+  `LIBREPCB_NO_SYSTEM_CLIPBOARD` set), an in-app clipboard is used.
+- **M3d tools in the tabs:** buses (the tool button's menu of existing
+  buses starts the tool with the chosen bus), images, the standalone pad
+  tools and DXF import work like upstream, with these differences (gaps:
+  see Part 2, app):
+  - *Bus member menu:* the "Add New Bus Member" / nets / "Cancel" menu is
+    the scene's Slint popup; closing it by clicking into the scene counts
+    as "Cancel" (upstream's `QMenu::exec()` is modal).
+  - *Images* (schematic and symbol editor): PNG, JPEG and SVG files only
+    (upstream converts other formats supported by Qt's image readers to
+    PNG); the image file name is not asked for (the file's base name is
+    used). In the symbol editor, images are hit tested by their rectangle
+    in the tab (the scene draws only their borders).
+  - *DXF import dialog* (board, symbol and package editors): a form
+    dialog; the scale factor is a text field.
+  - *Find:* the zoom rectangle is the bounding box of the highlighted
+    scene items (upstream: graphics items of the found objects), with
+    upstream's margin.
+  - *Plane visibility* (plane context menu "Visible") is a model setting
+    applied without undo step, like upstream not saved.
+  - *Cross-probing* also highlights the pins or pads of the component
+    signals the other tab reports (`fsmCrossProbe()`) and buses.
+- **Library management (M4a):**
+  - *Libraries panel:* the installer of `librepcb-network` downloads the
+    ZIP and falls back to cloning the repository with git.
+  - *Library tab:* the checks run synchronously after each change.
+  - *Undo stacks:* the library tab and every element tab have their own
+    undo stack (upstream shares one per library editor).
+- **Library element editors (M4b):**
+  - *Package editor:* keepout zones are drawn filled in the zone color
+    with a hairline outline. 3D models are stored as-is (see Part 2 for
+    the missing 3D support).
+  - *Wizard of new elements:* the pages and the saving per page follow
+    upstream; for components, the variants page is still part of the
+    wizard (adding gates creates the signals) like upstream. The checks
+    run only after the wizard, like upstream. New elements are named
+    like upstream (`"New Symbol"`, ...; not translated) and new packages
+    and components get a `"default"` footprint or symbol variant.
+  - *Interface protection:* elements opened as new or duplicated keep
+    being writable while their tab is open (upstream `mIsNewElement`);
+    others become read-only after an interface-breaking change until
+    "unlock" (upstream: same).
+  - *Symbol previews* in the component and device tabs are images
+    rendered with `librepcb-scene`; texts are shown raw (`{{NAME}}`).
+  - *Device pinout:* "auto-connect" and "load from file" keep the
+    existing connections (upstream asks whether to reset them first).
+  - *Categories and organizations* use a snapshot undo stack over the
+    element's metadata and content (like the other element editors).
+  - *Slint 1.18.1 workaround:* the footprint tags panel of the package
+    tab has a fixed border radius for its "new tag" field (see
+    `ui/PROVENANCE.md`, item 9).
+- **Keyboard shortcuts:** `Backend.is-shortcut` compares with the user's
+  overrides of the workspace settings if a command has any (an empty list
+  disables it), else with the default shortcut of the `.slint` command set
+  (upstream's C++ command set has alternative default shortcuts for some
+  commands, which are not available). The overrides are global to the
+  process (shared by all windows).
+- **Library import wizards (M4c):** the EAGLE and KiCad wizards show their
+  pages in a form dialog; the element tree is one checkable list per kind
+  (a partially checked element, i.e. a dependency of a checked element, is
+  marked with an orange swatch; KiCad symbols have one row each for the
+  symbols, the component and the device); the EAGLE library is parsed and
+  the KiCad libraries are scanned and parsed synchronously when going to
+  the next page (upstream: in a background thread with progress); the
+  additional component/package category is chosen from a combo box of the
+  workspace categories (upstream: category chooser dialog); the options
+  and paths are not remembered in the client settings. The import itself
+  runs in a worker thread with progress and is canceled when the dialog
+  is closed (upstream asks first), and the libraries are rescanned
+  afterwards.
+- **Embedded MCP server** (no upstream counterpart): a status bar button
+  (next to the notifications button) and `--mcp[=ADDR]` start LibrePCB's
+  MCP server inside the application (`127.0.0.1:8766`). The agent edits the
+  project of the active tab through the same undo stack; workspace
+  switches by the agent are refused.
+- **Rule checks:** approving or unapproving an ERC/DRC message is an
+  undoable command (`SetErcApproval`/`SetDrcApproval` mutations; upstream
+  modifies the project outside the undo stack). Approvals of messages
+  which disappeared are removed after each run like upstream (no undo
+  step, the project becomes modified), but not while an undo group is
+  active (e.g. a tool is drawing; the next run removes them) or the
+  project is read-only.
+- **Plane rebuilds:** the outdated planes on the visible copper layers of
+  the boards shown in board tabs are rebuilt in a worker thread, at most
+  once per second, checked by the project poll timer (250 ms; upstream: a
+  100 ms timer); "Rebuild All Planes" rebuilds all planes of the board.
+- **DRC** runs in a worker thread which locks the project only to rebuild
+  the planes and air wires and to extract the check data.
+- **Outputs from the menus:** PDF and image export, pick&place, the BOM
+  review and "Output Jobs" open their dialogs (see above);
+  Gerber/Excellon, IPC-D-356A netlist and `*.lppz` export run without
+  dialog with default settings into `<project>/output/<version>/` and
+  report the files in a notification.
 
 ## STEP and mechanical board export
 
@@ -550,11 +1197,6 @@ differ between platforms/implementations:
   Library commands validate changed geometry before staging a replacement;
   only `--save` commits the transaction. Standalone `--save-to` deliberately
   writes before model validation, matching upstream's diagnostic workflow.
-- The pure Rust backend retains supported BRep geometry and surface RGB/opacity,
-  but currently flattens product names/assembly hierarchy and drops unrelated
-  metadata. Mixed length contexts, non-radian angle units, unsupported surface
-  presentation semantics and non-solid representations are explicit errors.
-  These are current coverage gaps, not accepted file-format changes.
 - Unchanged board contours retain analytic arcs; contours changed by Boolean
   clipping use the existing 0.005 mm polygon approximation with a CLI warning.
   Upstream uses OpenCascade Booleans and falls back to 0.01 mm segments only
@@ -564,37 +1206,146 @@ differ between platforms/implementations:
   output. A failed model leaves an earlier output intact; upstream can create
   a partial assembly before returning a component-export error. Invalid suffix
   errors identify the format as STEP instead of upstream's copied netlist label.
-- Kernel panics that unwind become typed errors. Import limits are 256 MiB and
-  256 nesting levels; this does not provide process-level resource isolation.
+- CLI, standalone/embedded MCP and desktop jobs install the same STEP
+  exporter. Core retains output ownership, archives and cleanup without a
+  CAD dependency. CPU mesh subdivision follows Monstertruck, so vertex counts
+  can differ from OpenCascade.
 
-## graphics
+# Part 2: Not ported yet / known gaps
 
-- Graphics use SVG composition, native font shaping/rasterization (`resvg`)
-  and vector PDF encoding (`svg2pdf`, `lopdf`), with the existing canvas arc
-  conversion. Text metrics, antialiasing, metadata and bytes differ from Qt's
-  exports; SVG and PDF remain vector documents with searchable regular text.
-- Realistic board PNGs rasterize retained even-odd material paths through
-  `vello_cpu`; SVG/PDF retain vector contours. Material colors, clipping and
-  face-dependent blind-hole projection follow upstream. Canonical geometry
-  separately retains actual drill spans for future 3D consumers, including
-  buried vias which upstream removes from its flat scene preprocessing.
-  Arc clipping uses the source's 5 micrometre tolerance. Antialiasing and
-  subpixel crops differ from Qt; rendering is not byte-identical.
-- Auto crops use visible stroke bounds with subpixel precision instead of
-  integer `QPicture` bounds. Empty drawings use a 1 mm source extent. Page
-  margins, orientation, mirroring, scale and multipage names follow upstream.
-- The default board palette darkens RGB channels directly rather than
-  round-tripping through Qt HSV; low-intensity channels can differ by one
-  level. Missing layers are invisible, and monochrome grab-area fills retain
-  their grayscale/alpha behavior.
-- PNG allocation is bounded by a caller-configurable pixel limit (64 million
-  by default). Area-only Vello rasterization also limits each axis to 65535
-  pixels. External filesystem image links in SVG are disabled; embedded
-  data images remain supported. No display server or Qt resources are needed.
-- Library footprints and boards render stroke-font text as paths. They omit
-  upstream's additional invisible text overlay for searching/selecting these
-  glyphs in PDF/SVG; regular schematic/symbol text remains searchable.
-- Malformed embedded images fail display-list creation before export. Upstream
-  can also write a partial drawing and report image-loading errors afterward.
-- Physical geometry preparation errors fail the export instead of logging
-  an error and continuing with the partial realistic drawing, as upstream can.
+## export
+
+- **`GraphicsExportSettings` colors:** color schemes are not in core yet,
+  so the default colors of `BaseColorScheme::schematicLibrePcbLight()` and
+  `boardLibrePcbDark()` are embedded (`load_default_colors()` replaces
+  `loadColorsFromScheme()`).
+- **Graphics export:** printing, previews and the asynchronous API
+  (progress signals, cancellation, clipboard) are not ported.
+
+## network (crate librepcb-network)
+
+- The HTTP disk cache is not ported (`setCacheLoadControl()`,
+  `setMinimumCacheTime()`, `AlwaysCache`); `ApiEndpoint`'s `forceNoCache`
+  parameter is therefore dropped.
+
+## scene (crate librepcb-scene)
+
+- Images (schematic and symbol images) are not drawn yet, only their
+  borders.
+- Board graphics export (`BoardPainter`): with no copper layer enabled,
+  THT pads and vias are drawn from the top copper instance only, so vias
+  not reaching the top layer are missing.
+
+## workspace
+
+- The workspace initialization (`Workspace::open_or_create()`) does not
+  download the example projects.
+- Not ported: UI themes and color scheme logic (`UiTheme`, `ColorRole`,
+  `BaseColorScheme`, `UserColorScheme`).
+
+## editor (crate librepcb-editor)
+
+- **Removing traces as a side effect** (disconnecting component signals,
+  replacing devices, changing the net of a schematic segment) does not
+  remove unused project library elements; upstream's nested
+  `CmdRemoveBoardItems` does. The explicit `RemoveBoardItems` and all
+  schematic removals do, like upstream.
+
+## STEP and mechanical board export
+
+- The pure Rust CAD adapter currently flattens exported assembly hierarchy and
+  drops unrelated metadata. Mixed length contexts, non-radian angle units,
+  unsupported surface presentations and non-solid models fail explicitly.
+  These are coverage gaps, not intentional file-format changes.
+- Kernel unwinds become typed errors; size/nesting limits do not provide
+  process isolation, cancellation or memory/time limits.
+
+## app (crate librepcb-app)
+
+- **Project lifecycle (M3c):** example projects are not downloaded when a
+  workspace is created; wizard locations, EAGLE/KiCad import paths and
+  options are not remembered in the client settings; the project library
+  updater aborts instead of offering to save a project with unsaved
+  changes; the language list shows locale codes instead of native names.
+- **Color schemes:** the scenes use only the primary colors of the active
+  schemes (no secondary/highlight or grid colors), and the symbol/package
+  editors and previews always use the default schemes; 3D view color
+  schemes and desktop integration are not available.
+- **Import wizards (M4c):** EAGLE parsing and KiCad scanning/parsing run
+  synchronously on the UI thread (upstream: background thread with
+  progress); categories are chosen from a combo box instead of the
+  category chooser.
+- **Layers panel** lists the board layers used by the board in
+  `Layer::all()` order, and the layer presets (top, bottom, ...) are
+  simplified; the visibility is not stored in the board user settings yet.
+- **Scene editing:** the ruler has no tick labels. Hovered items are not
+  highlighted.
+- **Context menus:** resource (datasheet) entries are missing.
+- **Dialogs (M3b)**, missing parts (see Part 1 for the differences by
+  design):
+  - *Symbol properties:* assembly options can be removed and their
+    assembly variants edited, not added.
+  - *Pad properties:* holes and custom pad outlines are not editable.
+  - *Path vertices:* vertices cannot be added or removed in the dialogs.
+  - *Board setup:* DRC presets of organizations cannot be loaded yet
+    (only "Reset to Default Settings" and "Remove Link to Imported
+    Settings").
+  - *Project setup:* locales are shown and added by their code (e.g.
+    `de_CH`) instead of the language name; assembly variants cannot be
+    reordered.
+  - *Add component:* the symbol preview shows the first gate only; no live
+    part information and no context menu.
+  - *Graphics export:* no page preview, no printing, no copy to
+    clipboard, all schematic pages; colors can be enabled/disabled but not
+    changed.
+  - *Output jobs:* no organization presets, no "Import Old Settings";
+    unknown files in the output directory are not listed or removed; the
+    interactive HTML BOM job's check box and component order lists are
+    not editable.
+  - *BOM review:* no live part information (availability, prices).
+  - *Pick&place generator:* no "Browse Output Directory".
+- **M3d tools in the tabs:**
+  - *DXF import dialog:* its choices are remembered only while the
+    application runs (upstream: in the client settings).
+  - *Find:* the suggestions have no icons.
+- **Not available yet in the tabs:** the unplaced components panel;
+  "Show All Planes"/"Hide All Planes" (board).
+- **Library management (M4a):**
+  - *Libraries panel:* no automatic update check or installation timer;
+    the online list is fetched when the panel is shown or "check for
+    updates" is clicked. The download progress of a library is "running"
+    or "done" only.
+  - *Library tab:* moving/copying elements into other libraries is not
+    ported. Closing a library tab discards its unsaved changes without
+    asking.
+  - *No file system watcher:* the "files modified" banner of the tabs is
+    never shown; elements changed on disk are not reloaded.
+- **Library element editors (M4b):**
+  - *Symbol and package editors:* graphics export, printing and the
+    background image are not available in the tabs yet; images in the
+    symbol editor are invisible unless they have a border (the scenes do
+    not draw images yet, see "scene"). There is no 3D view in the
+    package editor: the 3D models can be added (the STEP file is stored
+    as-is, not minified and not validated since there is no
+    OpenCascade), renamed, replaced, reordered, removed and assigned to
+    footprints with their transform, but not shown.
+  - *Symbol previews:* the pins are labeled with the connected signal
+    names (component tab) but not with the pad numbers (device tab). The
+    device previews are not zoomable and have no measure tool.
+  - *Chooser dialogs:* symbols, components and packages are chosen from
+    one searchable list with the description of the selected element
+    (upstream: a category tree, the list and a graphical preview).
+  - *Organizations:* the PCB design rules and the output jobs of an
+    organization cannot be edited yet (upstream opens the board setup
+    and output jobs dialogs on a temporary project); design rules can be
+    added (with default settings), renamed, copied and removed.
+  - *Opening elements from projects* (upstream: the project library
+    tab) is not available since the project library tab is not ported.
+- **Keyboard shortcuts:** no alternative default shortcuts (upstream's
+  C++ command set has some); the shortcut editor takes text key sequences
+  instead of recording key presses and has no command categories.
+- **Zooming** is not animated.
+- **Rule checks:** selecting a message zooms to its location, but no
+  location marker is drawn; automatic fixes are not available yet.
+- **Outputs from the menus:** printing and Specctra export are not
+  available yet.

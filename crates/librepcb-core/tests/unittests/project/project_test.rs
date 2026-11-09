@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use librepcb_core::fileio::{FileSystem, TransactionalDirectory, TransactionalFileSystem};
+use librepcb_core::job::{GerberExcellonOutputJob, default_output_jobs};
 use librepcb_core::project::board::{Board, BoardProperties};
 use librepcb_core::project::schematic::SchematicProperties;
 use librepcb_core::project::{BoardId, EntityKind, Error, Mutation, SchematicId};
@@ -62,6 +63,11 @@ fn metadata_settings_approvals() {
         default_lock_component_assembly: true,
     };
     assert_inverse(&mut p, Mutation::SetProjectSettings(settings));
+
+    let jobs = default_output_jobs(GerberExcellonOutputJob::default(), Vec::new());
+    assert_inverse(&mut p, Mutation::SetOutputJobs(jobs.clone()));
+    p.apply(Mutation::SetOutputJobs(jobs.clone())).unwrap();
+    assert_eq!(p.output_jobs(), &jobs);
 
     let approval = SExpression::list("approved");
     let inverse = assert_inverse(

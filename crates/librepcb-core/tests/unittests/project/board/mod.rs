@@ -4,15 +4,16 @@
 //! splitter (no upstream counterpart).
 
 mod air_wires_test;
-mod d356_test;
 mod design_rules_test;
+mod drc_test;
+mod export_test;
 mod fabrication_output_settings_test;
 mod io_test;
 mod mutation_test;
 mod net_segment_splitter_test;
-mod pick_place_test;
+mod plane_fragments_builder_test;
 mod serde_test;
-mod via_test;
+mod specctra_export_test;
 
 use chrono::Utc;
 use librepcb_core::geometry::{
@@ -270,3 +271,5 @@ pub fn gnd_segment(f: &Fixture) -> (BoardNetSegment, Junction) {
     );
     (segment, junction)
 }
+
+mod via_test;

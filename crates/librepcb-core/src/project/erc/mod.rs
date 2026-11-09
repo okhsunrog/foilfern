@@ -1,11 +1,12 @@
-//! Port of libs/librepcb/core/project/erc (electrical rule checks).
+//! Port of libs/librepcb/core/project/erc (electrical rule check).
 //!
-//! The checker reads the project tree and reverse index. It has no cached
-//! state, callbacks or model mutations. Message approvals preserve upstream
-//! tokens, UUID fields, order and line breaks.
+//! [`run_erc()`] checks a [`Project`](crate::project::Project) and returns
+//! [`ErcMessage`]s; their approvals are compared with
+//! [`Project::erc_approvals()`](crate::project::Project::erc_approvals)
+//! (stored in `circuit/erc.lp`).
 
 mod electrical_rule_check;
-mod messages;
+mod electrical_rule_check_messages;
 
-pub use electrical_rule_check::ElectricalRuleCheck;
-pub use messages::{ElectricalRuleCheckMessage, ErcMessageKind};
+pub use electrical_rule_check::run_erc;
+pub use electrical_rule_check_messages::{ErcMessage, ErcMessageKind};

@@ -1,42 +1,61 @@
-//! Errors at the command-line boundary (apps/librepcb-cli/commandlineinterface.cpp).
+//! Errors of the CLI commands (upstream: exceptions caught in
+//! `CommandLineInterface`, printed as `ERROR: <message>`).
+
+use librepcb_core::project::OutputJobError;
+use librepcb_core::project::board::BoardExportError;
+use librepcb_core::{export, fileio, library, project, serialization};
+
+/// Error of a CLI command. The messages are the ones of the core errors.
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("{0}")]
-    Message(String),
+pub enum CliError {
+    /// A file operation failed.
     #[error(transparent)]
-    Io(#[from] std::io::Error),
+    FileIo(#[from] fileio::Error),
+    /// Parsing or deserializing a file failed.
     #[error(transparent)]
-    Project(Box<librepcb_core::project::Error>),
+    Serialization(#[from] serialization::Error),
+    /// Loading, modifying or saving a project failed.
     #[error(transparent)]
-    Library(Box<librepcb_core::library::Error>),
+    Project(Box<project::Error>),
+    /// A board export failed.
     #[error(transparent)]
-    FileIo(Box<librepcb_core::fileio::Error>),
+    BoardExport(Box<BoardExportError>),
+    /// Running output jobs failed.
     #[error(transparent)]
-    Serialization(Box<librepcb_core::serialization::Error>),
+    OutputJob(Box<OutputJobError>),
+    /// An export generator failed.
     #[error(transparent)]
-    Export(Box<librepcb_core::export::Error>),
+    Export(#[from] export::Error),
+    /// Loading, checking or saving a library element failed.
     #[error(transparent)]
-    Job(Box<librepcb_core::job::Error>),
+    Library(Box<library::Error>),
     #[error(transparent)]
-    Graphics(Box<librepcb_graphics::Error>),
-    #[error(transparent)]
-    Step(Box<librepcb_step::Error>),
+    Step(#[from] librepcb_step::Error),
 }
-macro_rules! from {
-    ($variant:ident,$ty:ty) => {
-        impl From<$ty> for Error {
-            fn from(value: $ty) -> Self {
-                Self::$variant(Box::new(value))
-            }
-        }
-    };
+
+impl From<project::Error> for CliError {
+    fn from(e: project::Error) -> Self {
+        Self::Project(Box::new(e))
+    }
 }
-from!(Project, librepcb_core::project::Error);
-from!(Library, librepcb_core::library::Error);
-from!(FileIo, librepcb_core::fileio::Error);
-from!(Serialization, librepcb_core::serialization::Error);
-from!(Export, librepcb_core::export::Error);
-from!(Job, librepcb_core::job::Error);
-from!(Graphics, librepcb_graphics::Error);
-from!(Step, librepcb_step::Error);
-pub type Result<T> = std::result::Result<T, Error>;
+
+impl From<BoardExportError> for CliError {
+    fn from(e: BoardExportError) -> Self {
+        Self::BoardExport(Box::new(e))
+    }
+}
+
+impl From<OutputJobError> for CliError {
+    fn from(e: OutputJobError) -> Self {
+        Self::OutputJob(Box::new(e))
+    }
+}
+
+impl From<library::Error> for CliError {
+    fn from(e: library::Error) -> Self {
+        Self::Library(Box::new(e))
+    }
+}
+
+/// Result type of the CLI commands.
+pub type CliResult<T, E = CliError> = std::result::Result<T, E>;

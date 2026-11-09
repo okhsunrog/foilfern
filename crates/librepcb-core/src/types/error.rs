@@ -131,4 +131,21 @@ pub enum Error {
     /// [`crate::project::board::BoardZoneData`]).
     #[error("Invalid zone layer: {0}")]
     InvalidZoneLayer(String),
+    /// Unknown page orientation of graphics exports (not translated
+    /// upstream, see [`crate::export::PageOrientation`]).
+    #[error("Invalid page orientation: '{0}'")]
+    InvalidPageOrientation(String),
+    /// Unknown content type of a graphics output job (not translated
+    /// upstream, see [`crate::job::GraphicsContentType`]).
+    #[error("Invalid content type: '{0}'")]
+    InvalidGraphicsContentType(String),
+    /// Unknown view mode of the interactive HTML BOM (not translated
+    /// upstream, see [`crate::export::InteractiveHtmlBomViewMode`]).
+    #[error("Unknown interactive BOM view mode: '{0}'")]
+    UnknownInteractiveHtmlBomViewMode(String),
+    /// Unknown pin 1 highlight mode of the interactive HTML BOM (not
+    /// translated upstream, see
+    /// [`crate::export::InteractiveHtmlBomHighlightPin1Mode`]).
+    #[error("Unknown interactive BOM pin1 mode: '{0}'")]
+    UnknownInteractiveHtmlBomHighlightPin1Mode(String),
 }

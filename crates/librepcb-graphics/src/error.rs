@@ -3,9 +3,9 @@ use librepcb_i18n::tr;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
-    #[error("{}",tr!("GraphicsExport","No pages to export/print."))]
+    #[error("{}",tr!("librepcb::GraphicsExport","No pages to export/print."))]
     NoPages,
-    #[error("{}",tr!("GraphicsExport","Failed to export image '{0}' due to unknown file extension. Supported extensions: {1}",.0,"pdf, svg, png"))]
+    #[error("{}",tr!("librepcb::GraphicsExport","Failed to export image '{0}' due to unknown file extension. Supported extensions: {1}",.0,"pdf, svg, bmp, jpeg, jpg, png"))]
     UnsupportedFormat(String),
     #[error("Unsupported page size: '{0}'")]
     UnsupportedPaper(String),
@@ -28,12 +28,12 @@ pub enum Error {
     #[error(transparent)]
     Core(Box<librepcb_core::project::Error>),
     #[error(transparent)]
-    Job(Box<librepcb_core::job::Error>),
+    Job(Box<librepcb_core::project::OutputJobError>),
     #[error("Graphics content '{0}' is not implemented yet.")]
     UnsupportedContent(String),
 }
-impl From<librepcb_core::job::Error> for Error {
-    fn from(e: librepcb_core::job::Error) -> Self {
+impl From<librepcb_core::project::OutputJobError> for Error {
+    fn from(e: librepcb_core::project::OutputJobError) -> Self {
         Self::Job(Box::new(e))
     }
 }

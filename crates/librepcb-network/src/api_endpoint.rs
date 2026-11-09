@@ -50,6 +50,9 @@ pub struct Library {
     pub download_size: Option<u64>,
     /// SHA-256 of the library ZIP (hex string, may be empty).
     pub download_sha256: String,
+    /// URL of the library's source repository (the API's `url`, e.g. a
+    /// GitHub repository), if any.
+    pub repository_url: Option<Url>,
 }
 
 /// Localized string as sent by the server (`{"default": "..."}`).
@@ -75,6 +78,7 @@ struct RawLibrary {
     download_url: Option<String>,
     download_size: Option<Value>,
     download_sha256: Option<String>,
+    url: Option<String>,
 }
 
 impl RawLibrary {
@@ -117,6 +121,7 @@ impl RawLibrary {
             // Like QJsonValue::toInt(-1): only integral numbers are valid.
             download_size: self.download_size.as_ref().and_then(Value::as_u64),
             download_sha256: self.download_sha256.unwrap_or_default(),
+            repository_url: url(self.url),
         })
     }
 }

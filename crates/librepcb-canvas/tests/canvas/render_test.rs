@@ -253,3 +253,35 @@ fn test_empty_and_tiny_views() {
     let v = View::new((70_000.0, 1.0), 1.0);
     assert!(r.render(&s, &v).is_err());
 }
+
+#[test]
+fn test_grid_below_items() {
+    use librepcb_canvas::{Grid, GridStyle};
+    let mut s = scene();
+    s.insert(square(RED, 0.0, 0.0, 10.0)); // covers the left half
+    let v = view(); // 10 px/mm
+    let mut r = cold();
+    r.set_grid(Some(Grid {
+        interval: 1.0,
+        style: GridStyle::Dots,
+        color: Color::WHITE,
+    }));
+    let f = r.render(&s, &v).unwrap().to_vec();
+    // Minor dots on the right half are visible, points in between are
+    // background.
+    let dot = at(&f, &v, 15.0, 5.0);
+    assert!(dot[0] > 100 && dot[0] == dot[1], "{dot:?}");
+    assert_eq!(at(&f, &v, 15.5, 5.5), BLACK);
+    // Covered by the square.
+    assert_eq!(at(&f, &v, 5.0, 5.0), RED_PX);
+
+    // Too dense at 10 px/mm with 0.1 mm: drawn every 1 mm instead.
+    r.set_grid(Some(Grid {
+        interval: 0.1,
+        style: GridStyle::Lines,
+        color: Color::WHITE,
+    }));
+    let f = r.render(&s, &v).unwrap().to_vec();
+    assert_ne!(at(&f, &v, 15.0, 5.5), BLACK);
+    assert_eq!(at(&f, &v, 15.5, 5.5), BLACK);
+}

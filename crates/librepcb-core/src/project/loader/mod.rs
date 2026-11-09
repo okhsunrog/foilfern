@@ -6,9 +6,8 @@
 //! order), user settings. Loading goes through the same validating
 //! insertion functions as editing, so the error messages are upstream's;
 //! the change journal is cleared afterwards.
-//!
-//! After a file format migration, ERC runs on the fully loaded model and
-//! obsolete approvals are discarded before the upgraded files are saved.
+//! After a file format migration, the ERC is run and only the approvals of
+//! messages which still occur are kept (like upstream).
 
 mod board;
 mod circuit;
@@ -22,15 +21,14 @@ use chrono::Local;
 pub use migration_log::MigrationLog;
 
 use super::Project;
-use super::erc::ElectricalRuleCheck;
 use super::error::{Error, Result};
 use super::library::{LibraryElementKind, ProjectLibrary};
 use super::ref_index::RefIndex;
 use crate::application;
 use crate::attribute::AttributeList;
 use crate::fileio::{FilePath, FileSystem, TransactionalDirectory, VersionFile};
+use crate::job::OutputJobList;
 use crate::library::LibraryBaseElement;
-use crate::rule_check::all_approvals;
 use crate::serialization::{DeserializeObject, Mode, SExpression, file_format_migrations};
 use crate::types::Version;
 
@@ -113,10 +111,11 @@ impl ProjectLoader {
         p.refs = RefIndex::build(&p);
 
         if self.migration_log.is_some() {
-            let messages = ElectricalRuleCheck::new(&p).run_checks()?;
-            let live_approvals = all_approvals(messages.iter().map(|m| m.rule_message()));
-            p.erc_approvals
-                .retain(|approval| live_approvals.contains(approval));
+            // Clean up obsolete ERC message approvals.
+            log::info!("Running ERC to clean up obsolete message approvals...");
+            let messages = super::erc::run_erc(&p);
+            let approvals = crate::rule_check::all_approvals(messages.iter().map(|m| m.message()));
+            p.erc_approvals.retain(|a| approvals.contains(a));
 
             // Make sure the files are formatted correctly. Also handle
             // possible errors during serialization now instead of later.
@@ -219,7 +218,8 @@ fn load_settings(p: &mut Project) -> Result<()> {
 }
 
 fn load_output_jobs(p: &mut Project) -> Result<()> {
-    p.output_jobs = crate::job::OutputJobList::deserialize(&parse_file(p, "project/jobs.lp")?)?;
+    let root = parse_file(p, "project/jobs.lp")?;
+    p.output_jobs = OutputJobList::deserialize(&root)?;
     Ok(())
 }
 

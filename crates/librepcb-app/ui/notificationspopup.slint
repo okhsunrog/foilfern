@@ -1,0 +1,223 @@
+import {
+    Button,
+    ControlIconButton,
+    LinkText,
+    ProgressBar,
+} from "widgets.slint";
+import {
+    Data,
+    Helpers,
+    NotificationData,
+    NotificationType,
+} from "api.slint";
+
+component NotificationItem inherits Rectangle {
+    in property <int> index;
+    in property <NotificationData> notification;
+    property <bool> popup-shown: Data.notifications-shown;
+
+    callback button-clicked();
+
+    background: ta.has-hover ? Data.theme.control-hovered : transparent;
+
+    // Accessibility
+    accessible-role: list-item;
+    accessible-description: notification.description;
+    accessible-label: notification.title;
+    accessible-item-index: index;
+    accessible-action-default => {
+        if !notification.button-text.is-empty {
+            handle-button-click()
+        } else {
+            close-btn.clicked();
+        }
+    }
+
+    function handle-button-click() {
+        Data.notifications[index].button-clicked = true;
+        button-clicked();
+    }
+
+    changed popup-shown => {
+        if !popup-shown {
+            Data.notifications[index].unread = false;
+        }
+    }
+
+    ta := TouchArea {
+        HorizontalLayout {
+            padding-left: 10px;
+            padding-right: 20px;
+            spacing: 10px;
+
+            Image {
+                y: title-txt.y + 3px;
+                width: self.height;
+                height: title-txt.preferred-height;
+                source: Helpers.get-icon-for-notification-type(notification.type);
+                colorize: Helpers.get-color-for-notification-type(notification.type);
+                accessible-role: none;
+            }
+
+            VerticalLayout {
+                padding-top: 5px;
+                padding-bottom: 5px;
+                spacing: 5px;
+
+                title-txt := Text {
+                    font-size: 13px;
+                    font-weight: notification.unread ? 700 : 500;
+                    color: Data.theme.control-text;
+                    text: notification.title;
+                    accessible-role: none;
+
+                    animate color { duration: 500ms; }
+                }
+
+                description-txt := Text {
+                    font-size: 11px;
+                    color: title-txt.color;
+                    wrap: word-wrap;
+                    text: notification.description;
+                    accessible-role: none;
+                }
+
+                if notification.type == NotificationType.progress: progress-bar := ProgressBar {
+                    progress: notification.progress / 100;
+                }
+
+                if !notification.button-text.is-empty: HorizontalLayout {
+                    alignment: start;
+
+                    action-btn := Button {
+                        border-radius: self.height / 2;
+                        enabled: !notification.button-clicked;
+                        primary: true;
+                        text: notification.button-text;
+
+                        clicked => {
+                            handle-button-click();
+                        }
+                    }
+                }
+            }
+        }
+
+        if ta.has-hover && notification.supports-dont-show-again: LinkText {
+            x: close-btn.x - self.width - self.y;
+            y: (close-btn.y + close-btn.height / 2) - (self.height / 2);
+            text-color: Data.theme.control-text-muted;
+            text-color-hovered: Data.theme.control-text;
+            font-size: 10px;
+            text: @tr("Don't show again");
+            visible: !notification.dont-show-again;  // Just for the preview.
+
+            clicked => {
+                Data.notifications[index].dont-show-again = true;
+            }
+        }
+
+        close-btn := ControlIconButton {
+            x: parent.width - self.width - self.y;
+            y: 8px;
+            height: 15px;
+            style: hyperlink;
+            icon-size: 16px;
+            icon-rotation: 90deg;
+            icon: @image-url("resources/libs/font-awesome/svgs/solid/xmark.svg");
+            visible: !notification.dismissed;  // Just for the preview.
+            accessible-label: "Dismiss";
+
+            clicked => {
+                Data.notifications[index].dismissed = true;
+            }
+        }
+    }
+
+    Rectangle {
+        x: 0;
+        y: 0;
+        width: 3px;
+        background: Data.theme.accent;
+        opacity: notification.unread ? 1 : 0;
+
+        animate opacity { duration: 100ms; }
+    }
+}
+
+export component NotificationsPopup inherits Rectangle {
+    property <int> max-items: 8;
+    property <int> hidden-items: max(Data.notifications.length - max-items, 0);
+
+    background: Data.theme.control;
+    border-color: Data.theme.control-border;
+    border-width: 1px;
+
+    VerticalLayout {
+        padding: 1px;
+
+        Rectangle {
+            background: Data.theme.control-checked;
+
+            HorizontalLayout {
+                padding-left: 5px;
+                padding-right: 2px;
+
+                header-txt := Text {
+                    height: self.preferred-height + 10px;
+                    font-weight: 700;
+                    color: Data.theme.control-text;
+                    vertical-alignment: center;
+                    text: @tr("Notifications");
+                }
+
+                collapse-btn := ControlIconButton {
+                    height: header-txt.height;
+                    style: hyperlink;
+                    icon-size: 16px;
+                    icon-rotation: 90deg;
+                    icon: @image-url("resources/libs/font-awesome/svgs/solid/angle-right.svg");
+
+                    clicked => {
+                        Data.notifications-shown = false;
+                    }
+                }
+            }
+        }
+
+        for notification[i] in Data.notifications: VerticalLayout {
+            if i > 0: Rectangle {
+                x: 0;
+                width: 100%;
+                height: 3px;
+
+                Rectangle {
+                    x: 0;
+                    y: parent.height / 2;
+                    width: 100%;
+                    height: 1px;
+                    background: Data.theme.control-border;
+                }
+            }
+
+            notification-item := NotificationItem {
+                index: i;
+                notification: notification;
+            }
+        }
+
+        if Data.preview-mode || (hidden-items > 0): Rectangle {
+            width: 100%;
+            height: hidden-messages-txt.preferred-height + 2 * hidden-messages-txt.y;
+
+            hidden-messages-txt := Text {
+                x: 8px;
+                y: 8px;
+                width: parent.width - 2 * self.x;
+                color: Data.theme.control-text-muted;
+                font-italic: true;
+                text: @tr("Too many notifications to display ({} hidden).", hidden-items);
+            }
+        }
+    }
+}

@@ -22,9 +22,12 @@
 //! - [`rule_check`]: messages of rule checks (library element check, ...).
 //! - [`library`]: libraries and library elements (categories, symbols,
 //!   packages, components, devices, organizations) and their checks.
+//! - [`job`]: output jobs (the production data a project generates).
 //! - [`project`]: projects (metadata, project library, circuit, schematics,
 //!   boards), their mutations, change journal, loading and saving.
 //! - [`utils`]: helpers from `core/utils` needed by the above.
+//! - [`workspace`]: workspaces, workspace settings and the library index
+//!   (SQLite) with the library scanner.
 
 pub mod algorithm;
 pub mod application;
@@ -33,6 +36,8 @@ pub mod export;
 pub mod fileio;
 pub mod font;
 pub mod geometry;
+pub mod import;
+pub mod job;
 pub mod library;
 pub mod project;
 pub mod rule_check;
@@ -41,5 +46,4 @@ pub mod sqlite_database;
 pub mod system_info;
 pub mod types;
 pub mod utils;
-
-pub mod job;
+pub mod workspace;

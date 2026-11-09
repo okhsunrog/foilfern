@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "tools/*"]
+members = ["crates/*", "crates/librepcb-app/ui", "tools/*"]
 exclude = ["spikes"]
 
 [workspace.package]
@@ -12,3 +12,18 @@ unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+# Line tables only: backtraces keep file and line, and the test executables
+# (each links its whole dependency tree) are several times smaller. Full
+# debug info: `CARGO_PROFILE_DEV_DEBUG=full`, see docs/status.md.
+[profile.dev]
+debug = "line-tables-only"
+
+# No debug info for dependencies outside the workspace.
+[profile.dev.package."*"]
+debug = false
+
+# The generated Slint UI code is huge (tens of MB of Rust); without debug
+# info its artifacts are about ten times smaller and link faster.
+[profile.dev.package.librepcb-app-ui]
+debug = false

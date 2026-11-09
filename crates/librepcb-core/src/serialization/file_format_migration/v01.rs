@@ -695,7 +695,7 @@ fn upgrade_circuit(root: &mut SExpression, context: &mut ProjectContext) -> Migr
             let list = as_list(component)?;
             let mut consumed = Vec::new(); // Indices, descending.
             for (index, attribute) in list.children().iter().enumerate().rev() {
-                if !attribute.as_list().is_some_and(|l| l.name() == "attribute") {
+                if attribute.as_list().is_none_or(|l| l.name() != "attribute") {
                     continue;
                 }
                 let key = child_str(attribute, "@0")?;

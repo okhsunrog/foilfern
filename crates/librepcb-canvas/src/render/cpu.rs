@@ -39,7 +39,35 @@ pub struct CpuRendererSettings {
     /// Reuse the previous frame when panning, editing or selecting. Only
     /// disable it for benchmarks.
     pub frame_cache: bool,
+    /// Background grid, drawn below all items.
+    pub grid: Option<Grid>,
 }
+
+/// How the background grid is drawn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GridStyle {
+    /// A dot at every grid point.
+    Dots,
+    /// Horizontal and vertical lines.
+    Lines,
+}
+
+/// A background grid like upstream's `GraphicsScene::drawBackground()`:
+/// the interval is multiplied by 10 until grid points are at least 7 device
+/// pixels apart; every 10th line or dot is drawn more opaque.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Grid {
+    /// Grid interval in world units (millimetres).
+    pub interval: f64,
+    /// Dots or lines.
+    pub style: GridStyle,
+    /// Color of the major (every 10th) lines or dots; minor ones are drawn
+    /// with a reduced alpha.
+    pub color: Color,
+}
+
+/// Minimum distance between grid points in device pixels.
+const MIN_GRID_SPACING: f64 = 7.0;
 
 impl Default for CpuRendererSettings {
     fn default() -> Self {
@@ -47,6 +75,7 @@ impl Default for CpuRendererSettings {
             background: Color::BLACK,
             threads: RenderSettings::default().num_threads,
             frame_cache: true,
+            grid: None,
         }
     }
 }
@@ -191,6 +220,14 @@ impl CpuRenderer {
         }
     }
 
+    /// Changes the background grid (repaints everything).
+    pub fn set_grid(&mut self, grid: Option<Grid>) {
+        if self.settings.grid != grid {
+            self.settings.grid = grid;
+            self.invalidate();
+        }
+    }
+
     /// Forgets the cached frame (the next frame is repainted completely).
     pub fn invalidate(&mut self) {
         self.base_state = None;
@@ -293,6 +330,9 @@ impl CpuRenderer {
         let ctx = context(&mut self.ctx, self.settings.threads, rw, rh);
         ctx.set_paint(background);
         ctx.fill_rect(&Rect::new(0.0, 0.0, f64::from(rw), f64::from(rh)));
+        if let Some(grid) = self.settings.grid {
+            draw_grid(ctx, &grid, xf, r, view.scale() * view.device_pixel_ratio());
+        }
         ctx.set_transform(local);
         ctx.set_fill_rule(Fill::NonZero);
         let mut drawn = 0;
@@ -436,6 +476,88 @@ fn context(slot: &mut Option<RenderContext>, threads: u16, w: u16, h: u16) -> &m
         ctx.reset();
     }
     ctx
+}
+
+/// Draws the grid into the region `r` (device pixels) of the frame whose
+/// world → device transformation is `xf`; `scale` is device pixels per world
+/// unit.
+fn draw_grid(ctx: &mut RenderContext, grid: &Grid, xf: Affine, r: PxRect, scale: f64) {
+    if !(grid.interval.is_finite() && grid.interval > 0.0 && scale.is_finite() && scale > 0.0) {
+        return;
+    }
+    let mut interval = grid.interval;
+    while interval * scale < MIN_GRID_SPACING {
+        interval *= 10.0;
+    }
+    let region = Rect::new(
+        f64::from(r.x0),
+        f64::from(r.y0),
+        f64::from(r.x1),
+        f64::from(r.y1),
+    );
+    let world = xf.inverse().transform_rect_bbox(region.inflate(2.0, 2.0));
+    // Grid indices of the visible range (the view may be mirrored, hence
+    // the bounding box).
+    let range = |a: f64, b: f64| {
+        let i0 = (a / interval).floor() as i64;
+        let i1 = (b / interval).ceil() as i64;
+        i0..=i1
+    };
+    let (xs, ys) = (range(world.x0, world.x1), range(world.y0, world.y1));
+    // Guard against absurd counts (should not happen thanks to the minimum
+    // spacing, but the region might be huge).
+    let count = |r: &std::ops::RangeInclusive<i64>| (r.end() - r.start()).unsigned_abs();
+    if count(&xs) > 20_000 || count(&ys) > 20_000 {
+        return;
+    }
+    let to_device =
+        |x: i64, y: i64| xf * kurbo::Point::new(x as f64 * interval, y as f64 * interval);
+    ctx.set_transform(Affine::translate((-region.x0, -region.y0)));
+    let mut minor = BezPath::new();
+    let mut major = BezPath::new();
+    match grid.style {
+        GridStyle::Dots => {
+            for x in xs.clone() {
+                for y in ys.clone() {
+                    let p = to_device(x, y);
+                    let (px, py) = (p.x.round(), p.y.round());
+                    let dot = Rect::new(px - 1.0, py - 1.0, px + 1.0, py + 1.0);
+                    let path = if x % 10 == 0 && y % 10 == 0 {
+                        &mut major
+                    } else {
+                        &mut minor
+                    };
+                    path.extend(kurbo::Shape::path_elements(&dot, 0.1));
+                }
+            }
+            fill_grid(ctx, &minor, grid.color.multiply_alpha(0.6));
+            fill_grid(ctx, &major, grid.color);
+        }
+        GridStyle::Lines => {
+            for x in xs.clone() {
+                let px = to_device(x, 0).x.round();
+                let line = Rect::new(px, region.y0, px + 1.0, region.y1);
+                let path = if x % 10 == 0 { &mut major } else { &mut minor };
+                path.extend(kurbo::Shape::path_elements(&line, 0.1));
+            }
+            for y in ys {
+                let py = to_device(0, y).y.round();
+                let line = Rect::new(region.x0, py, region.x1, py + 1.0);
+                let path = if y % 10 == 0 { &mut major } else { &mut minor };
+                path.extend(kurbo::Shape::path_elements(&line, 0.1));
+            }
+            fill_grid(ctx, &minor, grid.color.multiply_alpha(0.4));
+            fill_grid(ctx, &major, grid.color.multiply_alpha(0.7));
+        }
+    }
+}
+
+fn fill_grid(ctx: &mut RenderContext, path: &BezPath, color: Color) {
+    if !path.is_empty() {
+        ctx.set_paint(color);
+        ctx.set_fill_rule(Fill::NonZero);
+        ctx.fill_path(path);
+    }
 }
 
 /// Issues one fill or stroke call.

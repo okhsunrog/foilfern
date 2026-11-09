@@ -1,0 +1,96 @@
+import { Button } from "button.slint";
+import { Data } from "../api.slint";
+
+export component OverlayDialog inherits Rectangle {
+    in property <bool> ok-button: false;
+
+    background: black.with-alpha(0.3 - Data.theme.base.to-hsv().value * 0.2);
+    forward-focus: fs;
+
+    // IMPORTANT: In both of those handlers, you have to explicitly set the
+    // focus on one of your components, since the OverlayDialog looses focus
+    // on close, which will break keyboard shortcuts!
+    callback accepted;
+    callback rejected;
+
+    // If no accepted handler is registered, consider it as rejected so the
+    // dialog can still be closed with the Return key.
+    accepted => {
+        rejected();
+    }
+
+    // Set focus on show, to make keyboard shortcuts working.
+    init => {
+        if self.visible {
+            self.focus();
+        }
+    }
+    changed visible => {
+        if self.visible {
+            self.focus();
+        }
+    }
+
+    ta := TouchArea {
+        clicked => {
+            rejected();
+        }
+
+        // Accept all scroll events to avoid them to propagate to controls
+        // under the overlay dialog.
+        scroll-event(event) => {
+            accept
+        }
+    }
+
+    fs := FocusScope {
+        focus-on-click: false;
+        focus-on-tab-navigation: false;
+
+        Rectangle {
+            width: min(0.8 * root.width, max(self.preferred-width, 500px));
+            height: min(0.8 * root.height, max(self.preferred-height, 50px));
+            background: Data.theme.base;
+            border-radius: 10px;
+            border-width: 1px;
+            border-color: Data.theme.accent;
+
+            TouchArea {
+                // Here just to discard clicks within the dialog content.
+            }
+
+            VerticalLayout {
+                padding: 15px;
+                spacing: 8px;
+
+                @children
+
+                if ok-button: HorizontalLayout {
+                    alignment: end;
+
+                    if ok-button: ok-btn := Button {
+                        width: max(self.preferred-width, 100px);
+                        text: @tr("OK");
+                        icon: @image-url("../resources/libs/font-awesome/svgs/solid/check.svg");
+                        primary: true;
+
+                        clicked => {
+                            accepted();
+                        }
+                    }
+                }
+            }
+        }
+
+        key-pressed(event) => {
+            if event.text == Key.Escape {
+                rejected();
+                return accept;
+            } else if event.text == Key.Return {
+                accepted();
+                return accept;
+            }
+            reject
+        }
+    }
+}

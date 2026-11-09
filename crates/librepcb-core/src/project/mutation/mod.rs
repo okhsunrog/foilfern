@@ -37,6 +37,7 @@ use super::id::{
 };
 use super::project::{ProjectMetadata, ProjectSettings};
 use super::schematic::{Schematic, SchematicProperties};
+use crate::job::OutputJobList;
 use crate::library::LibraryBaseElement;
 use crate::library::cmp::Component;
 use crate::library::dev::Device;
@@ -57,6 +58,13 @@ pub enum Mutation {
     SetProjectMetadata(ProjectMetadata),
     /// Replaces the settings.
     SetProjectSettings(ProjectSettings),
+    /// Replaces all output jobs (upstream `CmdProjectEdit::setOutputJobs()`).
+    SetOutputJobs(OutputJobList),
+    /// Moves an assembly variant; inverse restores the original list position.
+    MoveAssemblyVariant {
+        variant: AssemblyVariantId,
+        index: usize,
+    },
     /// Replaces all ERC message approvals.
     SetErcApprovals(BTreeSet<SExpression>),
     /// Approves or unapproves one ERC message.
@@ -67,9 +75,6 @@ pub enum Mutation {
         approved: bool,
     },
 
-    /// Replaces output jobs in execution order.
-    SetOutputJobs(crate::job::OutputJobList),
-
     // --- Circuit ---
     /// Adds an assembly variant at `index` (appends if `None`).
     AddAssemblyVariant {
@@ -77,11 +82,6 @@ pub enum Mutation {
         variant: AssemblyVariant,
         /// Position in the list.
         index: Option<usize>,
-    },
-    /// Moves an assembly variant to a new position (zero is the default).
-    MoveAssemblyVariant {
-        variant: AssemblyVariantId,
-        index: usize,
     },
     /// Removes an assembly variant (not the last one).
     RemoveAssemblyVariant(AssemblyVariantId),
@@ -160,22 +160,18 @@ impl Project {
     /// changed (see the module documentation).
     pub fn apply(&mut self, mutation: Mutation) -> Result<Mutation> {
         match mutation {
-            Mutation::SetOutputJobs(jobs) => {
-                let old = std::mem::replace(&mut self.output_jobs, jobs);
-                self.record(Change::OutputJobs);
-                Ok(Mutation::SetOutputJobs(old))
-            }
             Mutation::SetProjectMetadata(m) => self.set_project_metadata(m),
             Mutation::SetProjectSettings(s) => self.set_project_settings(s),
+            Mutation::SetOutputJobs(jobs) => self.set_output_jobs(jobs),
+            Mutation::MoveAssemblyVariant { variant, index } => {
+                circuit::move_assembly_variant(self, variant, index)
+            }
             Mutation::SetErcApprovals(a) => self.set_erc_approvals(a),
             Mutation::SetErcApproval { approval, approved } => {
                 self.set_erc_approval(approval, approved)
             }
             Mutation::AddAssemblyVariant { variant, index } => {
                 circuit::add_assembly_variant(self, variant, index)
-            }
-            Mutation::MoveAssemblyVariant { variant, index } => {
-                circuit::move_assembly_variant(self, variant, index)
             }
             Mutation::RemoveAssemblyVariant(id) => circuit::remove_assembly_variant(self, id),
             Mutation::UpdateAssemblyVariant(v) => circuit::update_assembly_variant(self, v),
@@ -240,6 +236,12 @@ impl Project {
         let old = std::mem::replace(&mut self.settings, settings);
         self.record(Change::ProjectSettings);
         Ok(Mutation::SetProjectSettings(old))
+    }
+
+    fn set_output_jobs(&mut self, jobs: OutputJobList) -> Result<Mutation> {
+        let old = std::mem::replace(&mut self.output_jobs, jobs);
+        self.record(Change::OutputJobs);
+        Ok(Mutation::SetOutputJobs(old))
     }
 
     fn set_erc_approvals(&mut self, approvals: BTreeSet<SExpression>) -> Result<Mutation> {

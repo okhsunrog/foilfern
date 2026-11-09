@@ -22,7 +22,7 @@ pub use export::{GraphicsExport, GraphicsFile, GraphicsPage};
 pub use settings::GraphicsSettings;
 
 pub use board::board_drawing;
-pub use jobs::graphics_job_files;
+pub use jobs::{ProjectGraphicsExporter, graphics_job_files};
 pub use library::{default_stroke_font, footprint_drawing, symbol_drawing};
 pub use realistic_board::realistic_board_drawing;
 pub use schematic::schematic_drawing;

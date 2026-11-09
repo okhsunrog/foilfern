@@ -18,7 +18,8 @@ Read before working:
 - `docs/status.md`: current state, next steps and how the work is organized.
 - `docs/roadmap.md`: milestones.
 - `docs/mcp-research-konnect.md`: MCP decisions.
-- `COMPAT.md`: intentional differences from upstream.
+- `COMPAT.md`: differences from upstream (Part 1: intentional, Part 2: not
+  ported yet).
 
 ## Upstream reference
 
@@ -43,7 +44,17 @@ migrations, library checks, exports. Tests take it from `LIBREPCB_CLI` or the
 - `crates/librepcb-network`: async networking (tokio, reqwest).
 - `crates/librepcb-canvas`: 2D rendering canvas (vello_cpu, rstar, kurbo) with
   an optional Slint adapter.
+- `crates/librepcb-graphics`: vector/raster document export and realistic 2D board output.
+- `crates/librepcb-step`: pure-Rust CAD import, mechanical STEP output and document minification.
 - `crates/clipper`: pure-Rust port of Clipper 1.
+- `crates/librepcb-scene`: schematic/board scene builders on the canvas and
+  headless PNG rendering.
+- `crates/librepcb-autoroute`: built-in grid autorouter (original code, no
+  upstream counterpart).
+- `crates/librepcb-import`: EAGLE and KiCad library import and EAGLE project
+  import (port of `libs/librepcb/{eagleimport,kicadimport}`).
+- `crates/librepcb-mcp`: MCP server (rmcp; binary `librepcb-mcp`, stdio or
+  streamable HTTP with the feature `http`), see `docs/mcp-design.md`.
 - `tools/ts2po`: converter from Qt `.ts` to gettext `.po`.
 - `lang/<lang>/LC_MESSAGES/*.po`: translation catalogs.
 - `spikes/`: throwaway prototypes, excluded from the workspace.
@@ -66,6 +77,13 @@ migrations, library checks, exports. Tests take it from `LIBREPCB_CLI` or the
 - Port upstream unit tests from the upstream `tests/unittests/` alongside the
   code, keeping the same test vectors. Test data is never copied into this
   repository; reference it through `LIBREPCB_UPSTREAM_DIR`.
+- One integration test binary per crate: `tests/<name>/main.rs` with one
+  module per topic (`tests/unittests/main.rs` in core, `tests/app/main.rs`
+  in the app, ...). Never add another `tests/*.rs` file or test directory:
+  each test binary links the whole dependency tree again (up to 500 MB on
+  disk). Tests needing process-wide state share it within the binary (e.g.
+  the app's UI thread with Slint's headless platform,
+  `common::with_headless()`). Binaries without unit tests set `test = false`.
 - Errors: one `thiserror` enum per module/area, `Result` everywhere. No panics
   on user/file input; `unwrap`/`expect` only in tests or for true invariants
   with a comment explaining why.
@@ -80,7 +98,10 @@ migrations, library checks, exports. Tests take it from `LIBREPCB_CLI` or the
   when a Qt rule changes which realistic files are accepted, or which bytes
   are written (including check messages whose approvals are stored in
   files), express or port that rule and say why. Record every intentional
-  divergence from upstream, including exotic edge cases, in `COMPAT.md`.
+  divergence from upstream, including exotic edge cases, in `COMPAT.md`
+  Part 1, and missing features or behavior still to be matched in Part 2
+  (remove Part 2 entries when done). Part 1 entries are design decisions,
+  never TODO items.
 - Rust naming, not C++ naming:
   - file/module names describe the Rust type or concept, not the upstream
     file: snake_case with word separators, no upstream prefixes or

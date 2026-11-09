@@ -1,0 +1,564 @@
+//! End-to-end test over stdio: runs the `librepcb-mcp` binary as child
+//! process and talks to it with the rmcp client.
+
+use std::path::Path;
+
+use rmcp::ServiceExt;
+use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock};
+use rmcp::service::{RoleClient, RunningService};
+use rmcp::transport::TokioChildProcess;
+use serde_json::{Value, json};
+
+async fn call(client: &RunningService<RoleClient, ()>, tool: &str, args: Value) -> CallToolResult {
+    let args = match args {
+        Value::Object(map) => map,
+        _ => serde_json::Map::new(),
+    };
+    client
+        .call_tool(CallToolRequestParams::new(tool.to_owned()).with_arguments(args))
+        .await
+        .unwrap_or_else(|e| panic!("{tool}: {e}"))
+}
+
+/// Calls a tool which must succeed; returns the `result` of the envelope.
+async fn call_ok(
+    client: &RunningService<RoleClient, ()>,
+    tool: &'static str,
+    args: Value,
+) -> Value {
+    let res = call(client, tool, args).await;
+    let envelope = res.structured_content.clone().expect("structured content");
+    assert_ne!(res.is_error, Some(true), "{tool} failed: {envelope:#}");
+    assert_eq!(envelope["outcome"], "complete", "{tool}: {envelope:#}");
+    assert!(
+        matches!(res.content.first(), Some(ContentBlock::Text(_))),
+        "{tool}: text summary first"
+    );
+    envelope["result"].clone()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn stdio_exports_step_and_realistic_board_graphics() {
+    let tmp = tempfile::tempdir().unwrap();
+    let lpp = crate::common::copy_test_project("Project With Two Boards", tmp.path());
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--project").arg(lpp);
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let exported = call_ok(
+        &client,
+        "jobs_run",
+        json!({
+            "jobs": ["STEP Model", "Board Rendering PDF"],
+            "output_dir": tmp.path().join("output")
+        }),
+    )
+    .await;
+    let files = exported["files"].as_array().unwrap();
+    let step = files
+        .iter()
+        .filter_map(Value::as_str)
+        .find(|file| file.ends_with(".step"))
+        .unwrap();
+    let model = librepcb_step::StepModel::from_step(&std::fs::read(step).unwrap()).unwrap();
+    assert!(model.solid_count() > 0);
+    let pdf = files
+        .iter()
+        .filter_map(Value::as_str)
+        .find(|file| file.ends_with(".pdf"))
+        .unwrap();
+    assert!(std::fs::read(pdf).unwrap().starts_with(b"%PDF-"));
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn stdio_end_to_end() {
+    let tmp = tempfile::tempdir().unwrap();
+    let ws = tmp.path().join("ws");
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(&ws);
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+
+    // Tools.
+    let tools = client.list_all_tools().await.unwrap();
+    let names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
+    for expected in [
+        "server_info",
+        "workspace_open",
+        "workspace_create",
+        "project_create",
+        "project_open",
+        "project_save",
+        "project_close",
+        "project_summary",
+        "library_list",
+        "library_rescan",
+        "library_install",
+        "library_search",
+        "library_element",
+        "component_list",
+        "component_get",
+        "net_list",
+        "netlist",
+        "schematic_list",
+        "schematic_get",
+        "board_get",
+        "erc_run",
+        "export_fabrication",
+        "export_bom",
+        "export_pick_place",
+        "export_netlist",
+        "jobs_list",
+        "render",
+        "mutation_apply",
+        "mutation_schema",
+        // Phase 2.
+        "undo",
+        "redo",
+        "history",
+        "component_add",
+        "component_remove",
+        "component_update",
+        "symbol_move",
+        "connect",
+        "disconnect",
+        "net_rename",
+        "net_class_set",
+        "schematic_add",
+        "board_add",
+        "board_set_outline",
+        "device_place",
+        "device_auto_place",
+        "trace_add",
+        "via_add",
+        "trace_remove",
+        "plane_add",
+        "design_rules_set",
+        "planes_rebuild",
+        "unrouted",
+        "autoroute",
+        "drc_run",
+        "jobs_run",
+        "schematic_tidy",
+    ] {
+        assert!(
+            names.contains(&expected),
+            "missing tool {expected}: {names:?}"
+        );
+    }
+    assert!(names.len() < 60);
+    for tool in &tools {
+        assert!(tool.description.as_ref().is_some_and(|d| !d.is_empty()));
+    }
+    let search = tools.iter().find(|t| t.name == "library_search").unwrap();
+    assert!(
+        search
+            .input_schema
+            .get("properties")
+            .unwrap()
+            .get("query")
+            .is_some()
+    );
+
+    // Workspace from the command line; add the upstream test library.
+    let info = call_ok(&client, "server_info", json!({})).await;
+    assert_eq!(info["units"]["length"], "mm");
+    let libraries_path = info["workspace"]["libraries_path"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    crate::common::install_populated_library(Path::new(&libraries_path));
+    let scan = call_ok(&client, "library_rescan", json!({})).await;
+    assert_eq!(scan["library_count"], 1);
+    let found = call_ok(
+        &client,
+        "library_search",
+        json!({ "query": "Diode", "kind": "component" }),
+    )
+    .await;
+    let elements = found["elements"].as_array().unwrap();
+    assert!(!elements.is_empty());
+    let diode = elements[0]["uuid"].as_str().unwrap().to_owned();
+    let detail = call_ok(&client, "library_element", json!({ "uuid": diode })).await;
+    assert_eq!(detail["kind"], "component");
+    let signals: Vec<&str> = detail["signals"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(signals, ["A", "C"]);
+
+    // New project in the workspace.
+    let created = call_ok(&client, "project_create", json!({ "name": "E2E Test" })).await;
+    assert_eq!(created["boards"][0]["name"], "default");
+    let lpp = created["path"].as_str().unwrap().to_owned();
+    assert!(Path::new(&lpp).is_file());
+    call_ok(&client, "project_close", json!({})).await;
+
+    // Upstream test project: read, ERC, Gerber, render.
+    let project = crate::common::copy_test_project("Nested Planes", tmp.path());
+    call_ok(
+        &client,
+        "project_open",
+        json!({ "path": project.to_string_lossy() }),
+    )
+    .await;
+    let summary = call_ok(&client, "project_summary", json!({})).await;
+    assert_eq!(summary["counts"]["components"], 9);
+    let component = call_ok(&client, "component_get", json!({ "component": "R1" })).await;
+    assert_eq!(component["designator"], "R1");
+
+    let erc = call_ok(&client, "erc_run", json!({})).await;
+    assert_eq!(erc["ran"], true);
+
+    let gerber_dir = tmp.path().join("gerber");
+    let fab = call_ok(
+        &client,
+        "export_fabrication",
+        json!({ "output_dir": gerber_dir.to_string_lossy() }),
+    )
+    .await;
+    let files = fab["files"].as_array().unwrap();
+    assert!(files.iter().any(|f| f.as_str().unwrap().ends_with(".gbr")));
+    assert!(
+        files
+            .iter()
+            .all(|f| Path::new(f.as_str().unwrap()).is_file())
+    );
+
+    let res = call(
+        &client,
+        "render",
+        json!({ "target": "board", "width": 320, "height": 240 }),
+    )
+    .await;
+    assert_ne!(res.is_error, Some(true));
+    let image = res
+        .content
+        .iter()
+        .find_map(|c| match c {
+            ContentBlock::Image(img) => Some(img.clone()),
+            _ => None,
+        })
+        .expect("image content");
+    assert_eq!(image.mime_type, "image/png");
+    assert!(!image.data.is_empty());
+
+    // Errors are tool results with a stable kind.
+    let res = call(&client, "component_get", json!({ "component": "X99" })).await;
+    assert_eq!(res.is_error, Some(true));
+    let envelope = res.structured_content.unwrap();
+    assert_eq!(envelope["outcome"], "failed");
+    assert_eq!(envelope["error"]["kind"], "not_found");
+    // Revision of the open project (the plane rebuild of the export
+    // journals derived data changes).
+    assert!(envelope["revision"].is_u64());
+
+    call_ok(&client, "project_close", json!({})).await;
+    let res = call(&client, "project_summary", json!({})).await;
+    assert_eq!(
+        res.structured_content.unwrap()["error"]["kind"],
+        "no_project"
+    );
+
+    client.cancel().await.unwrap();
+}
+
+/// Links the libraries (`*.lplib`) of `LIBREPCB_TEST_LIBRARIES_DIR` into
+/// the local libraries of a workspace; `false` if the variable is not set
+/// or the platform has no symbolic links.
+fn link_test_libraries(libraries_path: &Path) -> bool {
+    let Some(source) = std::env::var_os("LIBREPCB_TEST_LIBRARIES_DIR") else {
+        return false;
+    };
+    if !cfg!(unix) {
+        return false;
+    }
+    let local = libraries_path.join("local");
+    std::fs::create_dir_all(&local).unwrap();
+    let mut count = 0;
+    for entry in std::fs::read_dir(source).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_some_and(|e| e == "lplib") {
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(&path, local.join(path.file_name().unwrap())).unwrap();
+            count += 1;
+        }
+    }
+    count > 0
+}
+
+/// The full agent workflow over stdio with the official libraries (LibrePCB
+/// Base and Connectors, from `LIBREPCB_TEST_LIBRARIES_DIR`; skipped if not
+/// set): a 2-pin connector powering a LED with a series resistor, supply
+/// symbols, board outline, automatic placement, autorouting, GND plane,
+/// ERC/DRC, Gerber export, save, and the official `librepcb-cli` opens the
+/// result without errors.
+#[tokio::test(flavor = "multi_thread")]
+async fn stdio_design_led_board_with_official_libraries() {
+    let tmp = tempfile::tempdir().unwrap();
+    let ws = tmp.path().join("ws");
+    let cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let instructions = client
+        .peer_info()
+        .and_then(|i| i.instructions.clone())
+        .unwrap_or_default();
+    assert!(instructions.contains("component_add"), "{instructions}");
+    let tools = client.list_all_tools().await.unwrap();
+    assert!(tools.len() < 60, "{} tools", tools.len());
+
+    let created = call_ok(
+        &client,
+        "workspace_create",
+        json!({ "path": ws.to_string_lossy() }),
+    )
+    .await;
+    let libraries_path = created["libraries_path"].as_str().unwrap().to_owned();
+    if !link_test_libraries(Path::new(&libraries_path)) {
+        eprintln!("LIBREPCB_TEST_LIBRARIES_DIR not set, skipping");
+        client.cancel().await.unwrap();
+        return;
+    }
+    let scan = call_ok(&client, "library_rescan", json!({})).await;
+    assert!(scan["library_count"].as_u64().unwrap() >= 2, "{scan}");
+    for (query, kind) in [
+        ("LED", "device"),
+        ("Pin Header", "device"),
+        ("GND", "component"),
+    ] {
+        let found = call_ok(
+            &client,
+            "library_search",
+            json!({ "query": query, "kind": kind, "limit": 5 }),
+        )
+        .await;
+        assert!(!found["elements"].as_array().unwrap().is_empty(), "{query}");
+    }
+
+    call_ok(&client, "project_create", json!({ "name": "LED Board" })).await;
+    let mut designators = Vec::new();
+    for part in [
+        "Generic Pin Header 2.54mm 1x02 ⌀1.0mm",
+        "Resistor 2012 (0805)",
+        "LED ⌀3.0x4.5/2.54mm Red",
+        "Supply VCC",
+        "Supply GND",
+    ] {
+        let added = call_ok(&client, "component_add", json!({ "part": part })).await;
+        designators.push(added["designator"].as_str().unwrap().to_owned());
+    }
+    assert_eq!(designators, ["J1", "R1", "LED1", "VCC1", "GND1"]);
+    call_ok(
+        &client,
+        "component_update",
+        json!({ "component": "R1", "value": "330R" }),
+    )
+    .await;
+    let summary = call_ok(&client, "project_summary", json!({})).await;
+    let revision = summary["revision"].as_u64().unwrap();
+    let vcc = call_ok(
+        &client,
+        "connect",
+        json!({
+            "net": "VCC",
+            "pins": ["J1.1", "R1.1", "VCC1.Net"],
+            "expected_revision": revision,
+        }),
+    )
+    .await;
+    assert_eq!(vcc["name"], "VCC");
+    call_ok(
+        &client,
+        "connect",
+        json!({ "net": "LED_A", "pins": ["R1.2", "LED1.A"] }),
+    )
+    .await;
+    call_ok(
+        &client,
+        "connect",
+        json!({ "pins": ["LED1.C", "J1.2", "GND1.Net"] }),
+    )
+    .await;
+    let netlist = call_ok(&client, "netlist", json!({})).await;
+    assert_eq!(
+        netlist["nets"],
+        json!({
+            "GND": ["GND1.Net", "J1.2", "LED1.C"],
+            "LED_A": ["LED1.A", "R1.2"],
+            "VCC": ["J1.1", "R1.1", "VCC1.Net"],
+        })
+    );
+    let erc = call_ok(&client, "erc_run", json!({})).await;
+    assert_eq!(erc["errors"], 0, "{erc:#}");
+    assert_eq!(erc["warnings"], 0, "{erc:#}");
+
+    // Undo and redo the last connection.
+    let undone = call_ok(&client, "undo", json!({})).await;
+    assert_eq!(undone["done"][0], "AI: connect");
+    let netlist = call_ok(&client, "netlist", json!({})).await;
+    assert!(netlist["nets"].get("GND").is_none());
+    call_ok(&client, "redo", json!({})).await;
+
+    // Board.
+    call_ok(
+        &client,
+        "board_set_outline",
+        json!({ "width": 30.0, "height": 20.0, "corner_radius": 1.0 }),
+    )
+    .await;
+    let placed = call_ok(&client, "device_auto_place", json!({})).await;
+    assert_eq!(placed["placed"].as_array().unwrap().len(), 3, "{placed:#}");
+    let routed = call(&client, "autoroute", json!({})).await;
+    let envelope = routed.structured_content.clone().unwrap();
+    assert_ne!(routed.is_error, Some(true), "{envelope:#}");
+    eprintln!(
+        "autoroute: {} ({}): {:?}",
+        envelope["result"]["backend"], envelope["outcome"], envelope["warnings"]
+    );
+    let unrouted = call_ok(&client, "unrouted", json!({})).await;
+    assert_eq!(unrouted["count"], 0, "{unrouted:#}");
+    call_ok(
+        &client,
+        "plane_add",
+        json!({ "net": "GND", "layer": "bottom" }),
+    )
+    .await;
+    let drc = call(&client, "drc_run", json!({})).await;
+    let drc = drc.structured_content.unwrap()["result"].clone();
+    eprintln!("DRC: {drc:#}");
+    assert_eq!(drc["ran"], true);
+    assert_eq!(drc["errors"], 0, "{drc:#}");
+    let erc = call_ok(&client, "erc_run", json!({})).await;
+    assert_eq!(erc["errors"], 0, "{erc:#}");
+    let fab = call_ok(&client, "export_fabrication", json!({})).await;
+    assert!(fab["files"].as_array().unwrap().len() >= 8);
+    let saved = call_ok(&client, "project_save", json!({})).await;
+    let lpp = saved["path"].as_str().unwrap().to_owned();
+    let history = call_ok(&client, "history", json!({})).await;
+    assert_eq!(history["unsaved_changes"], false);
+    if let Some(out) = std::env::var_os("LIBREPCB_MCP_TEST_OUTPUT") {
+        for (target, name) in [
+            ("schematic", "led_schematic.png"),
+            ("board", "led_board.png"),
+        ] {
+            let res = call(
+                &client,
+                "render",
+                json!({ "target": target, "width": 1200, "height": 900 }),
+            )
+            .await;
+            if let Some(ContentBlock::Image(img)) = res
+                .content
+                .iter()
+                .find(|c| matches!(c, ContentBlock::Image(_)))
+            {
+                use base64::Engine;
+                let png = base64::engine::general_purpose::STANDARD
+                    .decode(&img.data)
+                    .unwrap();
+                std::fs::create_dir_all(&out).unwrap();
+                std::fs::write(Path::new(&out).join(name), png).unwrap();
+            }
+        }
+    }
+    call_ok(&client, "project_close", json!({})).await;
+    client.cancel().await.unwrap();
+
+    match crate::common::upstream_cli() {
+        Some(cli) => {
+            let (ok, text) = crate::common::run_cli(
+                &cli,
+                &[
+                    "open-project",
+                    "--erc",
+                    "--drc",
+                    "--export-pcb-fabrication-data",
+                    &lpp,
+                ],
+            );
+            eprintln!("{text}");
+            // Non-approved DRC warnings make the CLI exit with an error code.
+            assert!(ok || text.contains("Finished with errors!"), "{text}");
+            assert!(
+                !text.contains("[ERROR]") && !text.contains("ERROR:"),
+                "{text}"
+            );
+            assert!(text.contains("COPPER-BOTTOM.gbr"), "{text}");
+        }
+        None => eprintln!("librepcb-cli not found, skipping the upstream check"),
+    }
+}
+
+/// Unknown arguments are rejected on every tool with `invalid_argument`
+/// (naming the key and the valid ones) before anything runs.
+#[tokio::test(flavor = "multi_thread")]
+async fn stdio_unknown_arguments_are_rejected() {
+    let tmp = tempfile::tempdir().unwrap();
+    let ws = tmp.path().join("ws");
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(&ws);
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+
+    let tools = client.list_all_tools().await.unwrap();
+    assert!(tools.len() > 40);
+    for tool in &tools {
+        let res = call(&client, &tool.name, json!({ "bogus_argument": 1 })).await;
+        assert_eq!(res.is_error, Some(true), "{}", tool.name);
+        let envelope = res.structured_content.unwrap();
+        assert_eq!(
+            envelope["error"]["kind"], "invalid_argument",
+            "{}: {envelope:#}",
+            tool.name
+        );
+        let message = envelope["error"]["message"].as_str().unwrap();
+        assert!(message.contains("\"bogus_argument\""), "{message}");
+        assert!(message.contains("valid arguments:"), "{message}");
+        let props = tool
+            .input_schema
+            .get("properties")
+            .and_then(|p| p.as_object());
+        for key in props.into_iter().flat_map(|p| p.keys()) {
+            assert!(message.contains(key.as_str()), "{}: {message}", tool.name);
+        }
+    }
+
+    // The case from practice: `path` instead of `directory`.
+    let res = call(
+        &client,
+        "project_create",
+        json!({ "name": "X", "path": tmp.path().join("x").to_string_lossy() }),
+    )
+    .await;
+    let envelope = res.structured_content.unwrap();
+    assert_eq!(envelope["error"]["kind"], "invalid_argument");
+    let message = envelope["error"]["message"].as_str().unwrap();
+    assert!(
+        message.contains("\"path\"") && message.contains("directory"),
+        "{message}"
+    );
+    assert!(!tmp.path().join("x").exists());
+
+    // Unknown keys of nested objects and wrong types are tool errors too.
+    let res = call(
+        &client,
+        "board_set_outline",
+        json!({ "width": 10, "height": 10, "origin": { "x": 0, "y": 0, "z": 1 } }),
+    )
+    .await;
+    let envelope = res.structured_content.unwrap();
+    assert_eq!(
+        envelope["error"]["kind"], "invalid_argument",
+        "{envelope:#}"
+    );
+    let message = envelope["error"]["message"].as_str().unwrap();
+    assert!(message.contains("`z`"), "{message}");
+    let res = call(&client, "library_search", json!({ "query": 5 })).await;
+    let envelope = res.structured_content.unwrap();
+    assert_eq!(
+        envelope["error"]["kind"], "invalid_argument",
+        "{envelope:#}"
+    );
+
+    client.cancel().await.unwrap();
+}

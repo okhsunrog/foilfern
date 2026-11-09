@@ -1,0 +1,210 @@
+import { DropDownPopup } from "dropdownpopup.slint";
+import { Data } from "../api.slint";
+
+export component ComboBox inherits Rectangle {
+    in property <[string]> model;
+    in property <bool> enabled: true;
+    in property <bool> read-only: false;
+    in property <bool> editable-only-when-focused: false;
+    in property <bool> frameless: false;
+    in property <length> window-height;
+    in-out property <int> current-index: -1;
+    in-out property <int> default-index: -1;
+    out property has-focus <=> fs.has-focus;
+
+    callback current-index-changed(int);
+    current-index-changed(index) => {
+        self.current-index = index;
+    }
+
+    function increment() {
+        if enabled && (!read-only) && (current-index < (model.length - 1)) {
+            current-index-changed(current-index + 1);
+        }
+    }
+
+    function decrement() {
+        if enabled && (!read-only) && (current-index > 0) {
+            current-index-changed(current-index - 1);
+        }
+    }
+
+    preferred-width: ta.preferred-width;
+    preferred-height: 25px;
+    background: {
+        if !enabled {
+            Data.theme.control-disabled
+        } else if ta.pressed {
+            Data.theme.control-checked
+        } else if ta.has-hover {
+            Data.theme.control-hovered
+        } else {
+            Data.theme.control
+        }
+    };
+    border-color: {
+        if !enabled {
+            Data.theme.control-border-disabled
+        } else if has-focus {
+            Data.theme.accent
+        } else {
+            Data.theme.control-border
+        }
+    };
+    border-width: frameless ? 0 : 1px;
+    forward-focus: fs;
+
+    // Accessibility
+    accessible-role: combobox;
+    accessible-enabled: enabled;
+    accessible-expandable: true;
+    accessible-value: txt.text;
+    accessible-read-only: read-only;
+    accessible-action-default => {
+        ta.clicked();
+    }
+    accessible-action-expand => {
+        ta.clicked();
+    }
+    accessible-action-increment => {
+        increment();
+    }
+    accessible-action-decrement => {
+        decrement();
+    }
+
+    fs := FocusScope {
+        enabled: enabled && (!read-only);
+
+        key-pressed(event) => {
+            if event.text == Key.UpArrow {
+                decrement();
+                return accept;
+            } else if event.text == Key.DownArrow {
+                increment();
+                return accept;
+            // Note: Do not handle the Return key as in some context it is used
+            // to confirm something. Space is enough for expanding a combobox.
+            } else if enabled && (!read-only) && (event.text == Key.Space) {
+                popup.show();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    ta := TouchArea {
+        enabled: enabled && (!read-only);
+
+        HorizontalLayout {
+            padding-left: 5px;
+            padding-right: 5px;
+            spacing: 5px;
+
+            VerticalLayout {
+                txt := Text {
+                    font-size: 13px;
+                    overflow: elide;
+                    vertical-alignment: center;
+                    color: {
+                        if !enabled {
+                            Data.theme.control-text-disabled
+                        } else if read-only {
+                            Data.theme.control-text-muted
+                        } else {
+                            Data.theme.control-text
+                        }
+                    };
+                    text: model[current-index];
+                    accessible-role: none;
+                }
+
+                // Workaround to adjust the width to the *longest* model item.
+                for item[index] in model: Text {
+                    height: 0;
+                    font-size: 13px;
+                    overflow: elide;
+                    text: item;
+                    visible: false;
+                    accessible-role: none;
+                }
+            }
+
+            Rectangle {
+                width: 13px;  // Same size as in LineEdit.
+
+                Image {
+                    width: parent.width;
+                    height: self.width;
+                    image-fit: contain;
+                    colorize: txt.color;
+                    source: @image-url("../resources/libs/font-awesome/svgs/solid/caret-down.svg");
+                    accessible-role: none;
+                }
+            }
+        }
+
+        clicked => {
+            if editable-only-when-focused && (!has-focus) {
+                fs.focus();
+                return;
+            }
+            fs.focus();
+            popup.show();
+        }
+
+        scroll-event(event) => {
+            if (event.delta-y > 0) && ((!editable-only-when-focused) || has-focus) {
+                decrement();
+                return accept;
+            } else if (event.delta-y < 0) && ((!editable-only-when-focused) || has-focus) {
+                increment();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    if frameless && enabled && (!read-only) && self.has-focus: Rectangle {
+        y: parent.height - self.height;
+        height: 1px;
+        background: Data.theme.accent;
+    }
+
+    popup := DropDownPopup {
+        property <length> actual-height: min(self.preferred-height, self.max-height);
+
+        x: 0;
+        y: {
+            if window-height == 0 {
+                // Open dropdown to the bottom.
+                root.height - 1px;
+            } else if root.absolute-position.y + root.height + actual-height < window-height {
+                // Open dropdown to the bottom.
+                root.height - 1px;
+            } else if actual-height < root.absolute-position.y {
+                // Open dropdown to the top.
+                1px - actual-height;
+            } else {
+                // Open dropdown vertically centered in the window.
+                ((window-height - actual-height) / 2) - root.absolute-position.y
+            }
+        }
+        width: root.width;
+        max-height: {
+            if window-height > self.item-height {
+                min(floor(window-height / self.item-height), 20) * self.item-height;
+            } else {
+                20 * self.item-height
+            }
+        }
+        model: root.model;
+        current-index: current-index;
+        default-index: default-index;
+        item-height: root.preferred-height;
+
+        accepted(index) => {
+            current-index-changed(index);
+        }
+    }
+}

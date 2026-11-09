@@ -1,252 +1,349 @@
-//! Tests of upstream's project JSON schema and manufacturing statistics.
+//! Port of tests/unittests/core/project/projectjsonexporttest.cpp.
+//!
+//! Upstream compares both sides after re-formatting them with
+//! `QJsonDocument`; here both sides are formatted with
+//! [`json_export::to_indented_json()`] (which reproduces
+//! `QJsonDocument::toJson()`), and the complete file of `toUtf8()` is also
+//! compared byte for byte.
 
-use super::*;
-use librepcb_core::geometry::{
-    Circle, Junction, NonEmptyPath, PadHole, Path, Polygon, Trace, TraceAnchor, Vertex, Via,
-};
-use librepcb_core::project::board::{
-    BoardHoleData, BoardItem, BoardNetSegment, BoardPadData, BoardPlane,
-};
-use librepcb_core::project::{BoardMutation, ProjectJsonExport as Export};
-use librepcb_core::types::{Angle, Layer, Length, MaskConfig, Point, UnsignedLength};
-use serde_json::json;
+use std::collections::BTreeSet;
 
-#[test]
-fn empty_project_document_has_upstream_layout_and_schema() {
-    let p = new_project();
-    let bytes = Export::to_utf8(&p).unwrap();
-    let variant = p.circuit().assembly_variants().first().unwrap();
-    let expected = format!(
-        r#"{{
-    "format": {{
-        "major": 1,
-        "minor": 0,
-        "type": "librepcb-project"
-    }},
-    "project": {{
-        "author": "",
-        "boards": [
-        ],
-        "created": "{}",
-        "filename": "test.lpp",
-        "locales": [
-        ],
-        "name": "Unnamed",
-        "norms": [
-        ],
-        "uuid": "{}",
-        "variants": [
-            {{
-                "description": "Standard assembly",
-                "name": "Std",
-                "uuid": "{}"
-            }}
-        ],
-        "version": "v1"
-    }}
-}}
-"#,
-        p.metadata().created.format("%Y-%m-%dT%H:%M:%SZ"),
-        p.uuid(),
-        variant.uuid()
-    );
-    assert_eq!(std::str::from_utf8(&bytes).unwrap(), expected);
-    let parsed: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(parsed["project"], Export::project(&p).unwrap());
+use chrono::{TimeZone, Utc};
+use librepcb_core::fileio::TransactionalDirectory;
+use librepcb_core::geometry::{Path, Vertex};
+use librepcb_core::project::board::{Board, BoardItem, BoardPolygonData};
+use librepcb_core::project::circuit::AssemblyVariant;
+use librepcb_core::project::json_export::{self, BoundingBox, to_indented_json};
+use librepcb_core::project::{AssemblyVariantId, Mutation, Project};
+use librepcb_core::types::{
+    ElementName, FileProofName, Layer, Length, PcbColor, Point, PositiveLength, UnsignedLength,
+    Uuid,
+};
+
+fn uuid(s: &str) -> Uuid {
+    s.parse().unwrap()
 }
 
-#[test]
-fn board_defaults_and_footprint_holes() {
-    let f = board::Fixture::with_devices();
-    let value = Export::board(f.board(), f.p.view()).unwrap();
-    assert_eq!(
-        value,
-        json!({
-            "uuid": f.board.0.to_string(), "name": "default", "directory": "default",
-            "inner_layers": 0, "pcb_thickness": 1.6, "solder_resist": "green",
-            "silkscreen_top": "white", "silkscreen_bottom": "white", "bounding_box": null,
-            "vias_tht": {"count": 0, "diameters": []}, "vias_blind": {"count": 0, "diameters": []},
-            "vias_buried": {"count": 0, "diameters": []}, "pth_drills": {"count": 2, "diameters": [0.5]},
-            "pth_slots": {"count": 0, "diameters": []}, "npth_drills": {"count": 0, "diameters": []},
-            "npth_slots": {"count": 0, "diameters": []}, "plated_cutouts": 0, "min_copper_width": null,
-        })
-    );
+fn fmt(json: &str) -> String {
+    to_indented_json(&serde_json::from_str(json).unwrap())
 }
 
-fn set_settings(
-    f: &mut board::Fixture,
-    modify: impl FnOnce(&mut librepcb_core::project::board::BoardSettings),
-) {
-    let mut settings = f.board().settings().clone();
-    modify(&mut settings);
-    f.p.apply(Mutation::Board(BoardMutation::SetSettings {
-        board: f.board,
-        settings: Box::new(settings),
-    }))
+fn fmt_value(value: &serde_json::Value) -> String {
+    to_indented_json(value)
+}
+
+fn create_assembly_variant() -> AssemblyVariant {
+    AssemblyVariant::new(
+        uuid("bb0d66f1-2f21-4592-b923-d853867a6124"),
+        FileProofName::new("AV0").unwrap(),
+        "Hello World!",
+    )
+}
+
+fn create_board() -> Board {
+    let mut board = Board::new(
+        uuid("1ff89be5-dd83-4b08-8d95-d09e0fd72b25"),
+        ElementName::new("New Board").unwrap(),
+        "board",
+    );
+    let mut settings = board.settings().clone();
+    settings.inner_layer_count = 5;
+    settings.pcb_thickness = PositiveLength::new(Length::new(1_500_000)).unwrap();
+    settings.solder_resist = Some(PcbColor::Black);
+    settings.silkscreen_color = PcbColor::Blue;
+    settings.silkscreen_layers_top = vec![Layer::TOP_LEGEND];
+    settings.silkscreen_layers_bot = vec![];
+    board.set_settings(settings);
+    board
+}
+
+fn create_project() -> Project {
+    let mut first = true;
+    let mut p = Project::create(
+        TransactionalDirectory::new_temporary().unwrap(),
+        "project.lpp",
+        || {
+            if std::mem::take(&mut first) {
+                uuid("7b3985b2-91ad-4e93-8d15-7668869ed45d")
+            } else {
+                Uuid::new_random()
+            }
+        },
+    )
     .unwrap();
-}
-
-#[test]
-fn via_types_layer_clipping_and_automatic_drill_defaults() {
-    let mut f = board::Fixture::new();
-    set_settings(&mut f, |s| {
-        s.inner_layer_count = 3;
-        s.solder_resist = None;
-        s.silkscreen_layers_bot.clear();
-    });
-    let mut class =
-        f.p.circuit()
-            .net_classes()
-            .get(&default_net_class(&f.p))
+    let mut metadata = p.metadata().clone();
+    metadata.name = ElementName::new("New Project").unwrap();
+    metadata.author = "New Author".to_owned();
+    metadata.version = FileProofName::new("New-Version.1").unwrap();
+    metadata.created = Utc.with_ymd_and_hms(2000, 1, 2, 1, 2, 3).unwrap();
+    p.apply(Mutation::SetProjectMetadata(metadata)).unwrap();
+    p.apply(Mutation::AddAssemblyVariant {
+        variant: create_assembly_variant(),
+        index: None,
+    })
+    .unwrap();
+    while p.circuit().assembly_variants().len() > 1 {
+        let first = p
+            .circuit()
+            .assembly_variants()
+            .iter()
+            .next()
             .unwrap()
-            .clone();
-    class.set_default_via_drill(Some(board::pos_mm(0.42)));
-    f.p.apply(Mutation::UpdateNetClass(class)).unwrap();
-    let inner = |n| Layer::inner_copper(n).unwrap();
-    for (start, end, drill, net) in [
-        (Layer::TOP_COPPER, Layer::BOT_COPPER, None, Some(f.gnd)),
-        (Layer::TOP_COPPER, inner(4), Some(board::pos_mm(0.2)), None), // clipped to layer 3
-        (inner(1), inner(3), Some(board::pos_mm(0.15)), None),
-        (inner(4), Layer::BOT_COPPER, Some(board::pos_mm(0.1)), None), // disabled start
-        (inner(3), inner(4), Some(board::pos_mm(0.1)), None),          // empty clipped span
-        (Layer::TOP_COPPER, Layer::BOT_COPPER, None, None),            // board default
-    ] {
-        let mut segment = BoardNetSegment::new(Uuid::new_random(), net);
-        segment.insert_via(
-            Via::new(
-                Uuid::new_random(),
-                start,
-                end,
-                Point::ORIGIN,
-                drill,
-                None,
-                MaskConfig::Automatic,
-            )
-            .unwrap(),
-        );
-        f.p.add_board_net_segment(f.board, segment).unwrap();
+            .uuid();
+        p.apply(Mutation::RemoveAssemblyVariant(AssemblyVariantId(first)))
+            .unwrap();
     }
-    let value = Export::board(f.board(), f.p.view()).unwrap();
-    assert_eq!(
-        value["vias_tht"],
-        json!({"count": 2, "diameters": [0.3, 0.42]})
-    );
-    assert_eq!(value["vias_blind"], json!({"count": 1, "diameters": [0.2]}));
-    assert_eq!(
-        value["vias_buried"],
-        json!({"count": 1, "diameters": [0.15]})
-    );
-    assert_eq!(value["solder_resist"], "none");
-    assert_eq!(value["silkscreen_bottom"], "none");
+    p.add_board(create_board(), None).unwrap();
+    p
+}
+
+fn pt(x: i64, y: i64) -> Point {
+    Point::new(Length::new(x), Length::new(y))
 }
 
 #[test]
-fn drills_slots_copper_widths_and_plated_cutouts() {
-    let mut f = board::Fixture::new();
-    let slot = NonEmptyPath::new(Path::new(vec![
-        Vertex::new(Point::ORIGIN, Angle::DEG0),
-        Vertex::new(board::pt(1.0, 0.0), Angle::DEG0),
-    ]))
-    .unwrap();
-    let mut pad = board::pad(
-        Uuid::new_random(),
-        Point::ORIGIN,
-        librepcb_core::geometry::ComponentSide::Top,
-        false,
+fn test_string_list() {
+    let none: [&str; 0] = [];
+    assert_eq!(
+        fmt("[]"),
+        fmt_value(&json_export::string_list_to_json(&none))
     );
-    pad.set_holes(
-        vec![PadHole::new(
+    assert_eq!(
+        fmt("[\"foo\"]"),
+        fmt_value(&json_export::string_list_to_json(&["foo"]))
+    );
+    assert_eq!(
+        fmt("[\"foo\", \"bar\"]"),
+        fmt_value(&json_export::string_list_to_json(&["foo", "bar"]))
+    );
+}
+
+#[test]
+fn test_length() {
+    assert_eq!(
+        serde_json::json!(-5.5),
+        json_export::length_to_json(Length::new(-5_500_000))
+    );
+}
+
+#[test]
+fn test_optional_length() {
+    assert!(json_export::optional_length_to_json(None).is_null());
+    assert_eq!(
+        serde_json::json!(-5.5),
+        json_export::optional_length_to_json(Some(Length::new(-5_500_000)))
+    );
+}
+
+#[test]
+fn test_length_set() {
+    assert_eq!(
+        fmt("[]"),
+        fmt_value(&json_export::length_set_to_json(&BTreeSet::new()))
+    );
+    assert_eq!(
+        fmt("[0.1]"),
+        fmt_value(&json_export::length_set_to_json(&BTreeSet::from([
+            Length::new(100_000)
+        ])))
+    );
+    assert_eq!(
+        fmt("[-0.1, 0.1]"),
+        fmt_value(&json_export::length_set_to_json(&BTreeSet::from([
+            Length::new(100_000),
+            Length::new(-100_000)
+        ])))
+    );
+}
+
+#[test]
+fn test_pcb_color() {
+    assert_eq!(
+        serde_json::json!("none"),
+        json_export::pcb_color_to_json(None)
+    );
+    assert_eq!(
+        serde_json::json!("black"),
+        json_export::pcb_color_to_json(Some(PcbColor::Black))
+    );
+}
+
+#[test]
+fn test_assembly_variant() {
+    let expected = r#"{
+        "uuid": "bb0d66f1-2f21-4592-b923-d853867a6124",
+        "name": "AV0",
+        "description": "Hello World!"
+    }"#;
+    assert_eq!(
+        fmt(expected),
+        fmt_value(&json_export::assembly_variant_to_json(
+            &create_assembly_variant()
+        ))
+    );
+}
+
+#[test]
+fn test_bounding_box() {
+    let make_box = |x0: i64, y0: i64, x1: i64, y1: i64| BoundingBox(Some((pt(x0, y0), pt(x1, y1))));
+    assert!(json_export::bounding_box_to_json(&BoundingBox(None)).is_null());
+    let expected = r#"{"x": 0, "y": 0, "width": 0, "height": 0}"#;
+    assert_eq!(
+        fmt(expected),
+        fmt_value(&json_export::bounding_box_to_json(&make_box(0, 0, 0, 0)))
+    );
+    let expected = r#"{"x": -1.1, "y": 2.2, "width": 5.5, "height": 6.6}"#;
+    for bbox in [
+        make_box(-1_100_000, 2_200_000, 4_400_000, 8_800_000),
+        make_box(4_400_000, 8_800_000, -1_100_000, 2_200_000),
+        make_box(-1_100_000, 8_800_000, 4_400_000, 2_200_000),
+    ] {
+        assert_eq!(
+            fmt(expected),
+            fmt_value(&json_export::bounding_box_to_json(&bbox))
+        );
+    }
+}
+
+#[test]
+fn test_board() {
+    let mut project = create_project();
+    let board = project.boards()[0].id();
+    let polygon = |layer: Layer, points: [(i64, i64); 4]| {
+        BoardItem::Polygon(BoardPolygonData::new(
             Uuid::new_random(),
-            board::pos_mm(0.6),
-            slot.clone(),
-        )]
-        .into(),
-    );
-    let mut segment = BoardNetSegment::new(Uuid::new_random(), None);
-    segment.insert_pad(BoardPadData::new(pad, false));
-    f.p.add_board_net_segment(f.board, segment).unwrap();
-    for path in [NonEmptyPath::from_point(Point::ORIGIN), slot] {
-        f.p.add_board_item(
-            f.board,
-            BoardItem::Hole(BoardHoleData::new(
-                Uuid::new_random(),
-                board::pos_mm(0.8),
-                path,
-                MaskConfig::Off,
-                false,
-            )),
+            layer,
+            UnsignedLength::ZERO,
+            Path::new(
+                points
+                    .iter()
+                    .map(|(x, y)| Vertex::new(pt(*x, *y), Default::default()))
+                    .collect(),
+            ),
+            false,
+            false,
+            false,
+        ))
+    };
+    project
+        .add_board_item(
+            board,
+            polygon(
+                Layer::BOARD_OUTLINES,
+                [
+                    (5_000_000, 6_000_000),
+                    (5_000_000, 10_000_000),
+                    (7_000_000, 6_000_000),
+                    (5_000_000, 6_000_000),
+                ],
+            ),
         )
         .unwrap();
-    }
-    let mut plane = BoardPlane::new(Uuid::new_random(), Layer::TOP_COPPER, None, Path::default());
-    plane.set_min_width(UnsignedLength::new(Length::new(100_000)).unwrap());
-    f.p.add_board_plane(f.board, plane).unwrap();
-    let mut segment = BoardNetSegment::new(Uuid::new_random(), None);
-    let (a, b) = (Uuid::new_random(), Uuid::new_random());
-    segment.insert_junction(Junction::new(a, Point::ORIGIN));
-    segment.insert_junction(Junction::new(b, board::pt(1.0, 0.0)));
-    segment.insert_trace(Trace::new(
-        Uuid::new_random(),
-        Layer::TOP_COPPER,
-        board::pos_mm(0.2),
-        TraceAnchor::Junction(a),
-        TraceAnchor::Junction(b),
-    ));
-    f.p.add_board_net_segment(f.board, segment).unwrap();
-    let polygon = librepcb_core::project::board::BoardPolygonData::new(
-        Uuid::new_random(),
-        Layer::BOARD_PLATED_CUTOUTS,
-        UnsignedLength::ZERO,
-        Path::default(),
-        false,
-        false,
-        false,
-    );
-    f.p.add_board_item(f.board, BoardItem::Polygon(polygon))
+    project
+        .add_board_item(
+            board,
+            polygon(
+                Layer::BOARD_PLATED_CUTOUTS,
+                [
+                    (5_500_000, 5_500_000),
+                    (5_500_000, 95_000_000),
+                    (6_500_000, 5_500_000),
+                    (5_500_000, 5_500_000),
+                ],
+            ),
+        )
         .unwrap();
-    let value = Export::board(f.board(), f.p.view()).unwrap();
-    assert_eq!(value["pth_slots"], json!({"count": 1, "diameters": [0.6]}));
+
+    let expected = r#"{
+        "uuid": "1ff89be5-dd83-4b08-8d95-d09e0fd72b25",
+        "name": "New Board",
+        "directory": "board",
+        "inner_layers": 5,
+        "pcb_thickness": 1.5,
+        "solder_resist": "black",
+        "silkscreen_top": "blue",
+        "silkscreen_bottom": "none",
+        "bounding_box": {"x": 5.0, "y": 6.0, "width": 2.0, "height": 4.0},
+        "vias_tht": {"count": 0, "diameters": []},
+        "vias_blind": {"count": 0, "diameters": []},
+        "vias_buried": {"count": 0, "diameters": []},
+        "pth_drills": {"count": 0, "diameters": []},
+        "pth_slots": {"count": 0, "diameters": []},
+        "npth_drills": {"count": 0, "diameters": []},
+        "npth_slots": {"count": 0, "diameters": []},
+        "plated_cutouts": 1,
+        "min_copper_width": null
+    }"#;
     assert_eq!(
-        value["npth_drills"],
-        json!({"count": 1, "diameters": [0.8]})
+        fmt(expected),
+        fmt_value(&json_export::board_to_json(&project, &project.boards()[0]))
     );
-    assert_eq!(value["npth_slots"], json!({"count": 1, "diameters": [0.8]}));
-    assert_eq!(value["plated_cutouts"], 1);
-    assert_eq!(value["min_copper_width"], 0.1);
+}
+
+const PROJECT_JSON: &str = r#"{
+    "filename": "project.lpp",
+    "uuid": "7b3985b2-91ad-4e93-8d15-7668869ed45d",
+    "name": "New Project",
+    "author": "New Author",
+    "version": "New-Version.1",
+    "created": "2000-01-02T01:02:03Z",
+    "locales": [],
+    "norms": [],
+    "variants": [
+        {
+            "uuid": "bb0d66f1-2f21-4592-b923-d853867a6124",
+            "name": "AV0",
+            "description": "Hello World!"
+        }
+    ],
+    "boards": [
+        {
+            "uuid": "1ff89be5-dd83-4b08-8d95-d09e0fd72b25",
+            "name": "New Board",
+            "directory": "board",
+            "inner_layers": 5,
+            "pcb_thickness": 1.5,
+            "solder_resist": "black",
+            "silkscreen_top": "blue",
+            "silkscreen_bottom": "none",
+            "bounding_box": null,
+            "vias_tht": {"count": 0, "diameters": []},
+            "vias_blind": {"count": 0, "diameters": []},
+            "vias_buried": {"count": 0, "diameters": []},
+            "pth_drills": {"count": 0, "diameters": []},
+            "pth_slots": {"count": 0, "diameters": []},
+            "npth_drills": {"count": 0, "diameters": []},
+            "npth_slots": {"count": 0, "diameters": []},
+            "plated_cutouts": 0,
+            "min_copper_width": null
+        }
+    ]
+}"#;
+
+#[test]
+fn test_project() {
+    let project = create_project();
+    assert_eq!(
+        fmt(PROJECT_JSON),
+        fmt_value(&json_export::project_to_json(&project))
+    );
 }
 
 #[test]
-fn board_bounds_include_transformed_footprint_outlines_and_circles() {
-    let mut f = board::Fixture::new();
-    let mut package = f.p.remove_library_package(&f.lib_package).unwrap();
-    let footprint = package.footprints_mut().by_uuid_mut(&f.footprint).unwrap();
-    footprint.circles_mut().push(Circle::new(
-        Uuid::new_random(),
-        Layer::BOARD_OUTLINES,
-        UnsignedLength::ZERO,
-        false,
-        false,
-        Point::ORIGIN,
-        board::pos_mm(2.0),
-    ));
-    footprint.polygons_mut().push(Polygon::new(
-        Uuid::new_random(),
-        Layer::BOARD_OUTLINES,
-        UnsignedLength::ZERO,
-        false,
-        false,
-        Path::new(vec![
-            Vertex::new(board::pt(-2.0, 0.0), Angle::DEG0),
-            Vertex::new(board::pt(2.0, 0.0), Angle::DEG0),
-        ]),
-    ));
-    f.p.add_library_package(package).unwrap();
-    let mut device = f.device(f.r1, board::pt(10.0, 20.0));
-    device.set_rotation(Angle::DEG90);
-    device.set_mirrored(true);
-    f.p.add_board_device(f.board, device).unwrap();
-    assert_eq!(
-        Export::board(f.board(), f.p.view()).unwrap()["bounding_box"],
-        json!({"x": 9, "y": 18, "width": 2, "height": 4})
+fn test_project_to_utf8() {
+    let project = create_project();
+    let expected = format!(
+        r#"{{
+            "format": {{
+                "major": 1,
+                "minor": 0,
+                "type": "librepcb-project"
+            }},
+            "project": {PROJECT_JSON}
+        }}"#
     );
+    let actual = json_export::to_utf8(&project);
+    assert_eq!(fmt(&expected), fmt(std::str::from_utf8(&actual).unwrap()));
+    // Upstream writes exactly the `QJsonDocument` formatting.
+    assert_eq!(fmt(&expected).as_bytes(), actual.as_slice());
 }

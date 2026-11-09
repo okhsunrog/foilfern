@@ -1,0 +1,158 @@
+import { Data } from "../api.slint";
+
+export enum TextSide {
+    left,
+    right,
+}
+
+export component Switch inherits Rectangle {
+    in-out property <bool> checked: false;
+    in property <bool> enabled: true;
+    in property <bool> read-only: false;
+    in property <string> text;
+    in property <TextSide> text-side: right;
+    in property <length> size: 25px;
+    in property <length> font-size: 12px;
+    in property <string> status-tip;
+    in property <color> checked-color: Data.theme.accent;
+    in property <color> unchecked-color: Data.theme.control;
+    in property <color> checked-knob-color: enabled ? Data.theme.base : Data.theme.control-text-muted;
+    in property <color> unchecked-knob-color: Data.theme.control-text-muted;
+    in property <bool> focusable: true;
+    out property has-focus <=> fs.has-focus;
+
+    preferred-width: l.preferred-width;
+    preferred-height: l.preferred-height;
+    max-width: text.is-empty ? l.preferred-width : l.max-width;
+    border-color: {
+        if !enabled {
+            Data.theme.control-border-disabled
+        } else if has-focus {
+            root.checked ? Data.theme.control-text : Data.theme.accent
+        } else {
+            Data.theme.control-border
+        }
+    };
+    forward-focus: fs;
+
+    // Accessibility
+    accessible-role: switch;
+    accessible-description: status-tip;
+    accessible-checkable: true;
+    accessible-checked: checked;
+    accessible-enabled: enabled;
+    accessible-read-only: read-only;
+    accessible-label: text;
+    accessible-action-default => {
+        ta.clicked();
+    }
+
+    callback toggled(checked: bool);
+    toggled(state) => {
+        checked = state;
+    }
+
+    fs := FocusScope {
+        enabled: enabled && focusable;
+
+        key-pressed(event) => {
+            // Only consume Space, but not Return as the Return key is often
+            // used to confirm a dialog or something like that.
+            if (event.text == Key.Space) && (!read-only) {
+                toggled(!checked);
+                return accept;
+            }
+            reject
+        }
+    }
+
+    l := HorizontalLayout {
+        spacing: 8px;
+
+        if (!text.is-empty) && (text-side == TextSide.left): Text {
+            text: text;
+            color: Data.theme.base-text;
+            wrap: word-wrap;
+            horizontal-alignment: right;
+            vertical-alignment: center;
+            font-size: font-size;
+            accessible-role: none;
+        }
+
+        Rectangle {
+            property <float> mix-factor: {
+                if ta.pressed {
+                    0.8
+                } else if ta.has-hover {
+                    0.9
+                } else {
+                    1
+                }
+            };
+
+            y: (parent.height - self.height) / 2;
+            width: size * 1.8;
+            height: size;
+            background: {
+                if !enabled {
+                    Data.theme.control-disabled
+                } else if checked {
+                    checked-color.mix(checked-knob-color, mix-factor)
+                } else {
+                    unchecked-color.mix(unchecked-knob-color, mix-factor)
+                }
+            };
+            border-radius: self.height / 2;
+            border-color: root.border-color;
+            border-width: 1px;
+
+            // Knob
+            Rectangle {
+                x: checked ? (parent.width - self.width - 3px) : 3px;
+                width: self.height;
+                height: parent.height - 6px;
+                background: checked ? checked-knob-color : unchecked-knob-color;
+                border-radius: self.height / 2;
+
+                animate x { duration: 50ms; }
+            }
+        }
+
+        if (!text.is-empty) && (text-side == TextSide.right): Text {
+            text: text;
+            wrap: word-wrap;
+            vertical-alignment: center;
+            font-size: font-size;
+            color: enabled ? Data.theme.base-text : Data.theme.base-text-disabled;
+            accessible-role: none;
+        }
+    }
+
+    ta := TouchArea {
+        // If read-only, still have the TouchArea enabled to avoid clicks
+        // propagating to any control (e.g. list view) behind the switch.
+        enabled: enabled;
+
+        changed has-hover => {
+            if !root.status-tip.is-empty {
+                if self.has-hover {
+                    Data.status-tip = root.status-tip;
+                } else {
+                    Data.status-tip = "";
+                }
+            }
+        }
+
+        clicked => {
+            // The click may destroy this element without calling the
+            // has-hover handler anymore, so we clear the status tip
+            // manually to be on the safe side.
+            if !root.status-tip.is-empty {
+                Data.status-tip = "";
+            }
+            if !read-only {
+                toggled(!checked);
+            }
+        }
+    }
+}

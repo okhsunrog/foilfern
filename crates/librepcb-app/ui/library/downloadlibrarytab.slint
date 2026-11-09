@@ -1,0 +1,225 @@
+import {
+    Button,
+    LineEdit,
+    LinkText,
+    ProgressBar,
+    TextInput,
+} from "../widgets.slint";
+import { Tab } from "../tab.slint";
+import {
+    Backend,
+    Data,
+    DownloadLibraryTabData,
+    TabAction,
+    WindowSectionData,
+} from "../api.slint";
+
+export component DownloadLibraryTab inherits Tab {
+    in property <int> section-index;
+    in-out property <WindowSectionData> section;
+    property <[DownloadLibraryTabData]> tabs: section.download-library-tabs;
+    property <bool> downloading: tabs[section.current-tab-index].download-running;
+
+    init => {
+        url-edt.select-all();
+        url-edt.focus();
+    }
+
+    key-pressed(event) => {
+        if event.text == Key.Escape {
+            Backend.trigger-tab(section-index, section.current-tab-index, TabAction.cancel);
+            return accept;
+        }
+        reject
+    }
+
+    function edit-key-pressed(event: KeyEvent) -> EventResult {
+        if event.text == Key.Return {
+            Backend.trigger-tab(section-index, section.current-tab-index, TabAction.accept);
+            return accept;
+        }
+        reject
+    }
+
+    GridLayout {
+        padding: 10px;
+        spacing: 5px;
+
+        Row {
+            Text {
+                colspan: 2;
+                height: self.preferred-height + 10px;
+                font-size: 14px;
+                font-weight: 700;
+                color: Data.theme.base-text;
+                wrap: TextWrap.word-wrap;
+                text: @tr("Download & install a library by URL");
+            }
+        }
+
+        Row {
+            Text {
+                colspan: 2;
+                height: self.preferred-height;
+                wrap: TextWrap.word-wrap;
+                color: Data.theme.base-text;
+                text: @tr("Please note that this is not the preferred way to install libraries as they won't be kept up to date. For our official libraries, it's recommended to install them from the libraries panel instead, which allows to keep libraries up to date.");
+            }
+        }
+
+        Row {
+            VerticalLayout {
+                colspan: 2;
+                padding-bottom: 5px;
+
+                Rectangle {
+                    height: 1px;
+                    background: Data.theme.base-border;
+                }
+            }
+        }
+
+        Row {
+            url-txt := Text {
+                text: @tr("URL:");
+                vertical-alignment: center;
+                color: Data.theme.base-text;
+                accessible-role: none;
+            }
+
+            url-edt := LineEdit {
+                text: tabs[section.current-tab-index].url;
+                placeholder-text: @tr("URL to a zipped library (*.zip)");
+                validation-error: tabs[section.current-tab-index].url-error;
+                read-only: downloading;
+                accessible-label: url-txt.text;
+
+                changed text => {
+                    tabs[section.current-tab-index].url = self.text;
+                }
+
+                key-pressed(event) => {
+                    edit-key-pressed(event)
+                }
+            }
+        }
+
+        Row {
+            Rectangle {
+                vertical-stretch: 0;
+            }
+
+            Rectangle {
+                property <bool> has-suggestion: !tabs[section.current-tab-index].url-suggestion.is-empty;
+
+                height: has-suggestion ? self.preferred-height : 0;
+                visible: has-suggestion;
+                horizontal-stretch: 1;
+
+                VerticalLayout {
+                    spacing: 3px;
+
+                    Text {
+                        horizontal-stretch: 0;
+                        font-size: 11px;
+                        color: downloading ? Data.theme.base-text-muted : Data.theme.base-text;
+                        wrap: word-wrap;
+                        text: @tr("URL does not seem to point to a ZIP file. Consider using this URL instead:");
+                    }
+
+                    url-suggestion-txt := LinkText {
+                        horizontal-stretch: 0;
+                        overflow: elide;
+                        font-size: 11px;
+                        text: tabs[section.current-tab-index].url-suggestion;
+                        enabled: !downloading;
+
+                        clicked => {
+                            url-edt.text = tabs[section.current-tab-index].url-suggestion;
+                        }
+                    }
+                }
+            }
+        }
+
+        Row {
+            directory-txt := Text {
+                text: @tr("Directory:");
+                vertical-alignment: center;
+                color: Data.theme.base-text;
+                accessible-role: none;
+            }
+
+            directory-edt := LineEdit {
+                text: tabs[section.current-tab-index].directory;
+                placeholder-text: tabs[section.current-tab-index].directory-default;
+                validation-error: tabs[section.current-tab-index].directory-error;
+                read-only: downloading;
+                accessible-label: directory-txt.text;
+
+                changed text => {
+                    tabs[section.current-tab-index].directory = self.text;
+                }
+
+                key-pressed(event) => {
+                    edit-key-pressed(event)
+                }
+            }
+        }
+
+        Row {
+            Rectangle { }
+
+            // Note: Do not make the progress bar conditional as it would
+            // make the layout jumping when starting the download (buttons
+            // moving a few pixels down due to the appearing progress bar).
+            progress-bar := ProgressBar {
+                progress: tabs[section.current-tab-index].download-progress / 100;
+                visible: downloading;
+            }
+        }
+
+        Row {
+            Rectangle { }
+
+            HorizontalLayout {
+                horizontal-stretch: 1;
+                spacing: 8px;
+                alignment: start;
+
+                download-btn := Button {
+                    primary: true;
+                    enabled: (!downloading) && tabs[section.current-tab-index].valid;
+                    text: @tr("Download Library");
+
+                    clicked => {
+                        Backend.trigger-tab(section-index, section.current-tab-index, TabAction.accept);
+                    }
+                }
+
+                cancel-btn := Button {
+                    text: @tr("Cancel");
+
+                    clicked => {
+                        Backend.trigger-tab(section-index, section.current-tab-index, TabAction.cancel);
+                    }
+                }
+
+                property <string> download-status: tabs[section.current-tab-index].download-status;
+                if !download-status.is-empty: creation-status-edt := TextInput {
+                    color: downloading ? Data.theme.base-text : Data.theme.base-text-error;
+                    read-only: true;
+                    wrap: word-wrap;
+                    vertical-alignment: center;
+                    text: download-status;
+                    accessible-label: "status message";
+                    accessible-description: self.text;
+                }
+            }
+        }
+
+        Row {
+            Rectangle { }
+        }
+    }
+}

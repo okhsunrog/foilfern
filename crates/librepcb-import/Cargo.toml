@@ -1,0 +1,24 @@
+[package]
+name = "librepcb-import"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Import of EAGLE and KiCad libraries and projects into LibrePCB"
+
+[dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["std", "clock"] }
+clipper = { version = "0.1.0", path = "../clipper" }
+html-escape = "0.2.15"
+librepcb-core = { version = "0.1.0", path = "../librepcb-core" }
+librepcb-i18n = { version = "0.1.0", path = "../librepcb-i18n" }
+log = "0.4.34"
+roxmltree = "0.21.1"
+serde = { version = "1.0.229", features = ["derive"] }
+static_assertions = "1.1.0"
+thiserror = "2.0.21"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"

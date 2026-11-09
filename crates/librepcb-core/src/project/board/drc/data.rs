@@ -1,492 +1,969 @@
 //! Port of libs/librepcb/core/project/board/drc/boarddesignrulecheckdata.{h,cpp}.
 //!
-//! Owned input for board design rule checks. Library and
-//! project references are resolved while extracting, before a caller moves
-//! the snapshot to a worker thread.
+//! The input data of the design rule check: a plain, owned snapshot of
+//! everything the checks need, extracted from a [`Project`] and one of its
+//! boards (upstream copies the data from the board objects for the same
+//! reason: the checks run in other threads while the board may be edited).
+//!
+//! Differences to upstream:
+//!
+//! - Layers are [`Layer`] values instead of pointers; sets and maps of
+//!   layers, net segments, junctions, vias and pads are `BTree*`
+//!   collections, so the checks iterate them in a deterministic order
+//!   (upstream iterates `QHash`es, see COMPAT.md).
+//! - Air wire anchors are an enum instead of a struct of optional UUIDs.
+//! - The plane fragments are taken from the board's derived data
+//!   ([`BoardDerived::fragments_of()`](super::super::BoardDerived::fragments_of));
+//!   the caller is responsible for rebuilding them before (like upstream
+//!   `BoardDesignRuleCheck::start()`,
+//!   [`Project::run_drc()`](crate::project::Project::run_drc) does it).
 
-use super::{DrcHoleRef, DrcMode, DrcObjectRef};
-use crate::geometry::{NonEmptyPath, Pad, Path};
+use std::collections::{BTreeMap, BTreeSet};
+
+use super::error::{Error, Result};
+use crate::font::{StrokeFont, StrokeTextPathBuilder};
+use crate::geometry::{NonEmptyPath, PadGeometry, Path, TraceAnchor, ZoneLayers, ZoneRules};
 use crate::library::org::BoardDesignRuleCheckSettings;
-use crate::project::board::{Board, BoardPlane, ResolvedDevice, ViaView};
-use crate::project::{BoardId, Error, NetSignalId, Project, Result};
-use crate::types::{Layer, Point, PositiveLength, UnsignedLength};
+use crate::project::attribute_lookup::ProjectAttributeLookup;
+use crate::project::board::device::ResolvedDevice;
+use crate::project::board::pad_data::PadOnBoard;
+use crate::project::board::{Board, BoardDesignRules, BoardDevice, BoardNetSegment};
+use crate::project::board::{BoardStrokeTextData, FootprintPadView};
+use crate::project::circuit::Circuit;
+use crate::project::{BoardId, EntityKind, NetSignalId, Project, ProjectLibrary};
+use crate::types::{Angle, Layer, Length, Point, PositiveLength, UnsignedLength, Uuid};
 use crate::utils::transform::Transform;
-use std::collections::BTreeSet;
 
-/// Immutable, self-contained input to board rule checks.
-///
-/// Captures manufacturing, geometry and connectivity inputs. Planes and air
-/// wires are rebuilt in a private board copy, without changing the project.
+/// Design rules of a net class (upstream `Data::NetClass`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DrcNetClass {
+    /// Minimum copper clearance.
+    pub min_copper_copper_clearance: UnsignedLength,
+    /// Minimum copper width.
+    pub min_copper_width: UnsignedLength,
+    /// Minimum via drill diameter.
+    pub min_via_drill_diameter: UnsignedLength,
+}
+
+/// A junction of a net segment (upstream `Data::Junction`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DrcJunction {
+    /// UUID.
+    pub uuid: Uuid,
+    /// Position.
+    pub position: Point,
+    /// Number of traces connected to the junction.
+    pub traces: usize,
+}
+
+/// A trace of a net segment (upstream `Data::Trace`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DrcTrace {
+    /// UUID.
+    pub uuid: Uuid,
+    /// Start position.
+    pub p1: Point,
+    /// End position.
+    pub p2: Point,
+    /// Width.
+    pub width: PositiveLength,
+    /// Copper layer.
+    pub layer: Layer,
+}
+
+/// A via of a net segment (upstream `Data::Via`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DrcVia {
+    /// UUID.
+    pub uuid: Uuid,
+    /// Position.
+    pub position: Point,
+    /// Actual drill diameter (automatic values resolved).
+    pub drill_diameter: PositiveLength,
+    /// Actual size (automatic values resolved).
+    pub size: PositiveLength,
+    /// The layers of traces directly connected to the via.
+    pub connected_layers: BTreeSet<Layer>,
+    /// Start layer.
+    pub start_layer: Layer,
+    /// End layer.
+    pub end_layer: Layer,
+    /// The drilled layer span on this board (`None` = invalid via).
+    pub drill_layer_span: Option<(Layer, Layer)>,
+    /// Whether the via is buried.
+    pub is_buried: bool,
+    /// Whether the via is blind.
+    pub is_blind: bool,
+    /// Diameter of the stop mask opening on the top side.
+    pub stop_mask_diameter_top: Option<PositiveLength>,
+    /// Diameter of the stop mask opening on the bottom side.
+    pub stop_mask_diameter_bot: Option<PositiveLength>,
+}
+
+/// A hole (upstream `Data::Hole`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DrcHole {
+    /// UUID.
+    pub uuid: Uuid,
+    /// Diameter.
+    pub diameter: PositiveLength,
+    /// Path (relative to the pad or device, if any).
+    pub path: NonEmptyPath,
+    /// Stop mask offset (`None` = no stop mask opening; always `None` for
+    /// pad holes).
+    pub stop_mask_offset: Option<Length>,
+}
+
+/// A pad, either standalone or of a footprint (upstream `Data::Pad`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DrcPad {
+    /// UUID.
+    pub uuid: Uuid,
+    /// Name of the package pad (empty if not connected to a package pad).
+    pub lib_pkg_pad_name: String,
+    /// Absolute position.
+    pub position: Point,
+    /// Absolute rotation.
+    pub rotation: Angle,
+    /// Whether the pad is mirrored.
+    pub mirror: bool,
+    /// The holes (relative to the pad).
+    pub holes: Vec<DrcHole>,
+    /// The geometries per layer (relative to the pad).
+    pub geometries: BTreeMap<Layer, Vec<PadGeometry>>,
+    /// Layers where traces are connected.
+    pub layers_with_traces: BTreeSet<Layer>,
+    /// Copper clearance of the pad.
+    pub copper_clearance: UnsignedLength,
+    /// Net (UUID).
+    pub net: Option<Uuid>,
+    /// Net name (empty if no net).
+    pub net_name: String,
+    /// Net class (UUID).
+    pub net_class: Option<Uuid>,
+}
+
+/// A net segment (upstream `Data::Segment`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DrcSegment {
+    /// UUID.
+    pub uuid: Uuid,
+    /// Net (UUID).
+    pub net: Option<Uuid>,
+    /// Net name (empty if no net).
+    pub net_name: String,
+    /// Net class (UUID).
+    pub net_class: Option<Uuid>,
+    /// Junctions by UUID.
+    pub junctions: BTreeMap<Uuid, DrcJunction>,
+    /// Traces (in UUID order).
+    pub traces: Vec<DrcTrace>,
+    /// Vias by UUID.
+    pub vias: BTreeMap<Uuid, DrcVia>,
+    /// Standalone pads by UUID.
+    pub pads: BTreeMap<Uuid, DrcPad>,
+}
+
+/// The object an air wire is attached to (upstream `Data::AirWireAnchor`
+/// without the position).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DrcAirWireObject {
+    /// A footprint pad.
+    FootprintPad {
+        /// Component instance of the device.
+        device: Uuid,
+        /// Footprint pad.
+        pad: Uuid,
+    },
+    /// A standalone pad of a net segment.
+    Pad {
+        /// Net segment.
+        segment: Uuid,
+        /// Pad.
+        pad: Uuid,
+    },
+    /// A junction of a net segment.
+    Junction {
+        /// Net segment.
+        segment: Uuid,
+        /// Junction.
+        junction: Uuid,
+    },
+    /// A via of a net segment.
+    Via {
+        /// Net segment.
+        segment: Uuid,
+        /// Via.
+        via: Uuid,
+    },
+}
+
+/// An end point of an air wire (upstream `Data::AirWireAnchor`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DrcAirWireAnchor {
+    /// Position.
+    pub position: Point,
+    /// The anchor object; `None` if it could not be resolved (the check for
+    /// missing connections fails then, like upstream).
+    pub object: Option<DrcAirWireObject>,
+}
+
+/// An air wire (upstream `Data::AirWire`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DrcAirWire {
+    /// First anchor.
+    pub p1: DrcAirWireAnchor,
+    /// Second anchor.
+    pub p2: DrcAirWireAnchor,
+    /// Net name.
+    pub net_name: String,
+}
+
+/// A plane (upstream `Data::Plane`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DrcPlane {
+    /// UUID.
+    pub uuid: Uuid,
+    /// Net (UUID).
+    pub net: Option<Uuid>,
+    /// Net name (empty if no net).
+    pub net_name: String,
+    /// Net class (UUID).
+    pub net_class: Option<Uuid>,
+    /// Copper layer.
+    pub layer: Layer,
+    /// Minimum width.
+    pub min_width: UnsignedLength,
+    /// Thermal spoke width.
+    pub thermal_spoke_width: PositiveLength,
+    /// Outline.
+    pub outline: Path,
+    /// The calculated fragments.
+    pub fragments: Vec<Path>,
+}
+
+/// A polygon of the board or of a footprint (upstream `Data::Polygon`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DrcPolygon {
+    /// UUID.
+    pub uuid: Uuid,
+    /// Layer (not mirrored for footprint polygons).
+    pub layer: Layer,
+    /// Line width.
+    pub line_width: UnsignedLength,
+    /// Whether the polygon is filled.
+    pub filled: bool,
+    /// Path (relative to the device for footprint polygons).
+    pub path: Path,
+}
+
+/// A circle of a footprint (upstream `Data::Circle`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DrcCircle {
+    /// UUID.
+    pub uuid: Uuid,
+    /// Center (relative to the device).
+    pub center: Point,
+    /// Diameter.
+    pub diameter: PositiveLength,
+    /// Layer (not mirrored).
+    pub layer: Layer,
+    /// Line width.
+    pub line_width: UnsignedLength,
+    /// Whether the circle is filled.
+    pub filled: bool,
+}
+
+/// A stroke text of the board or of a device (upstream `Data::StrokeText`,
+/// always in board coordinates).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DrcStrokeText {
+    /// UUID.
+    pub uuid: Uuid,
+    /// Position.
+    pub position: Point,
+    /// Rotation.
+    pub rotation: Angle,
+    /// Whether the text is mirrored.
+    pub mirror: bool,
+    /// Layer.
+    pub layer: Layer,
+    /// Stroke width.
+    pub stroke_width: UnsignedLength,
+    /// Text height.
+    pub height: PositiveLength,
+    /// The rendered paths (relative to the text position, not rotated).
+    pub paths: Vec<Path>,
+}
+
+/// A keepout zone of the board or of a footprint (upstream `Data::Zone`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DrcZone {
+    /// UUID.
+    pub uuid: Uuid,
+    /// Layers of a board zone (empty for device zones).
+    pub board_layers: BTreeSet<Layer>,
+    /// Layers of a footprint zone (empty for board zones).
+    pub footprint_layers: ZoneLayers,
+    /// Rules.
+    pub rules: ZoneRules,
+    /// Outline (relative to the device for footprint zones).
+    pub outline: Path,
+}
+
+/// A signal of a component which is connected to a net but has no pad in
+/// the footprint (upstream `Data::ImpossibleConnection`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DrcImpossibleConnection {
+    /// UUID of the component signal.
+    pub signal_uuid: Uuid,
+    /// Name of the component signal.
+    pub signal_name: String,
+    /// Name of the net.
+    pub net_name: String,
+}
+
+/// A device (upstream `Data::Device`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DrcDevice {
+    /// UUID of the component instance.
+    pub uuid: Uuid,
+    /// Name of the component instance.
+    pub cmp_instance_name: String,
+    /// Position.
+    pub position: Point,
+    /// Rotation.
+    pub rotation: Angle,
+    /// Whether the device is mirrored.
+    pub mirror: bool,
+    /// Footprint pads by UUID (absolute transform).
+    pub pads: BTreeMap<Uuid, DrcPad>,
+    /// Polygons of the library footprint.
+    pub polygons: Vec<DrcPolygon>,
+    /// Circles of the library footprint.
+    pub circles: Vec<DrcCircle>,
+    /// Stroke texts (absolute transform).
+    pub stroke_texts: Vec<DrcStrokeText>,
+    /// Holes of the library footprint.
+    pub holes: Vec<DrcHole>,
+    /// Zones of the library footprint.
+    pub zones: Vec<DrcZone>,
+    /// Signals connected to a net without a pad (only filled for a full
+    /// check).
+    pub impossible_signal_connections: Vec<DrcImpossibleConnection>,
+}
+
+impl DrcDevice {
+    /// Returns the transformation of the device.
+    pub fn transform(&self) -> Transform {
+        Transform::new(self.position, self.rotation, self.mirror)
+    }
+}
+
+/// The input data of the design rule check (upstream
+/// `BoardDesignRuleCheckData`).
 #[derive(Debug, Clone)]
 pub struct BoardDrcData {
-    pub(super) board: BoardId,
-    pub(super) mode: DrcMode,
-    pub(super) settings: BoardDesignRuleCheckSettings,
-    pub(super) holes: Vec<Hole>,
-    pub(super) planes: Vec<(BoardPlane, String)>,
-    pub(super) copper_layers: BTreeSet<Layer>,
-    pub(super) used_layers: BTreeSet<Layer>,
-    pub(super) widths: Vec<WidthObject>,
-    pub(super) physical: super::physical_data::PhysicalData,
-    pub(super) outlines: Vec<(DrcObjectRef, Layer, Path)>,
-    pub(super) silkscreen_layers: BTreeSet<Layer>,
-    pub(super) silkscreen_sides: [Vec<Layer>; 2],
+    /// The DRC settings.
+    pub settings: BoardDesignRuleCheckSettings,
+    /// Whether only the quick check is run.
+    pub quick: bool,
+    /// All copper layers of the board.
+    pub copper_layers: BTreeSet<Layer>,
+    /// Silkscreen layers of the top side.
+    pub silkscreen_layers_top: Vec<Layer>,
+    /// Silkscreen layers of the bottom side.
+    pub silkscreen_layers_bot: Vec<Layer>,
+    /// Net classes by UUID.
+    pub net_classes: BTreeMap<Uuid, DrcNetClass>,
+    /// Net segments by UUID.
+    pub segments: BTreeMap<Uuid, DrcSegment>,
+    /// Planes.
+    pub planes: Vec<DrcPlane>,
+    /// Board polygons.
+    pub polygons: Vec<DrcPolygon>,
+    /// Board stroke texts.
+    pub stroke_texts: Vec<DrcStrokeText>,
+    /// Board holes.
+    pub holes: Vec<DrcHole>,
+    /// Board zones.
+    pub zones: Vec<DrcZone>,
+    /// Devices by component instance UUID.
+    pub devices: BTreeMap<Uuid, DrcDevice>,
+    /// Air wires.
+    pub air_wires: Vec<DrcAirWire>,
+    /// Components without device (and not schematic-only), UUID and name.
+    pub unplaced_components: BTreeMap<Uuid, String>,
 }
+
+// Moved to and shared between the check threads.
 static_assertions::assert_impl_all!(BoardDrcData: Send, Sync);
 
-#[derive(Debug, Clone)]
-pub(super) struct Hole {
-    pub reference: DrcHoleRef,
-    pub diameter: PositiveLength,
-    pub path: NonEmptyPath,
-    pub pad_position: Option<Point>,
-    pub pad_name: String,
-    pub net_name: String,
-    pub min_via_drill: UnsignedLength,
-}
-#[derive(Debug, Clone)]
-pub(super) struct WidthObject {
-    pub reference: DrcObjectRef,
-    pub layer: Layer,
-    pub width: UnsignedLength,
-    pub displayed_width: UnsignedLength,
-    pub net_min_width: UnsignedLength,
-    pub device_name: String,
-    pub locations: Vec<Path>,
-    pub board_text_height: Option<PositiveLength>,
-}
 impl BoardDrcData {
-    /// Extracts full-check data with fresh derived geometry in a private copy.
-    /// The project and its board remain unchanged.
-    pub fn extract(
+    /// Extracts the input data of the DRC for a board of a project
+    /// (upstream constructor).
+    ///
+    /// The plane fragments and air wires are taken from the board's derived
+    /// data as they are, so they should be up to date (see
+    /// [`Project::run_drc()`](crate::project::Project::run_drc)).
+    pub fn new(
         project: &Project,
-        board: &Board,
+        board: BoardId,
         settings: &BoardDesignRuleCheckSettings,
+        quick: bool,
     ) -> Result<Self> {
-        Self::extract_with_mode(project, board, settings, DrcMode::Full)
+        let b = project
+            .board(board)
+            .ok_or(crate::project::Error::NotFound {
+                kind: EntityKind::Board,
+                uuid: board.0,
+            })?;
+        Extractor::new(project, b).extract(settings, quick)
     }
-    /// Extracts full or quick-check input. Quick snapshots reuse existing
-    /// fragments without rebuilding planes or calculating air wires.
-    pub fn extract_with_mode(
-        project: &Project,
-        board: &Board,
-        settings: &BoardDesignRuleCheckSettings,
-        mode: DrcMode,
-    ) -> Result<Self> {
-        let mut data = Self {
-            board: board.id(),
-            mode,
-            settings: settings.clone(),
-            holes: Vec::new(),
-            planes: Vec::new(),
-            copper_layers: board.copper_layers(),
-            used_layers: BTreeSet::from([Layer::TOP_COPPER, Layer::BOT_COPPER]),
-            widths: Vec::new(),
-            physical: Default::default(),
-            outlines: Vec::new(),
-            silkscreen_sides: [
-                board.settings().silkscreen_layers_top.clone(),
-                board.settings().silkscreen_layers_bot.clone(),
-            ],
-            silkscreen_layers: board
-                .settings()
-                .silkscreen_layers_top
-                .iter()
-                .chain(&board.settings().silkscreen_layers_bot)
-                .copied()
-                .collect(),
-        };
-        let net_name = |net: Option<NetSignalId>| -> Result<String> {
-            net.map(|id| {
-                project
-                    .circuit()
-                    .net_signal(id)
-                    .map(|n| n.name().to_string())
-                    .ok_or(Error::InexistentNetSignal(id.0))
-            })
-            .transpose()
-            .map(Option::unwrap_or_default)
-        };
-        for hole in board.holes().values() {
-            data.holes.push(Hole {
-                reference: DrcHoleRef::BoardHole(hole.uuid()),
-                diameter: hole.diameter(),
-                path: hole.path().clone(),
-                pad_position: None,
-                pad_name: String::new(),
-                net_name: String::new(),
-                min_via_drill: UnsignedLength::ZERO,
-            });
+
+    /// Returns the minimum copper clearance for a net class (the maximum of
+    /// the DRC settings and the net class rule).
+    pub fn min_copper_copper_clearance(&self, net_class: Option<Uuid>) -> UnsignedLength {
+        let value = self.settings.min_copper_copper_clearance();
+        match net_class.and_then(|nc| self.net_classes.get(&nc)) {
+            Some(nc) => value.max(nc.min_copper_copper_clearance),
+            None => value,
         }
-        for segment in board.net_segments().values() {
-            let net = net_name(segment.net())?;
-            let min_via_drill = if let Some(id) = segment.net() {
-                let signal = project
-                    .circuit()
-                    .net_signal(id)
-                    .ok_or(Error::InexistentNetSignal(id.0))?;
-                project
-                    .circuit()
-                    .net_classes()
-                    .get(&signal.net_class())
-                    .ok_or(Error::InexistentNetClass(signal.net_class().0))?
-                    .min_via_drill_diameter()
-            } else {
-                UnsignedLength::ZERO
-            };
-            for pad in segment.pads().values() {
-                let p = pad.pad();
-                data.pad_holes(
-                    p,
-                    Transform::new(p.position(), p.rotation(), false),
-                    "",
-                    |hole| DrcHoleRef::PadHole {
-                        segment: segment.id(),
-                        pad: pad.uuid(),
-                        hole,
-                    },
-                );
-            }
-            for via in segment.vias().values() {
-                let view = ViaView::new(via, board, segment.net(), project.circuit())?;
-                data.holes.push(Hole {
-                    reference: DrcHoleRef::Via {
-                        segment: segment.id(),
-                        via: via.uuid(),
-                    },
-                    diameter: view.drill_diameter(),
-                    path: NonEmptyPath::from_point(via.position()),
-                    pad_position: None,
-                    pad_name: String::new(),
-                    net_name: net.clone(),
-                    min_via_drill,
-                });
-            }
-            data.used_layers
-                .extend(segment.traces().values().map(|t| t.layer()));
-        }
-        for device in board.devices().values() {
-            let footprint = ResolvedDevice::resolve(device, project.library())?.footprint;
-            let transform = device.transform();
-            for hole in footprint.holes() {
-                data.holes.push(Hole {
-                    reference: DrcHoleRef::DeviceHole {
-                        device: device.component(),
-                        hole: hole.uuid(),
-                    },
-                    diameter: hole.diameter(),
-                    path: transform.map(hole.path()),
-                    pad_position: None,
-                    pad_name: String::new(),
-                    net_name: String::new(),
-                    min_via_drill: UnsignedLength::ZERO,
-                });
-            }
-            let mut pads = device.pads(project.library(), project.circuit())?;
-            pads.sort_unstable_by_key(|p| p.uuid());
-            for pad in pads {
-                data.pad_holes(
-                    pad.properties(),
-                    Transform::new(pad.position(), pad.rotation(), pad.mirrored()),
-                    pad.package_pad()
-                        .map(|p| p.name().as_str())
-                        .unwrap_or_default(),
-                    |hole| DrcHoleRef::FootprintPadHole {
-                        device: device.component(),
-                        pad: pad.uuid(),
-                        hole,
-                    },
-                );
-            }
-            for layer in footprint
-                .polygons()
-                .iter()
-                .map(|p| p.layer())
-                .chain(footprint.circles().iter().map(|c| c.layer()))
-            {
-                if layer.is_copper() {
-                    data.used_layers.insert(transform.map(&layer));
-                }
-            }
-        }
-        for plane in board.planes().values() {
-            data.used_layers.insert(plane.layer());
-            data.planes.push((plane.clone(), net_name(plane.net())?));
-        }
-        data.used_layers.extend(
-            board
-                .polygons()
-                .values()
-                .map(|p| p.layer())
-                .chain(board.stroke_texts().values().map(|t| t.layer()))
-                .filter(|l| l.is_copper()),
-        );
-        data.collect_widths(project, board)?;
-        for polygon in board
-            .polygons()
-            .values()
-            .filter(|p| p.layer().is_board_edge())
-        {
-            data.outlines.push((
-                DrcObjectRef::Polygon {
-                    device: None,
-                    polygon: polygon.uuid(),
-                },
-                polygon.layer(),
-                polygon.path().clone(),
-            ));
-        }
-        for device in board.devices().values() {
-            let footprint = ResolvedDevice::resolve(device, project.library())?.footprint;
-            for polygon in footprint
-                .polygons()
-                .iter()
-                .filter(|p| p.layer().is_board_edge())
-            {
-                data.outlines.push((
-                    DrcObjectRef::Polygon {
-                        device: Some(device.component()),
-                        polygon: polygon.uuid(),
-                    },
-                    polygon.layer(),
-                    device.transform().map(polygon.path()),
-                ));
-            }
-            for circle in footprint
-                .circles()
-                .iter()
-                .filter(|c| c.layer().is_board_edge())
-            {
-                data.outlines.push((
-                    DrcObjectRef::Circle {
-                        device: device.component(),
-                        circle: circle.uuid(),
-                    },
-                    circle.layer(),
-                    device
-                        .transform()
-                        .map(&Path::circle(circle.diameter()).translated(circle.center())),
-                ));
-            }
-        }
-        data.physical =
-            super::physical_data::PhysicalData::collect(project, board, settings, mode)?;
-        Ok(data)
     }
-    /// Board this snapshot belongs to.
-    pub fn board(&self) -> BoardId {
-        self.board
+
+    /// Returns the minimum copper width for a net class.
+    pub fn min_copper_width(&self, net_class: Option<Uuid>) -> UnsignedLength {
+        let value = self.settings.min_copper_width();
+        match net_class.and_then(|nc| self.net_classes.get(&nc)) {
+            Some(nc) => value.max(nc.min_copper_width),
+            None => value,
+        }
     }
-    /// Rules this snapshot is prepared to run.
-    pub fn mode(&self) -> DrcMode {
-        self.mode
-    }
-    /// Settings captured with this snapshot.
-    pub fn settings(&self) -> &BoardDesignRuleCheckSettings {
-        &self.settings
-    }
-    fn pad_holes(
-        &mut self,
-        pad: &Pad,
-        transform: Transform,
-        name: &str,
-        reference: impl Fn(crate::types::Uuid) -> DrcHoleRef,
-    ) {
-        for hole in pad.holes() {
-            self.holes.push(Hole {
-                reference: reference(hole.uuid()),
-                diameter: hole.diameter(),
-                path: transform.map(hole.path()),
-                pad_position: Some(transform.position),
-                pad_name: name.into(),
-                net_name: String::new(),
-                min_via_drill: UnsignedLength::ZERO,
-            });
+
+    /// Returns the minimum via drill diameter for a net class.
+    pub fn min_via_drill_diameter(&self, net_class: Option<Uuid>) -> UnsignedLength {
+        let value = self.settings.min_pth_drill_diameter();
+        match net_class.and_then(|nc| self.net_classes.get(&nc)) {
+            Some(nc) => value.max(nc.min_via_drill_diameter),
+            None => value,
         }
     }
 }
 
-impl BoardDrcData {
-    fn collect_widths(&mut self, project: &Project, board: &Board) -> Result<()> {
-        let net_min = |net: Option<NetSignalId>| -> Result<UnsignedLength> {
-            if let Some(id) = net {
-                let signal = project
-                    .circuit()
-                    .net_signal(id)
-                    .ok_or(Error::InexistentNetSignal(id.0))?;
-                Ok(project
-                    .circuit()
-                    .net_classes()
-                    .get(&signal.net_class())
-                    .ok_or(Error::InexistentNetClass(signal.net_class().0))?
-                    .min_copper_width()
-                    .max(self.settings.min_copper_width()))
-            } else {
-                Ok(self.settings.min_copper_width())
-            }
-        };
-        let stroke = |path: &Path, width: UnsignedLength| {
-            path.to_outline_strokes(
-                PositiveLength::new((*width).max(crate::types::Length::new(50_000)))
-                    .expect("width is at least 50000 nm"),
-            )
-        };
-        for text in board.stroke_texts().values() {
-            self.widths.push(WidthObject {
-                reference: DrcObjectRef::StrokeText {
-                    device: None,
-                    text: text.uuid(),
-                },
-                layer: text.layer(),
-                width: text.stroke_width(),
-                displayed_width: text.stroke_width(),
-                net_min_width: UnsignedLength::ZERO,
-                device_name: String::new(),
-                locations: text
-                    .paths(project, board, None)?
-                    .iter()
-                    .flat_map(|path| stroke(&text.transform().map(path), text.stroke_width()))
-                    .collect(),
-                board_text_height: Some(text.height()),
-            });
+/// Net information of an item: UUID, name, net class.
+type NetInfo = (Option<Uuid>, String, Option<Uuid>);
+
+/// Helper extracting the data of one board.
+struct Extractor<'a> {
+    project: &'a Project,
+    board: &'a Board,
+    library: &'a ProjectLibrary,
+    circuit: &'a Circuit,
+    rules: &'a BoardDesignRules,
+    copper_layers: BTreeSet<Layer>,
+}
+
+impl<'a> Extractor<'a> {
+    fn new(project: &'a Project, board: &'a Board) -> Self {
+        Self {
+            project,
+            board,
+            library: project.library(),
+            circuit: project.circuit(),
+            rules: board.design_rules(),
+            copper_layers: board.copper_layers(),
         }
-        for polygon in board.polygons().values() {
-            if polygon.is_filled()
-                && polygon.path().is_closed()
-                && polygon.line_width() == UnsignedLength::ZERO
-            {
-                continue;
-            }
-            self.widths.push(WidthObject {
-                reference: DrcObjectRef::Polygon {
-                    device: None,
-                    polygon: polygon.uuid(),
-                },
-                layer: polygon.layer(),
-                width: polygon.line_width(),
-                displayed_width: polygon.line_width(),
-                net_min_width: UnsignedLength::ZERO,
-                device_name: String::new(),
-                locations: stroke(polygon.path(), polygon.line_width()),
-                board_text_height: None,
-            });
+    }
+
+    fn net_info(&self, net: Option<NetSignalId>) -> NetInfo {
+        match net.and_then(|id| self.circuit.net_signal(id).map(|n| (id, n))) {
+            Some((id, n)) => (Some(id.0), n.name().to_string(), Some(n.net_class().0)),
+            None => (None, String::new(), None),
         }
-        for plane in board.planes().values() {
-            let mut outline = plane.outline().clone();
-            outline.close();
-            self.widths.push(WidthObject {
-                reference: DrcObjectRef::Plane(plane.id()),
-                layer: plane.layer(),
-                width: plane.min_width(),
-                displayed_width: plane.min_width(),
-                net_min_width: net_min(plane.net())?,
-                device_name: String::new(),
-                locations: outline
-                    .to_outline_strokes(PositiveLength::new(crate::types::Length::new(200_000))?),
-                board_text_height: None,
-            });
-        }
-        for device in board.devices().values() {
-            let footprint = ResolvedDevice::resolve(device, project.library())?.footprint;
-            let name = project
-                .circuit()
-                .component_instance(device.component())
-                .ok_or(Error::InexistentComponent(device.component().0))?
-                .name()
-                .to_string();
-            let transform = device.transform();
-            for text in device.stroke_texts().values() {
-                self.widths.push(WidthObject {
-                    reference: DrcObjectRef::StrokeText {
-                        device: Some(device.component()),
-                        text: text.uuid(),
+    }
+
+    fn font(&self) -> Result<&'a StrokeFont> {
+        Ok(self
+            .project
+            .stroke_fonts()
+            .font(&self.board.settings().default_font)?)
+    }
+
+    fn extract(
+        &self,
+        settings: &BoardDesignRuleCheckSettings,
+        quick: bool,
+    ) -> Result<BoardDrcData> {
+        let s = self.board.settings();
+        let net_classes = self
+            .circuit
+            .net_classes()
+            .iter()
+            .map(|(id, nc)| {
+                (
+                    id.0,
+                    DrcNetClass {
+                        min_copper_copper_clearance: nc.min_copper_copper_clearance(),
+                        min_copper_width: nc.min_copper_width(),
+                        min_via_drill_diameter: nc.min_via_drill_diameter(),
                     },
-                    layer: text.layer(),
-                    width: text.stroke_width(),
-                    displayed_width: text.stroke_width(),
-                    net_min_width: UnsignedLength::ZERO,
-                    device_name: name.clone(),
-                    locations: text
-                        .paths(project, board, Some(device))?
-                        .iter()
-                        .flat_map(|p| stroke(&text.transform().map(p), text.stroke_width()))
-                        .collect(),
-                    board_text_height: None,
-                });
-            }
-            for polygon in footprint.polygons() {
-                if polygon.is_filled()
-                    && polygon.path().is_closed()
-                    && polygon.line_width() == UnsignedLength::ZERO
-                {
-                    continue;
+                )
+            })
+            .collect();
+        let segments = self
+            .board
+            .net_segments()
+            .values()
+            .map(|ns| Ok((ns.uuid(), self.segment(ns)?)))
+            .collect::<Result<_>>()?;
+        let planes = self
+            .board
+            .planes()
+            .values()
+            .map(|plane| {
+                let (net, net_name, net_class) = self.net_info(plane.net());
+                DrcPlane {
+                    uuid: plane.uuid(),
+                    net,
+                    net_name,
+                    net_class,
+                    layer: plane.layer(),
+                    min_width: plane.min_width(),
+                    thermal_spoke_width: plane.thermal_spoke_width(),
+                    outline: plane.outline().clone(),
+                    fragments: self.board.derived().fragments_of(plane.id()).to_vec(),
                 }
-                self.widths.push(WidthObject {
-                    reference: DrcObjectRef::Polygon {
-                        device: Some(device.component()),
-                        polygon: polygon.uuid(),
-                    },
-                    layer: transform.map(&polygon.layer()),
-                    width: polygon.line_width(),
-                    displayed_width: polygon.line_width(),
-                    net_min_width: UnsignedLength::ZERO,
-                    device_name: name.clone(),
-                    locations: stroke(&transform.map(polygon.path()), polygon.line_width()),
-                    board_text_height: None,
-                });
-            }
-            for circle in footprint.circles() {
-                let diameter = circle.diameter() + circle.line_width();
-                self.widths.push(WidthObject {
-                    reference: DrcObjectRef::Circle {
-                        device: device.component(),
-                        circle: circle.uuid(),
-                    },
-                    layer: transform.map(&circle.layer()),
-                    width: if circle.is_filled() {
-                        diameter.into()
-                    } else {
-                        circle.line_width()
-                    },
-                    displayed_width: circle.line_width(),
-                    net_min_width: UnsignedLength::ZERO,
-                    device_name: name.clone(),
-                    locations: vec![
-                        transform.map(&Path::circle(diameter).translated(circle.center())),
-                    ],
-                    board_text_height: None,
-                });
-            }
+            })
+            .collect();
+        let polygons = self
+            .board
+            .polygons()
+            .values()
+            .map(|p| DrcPolygon {
+                uuid: p.uuid(),
+                layer: p.layer(),
+                line_width: p.line_width(),
+                filled: p.is_filled(),
+                path: p.path().clone(),
+            })
+            .collect();
+        let stroke_texts = self
+            .board
+            .stroke_texts()
+            .values()
+            .map(|t| self.stroke_text(t, None))
+            .collect::<Result<_>>()?;
+        let holes = self
+            .board
+            .holes()
+            .values()
+            .map(|h| DrcHole {
+                uuid: h.uuid(),
+                diameter: h.diameter(),
+                path: h.path().clone(),
+                stop_mask_offset: h.stop_mask_offset(self.rules),
+            })
+            .collect();
+        let zones = self
+            .board
+            .zones()
+            .values()
+            .map(|z| DrcZone {
+                uuid: z.uuid(),
+                board_layers: z.layers().clone(),
+                footprint_layers: ZoneLayers::empty(),
+                rules: z.rules(),
+                outline: z.outline().clone(),
+            })
+            .collect();
+        let devices = self
+            .board
+            .devices()
+            .values()
+            .map(|dev| Ok((dev.component().0, self.device(dev, quick)?)))
+            .collect::<Result<_>>()?;
+        let air_wires = self.air_wires();
+        let unplaced_components = self
+            .circuit
+            .component_instances()
+            .iter()
+            .filter(|(id, cmp)| {
+                self.board.device(**id).is_none()
+                    && !self
+                        .library
+                        .component(&cmp.lib_component())
+                        .is_some_and(|c| c.schematic_only())
+            })
+            .map(|(id, cmp)| (id.0, cmp.name().to_string()))
+            .collect();
+        Ok(BoardDrcData {
+            settings: settings.clone(),
+            quick,
+            copper_layers: self.copper_layers.clone(),
+            silkscreen_layers_top: s.silkscreen_layers_top.clone(),
+            silkscreen_layers_bot: s.silkscreen_layers_bot.clone(),
+            net_classes,
+            segments,
+            planes,
+            polygons,
+            stroke_texts,
+            holes,
+            zones,
+            devices,
+            air_wires,
+            unplaced_components,
+        })
+    }
+
+    /// Upstream `convertPad()` (the transform must already be absolute).
+    #[allow(clippy::too_many_arguments)]
+    fn pad(
+        &self,
+        on_board: PadOnBoard<'_>,
+        uuid: Uuid,
+        lib_pkg_pad_name: String,
+        position: Point,
+        rotation: Angle,
+        anchor: TraceAnchor,
+        net: Option<NetSignalId>,
+    ) -> DrcPad {
+        let layers_with_traces = self.board.anchor_trace_layers(anchor);
+        let geometries = on_board.geometries(&self.copper_layers, self.rules, &layers_with_traces);
+        let (net, net_name, net_class) = self.net_info(net);
+        DrcPad {
+            uuid,
+            lib_pkg_pad_name,
+            position,
+            rotation,
+            mirror: on_board.mirrored,
+            holes: on_board
+                .pad
+                .holes()
+                .iter()
+                .map(|h| DrcHole {
+                    uuid: h.uuid(),
+                    diameter: h.diameter(),
+                    path: h.path().clone(),
+                    stop_mask_offset: None,
+                })
+                .collect(),
+            geometries,
+            layers_with_traces,
+            copper_clearance: on_board.pad.copper_clearance(),
+            net,
+            net_name,
+            net_class,
         }
-        for segment in board.net_segments().values() {
-            for trace in segment.traces().values() {
-                let position = |anchor| {
-                    board
-                        .anchor_position(segment, anchor, project.library(), project.circuit())
-                        .ok_or(Error::InexistentTraceAnchor {
-                            anchor,
-                            device_missing: false,
-                        })
+    }
+
+    fn segment(&self, ns: &BoardNetSegment) -> Result<DrcSegment> {
+        let (net, net_name, net_class) = self.net_info(ns.net());
+        let junctions = ns
+            .junctions()
+            .values()
+            .map(|j| {
+                let anchor = TraceAnchor::Junction(j.uuid());
+                (
+                    j.uuid(),
+                    DrcJunction {
+                        uuid: j.uuid(),
+                        position: j.position(),
+                        traces: ns.traces_at(anchor).count(),
+                    },
+                )
+            })
+            .collect();
+        let traces = ns
+            .traces()
+            .values()
+            .map(|t| {
+                let p1 = self.anchor_position(ns, t.p1())?;
+                let p2 = self.anchor_position(ns, t.p2())?;
+                Ok(DrcTrace {
+                    uuid: t.uuid(),
+                    p1,
+                    p2,
+                    width: t.width(),
+                    layer: t.layer(),
+                })
+            })
+            .collect::<Result<_>>()?;
+        let vias = ns
+            .vias()
+            .values()
+            .map(|via| {
+                let anchor = TraceAnchor::Via(via.uuid());
+                let connected_layers = ns.traces_at(anchor).map(|t| t.layer()).collect();
+                let data = self.via(via, ns.net(), connected_layers)?;
+                Ok((via.uuid(), data))
+            })
+            .collect::<Result<_>>()?;
+        let pads = ns
+            .pads()
+            .values()
+            .map(|p| {
+                let on_board = PadOnBoard {
+                    pad: p.pad(),
+                    mirrored: false,
                 };
-                self.widths.push(WidthObject {
-                    reference: DrcObjectRef::Trace {
-                        segment: segment.id(),
-                        trace: trace.uuid(),
-                    },
-                    layer: trace.layer(),
-                    width: trace.width().into(),
-                    displayed_width: trace.width().into(),
-                    net_min_width: net_min(segment.net())?,
-                    device_name: String::new(),
-                    locations: vec![Path::obround_line(
-                        position(trace.p1())?,
-                        position(trace.p2())?,
-                        trace.width(),
-                    )],
-                    board_text_height: None,
-                });
+                let data = self.pad(
+                    on_board,
+                    p.uuid(),
+                    String::new(),
+                    p.pad().position(),
+                    p.pad().rotation(),
+                    TraceAnchor::Pad(p.uuid()),
+                    ns.net(),
+                );
+                (p.uuid(), data)
+            })
+            .collect();
+        Ok(DrcSegment {
+            uuid: ns.uuid(),
+            net,
+            net_name,
+            net_class,
+            junctions,
+            traces,
+            vias,
+            pads,
+        })
+    }
+
+    fn anchor_position(&self, ns: &BoardNetSegment, anchor: TraceAnchor) -> Result<Point> {
+        self.board
+            .anchor_position(ns, anchor, self.library, self.circuit)
+            .ok_or(Error::InvalidTraceAnchor(anchor_uuid(anchor)))
+    }
+
+    /// Upstream `BI_Via` getters (actual drill and size, drill layer span,
+    /// stop mask diameters).
+    fn via(
+        &self,
+        via: &crate::geometry::Via,
+        net: Option<NetSignalId>,
+        connected_layers: BTreeSet<Layer>,
+    ) -> Result<DrcVia> {
+        let properties = self.board.via_properties(via, net, self.circuit);
+        Ok(DrcVia {
+            uuid: via.uuid(),
+            position: via.position(),
+            drill_diameter: properties.drill_diameter,
+            size: properties.size,
+            connected_layers,
+            start_layer: via.start_layer(),
+            end_layer: via.end_layer(),
+            drill_layer_span: properties.drill_layer_span,
+            is_buried: via.is_buried(),
+            is_blind: via.is_blind(),
+            stop_mask_diameter_top: properties.stop_mask_diameter_top,
+            stop_mask_diameter_bot: properties.stop_mask_diameter_bot,
+        })
+    }
+
+    fn stroke_text(
+        &self,
+        text: &BoardStrokeTextData,
+        device: Option<&BoardDevice>,
+    ) -> Result<DrcStrokeText> {
+        // Upstream `BI_StrokeText::updateText()`.
+        let substituted = match device {
+            Some(device) => {
+                let component = self.circuit.component_instance(device.component());
+                let part = component.and_then(|c| device.parts(c, None).into_iter().next());
+                ProjectAttributeLookup::for_device(self.project, self.board, device, part.as_ref())
+                    .substitute(text.text())
+            }
+            None => ProjectAttributeLookup::for_board(self.project, self.board, None)
+                .substitute(text.text()),
+        };
+        let paths = StrokeTextPathBuilder::build(
+            self.font()?,
+            text.letter_spacing(),
+            text.line_spacing(),
+            text.height(),
+            text.stroke_width(),
+            text.align(),
+            text.rotation(),
+            text.auto_rotate(),
+            &substituted,
+        );
+        Ok(DrcStrokeText {
+            uuid: text.uuid(),
+            position: text.position(),
+            rotation: text.rotation(),
+            mirror: text.mirrored(),
+            layer: text.layer(),
+            stroke_width: text.stroke_width(),
+            height: text.height(),
+            paths,
+        })
+    }
+
+    fn device(&self, dev: &BoardDevice, quick: bool) -> Result<DrcDevice> {
+        let resolved = ResolvedDevice::resolve(dev, self.library)?;
+        let footprint = resolved.footprint;
+        let component = self.circuit.component_instance(dev.component());
+        let views: Vec<FootprintPadView<'_>> = dev.pads(self.library, self.circuit)?;
+        let pads = views
+            .iter()
+            .map(|view| {
+                let on_board = PadOnBoard {
+                    pad: view.properties(),
+                    mirrored: dev.mirrored(),
+                };
+                let data = self.pad(
+                    on_board,
+                    view.uuid(),
+                    view.package_pad()
+                        .map(|p| p.name().to_string())
+                        .unwrap_or_default(),
+                    view.position(),
+                    view.rotation(),
+                    view.trace_anchor(),
+                    view.net(),
+                );
+                (view.uuid(), data)
+            })
+            .collect();
+        let polygons = footprint
+            .polygons()
+            .iter()
+            .map(|p| DrcPolygon {
+                uuid: p.uuid(),
+                layer: p.layer(),
+                line_width: p.line_width(),
+                filled: p.is_filled(),
+                path: p.path().clone(),
+            })
+            .collect();
+        let circles = footprint
+            .circles()
+            .iter()
+            .map(|c| DrcCircle {
+                uuid: c.uuid(),
+                center: c.center(),
+                diameter: c.diameter(),
+                layer: c.layer(),
+                line_width: c.line_width(),
+                filled: c.is_filled(),
+            })
+            .collect();
+        let stroke_texts = dev
+            .stroke_texts()
+            .values()
+            .map(|t| self.stroke_text(t, Some(dev)))
+            .collect::<Result<_>>()?;
+        let stop_masks = BoardDevice::hole_stop_mask_offsets(footprint, self.rules);
+        let holes = footprint
+            .holes()
+            .iter()
+            .map(|h| DrcHole {
+                uuid: h.uuid(),
+                diameter: h.diameter(),
+                path: h.path().clone(),
+                stop_mask_offset: stop_masks.get(&h.uuid()).copied().flatten(),
+            })
+            .collect();
+        let zones = footprint
+            .zones()
+            .iter()
+            .map(|z| DrcZone {
+                uuid: z.uuid(),
+                board_layers: BTreeSet::new(),
+                footprint_layers: z.layers(),
+                rules: z.rules(),
+                outline: z.outline().clone(),
+            })
+            .collect();
+        let mut impossible_signal_connections = Vec::new();
+        if let (false, Some(cmp)) = (quick, component) {
+            // A bit unusual, but the actual check is already done here to
+            // avoid copying lots of data for such a lightweight check.
+            let pad_signals: BTreeSet<Uuid> = views
+                .iter()
+                .filter_map(|v| v.component_signal().map(|s| s.signal))
+                .collect();
+            let lib_component = self.library.component(&cmp.lib_component());
+            for (signal, instance) in cmp.signals() {
+                if let Some(net) = instance.net().and_then(|n| self.circuit.net_signal(n))
+                    && !pad_signals.contains(signal)
+                {
+                    impossible_signal_connections.push(DrcImpossibleConnection {
+                        signal_uuid: *signal,
+                        signal_name: lib_component
+                            .and_then(|c| c.signals().by_uuid(signal))
+                            .map(|s| s.name().to_string())
+                            .unwrap_or_default(),
+                        net_name: net.name().to_string(),
+                    });
+                }
             }
         }
-        Ok(())
+        Ok(DrcDevice {
+            uuid: dev.component().0,
+            cmp_instance_name: component.map(|c| c.name().to_string()).unwrap_or_default(),
+            position: dev.position(),
+            rotation: dev.rotation(),
+            mirror: dev.mirrored(),
+            pads,
+            polygons,
+            circles,
+            stroke_texts,
+            holes,
+            zones,
+            impossible_signal_connections,
+        })
+    }
+
+    fn air_wires(&self) -> Vec<DrcAirWire> {
+        self.board
+            .derived()
+            .all_air_wires()
+            .map(|aw| DrcAirWire {
+                p1: self.air_wire_anchor(aw.p1(), aw.p1_position()),
+                p2: self.air_wire_anchor(aw.p2(), aw.p2_position()),
+                net_name: self
+                    .circuit
+                    .net_signal(aw.net())
+                    .map(|n| n.name().to_string())
+                    .unwrap_or_default(),
+            })
+            .collect()
+    }
+
+    fn air_wire_anchor(&self, anchor: TraceAnchor, position: Point) -> DrcAirWireAnchor {
+        let segment = || {
+            self.board
+                .net_segments()
+                .values()
+                .find(|s| s.contains_anchor(&anchor))
+                .map(|s| s.uuid())
+        };
+        let object = match anchor {
+            TraceAnchor::FootprintPad { device, pad } => {
+                Some(DrcAirWireObject::FootprintPad { device, pad })
+            }
+            TraceAnchor::Pad(pad) => {
+                segment().map(|segment| DrcAirWireObject::Pad { segment, pad })
+            }
+            TraceAnchor::Junction(junction) => {
+                segment().map(|segment| DrcAirWireObject::Junction { segment, junction })
+            }
+            TraceAnchor::Via(via) => {
+                segment().map(|segment| DrcAirWireObject::Via { segment, via })
+            }
+        };
+        if object.is_none() {
+            log::error!("Unknown air wire anchor type, DRC will fail later.");
+        }
+        DrcAirWireAnchor { position, object }
+    }
+}
+
+fn anchor_uuid(anchor: TraceAnchor) -> Uuid {
+    match anchor {
+        TraceAnchor::Junction(u) | TraceAnchor::Via(u) | TraceAnchor::Pad(u) => u,
+        TraceAnchor::FootprintPad { pad, .. } => pad,
     }
 }

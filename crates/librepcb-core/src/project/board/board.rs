@@ -861,18 +861,21 @@ impl SerializeObject for Board {
 /// rebuilt by [`Project::rebuild_air_wires()`](crate::project::Project::rebuild_air_wires)
 /// (the editor calls it after each command, upstream
 /// `triggerAirWiresRebuild()`), the plane fragments by
-/// [`Project::rebuild_planes()`](crate::project::Project::rebuild_planes).
+/// [`Project::rebuild_planes()`](crate::project::Project::rebuild_planes)
+/// or a [`PlaneJob`](super::PlaneJob).
 ///
 /// Never participates in equality: two boards with the same persistent
 /// content are equal regardless of their derived data.
 #[derive(Debug, Clone, Default)]
 pub struct BoardDerived {
-    /// Approvals observed during this session, for conservative DRC cleanup.
-    pub(crate) supported_drc_approvals: BTreeSet<SExpression>,
     pub(crate) air_wires: BTreeMap<Option<NetSignalId>, Vec<AirWire>>,
     pub(crate) dirty_air_wire_nets: BTreeSet<Option<NetSignalId>>,
     pub(crate) plane_fragments: BTreeMap<PlaneId, Vec<Path>>,
     pub(crate) dirty_plane_layers: BTreeSet<Layer>,
+    /// Approvals of all DRC messages which occurred in a full check during
+    /// this session (upstream `mSupportedDrcMessageApprovals`), see
+    /// [`Project::drc_approvals_update()`](crate::project::Project::drc_approvals_update).
+    pub(crate) supported_drc_approvals: BTreeSet<SExpression>,
 }
 
 impl PartialEq for BoardDerived {
@@ -912,6 +915,12 @@ impl BoardDerived {
     /// `mScheduledLayersForPlanesRebuild`).
     pub fn dirty_plane_layers(&self) -> &BTreeSet<Layer> {
         &self.dirty_plane_layers
+    }
+
+    /// Returns the approvals of all DRC messages which occurred during this
+    /// session (upstream `mSupportedDrcMessageApprovals`).
+    pub fn supported_drc_approvals(&self) -> &BTreeSet<SExpression> {
+        &self.supported_drc_approvals
     }
 
     /// Schedules the air wires of a net for rebuild (upstream

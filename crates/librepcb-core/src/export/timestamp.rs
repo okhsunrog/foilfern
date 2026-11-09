@@ -30,6 +30,15 @@ impl Timestamp {
         Self::Local(Local::now().naive_local())
     }
 
+    /// Returns the date and time as shown on a clock in the time zone of
+    /// the value (what `QDateTime::toString(format)` prints).
+    pub fn date_time(&self) -> NaiveDateTime {
+        match self {
+            Self::Local(dt) | Self::Utc(dt) => *dt,
+            Self::Offset(dt) => dt.naive_local(),
+        }
+    }
+
     /// Returns the ISO 8601 representation with second precision, like
     /// `QDateTime::toString(Qt::ISODate)`.
     pub fn to_iso_string(&self) -> String {

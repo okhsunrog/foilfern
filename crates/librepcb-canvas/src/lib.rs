@@ -69,7 +69,7 @@ mod view;
 
 pub use geometry::Geometry;
 pub use navigation::{Modifiers, Navigator, PointerAction, PointerButton, PointerKind};
-pub use render::{CpuRenderer, CpuRendererSettings, RenderStats, Renderer};
+pub use render::{CpuRenderer, CpuRendererSettings, Grid, GridStyle, RenderStats, Renderer};
 pub use scene::{
     Damage, GroupId, GroupView, Item, ItemId, Layer, LayerId, OverlayGroup, Paint, Scene,
     SelectionMode,

@@ -19,7 +19,7 @@ pub struct Project {
     file_name: String,                      // "*.lpp"
     metadata: ProjectMetadata,              // uuid, name, author, version, created, attributes
     settings: ProjectSettings,              // locale/norm order, custom BOM attrs, lock default
-    output_jobs: OutputJobList,             // ordered typed jobs, unknown nodes preserved
+    output_jobs: OutputJobList,             // project/jobs.lp (`job` module)
     stroke_fonts: StrokeFontPool,
     library: ProjectLibrary,
     circuit: Circuit,
@@ -249,8 +249,8 @@ set, segment element add/remove, net re-targeting. Typed methods
 `apply` dispatches to `pub(crate)` implementations per area so the enum stays
 the single source of truth. The later command bus is then: `UndoStack {
 groups: Vec<(text, Vec<Mutation /* inverses */>)> }`, and MCP/CLI submit
-`Mutation`s (a serde DTO layer lives in the MCP crate; `Mutation` itself gets
-`serde` behind a feature only when needed).
+`Mutation`s (a serde DTO layer lives in the MCP crate; `Mutation`, `Change`
+and their contained types derive serde unconditionally for the JSON wire format).
 
 **Derived data** is kept out of the persistent tree and invalidated by
 dirty sets that the mutations maintain (the same events upstream turns into
@@ -363,7 +363,7 @@ occasional full snapshot).
 read the format version; reject newer; run file format migrations on the
 `TransactionalDirectory` (the migration agent's code, one call site here,
 producing the same `MigrationLog` HTML); then `metadata.lp`, `settings.lp`,
-`jobs.lp` (kept as `SExpression` until `job` is ported), library
+`jobs.lp` (typed `job::OutputJobList`), library
 (`library/{sym,pkg,cmp,dev}/<uuid>/` via `TransactionalFileSystem::dirs()`;
 invalid element directories are skipped with a warning, loaded with
 `LibraryBaseElement::open`), `circuit/circuit.lp` (variants, net classes,
@@ -440,7 +440,7 @@ crates/librepcb-core/src/project/
                        later: design_rules.rs, fabrication_output_settings.rs, *_data.rs, zone/polygon/
                        stroke_text/hole items, air_wires_builder.rs, plane_fragments_builder.rs,
                        net_segment_splitter.rs, drc/
-  erc/                 electrical_rule_check.rs, messages.rs (typed findings and approvals)
+  erc/                 later: electrical_rule_check.rs, electrical_rule_check_messages.rs
 ```
 
 The skeleton (implemented): ids, `error.rs`, `Project` with
@@ -471,7 +471,7 @@ without touching the same files:
 
 Shared files (`mod.rs` re-exports, the top-level `Mutation`/`Change` enums)
 already delegate to the per-area enums, so they need no edits. The
-round-trip test (`tests/project_roundtrip.rs`: open every project in
+round-trip test (`tests/unittests/compat/project_roundtrip.rs`: open every project in
 upstream `tests/data/projects`, save, every written file byte-identical)
 stays green as the `raw` passthroughs are replaced by real serialization.
 
@@ -524,12 +524,13 @@ state (`Board::derived`, the verbatim `raw` files) is skipped.
   directory from the transactional file system when a page/board is
   removed (upstream moves it to a temporary file system; the files are
   regenerated from the value on undo + save, byte-identical).
-- `project/jobs.lp` is kept as a raw `SExpression` until `core/job` is
-  ported; `Project::create()` does not copy the application's fontobene
-  fonts yet (no resources directory port).
+- `project/jobs.lp` is the typed `job::OutputJobList` (replaced as a whole
+  by `Mutation::SetOutputJobs`, journaled as `Change::OutputJobs`);
+  `Project::create()` does not copy the application's fontobene fonts yet
+  (no resources directory port).
 - Projects in an older file format are upgraded by the file format
-  migrations (`serialization::file_format_migrations()`); after loading,
-  ERC removes obsolete approvals before the upgraded project is saved.
+  migrations (`serialization::file_format_migrations()`), followed by the
+  ERC approval cleanup (`project::erc::run_erc()`), like upstream.
 - `Project::create()`/`open()` reset the journal, so a fresh project has
   revision 0; `created` is truncated to seconds (the file format's
   precision).
@@ -577,7 +578,7 @@ state (`Board::derived`, the verbatim `raw` files) is skipped.
    `DerivedState` map keyed by `BoardId` on `Project`.
 5. **`output_jobs` as raw `SExpression`** until `core/job` is ported
    (recommended: guarantees byte-identical round trip now) vs porting `job`
-   first.
+   first. (Done: `job` is ported, `output_jobs` is typed.)
 6. **`serde` on `Mutation`/`Change`**: feature-gated derive in core
    (cheap, recommended once the MCP crate exists) vs hand-written DTOs in the
    MCP crate only.

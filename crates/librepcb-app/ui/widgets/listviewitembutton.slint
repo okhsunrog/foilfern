@@ -1,0 +1,59 @@
+import { ToolTip } from "tooltip.slint";
+import { Data } from "../api.slint";
+
+export enum ToolTipSide {
+    left,
+    right,
+}
+
+export component ListViewItemButton inherits TouchArea {
+    in property <image> icon;
+    in property <length> icon-size: self.height * 0.8;
+    in property <color> colorize: transparent;
+    in property <string> tooltip;
+    in property <ToolTipSide> tooltip-side: ToolTipSide.left;
+
+    width: self.height;
+    mouse-cursor: pointer;
+
+    // Accessibility
+    accessible-role: button;
+    accessible-enabled: self.enabled;
+    accessible-label: tooltip;
+    accessible-action-default => {
+        self.clicked();
+    }
+
+    Image {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: icon-size;
+        height: icon-size * (root.pressed ? 0.85 : 1.0);
+        image-fit: contain;
+        source: icon;
+        colorize: {
+            if colorize != transparent {
+                colorize
+            } else if !root.enabled {
+                Data.theme.control-text-disabled
+            } else if root.has-hover {
+                Data.theme.control-text
+            } else {
+                Data.theme.control-text.mix(Data.theme.control-text-muted, 0.3)
+            }
+        };
+        accessible-role: none;
+    }
+
+    if self.has-hover && (!self.pressed) && (!tooltip.is-empty): tt := ToolTip {
+        x: {
+            if tooltip-side == ToolTipSide.right {
+                parent.width + 5px
+            } else {
+                -self.width - 5px
+            }
+        };
+        y: (parent.height - self.height) / 2;
+        text: tooltip;
+    }
+}

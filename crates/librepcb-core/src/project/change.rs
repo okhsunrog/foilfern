@@ -34,18 +34,18 @@ pub enum Change {
     /// changed (upstream `Project::attributesChanged()` /
     /// `normOrderChanged()`).
     ProjectSettings,
-    /// Output job configuration or order changed.
+    /// The output jobs changed.
     OutputJobs,
     /// The ERC message approvals changed.
     ErcApprovals,
     /// An assembly variant was added.
     AssemblyVariantAdded(AssemblyVariantId),
-    /// The assembly variant order (including the default variant) changed.
-    AssemblyVariantOrder,
     /// An assembly variant was removed.
     AssemblyVariantRemoved(AssemblyVariantId),
     /// Name or description of an assembly variant changed.
     AssemblyVariantChanged(AssemblyVariantId),
+    /// Assembly variant order changed (the first variant is the default).
+    AssemblyVariantOrder,
     /// A net class was added.
     NetClassAdded(NetClassId),
     /// A net class was removed.

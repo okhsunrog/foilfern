@@ -91,6 +91,60 @@ impl Image {
             .map_or(self.file_name.as_str(), |(_, ext)| ext)
     }
 
+    /// Loads image data of a supported format (upstream `Image::tryLoad()`)
+    /// and returns its size in pixels (SVGs: their default size scaled to
+    /// at least 800 pixels, like upstream renders them), or a message why
+    /// it cannot be loaded.
+    pub fn try_load(data: &[u8], format: &str) -> Result<(f64, f64), String> {
+        if !Self::SUPPORTED_EXTENSIONS.contains(&format) {
+            return Err(librepcb_i18n::tr!(
+                "Image",
+                "Unsupported image file format '{0}'. Supported formats are: {1}",
+                format,
+                Self::SUPPORTED_EXTENSIONS.join(", ")
+            ));
+        }
+        if data.is_empty() {
+            return Err("Image file seems to be empty (0 bytes).".into());
+        }
+        if format == "svg" {
+            // Upstream renders the SVG with its default size; an invalid SVG
+            // has no (i.e. an empty) default size.
+            let size = usvg::Tree::from_data(data, &usvg::Options::default())
+                .map(|tree| tree.size())
+                .ok();
+            match size {
+                Some(size) if size.width().round() >= 1.0 && size.height().round() >= 1.0 => {
+                    let (w, h) = (
+                        f64::from(size.width().round()),
+                        f64::from(size.height().round()),
+                    );
+                    let scale = (800.0 / w.max(h)).max(1.0);
+                    Ok(((w * scale).floor(), (h * scale).floor()))
+                }
+                _ => Err("The SVG's image size appears to be zero.".into()),
+            }
+        } else {
+            // Like `QImage::loadFromData(data, format)`, only the given
+            // format is tried (no detection from the content).
+            let format_hint = if format == "png" {
+                image::ImageFormat::Png
+            } else {
+                image::ImageFormat::Jpeg
+            };
+            match image::load_from_memory_with_format(data, format_hint) {
+                Ok(img) if img.width() > 0 && img.height() > 0 => {
+                    Ok((f64::from(img.width()), f64::from(img.height())))
+                }
+                Ok(_) => Err("The loaded image seems to be empty.".into()),
+                Err(_) => Err(format!(
+                    "Failed to load the image. Please check that the file is valid and the \
+                     provided file extension '{format}' is correct."
+                )),
+            }
+        }
+    }
+
     /// Returns the center of the (rotated) image.
     pub fn center(&self) -> Point {
         self.position

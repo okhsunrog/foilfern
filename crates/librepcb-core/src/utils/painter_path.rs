@@ -308,6 +308,8 @@ fn isect_line(p1: (f64, f64), p2: (f64, f64), pos: (f64, f64), winding: &mut i32
 }
 
 /// `isLine()` of qpathclipper.cpp (with its `comparePoints()`).
+// Kept in the form of the Qt source; clippy's rewrite is less readable.
+#[allow(clippy::nonminimal_bool)]
 fn is_bezier_line(b: &Bezier) -> bool {
     let cmp =
         |a: (f64, f64), b: (f64, f64)| (a.0 - b.0).abs() <= 1e-12 && (a.1 - b.1).abs() <= 1e-12;
