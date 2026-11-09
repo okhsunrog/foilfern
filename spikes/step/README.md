@@ -1,6 +1,8 @@
 # Monstertruck STEP feasibility probe
 
-Standalone Rust 2024 probe, excluded from the application workspace. Uses
+Standalone Rust 2024 harness, excluded from the application workspace; its
+CAD implementation now lives in `crates/librepcb-step`, reused through the
+`diagnostics` feature. Uses
 Monstertruck 0.4.1 (`monstertruck-io`, not the deprecated
 `monstertruck-step` re-export), modeling, topology and robust meshing.
 No renderer, GPU or native CAD library is linked into the Rust executable.
@@ -262,3 +264,38 @@ The analytic-body mesh has 67,932 total triangles at 0.01 mm tolerance, with
 no open/nonmanifold/misoriented edges. Ten Rust tests now also cover both
 arc winding directions, analytic side-face count and explicit fallback on
 intersecting curved cutouts.
+
+## Workspace and native CLI integration (2026-11-09)
+
+The guarded application API is `librepcb_step::StepModel`; see
+`../../crates/librepcb-step/README.md`. The harness no longer owns a separate
+copy of the CAD implementation. All seventeen probe inputs still pass
+geometry and independent XCAF checks after the move.
+
+The native CLI now runs `3d_model` jobs through the ordinary indexed writer,
+including board-only variants, archives and stale-file cleanup. Geometry
+preparation errors leave existing STEP output intact. All thirteen unmodified
+upstream output-job tests pass; the full CLI suite is 149 passed / 29 failed
+(remaining standalone STEP/minification and parser/help/version coverage).
+
+The native CAN–USB export matches all 2,048 face appearances, including PCB
+surfaces, against the official export. PCB bodies are opaque; newly derived
+board colors undergo upstream's linear-to-sRGB conversion. Imported STEP
+colors/opacity retain their source values. The earlier 2,024-face check
+covered only components and did not establish PCB color correctness.
+
+To validate the native CLI file using a probe run's board metadata:
+
+```sh
+cargo run -p librepcb-cli -- open-project --run-job 'STEP Model' \
+  --outdir "$STEP_WORK/native" /absolute/path/to/can2usb.lppz
+uv run spikes/step/compare-board.py "$STEP_WORK/can2usb-3d" \
+  "$STEP_WORK/can2usb-oracle/can2usb_v2.step" \
+  --assembly "$STEP_WORK/native/can2usb_v2.step" \
+  --output "$STEP_WORK/native/comparison.json"
+```
+
+For zero-approximation boards the comparison now includes every face's RGB
+and opacity, in addition to the component-only and geometry checks. The
+native CLI generates STEP here; OBJ/MTL and board metadata are diagnostic
+outputs of the harness, not extra files emitted by the STEP output job.

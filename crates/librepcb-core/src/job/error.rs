@@ -17,6 +17,8 @@ pub enum Error {
     DeferredJob(String),
     #[error("{0}")]
     Graphics(String),
+    #[error("{0}")]
+    Step(String),
     #[error("Failed to generate interactive HTML BOM: {0}")]
     InteractiveBom(String),
     #[error("Unsupported {kind} format: '{suffix}'")]

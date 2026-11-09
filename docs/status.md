@@ -1,13 +1,13 @@
 # Status and handoff
 
-State of the port as of 2026-11-08, for continuing the work in a new
+State of the port as of 2026-11-09, for continuing the work in a new
 session (for example a cloud session). Read `AGENTS.md` first; this file
 covers where things stand and how the work has been organized.
 
 ## Where we are
 
 Milestone M1 (headless `librepcb-cli`, see `roadmap.md`) is in progress.
-The workspace builds cleanly and 1030 tests report success (about 100k lines
+The workspace builds cleanly and 1047 tests report success (about 100k lines
 of Rust). The latest local run used the official CLI 2.1.1 as the oracle,
 including ERC messages, migrations and byte-identical JSON exports over
 the pinned upstream test data.
@@ -127,7 +127,8 @@ Done, in `crates/librepcb-core` unless noted:
   collision checks and cleanup. Board graphics rebuild planes before encoding.
   Realistic top/bottom board rendering also uses this writer and the shared
   physical snapshot. Interactive BOM HTML jobs execute directly through the
-  upstream Rust generator. 3D execution remains deferred.
+  upstream Rust generator. Mechanical STEP jobs now inject `librepcb-step`
+  through a separate callback, retaining the same file ownership and archives.
 
 - **Native CLI core** (2026-11-06): `crates/librepcb-cli` opens `.lpp`/`.lppz`
   projects and libraries, runs ERC/DRC and library checks, executes output
@@ -135,10 +136,10 @@ Done, in `crates/librepcb-core` unless noted:
   variants, removes boards and changes the default variant through mutations,
   checks canonical files and saves/migrates transactionally. Runs without a
   display server. Symbol/package graphics and schematic exports are supported.
-  `scripts/check-cli-core.sh` covers 139 unmodified upstream pytest cases.
-  The full upstream suite reports 143 passed / 35 failed: nine STEP/minification
-  cases, six mixed job runs blocked on STEP, and
-  twenty parser/help/version cases, including the missing `open-step` parser.
+  `scripts/check-cli-core.sh` covers 145 unmodified upstream pytest cases.
+  The full upstream suite reports 149 passed / 29 failed: nine standalone
+  STEP/minification cases and twenty parser/help/version cases, including
+  the missing `open-step` parser. All thirteen output-job cases pass.
   M1 is not complete.
 
 - **Graphics export backend** (2026-11-08): `crates/librepcb-graphics`
@@ -177,15 +178,25 @@ Done, in `crates/librepcb-core` unless noted:
 
 ## Next steps
 
-The standalone `spikes/step` probe now validates Monstertruck 0.4.1 geometry
+`crates/librepcb-step` now provides the application CAD backend. Its guarded
+`StepModel` API imports models, prepares mechanical boards and exports
+STEP/OBJ/MTL without a display or GPU. Ordinary kernel panics become typed
+errors; input size/nesting limits are explicit. Core has no CAD dependency:
+the native CLI injects the backend into the indexed output-job runner.
+Preparation failures preserve previous output files; archives consume STEP
+files through the normal job dependency mechanism. Board-only variants work,
+and project revision/files stay unchanged during CAD preparation.
+
+The `spikes/step` diagnostic harness reuses the workspace implementation and
+validates Monstertruck 0.4.1 geometry
 on all ten CAN–USB STEP files, two upstream OccModelTest fixtures and an
 analytic drilled plate. Reported conversion, watertight tessellation,
 assembly instances/placements and BRep re-export pass independent OCCT
 solid/face-count, volume, bounds and validity checks. Its board executable
 also consumes the shared physical snapshot and produces a CAN–USB assembly
 with 27 devices / 87 valid solids and a watertight 67,932-triangle mesh.
-Every component solid matches the official STEP export individually; PCB
-whole surviving contours retain analytic arcs. CAN–USB needs zero flattened
+Every component solid matches the official STEP export individually; whole
+surviving PCB contours retain analytic arcs. CAN–USB needs zero flattened
 contours, with a 0.000011741 mm3 PCB volume difference from the official
 export. Intersecting boundaries retain an explicit 5 um approximation count.
 Mechanical export intentionally omits via drills, as upstream does.
@@ -194,22 +205,25 @@ millimetres (16 independent fixture comparisons); mixed contexts and
 unsupported angle units fail explicitly. Surface RGB/opacity now survive
 STEP re-export and OBJ/MTL tessellation, including solid defaults and face
 overrides. Seventeen models pass independent geometry/XCAF checks; all
-2,024 component-face appearances of assembled CAN–USB match the official
-export. Ten focused Rust tests and compile-time thread-safety assertions
-cover the adapter. It remains outside the application workspace: exact PCB
-curve intersections, broader metadata/representation coverage and integration are pending. See
-`../spikes/step/README.md`; CLI STEP remains deferred.
+2,048 appearances, including the opaque substrate, of the native CLI's
+assembled CAN–USB match the official export. New board colors reproduce
+upstream's linear-RGB-to-sRGB encoding; imported STEP RGB is retained.
+Fifteen CAD tests, two callback/archive tests and compile-time thread-safety
+assertions cover the integration. Exact curve intersections, broader
+metadata/representation coverage, standalone STEP tools and an interactive
+viewer remain pending. See `../crates/librepcb-step/README.md` and
+`../spikes/step/README.md` for boundaries and reproduction.
 
-1. **Wave 4 acceptance:** close the remaining CLI differences. STEP still
-   blocks mixed job runs. STEP originally belonged to M5; full upstream
-   `tests/cli` acceptance requires it. Parser/help/version snapshots need a
-   native-parser policy.
+1. **Wave 4 acceptance:** close standalone `open-step` and minification
+   coverage plus the remaining CLI parser/help/version differences. Mechanical
+   STEP output jobs and all mixed job cases now execute. Parser/help/version
+   snapshots still need a native-parser policy.
    Keep running the implemented paths with `scripts/check-cli-core.sh`.
 2. **Then M1.5** (MCP, library manager, Specctra) per `roadmap.md` and the
    decisions in `mcp-research-konnect.md`.
 
 Deliberately deferred: live viewer/editor integration (M2), Specctra
-(M1.5), 3D/STEP, and the Eagle/KiCad importers
+(M1.5), interactive 3D viewing, and the Eagle/KiCad importers
 (M5).
 
 ## How the work is organized

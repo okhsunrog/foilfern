@@ -14,6 +14,26 @@ use librepcb_core::{
 use monstertruck_modeling::*;
 use std::collections::BTreeMap;
 
+/// Upstream passes QColor channel values to Quantity_TOC_RGB (linear), then
+/// the STEP writer encodes sRGB. Mechanical PCB bodies export opaque; mask
+/// alpha is for the separate surface renderer, not the substrate solid.
+pub fn mechanical_material(data: &BoardPhysicalGeometry) -> crate::materials::Material {
+    let linear = if let Some(resist) = data.solder_resist {
+        let color = resist.to_solder_resist_color();
+        [color.r, color.g, color.b].map(|value| f64::from(value) / 510.)
+    } else {
+        [70., 80., 70.].map(|value| value / 255.)
+    };
+    let color = linear.map(|value| {
+        if value <= 0.0031308 {
+            value * 12.92
+        } else {
+            1.055 * libm::pow(value, 1. / 2.4) - 0.055
+        }
+    });
+    crate::materials::Material { color, opacity: 1. }
+}
+
 type ContourKey = Vec<(i64, i64)>;
 pub struct BoardBrep {
     pub solids: Vec<Solid>,
@@ -103,6 +123,7 @@ fn collect(
 
 /// Mechanical STEP policy follows upstream: via drills are omitted entirely.
 /// Non-via drills must be through holes; no blind drill is silently deepened.
+#[cfg(any(test, feature = "diagnostics"))]
 pub fn board_solids(data: &BoardPhysicalGeometry) -> Result<Vec<Solid>> {
     Ok(board_brep(data)?.solids)
 }
@@ -244,13 +265,23 @@ mod tests {
                     assert!(triangles.face_iter().all(|face| face.surface().is_some()));
                     mesh.merge(triangles.to_polygon());
                 }
-                let stats = crate::mesh_stats(mesh).unwrap();
+                let stats = crate::kernel::mesh_stats(mesh).unwrap();
                 for key in ["boundary_edges", "nonmanifold_edges", "misoriented_edges"] {
                     assert_eq!(stats[key], 0);
                 }
                 stats["signed_volume"].as_f64().unwrap()
             })
             .sum()
+    }
+    #[test]
+    fn mechanical_pcb_color_is_opaque_and_encoded_as_srgb() {
+        let mut data = snapshot();
+        data.solder_resist = Some(librepcb_core::types::PcbColor::Green);
+        let material = mechanical_material(&data);
+        assert_eq!(material.opacity, 1.);
+        assert_eq!(material.color[0], 0.);
+        assert!((material.color[1] - 0.3458689218895012).abs() < 1e-12);
+        assert_eq!(material.color[2], 0.);
     }
     #[test]
     fn circular_holes_keep_two_analytic_arcs_in_both_directions() {

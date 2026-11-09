@@ -207,6 +207,7 @@ pub struct StepDocument {
 }
 static_assertions::assert_impl_all!(StepDocument: Send, Sync);
 impl StepDocument {
+    #[cfg(feature = "diagnostics")]
     pub fn entity_count(&self) -> usize {
         self.records.0.len()
     }

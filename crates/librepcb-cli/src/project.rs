@@ -450,6 +450,28 @@ pub fn run(options: ProjectOptions) -> Result<bool> {
                         })
                         .map_err(|error| librepcb_core::job::Error::Graphics(error.to_string()))
                 })));
+                runner.set_step_exporter(Some(Box::new(|project, board, variant| {
+                    let model = librepcb_step::StepModel::from_board(project, board, variant)
+                        .map_err(|error| librepcb_core::job::Error::Step(error.to_string()))?;
+                    let warnings = if model.approximated_contours() == 0 {
+                        Vec::new()
+                    } else {
+                        vec![tr!(
+                            "StepExport",
+                            "Approximating {0} clipped board contours within 0.005 mm.",
+                            model.approximated_contours()
+                        )]
+                    };
+                    let contents = model
+                        .to_step()
+                        .map_err(|error| librepcb_core::job::Error::Step(error.to_string()))?;
+                    // Generic job warnings are suppressed for upstream CLI
+                    // compatibility; CAD approximation must remain visible.
+                    for warning in &warnings {
+                        eprintln!("{}", tr!("CommandLineInterface", "WARNING: {0}", warning));
+                    }
+                    Ok(librepcb_core::project::BoardStepOutput { contents, warnings })
+                })));
                 let style = options.project.clone();
                 runner.set_file_observer(Some(Box::new(move |event| {
                     if let OutputDirectoryEvent::AboutToWriteFile(fp) = event {

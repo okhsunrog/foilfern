@@ -42,6 +42,94 @@ fn out(temp: &tempfile::TempDir) -> FilePath {
     FilePath::new(temp.path()).unwrap()
 }
 #[test]
+fn step_jobs_dispatch_board_only_exports_and_archive_prepared_bytes() {
+    use librepcb_core::project::{BoardStepOutput, OutputJobEvent};
+    let mut project = load("Nested Planes");
+    let board_id = project.boards()[0].id();
+    let step = job(JobKind::Board3d {
+        boards: ObjectSet::Default,
+        variants: ObjectSet::Custom(BTreeSet::from([None])),
+        output: "mechanical.STP".into(),
+    });
+    let archive = job(JobKind::Archive {
+        inputs: BTreeMap::from([(step.uuid(), String::new())]),
+        output: "mechanical.zip".into(),
+    });
+    let temp = tempfile::tempdir().unwrap();
+    let mut runner = OutputJobRunner::new(&mut project, &out(&temp), "test", Timestamp::now());
+    runner.set_step_exporter(Some(Box::new(move |_, board, variant| {
+        assert_eq!(board.id(), board_id);
+        assert_eq!(variant, None);
+        assert!(!board.derived().plane_fragments().is_empty());
+        Ok(BoardStepOutput {
+            contents: b"prepared BRep".to_vec(),
+            warnings: vec!["contour approximation".into()],
+        })
+    })));
+    let mut warnings = Vec::new();
+    runner
+        .run_with_observer(&[step.clone(), archive], |event| {
+            if let OutputJobEvent::Warning(message) = event {
+                warnings.push(message)
+            }
+        })
+        .unwrap();
+    assert_eq!(warnings, vec!["contour approximation"]);
+    assert_eq!(
+        std::fs::read(temp.path().join("mechanical.STP")).unwrap(),
+        b"prepared BRep"
+    );
+    let mut zip = ZipArchive::open(&out(&temp).path_to("mechanical.zip")).unwrap();
+    assert_eq!(
+        zip.read_file_by_name("mechanical.STP").unwrap().unwrap(),
+        b"prepared BRep"
+    );
+}
+
+#[test]
+fn step_preparation_failure_preserves_existing_output() {
+    use librepcb_core::project::BoardStepOutput;
+    let mut project = load("Nested Planes");
+    let step = job(JobKind::Board3d {
+        boards: ObjectSet::Default,
+        variants: ObjectSet::Custom(BTreeSet::from([None])),
+        output: "board.step".into(),
+    });
+    let temp = tempfile::tempdir().unwrap();
+    let mut runner = OutputJobRunner::new(&mut project, &out(&temp), "test", Timestamp::now());
+    assert!(matches!(
+        runner.run(std::slice::from_ref(&step)),
+        Err(Error::DeferredJob(_))
+    ));
+    runner.set_step_exporter(Some(Box::new(|_, _, _| {
+        Ok(BoardStepOutput {
+            contents: b"previous".to_vec(),
+            warnings: Vec::new(),
+        })
+    })));
+    runner.run(std::slice::from_ref(&step)).unwrap();
+    runner.set_step_exporter(Some(Box::new(|_, _, _| {
+        Err(Error::Step("invalid model".into()))
+    })));
+    assert!(matches!(
+        runner.run(std::slice::from_ref(&step)),
+        Err(Error::Step(_))
+    ));
+    assert_eq!(
+        std::fs::read(temp.path().join("board.step")).unwrap(),
+        b"previous"
+    );
+    let invalid = job(JobKind::Board3d {
+        boards: ObjectSet::Default,
+        variants: ObjectSet::Custom(BTreeSet::from([None])),
+        output: "board.png".into(),
+    });
+    assert!(matches!(
+        runner.run(&[invalid]),
+        Err(Error::UnsupportedFormat { kind: "STEP", .. })
+    ));
+}
+#[test]
 fn test_gerber_excellon_rebuilds_planes() {
     let mut project = load("Nested Planes");
     let board = project.boards()[0].id();

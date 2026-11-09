@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run unmodified upstream tests for the native CLI's implemented commands.
-# The full suite also includes deferred interactive BOM/3D jobs and Qt help snapshots.
+# The full suite also includes deferred open-step/minification and Qt help snapshots.
 set -euo pipefail
 repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 upstream_dir="${LIBREPCB_UPSTREAM_DIR:-"$repo_dir/../LibrePCB"}"
@@ -34,9 +34,4 @@ uv run pytest --librepcb-executable="$cli_executable" "$@" \
     open_symbol/test_export.py \
     open_package/test_export.py \
     open_project/test_export_schematics.py \
-    open_project/test_run_jobs.py::test_if_project_without_jobs_succeeds \
-    open_project/test_run_jobs.py::test_if_invalid_job_fails \
-    open_project/test_run_jobs.py::test_conflicting_output_file_fails \
-    open_project/test_run_jobs.py::test_custom_jobs \
-    open_project/test_run_jobs.py::test_nonexistent_jobs_fails \
-    open_project/test_run_jobs.py::test_invalid_jobs_fails
+    open_project/test_run_jobs.py

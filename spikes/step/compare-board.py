@@ -50,10 +50,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("actual", type=Path, help="board prototype output directory")
     parser.add_argument("expected", type=Path, help="official LibrePCB assembly STEP")
+    parser.add_argument(
+        "--assembly",
+        type=Path,
+        help="override assembly STEP, for native CLI validation",
+    )
+    parser.add_argument("--output", type=Path, help="override comparison report path")
     args = parser.parse_args()
     data = json.loads((args.actual / "board.json").read_text())
     expected = solids(args.expected)
-    actual = solids(args.actual / "assembly.step")
+    assembly = args.assembly or args.actual / "assembly.step"
+    actual = solids(assembly)
     assert len(actual) == len(expected) == data["component_solids"] + data["pcb_solids"]
     pcb = solids(args.actual / "pcb.step")
     body_results = []
@@ -107,16 +114,21 @@ def main():
         ), item["name"]
     result = {
         "passed": True,
+        "assembly": str(assembly),
         "component_solids_matched": len(component_errors),
         "max_component_bounds_error_mm": max(component_errors, default=0.0),
         "pcb": body_results,
         "component_appearance": compare_appearance(
             args.expected,
-            args.actual / "assembly.step",
+            assembly,
             [body["bounds"] for body in pcb],
         ),
     }
-    (args.actual / "comparison.json").write_text(json.dumps(result, indent=2) + "\n")
+    if data.get("approximated_contours", 1) == 0:
+        result["full_appearance"] = compare_appearance(args.expected, assembly)
+    (args.output or args.actual / "comparison.json").write_text(
+        json.dumps(result, indent=2) + "\n"
+    )
     print(json.dumps(result, indent=2))
 
 

@@ -20,8 +20,8 @@ fn checked_mesh(mesh: &PolygonMesh) -> Result<Value> {
     Ok(stats)
 }
 use step_spike::{
-    board::{board_brep, device_matrix},
-    materials::{Material, export_obj, export_step},
+    board::{board_brep, device_matrix, mechanical_material},
+    materials::{export_obj, export_step},
     mesh_stats,
     metadata::StepDocument,
     placed_solids, tessellate_solid, transform_solid,
@@ -99,18 +99,7 @@ fn main() -> Result<()> {
     let pcb_document = StepDocument::parse(pcb_text.as_bytes())?;
     pcb_document.table.entity_report.require_empty()?;
     let mut pcb_solids = placed_solids(&pcb_document)?;
-    let pcb_material = if let Some(resist) = data.solder_resist {
-        let color = resist.to_solder_resist_color();
-        Material {
-            color: [color.r, color.g, color.b].map(|value| f64::from(value) / 510.),
-            opacity: f64::from(color.a) / 255.,
-        }
-    } else {
-        Material {
-            color: [70., 80., 70.].map(|value| value / 255.),
-            opacity: 1.,
-        }
-    };
+    let pcb_material = mechanical_material(&data);
     for item in &mut pcb_solids {
         for shell in &mut item.appearance {
             shell.fill(Some(pcb_material));

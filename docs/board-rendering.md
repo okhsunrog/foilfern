@@ -50,20 +50,27 @@ in Slint is a separate integration; the retained paths carry no CPU/GPU state.
 A future 3D mesh builder uses canonical outlines, resolved drill spans and
 model references. It must not extrude a flat projection: upstream's flat
 blind-via treatment differs from physical depth. Bevy is a candidate for
-lighting, materials and camera control. The application workspace has no
-Bevy dependency, 3D mesh builder, STEP tessellation or 3D viewer yet.
+lighting, materials and camera control. The application workspace now has
+mechanical BRep construction and STEP tessellation in `librepcb-step`;
+it has no Bevy dependency or interactive 3D viewer yet.
 
-The isolated `spikes/step` experiment now consumes the canonical snapshot
+`librepcb_step::StepModel::from_board()` consumes the canonical snapshot
 to build a mechanical BRep board and placed component solids with
 Monstertruck, with STEP and OBJ output. CAN–USB's component placements match
 the official STEP export individually in independent OCCT checks. This
-prototype approximates PCB curves within 5 micrometres, normalizes supported
+backend retains analytic arcs on whole surviving contours and explicitly
+reports 5-micrometre approximation for clipped boundaries. It normalizes supported
 model unit contexts to millimetres and preserves supported surface RGB/opacity
 through STEP and OBJ/MTL export. Product hierarchy and other metadata are not
 retained. It omits via drills to match the
 upstream mechanical STEP policy; a physical viewer requires its own
-depth-aware drill geometry. See `../spikes/step/README.md` for measured
-results and reproduction. Application integration remains pending.
+depth-aware drill geometry. Mechanical PCB bodies are opaque, with the
+upstream linear-RGB-to-sRGB color encoding; mask alpha belongs to the
+separate physical surface renderer. The CLI injects STEP preparation through
+the core job runner, retaining indexed ownership, archives and cleanup.
+See `../crates/librepcb-step/README.md` and `../spikes/step/README.md` for
+API boundaries and independent validation. The probe reuses the workspace
+backend through its optional diagnostics feature.
 
 The snapshot is synchronous and `Send + Sync`, so a caller can prepare it on
 a worker thread. It is derived data, with no file-format or journal changes.

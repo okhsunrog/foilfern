@@ -527,14 +527,32 @@ differ between platforms/implementations:
 - Implemented commands are `open-project`, `open-library`, `open-symbol` and
   `open-package`, including symbol/package and schematic graphics exports.
   Schematic, 2D-board, realistic top/bottom and interactive HTML BOM output
-  jobs are supported. STEP/minification remain deferred and are reported
-  as unsupported. The supported-command suite has 139 unmodified upstream
-  tests; the full suite reports 143 passed / 35 failed across deferred
-  features and parser/help/version text.
+  jobs and mechanical STEP jobs are supported. The standalone `open-step`
+  command and library STEP minification remain deferred. See `docs/status.md`
+  for the current supported-command and full-suite acceptance counts.
 - Saving `.lppz` builds the updated archive in memory, then writes it
   atomically through the existing file utility. A failed archive export
   therefore retains the original file. The project root is isolated from
   sibling files before loading ZIP contents, like upstream.
+
+## STEP and mechanical board export
+
+- The pure Rust backend retains supported BRep geometry and surface RGB/opacity,
+  but currently flattens product names/assembly hierarchy and drops unrelated
+  metadata. Mixed length contexts, non-radian angle units, unsupported surface
+  presentation semantics and non-solid representations are explicit errors.
+  These are current coverage gaps, not accepted file-format changes.
+- Unchanged board contours retain analytic arcs; contours changed by Boolean
+  clipping use the existing 0.005 mm polygon approximation with a CLI warning.
+  Upstream uses OpenCascade Booleans and falls back to 0.01 mm segments only
+  when arc construction fails. Via drills are omitted by both mechanical
+  exporters. Physical rendering needs a separate drill-depth policy.
+- All model preparation and serialization complete before opening the STEP
+  output. A failed model leaves an earlier output intact; upstream can create
+  a partial assembly before returning a component-export error. Invalid suffix
+  errors identify the format as STEP instead of upstream's copied netlist label.
+- Kernel panics that unwind become typed errors. Import limits are 256 MiB and
+  256 nesting levels; this does not provide process-level resource isolation.
 
 ## graphics
 

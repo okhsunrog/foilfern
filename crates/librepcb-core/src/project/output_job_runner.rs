@@ -1,7 +1,7 @@
 //! Port of libs/librepcb/core/project/outputjobrunner.{h,cpp}.
 //! Synchronous execution uses existing format generators and indexed output
 //! ownership. Application version/time are explicit; observer callbacks
-//! replace Qt signals. Graphics encoding is provided by the caller.
+//! replace Qt signals. Graphics and CAD encoding are provided by the caller.
 
 use super::board::{
     BoardD356NetlistExport, BoardGerberExport, BoardInteractiveBomGenerator,
@@ -38,6 +38,15 @@ pub struct GraphicsJobFile {
 /// Encoding lives outside core; the runner retains ownership of all writes.
 pub type GraphicsJobExporter =
     Box<dyn Fn(&Project, &GraphicsJob) -> Result<Vec<GraphicsJobFile>> + Send>;
+/// A prepared STEP export. Core owns naming, indexing, archives and cleanup.
+pub struct BoardStepOutput {
+    pub contents: Vec<u8>,
+    pub warnings: Vec<String>,
+}
+pub type BoardStepExporter = Box<
+    dyn Fn(&Project, &super::board::Board, Option<AssemblyVariantId>) -> Result<BoardStepOutput>
+        + Send,
+>;
 /// Executes jobs in the supplied order. Archive dependencies must precede
 /// their consumers, as upstream. A failure stops the run and retains files
 /// already written; obsolete files are removed only after job success.
@@ -47,6 +56,7 @@ pub struct OutputJobRunner<'a> {
     app_version: String,
     timestamp: Timestamp,
     graphics_exporter: Option<GraphicsJobExporter>,
+    step_exporter: Option<BoardStepExporter>,
 }
 static_assertions::assert_impl_all!(OutputJobRunner<'_>:Send);
 impl<'a> OutputJobRunner<'a> {
@@ -62,6 +72,7 @@ impl<'a> OutputJobRunner<'a> {
             app_version: app_version.into(),
             timestamp,
             graphics_exporter: None,
+            step_exporter: None,
         }
     }
     pub fn directory_path(&self) -> &FilePath {
@@ -75,6 +86,9 @@ impl<'a> OutputJobRunner<'a> {
     }
     pub fn set_graphics_exporter(&mut self, exporter: Option<GraphicsJobExporter>) {
         self.graphics_exporter = exporter;
+    }
+    pub fn set_step_exporter(&mut self, exporter: Option<BoardStepExporter>) {
+        self.step_exporter = exporter;
     }
     pub fn find_unknown_files(&self, known: &HashSet<Uuid>) -> Result<Vec<FilePath>> {
         Ok(self.writer.find_unknown_files(known)?)
@@ -494,8 +508,42 @@ impl<'a> OutputJobRunner<'a> {
                     }
                 }
             }
-            JobKind::Board3d { .. } => {
-                return Err(Error::DeferredJob(job.kind.type_name().into()));
+            JobKind::Board3d {
+                boards,
+                variants,
+                output,
+            } => {
+                if self.step_exporter.is_none() {
+                    return Err(Error::DeferredJob(job.kind.type_name().into()));
+                }
+                for board in self.required_boards(boards)? {
+                    self.rebuild_planes(board)?;
+                    for variant in self.variants(variants)? {
+                        let path = self.path(output, Some(board), variant)?;
+                        let suffix = std::path::Path::new(&path)
+                            .extension()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or_default();
+                        if !["step", "stp"]
+                            .iter()
+                            .any(|s| suffix.eq_ignore_ascii_case(s))
+                        {
+                            return Err(Error::UnsupportedFormat {
+                                kind: "STEP",
+                                suffix: suffix.into(),
+                            });
+                        }
+                        let exporter = self
+                            .step_exporter
+                            .as_ref()
+                            .expect("exporter presence checked before synchronous execution");
+                        let prepared = exporter(self.project, self.board(board)?, variant)?;
+                        for warning in prepared.warnings {
+                            observer(OutputJobEvent::Warning(warning));
+                        }
+                        self.write(job, &path, &prepared.contents)?;
+                    }
+                }
             }
         }
         Ok(())
