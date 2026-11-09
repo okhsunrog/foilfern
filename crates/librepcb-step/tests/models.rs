@@ -59,6 +59,16 @@ fn upstream_models_export_and_mesh_without_a_display() {
         .unwrap();
         assert!(meshes.iter().any(|mesh| !mesh.mesh.indices.is_empty()));
         assert!(materials.unwrap().len() >= 2);
+        let stats = again.tessellation_stats(0.01).unwrap();
+        assert_eq!(
+            stats.vertices,
+            meshes.iter().map(|m| m.mesh.indices.len()).sum::<usize>()
+        );
+        assert!(stats.colors >= 2);
+        if name == "colors.step" {
+            assert_eq!(stats.colors, 5);
+        }
+        assert!(again.tessellation_stats(0.).is_err());
         assert!(again.to_obj(f64::NAN).is_err());
     }
 }

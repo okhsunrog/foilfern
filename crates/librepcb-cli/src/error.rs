@@ -19,6 +19,8 @@ pub enum Error {
     Job(Box<librepcb_core::job::Error>),
     #[error(transparent)]
     Graphics(Box<librepcb_graphics::Error>),
+    #[error(transparent)]
+    Step(Box<librepcb_step::Error>),
 }
 macro_rules! from {
     ($variant:ident,$ty:ty) => {
@@ -36,4 +38,5 @@ from!(Serialization, librepcb_core::serialization::Error);
 from!(Export, librepcb_core::export::Error);
 from!(Job, librepcb_core::job::Error);
 from!(Graphics, librepcb_graphics::Error);
+from!(Step, librepcb_step::Error);
 pub type Result<T> = std::result::Result<T, Error>;

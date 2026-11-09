@@ -13,6 +13,39 @@ fn run(args: &[&str]) -> Output {
         .output()
         .unwrap()
 }
+#[test]
+fn step_commands_validate_and_tessellate_without_a_display() {
+    let path = Path::new(env!("LIBREPCB_UPSTREAM_DIR"))
+        .join("tests/data/unittests/librepcbcommon/OccModelTest/model.step");
+    let bytes = std::fs::read(&path).unwrap();
+    let stats = librepcb_step::StepModel::from_step(&bytes)
+        .unwrap()
+        .tessellation_stats(0.01)
+        .unwrap();
+    let output = run(&["open-step", "--tesselate", path.to_str().unwrap()]);
+    assert!(output.status.success(), "{:?}", output);
+    assert!(output.stderr.is_empty());
+    assert!(String::from_utf8_lossy(&output.stdout).contains(&format!(
+        " - Built {} vertices with {} different colors\nSUCCESS\n",
+        stats.vertices, stats.colors
+    )));
+    let temp = tempfile::tempdir().unwrap();
+    let invalid = temp.path().join("invalid.step");
+    let saved = temp.path().join("saved.step");
+    std::fs::write(&invalid, b"not STEP").unwrap();
+    let output = run(&[
+        "open-step",
+        "--save-to",
+        saved.to_str().unwrap(),
+        invalid.to_str().unwrap(),
+    ]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(!output.stderr.is_empty());
+    assert_eq!(std::fs::read(saved).unwrap(), b"not STEP");
+    assert!(
+        String::from_utf8_lossy(&output.stdout).ends_with("Load model...\nFinished with errors!\n")
+    );
+}
 fn fixture(temp: &tempfile::TempDir) -> FilePath {
     let src = Path::new(env!("LIBREPCB_UPSTREAM_DIR")).join("tests/data/projects/Empty Project");
     let dst = FilePath::new(temp.path().join("project")).unwrap();

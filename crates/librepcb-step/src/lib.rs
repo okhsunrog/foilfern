@@ -31,6 +31,13 @@ pub struct StepModel {
 }
 static_assertions::assert_impl_all!(StepModel: Send, Sync);
 
+/// Expanded triangle vertices and distinct surface appearances, including opacity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TessellationStats {
+    pub vertices: usize,
+    pub colors: usize,
+}
+
 fn operation<T>(result: anyhow::Result<T>) -> Result<T> {
     result.map_err(|error| Error::Geometry(format!("{error:#}")))
 }
@@ -161,15 +168,42 @@ impl StepModel {
     /// Headless tessellation, independent of BRep export. Save OBJ and MTL together.
     pub fn to_obj(&self, tolerance_mm: f64) -> Result<(String, String)> {
         protected(|| {
-            let mut mesh = PolygonMesh::default();
-            let mut groups = Vec::new();
-            for solid in &self.solids {
-                let (part, materials) = operation(kernel::tessellate_solid(solid, tolerance_mm))?;
-                mesh.merge(part);
-                groups.extend(materials);
-            }
+            let (mesh, groups) = self.tessellate(tolerance_mm)?;
             operation(materials::export_obj(&mesh, &groups))
         })
+    }
+
+    /// Tessellate on the CPU without a display or GPU. Counts describe this
+    /// kernel's mesh; curved surfaces need not match OpenCascade's subdivision.
+    pub fn tessellation_stats(&self, tolerance_mm: f64) -> Result<TessellationStats> {
+        protected(|| {
+            let (mesh, groups) = self.tessellate(tolerance_mm)?;
+            let mut colors = Vec::new();
+            for (count, material) in groups {
+                let material = material.unwrap_or(materials::DEFAULT_MATERIAL);
+                if count > 0 && !colors.contains(&material) {
+                    colors.push(material);
+                }
+            }
+            Ok(TessellationStats {
+                vertices: mesh.tri_faces().len() * 3,
+                colors: colors.len(),
+            })
+        })
+    }
+
+    fn tessellate(&self, tolerance_mm: f64) -> Result<(PolygonMesh, materials::MaterialGroups)> {
+        if !tolerance_mm.is_finite() || tolerance_mm <= 0. {
+            return Err(Error::Geometry("invalid tessellation tolerance".into()));
+        }
+        let mut mesh = PolygonMesh::default();
+        let mut groups = Vec::new();
+        for solid in &self.solids {
+            let (part, materials) = operation(kernel::tessellate_solid(solid, tolerance_mm))?;
+            mesh.merge(part);
+            groups.extend(materials);
+        }
+        Ok((mesh, groups))
     }
 }
 

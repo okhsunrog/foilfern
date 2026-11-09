@@ -136,10 +136,12 @@ Done, in `crates/librepcb-core` unless noted:
   variants, removes boards and changes the default variant through mutations,
   checks canonical files and saves/migrates transactionally. Runs without a
   display server. Symbol/package graphics and schematic exports are supported.
-  `scripts/check-cli-core.sh` covers 145 unmodified upstream pytest cases.
-  The full upstream suite reports 149 passed / 29 failed: nine standalone
-  STEP/minification cases and twenty parser/help/version cases, including
-  the missing `open-step` parser. All thirteen output-job cases pass.
+  Standalone `open-step` loads/validates models, copies with `--save-to`, and
+  tessellates with `--tesselate` using the same CPU mesh as OBJ export.
+  `scripts/check-cli-core.sh` covers 148 unmodified upstream pytest cases.
+  The previous full-suite baseline was 149 passed / 29 failed; all three
+  standalone loading/tessellation cases now pass as well. Standalone/library
+  minification and parser/help/version cases remain. All thirteen output-job cases pass.
   M1 is not complete.
 
 - **Graphics export backend** (2026-11-08): `crates/librepcb-graphics`
@@ -219,8 +221,13 @@ viewer remain pending. See `../crates/librepcb-step/README.md` and
    STEP output jobs and all mixed job cases now execute. Parser/help/version
    snapshots still need a native-parser policy.
    Keep running the implemented paths with `scripts/check-cli-core.sh`.
-2. **Then M1.5** (MCP, library manager, Specctra) per `roadmap.md` and the
-   decisions in `mcp-research-konnect.md`.
+2. **Integrate the existing M1.5 implementation.** The separate remote branch
+   `origin/claude/ecstatic-carson-u1ye4i` (tip `3adbf58` at inspection) already
+   contains `librepcb-mcp`, editor/library/import/autoroute and application work.
+   Its MCP server supports stdio/HTTP, project reads/writes, undo/redo, library
+   operations and embedding. These crates are absent from this checkout's
+   `master`; reconcile the branches and validate the integration instead of
+   implementing a second server. `roadmap.md` describes this branch's baseline.
 
 Deliberately deferred: live viewer/editor integration (M2), Specctra
 (M1.5), interactive 3D viewing, and the Eagle/KiCad importers

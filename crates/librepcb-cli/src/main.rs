@@ -5,6 +5,7 @@
 mod error;
 mod library;
 mod project;
+mod step;
 mod support;
 
 use clap::{Args, Parser, Subcommand};
@@ -38,6 +39,19 @@ enum Command {
     /// Check a library package.
     #[command(name = "open-package", about=tr!("CommandLineInterface","Check a library package."))]
     Package(ElementOptions),
+    /// Load and validate a STEP model without a display server.
+    #[command(name = "open-step")]
+    Step(StepOptions),
+}
+#[derive(Args)]
+struct StepOptions {
+    file: String,
+    /// Tessellate the model on the CPU and report vertex/color counts.
+    #[arg(long)]
+    tesselate: bool,
+    /// Copy the input to this path before validation.
+    #[arg(long)]
+    save_to: Option<String>,
 }
 #[derive(Args)]
 struct ProjectOptions {
@@ -130,6 +144,7 @@ fn run(cli: Cli) -> Result<(bool, bool)> {
         Command::Library(options) => library::run(options).map(|success| (success, false)),
         Command::Symbol(options) => library::symbol(options).map(|success| (success, false)),
         Command::Package(options) => library::package(options).map(|success| (success, false)),
+        Command::Step(options) => step::run(options).map(|success| (success, false)),
     }
 }
 fn main() -> std::process::ExitCode {

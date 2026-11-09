@@ -525,10 +525,12 @@ differ between platforms/implementations:
   reports this Rust package's version, without fictitious Qt/OpenCascade
   versions. Application messages still use the upstream translation context.
 - Implemented commands are `open-project`, `open-library`, `open-symbol` and
-  `open-package`, including symbol/package and schematic graphics exports.
+  `open-package` and `open-step`, including symbol/package and schematic graphics exports.
   Schematic, 2D-board, realistic top/bottom and interactive HTML BOM output
-  jobs and mechanical STEP jobs are supported. The standalone `open-step`
-  command and library STEP minification remain deferred. See `docs/status.md`
+  jobs and mechanical STEP jobs are supported. Standalone STEP loading,
+  CPU tessellation and copying with `--save-to` are supported; standalone and
+  library STEP minification remain deferred. Curved-surface vertex counts follow
+  Monstertruck's subdivision instead of OpenCascade's. See `docs/status.md`
   for the current supported-command and full-suite acceptance counts.
 - Saving `.lppz` builds the updated archive in memory, then writes it
   atomically through the existing file utility. A failed archive export

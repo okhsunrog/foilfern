@@ -20,6 +20,10 @@ pub struct Material {
     pub color: [f64; 3],
     pub opacity: f64,
 }
+pub const DEFAULT_MATERIAL: Material = Material {
+    color: [0.65; 3],
+    opacity: 1.,
+};
 pub type Appearance = Vec<Vec<Option<Material>>>;
 pub type MaterialGroups = Vec<(usize, Option<Material>)>;
 
@@ -37,10 +41,7 @@ pub fn export_obj(
     let mut materials = Vec::new();
     let mut names = Vec::new();
     for &(count, value) in groups {
-        let material = value.unwrap_or(Material {
-            color: [0.65; 3],
-            opacity: 1.,
-        });
+        let material = value.unwrap_or(DEFAULT_MATERIAL);
         let index = if let Some(index) = materials.iter().position(|value| *value == material) {
             index
         } else {

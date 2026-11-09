@@ -16,6 +16,9 @@ component bodies. Callers rebuild planes before extraction.
 independently tessellates and returns OBJ plus `assembly.mtl`. Keep both
 files together. `StepModel` is owned and `Send + Sync`; callers may run it
 on their worker threads. The crate does not retain a project or GPU handle.
+`tessellation_stats(tolerance)` counts expanded triangle vertices and distinct
+surface appearances using the same mesh as OBJ export. `librepcb-cli open-step`
+validates standalone models; `--tesselate` reports these counts without a display.
 
 The core output job runner injects this backend through `BoardStepExporter`,
 without taking a CAD dependency itself. Core resolves boards/variants,
