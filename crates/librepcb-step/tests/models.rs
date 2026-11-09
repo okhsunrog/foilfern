@@ -45,7 +45,20 @@ fn upstream_models_export_and_mesh_without_a_display() {
     let root = Path::new(env!("LIBREPCB_UPSTREAM_DIR"))
         .join("tests/data/unittests/librepcbcommon/OccModelTest");
     for (name, solids) in [("colors.step", 5), ("model.step", 1)] {
-        let model = StepModel::from_step(&std::fs::read(root.join(name)).unwrap()).unwrap();
+        let original = std::fs::read(root.join(name)).unwrap();
+        let model = StepModel::from_step(&original).unwrap();
+        let minified = librepcb_step::minify_step(&original).unwrap();
+        assert!(minified.len() < original.len());
+        if name == "model.step" {
+            assert_eq!(minified.len(), 18_336);
+        }
+        assert_eq!(librepcb_step::minify_step(&minified).unwrap(), minified);
+        let compact = StepModel::from_step(&minified).unwrap();
+        assert_eq!(compact.solid_count(), solids);
+        assert_eq!(
+            compact.tessellation_stats(0.01).unwrap(),
+            model.tessellation_stats(0.01).unwrap()
+        );
         assert_eq!(model.solid_count(), solids);
         let bytes = model.to_step().unwrap();
         let again = StepModel::from_step(&bytes).unwrap();

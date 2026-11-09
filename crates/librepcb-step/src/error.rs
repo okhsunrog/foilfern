@@ -4,6 +4,8 @@
 pub enum Error {
     #[error(transparent)]
     Metadata(#[from] crate::metadata::Error),
+    #[error(transparent)]
+    Minify(#[from] crate::minify::Error),
     #[error("STEP geometry: {0}")]
     Geometry(String),
     #[error("Failed to export STEP model of '{component}': {source}")]

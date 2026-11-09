@@ -24,6 +24,54 @@ fn process<E: LibraryBaseElement>(element: &mut E, options: &LibraryOptions) -> 
     if options.save || options.strict {
         element.save()?;
     }
+    if options.minify_step && E::SHORT_ELEMENT_NAME == "pkg" {
+        for file in element.directory().files("") {
+            if !file.ends_with(".step") {
+                continue;
+            }
+            let Some(path) = element.directory().abs_path(&file) else {
+                continue;
+            };
+            let path = pretty(&path, &options.library);
+            let result = (|| -> Result<()> {
+                let bytes = element.directory().read(&file)?;
+                let minified = librepcb_step::minify_step(&bytes)?;
+                if minified != bytes {
+                    println!(
+                        "{}",
+                        tr!(
+                            "CommandLineInterface",
+                            "  - Minified '{0}' from {1} to {2} bytes",
+                            path,
+                            bytes.len(),
+                            minified.len()
+                        )
+                    );
+                    // Validate before staging. --strict sees the staged change;
+                    // only --save persists it through the existing transaction.
+                    librepcb_step::StepModel::from_step(&minified)?;
+                    element.directory_mut().write(&file, &minified)?;
+                }
+                Ok(())
+            })();
+            if let Err(error) = result {
+                if !header {
+                    eprintln!("{heading}");
+                    header = true;
+                }
+                eprintln!(
+                    "{}",
+                    tr!(
+                        "CommandLineInterface",
+                        "    - Failed to minify STEP model '{0}': {1}",
+                        path,
+                        error
+                    )
+                );
+                success = false;
+            }
+        }
+    }
     if options.strict {
         for name in element
             .directory()

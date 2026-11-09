@@ -46,10 +46,13 @@ enum Command {
 #[derive(Args)]
 struct StepOptions {
     file: String,
+    /// Remove duplicate STEP entities while retaining representations and styles.
+    #[arg(long)]
+    minify: bool,
     /// Tessellate the model on the CPU and report vertex/color counts.
     #[arg(long)]
     tesselate: bool,
-    /// Copy the input to this path before validation.
+    /// Save the input (after optional minification) before validation.
     #[arg(long)]
     save_to: Option<String>,
 }
@@ -112,6 +115,8 @@ struct LibraryOptions {
     all: bool,
     #[arg(long, help=tr!("CommandLineInterface","Run checks and fail on non-approved messages."))]
     check: bool,
+    #[arg(long, help=tr!("CommandLineInterface","Minify STEP models contained in packages."))]
+    minify_step: bool,
     #[arg(long, help=tr!("CommandLineInterface","Save changes and file format upgrades to disk."))]
     save: bool,
     #[arg(long, help=tr!("CommandLineInterface","Fail if files would change on save."))]

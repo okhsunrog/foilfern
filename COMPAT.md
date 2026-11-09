@@ -528,8 +528,8 @@ differ between platforms/implementations:
   `open-package` and `open-step`, including symbol/package and schematic graphics exports.
   Schematic, 2D-board, realistic top/bottom and interactive HTML BOM output
   jobs and mechanical STEP jobs are supported. Standalone STEP loading,
-  CPU tessellation and copying with `--save-to` are supported; standalone and
-  library STEP minification remain deferred. Curved-surface vertex counts follow
+  CPU tessellation, `--minify`/`--save-to`, and library `--minify-step` are
+  supported. Curved-surface vertex counts follow
   Monstertruck's subdivision instead of OpenCascade's. See `docs/status.md`
   for the current supported-command and full-suite acceptance counts.
 - Saving `.lppz` builds the updated archive in memory, then writes it
@@ -539,6 +539,17 @@ differ between platforms/implementations:
 
 ## STEP and mechanical board export
 
+- STEP minification ports upstream's fixed-point entity deduplication and
+  protects product/representation identities. It operates on the source
+  document, retaining units, styles, assembly links and header/footer records;
+  it does not use the flattened BRep exporter. Quoted `#123`, `-0.`, semicolons,
+  escaped quotes and multiline literal whitespace are retained instead of
+  being rewritten/split by upstream's regular expressions. DATA comments are
+  treated as layout. Duplicate IDs, unresolved references and multiple DATA
+  sections fail explicitly; minification is not a general BRep validator.
+  Library commands validate changed geometry before staging a replacement;
+  only `--save` commits the transaction. Standalone `--save-to` deliberately
+  writes before model validation, matching upstream's diagnostic workflow.
 - The pure Rust backend retains supported BRep geometry and surface RGB/opacity,
   but currently flattens product names/assembly hierarchy and drops unrelated
   metadata. Mixed length contexts, non-radian angle units, unsupported surface

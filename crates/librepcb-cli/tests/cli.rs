@@ -46,6 +46,33 @@ fn step_commands_validate_and_tessellate_without_a_display() {
         String::from_utf8_lossy(&output.stdout).ends_with("Load model...\nFinished with errors!\n")
     );
 }
+#[test]
+fn failed_library_model_validation_preserves_the_step_file_on_save() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = FilePath::new(
+        Path::new(env!("LIBREPCB_UPSTREAM_DIR"))
+            .join("tests/data/libraries/Populated Library.lplib"),
+    )
+    .unwrap();
+    let library = FilePath::new(temp.path().join("library.lplib")).unwrap();
+    file_utils::copy_dir_recursively(&source, &library).unwrap();
+    let model = library.path_to(
+        "pkg/0eaf289c-166d-4bd9-a4ba-dbf6bbc76ef1/4e198b4d-b61a-47bd-a7ad-39b2f6dc77e9.step",
+    );
+    // Lexically minifiable, but not a valid geometric STEP model.
+    let invalid = b"DATA;\n#1=FOO();\n#2=FOO();\nENDSEC;\n";
+    std::fs::write(model.as_ref(), invalid).unwrap();
+    let output = run(&[
+        "open-library",
+        "--all",
+        "--minify-step",
+        "--save",
+        library.as_str(),
+    ]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Failed to minify STEP model"));
+    assert_eq!(std::fs::read(model.as_ref()).unwrap(), invalid);
+}
 fn fixture(temp: &tempfile::TempDir) -> FilePath {
     let src = Path::new(env!("LIBREPCB_UPSTREAM_DIR")).join("tests/data/projects/Empty Project");
     let dst = FilePath::new(temp.path().join("project")).unwrap();

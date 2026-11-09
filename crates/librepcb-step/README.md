@@ -20,6 +20,15 @@ on their worker threads. The crate does not retain a project or GPU handle.
 surface appearances using the same mesh as OBJ export. `librepcb-cli open-step`
 validates standalone models; `--tesselate` reports these counts without a display.
 
+`minify_step(bytes)` is a separate document transformation, porting upstream's
+fixed-point deduplication without a BRep round-trip. It retains header/footer
+records, assembly/representation identities, units and styles. References and
+negative zero are rewritten only outside literals. Invalid identifiers,
+duplicate IDs, unresolved links and multiple DATA sections fail explicitly.
+The CLI exposes `open-step --minify [--save-to file]` and
+`open-library --all --minify-step [--strict|--save]`. Library replacements are
+validated before staging; `--strict` leaves the original files on disk.
+
 The core output job runner injects this backend through `BoardStepExporter`,
 without taking a CAD dependency itself. Core resolves boards/variants,
 templates, file ownership/collisions, archive inputs and obsolete-file cleanup.

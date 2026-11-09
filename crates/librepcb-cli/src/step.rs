@@ -2,7 +2,19 @@
 //! Uses the independent pure-Rust kernel, without a window system or GPU.
 use crate::{StepOptions, error::Result, support};
 use librepcb_core::fileio::file_utils;
-use librepcb_step::StepModel;
+use librepcb_step::{StepModel, minify_step};
+
+fn grouped(value: usize) -> String {
+    let digits = value.to_string();
+    let mut output = String::new();
+    for (index, digit) in digits.chars().enumerate() {
+        if index > 0 && (digits.len() - index).is_multiple_of(3) {
+            output.push(',');
+        }
+        output.push(digit);
+    }
+    output
+}
 
 pub fn run(options: StepOptions) -> Result<bool> {
     let path = support::path(&options.file)?;
@@ -10,7 +22,28 @@ pub fn run(options: StepOptions) -> Result<bool> {
         "Open STEP file '{}'...",
         support::pretty(&path, &options.file)
     );
-    let bytes = file_utils::read_file(&path)?;
+    let mut bytes = file_utils::read_file(&path)?;
+    let mut success = true;
+    if options.minify {
+        println!("Perform minify...");
+        let minified = minify_step(&bytes)?;
+        if minified != bytes {
+            let percent = 100. * (minified.len() as f64 - bytes.len() as f64) / bytes.len() as f64;
+            println!(
+                " - Minified from {} bytes to {} bytes ({:.0}%)",
+                grouped(bytes.len()),
+                grouped(minified.len()),
+                percent.round()
+            );
+            if minified.len() > bytes.len() {
+                eprintln!(" - ERROR: The output is larger than the input!");
+                success = false;
+            }
+            bytes = minified;
+        } else {
+            println!(" - File is already minified");
+        }
+    }
     // Upstream deliberately saves before validation so invalid input can be
     // inspected. FileUtils retains its atomic replacement semantics.
     if let Some(destination) = options.save_to {
@@ -32,5 +65,5 @@ pub fn run(options: StepOptions) -> Result<bool> {
             return Ok(false);
         }
     }
-    Ok(true)
+    Ok(success)
 }

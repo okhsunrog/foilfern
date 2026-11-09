@@ -138,10 +138,14 @@ Done, in `crates/librepcb-core` unless noted:
   display server. Symbol/package graphics and schematic exports are supported.
   Standalone `open-step` loads/validates models, copies with `--save-to`, and
   tessellates with `--tesselate` using the same CPU mesh as OBJ export.
-  `scripts/check-cli-core.sh` covers 148 unmodified upstream pytest cases.
-  The previous full-suite baseline was 149 passed / 29 failed; all three
-  standalone loading/tessellation cases now pass as well. Standalone/library
-  minification and parser/help/version cases remain. All thirteen output-job cases pass.
+  `open-step --minify` and library `--minify-step` retain the STEP document
+  graph, units and surface styles; library changes validate before staging and
+  persist only with `--save`. `--strict` detects changes without writing them.
+  `scripts/check-cli-core.sh` covers all 154 implemented-command cases.
+  The full upstream suite reports 158 passed / 20 failed, with all functional
+  cases passing. Remaining failures are Qt parser/help/version snapshots;
+  native clap behavior and the real package version are intentional (COMPAT).
+  All thirteen output-job cases pass.
   M1 is not complete.
 
 - **Graphics export backend** (2026-11-08): `crates/librepcb-graphics`
@@ -212,14 +216,24 @@ assembled CAN–USB match the official export. New board colors reproduce
 upstream's linear-RGB-to-sRGB encoding; imported STEP RGB is retained.
 Fifteen CAD tests, two callback/archive tests and compile-time thread-safety
 assertions cover the integration. Exact curve intersections, broader
-metadata/representation coverage, standalone STEP tools and an interactive
+metadata/representation coverage and an interactive
 viewer remain pending. See `../crates/librepcb-step/README.md` and
 `../spikes/step/README.md` for boundaries and reproduction.
 
-1. **Wave 4 acceptance:** close standalone `open-step` and minification
-   coverage plus the remaining CLI parser/help/version differences. Mechanical
-   STEP output jobs and all mixed job cases now execute. Parser/help/version
-   snapshots still need a native-parser policy.
+Standalone STEP validation/tessellation and document minification are now
+implemented. The minifier ports upstream's fixed-point deduplication and
+representation-identity rule; literal contents are protected from regex-style
+rewrites. All 18 independent probes (including the 87-solid CAN–USB assembly)
+produce byte-identical minified output to the official CLI, with unchanged
+OCCT geometry metrics and XCAF face appearances. The upstream small-model
+fixture shrinks from 28,521 to 18,336 bytes and remains idempotent. Native tests
+also verify that failed library geometry validation retains the original model.
+Artifacts: `/home/okhsunrog/tmp_zfs/codex_tmp/librepcb-step/open-step/`
+(`verification.json`, `upstream-cli.log`).
+
+1. **Wave 4 acceptance:** lock down native parser/help/version contracts and
+   record intentional differences from Qt snapshots. Mechanical STEP jobs,
+   standalone tools, minification and all mixed job cases now execute.
    Keep running the implemented paths with `scripts/check-cli-core.sh`.
 2. **Integrate the existing M1.5 implementation.** The separate remote branch
    `origin/claude/ecstatic-carson-u1ye4i` (tip `3adbf58` at inspection) already

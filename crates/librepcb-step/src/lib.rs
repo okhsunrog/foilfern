@@ -7,6 +7,7 @@ mod error;
 mod kernel;
 mod materials;
 mod metadata;
+mod minify;
 
 pub use error::{Error, Result};
 use kernel::PlacedSolid;
@@ -19,6 +20,7 @@ use librepcb_core::{
 };
 pub use materials::Material as SurfaceMaterial;
 pub use metadata::Error as MetadataError;
+pub use minify::{Error as MinifyError, minify_step};
 use monstertruck_io::step::save;
 use monstertruck_meshing::prelude::PolygonMesh;
 use std::collections::BTreeMap;
