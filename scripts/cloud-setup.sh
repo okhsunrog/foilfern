@@ -61,7 +61,8 @@ if command -v apt-get >/dev/null; then
   ${SUDO} apt-get update -qq
   ${SUDO} env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
     build-essential pkg-config git curl ca-certificates \
-    xvfb xauth libgl1 libegl1 libfontconfig1 libx11-xcb1 libxcb1 >/dev/null
+    xvfb xauth libgl1 libegl1 libfontconfig1 libx11-xcb1 libxcb1 \
+    libvulkan1 mesa-vulkan-drivers >/dev/null
   # Java for FreeRouting (optional: its tests are skipped without it).
   ${SUDO} env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
     openjdk-25-jre-headless >/dev/null ||

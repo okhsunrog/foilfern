@@ -52,6 +52,12 @@ dialogs, library checks with fixes, Eagle/KiCad library import.
 
 ## M5 — the rest
 
-Interactive 3D view, broader STEP representation coverage, Eagle/KiCad project
-import, PCB ordering API and printing. Mechanical STEP jobs and standalone
-STEP/minification tools are already available through the pure-Rust backend.
+The board's interactive 3D view uses Bevy on the shared physical geometry and
+pure-Rust STEP component meshes. Camera navigation, material visibility and
+updates from project edits are wired to the Slint board tab. GPU frames are
+currently read back into Slint images; shared GPU textures remain an optimization.
+
+Remaining: package-editor 3D previews, broader STEP representation coverage,
+Eagle/KiCad project import, PCB ordering API and printing. Mechanical STEP jobs
+and standalone STEP/minification tools are already available through the
+pure-Rust backend.

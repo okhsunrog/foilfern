@@ -46,6 +46,7 @@ migrations, library checks, exports. Tests take it from `LIBREPCB_CLI` or the
   an optional Slint adapter.
 - `crates/librepcb-graphics`: vector/raster document export and realistic 2D board output.
 - `crates/librepcb-step`: pure-Rust CAD import, mechanical STEP output and document minification.
+- `crates/librepcb-render3d`: physical board meshes and offscreen Bevy PBR rendering.
 - `crates/clipper`: pure-Rust port of Clipper 1.
 - `crates/librepcb-scene`: schematic/board scene builders on the canvas and
   headless PNG rendering.

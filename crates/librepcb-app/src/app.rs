@@ -77,6 +77,8 @@ pub enum InitialTab {
     Schematic,
     /// The first board.
     Board,
+    /// The first board's interactive physical view.
+    Board3d,
 }
 
 /// The running application with its main window.
@@ -418,6 +420,8 @@ impl App {
             deferred(&w, move |s| {
                 if action == ui::BoardAction::Open2d {
                     s.open_board_tab(project, board, true);
+                } else if action == ui::BoardAction::Open3d {
+                    s.open_board_3d_tab(project, board);
                 } else {
                     s.trigger_board_action(project, board, action);
                 }
@@ -541,7 +545,18 @@ impl App {
             InitialTab::Board => {
                 s.open_board_tab(0, 0, true);
             }
+            InitialTab::Board3d => s.open_board_3d_tab(0, 0),
         }
+    }
+
+    /// Whether an offscreen board frame is still being prepared or rendered.
+    pub fn has_pending_3d_frames(&self) -> bool {
+        self.state
+            .borrow()
+            .sections
+            .iter()
+            .flat_map(|s| s.tabs())
+            .any(|t| matches!(t, Tab::Board3d(board) if board.is_refreshing()))
     }
 
     /// Shows a side panel page.
@@ -683,6 +698,7 @@ impl State {
         connect!(component_category, ComponentCategory);
         connect!(package_category, PackageCategory);
         connect!(organization, Organization);
+        connect!(board_3d, Board3d);
         let w = self.this.clone();
         derived
             .project_library

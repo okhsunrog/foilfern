@@ -29,6 +29,7 @@ pub struct DerivedModels {
     pub schematic: Rc<UiModel<ui::SchematicTabData>>,
     /// `board-2d-tabs`.
     pub board: Rc<UiModel<ui::Board2dTabData>>,
+    pub board_3d: Rc<UiModel<ui::Board3dTabData>>,
     /// `create-library-tabs`.
     pub create_library: Rc<UiModel<ui::CreateLibraryTabData>>,
     /// `download-library-tabs`.
@@ -58,6 +59,7 @@ macro_rules! for_each_model {
     ($m:ident) => {
         $m!(schematic);
         $m!(board);
+        $m!(board_3d);
         $m!(create_library);
         $m!(download_library);
         $m!(library);
@@ -98,6 +100,7 @@ impl DerivedModels {
             Tab::Home(_) => {}
             Tab::Schematic(_) => self.schematic.set(index, tab.schematic_data(projects)),
             Tab::Board2d(_) => self.board.set(index, tab.board_data(projects)),
+            Tab::Board3d(t) => self.board_3d.set(index, t.derived_ui_data(projects)),
             Tab::CreateLibrary(t) => self.create_library.set(index, t.derived_ui_data()),
             Tab::DownloadLibrary(t) => self.download_library.set(index, t.derived_ui_data()),
             Tab::Library(t) => self.library.set(index, t.derived_ui_data()),
@@ -161,9 +164,9 @@ impl WindowSection {
             project_library_tabs: model_rc(&d.project_library),
             schematic_tabs: model_rc(&d.schematic),
             board_2d_tabs: model_rc(&d.board),
+            board_3d_tabs: model_rc(&d.board_3d),
             current_tab_index: self.current,
             highlight: self.highlight,
-            ..Default::default()
         }
     }
 

@@ -103,10 +103,12 @@ impl BoardSnapshot {
 }
 
 const COPPER: [f32; 4] = [0.78, 0.56, 0.22, 1.];
-const SUBSTRATE: [f32; 4] = [0.39, 0.36, 0.20, 1.];
+// OpenGlSceneBuilder's board body color. Its neutral base also keeps the
+// translucent solder resist from taking on an artificial yellow/brown tint.
+const SUBSTRATE: [f32; 4] = [70. / 255., 80. / 255., 70. / 255., 1.];
 const PASTE: [f32; 4] = [0.65, 0.67, 0.69, 1.];
 fn rgba(color: Color) -> [f32; 4] {
-    [color.r, color.g, color.b, 255].map(|v| f32::from(v) / 255.)
+    [color.r, color.g, color.b, color.a].map(|v| f32::from(v) / 255.)
 }
 
 impl BoardMesh {

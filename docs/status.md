@@ -9,11 +9,13 @@ covers where things stand and how the work has been organized.
 The project editing, MCP, workspace/library, import and application work is
 merged with the physical board renderer and pure-Rust STEP backend. CLI,
 standalone MCP and desktop jobs share the same graphics and CAD exporters.
-Interactive 3D viewing and the coverage gaps in `COMPAT.md` Part 2 remain.
+The board's interactive Bevy 3D view is connected to Slint. Package-editor 3D
+previews and the coverage gaps in `COMPAT.md` Part 2 remain.
 
 The application is checked headless (Slint software renderer, screenshots,
 embedded HTTP MCP); desktop platform integration (Wayland/X11, clipboard,
-native file dialogs, DPI and GPU rendering) remains a separate manual pass.
+native file dialogs, DPI and Slint GPU rendering) remains a separate manual pass.
+Bevy's offscreen GPU rendering is checked separately from Slint presentation.
 
 Done, in `crates/librepcb-core` unless noted:
 
@@ -144,6 +146,39 @@ Done, in `crates/librepcb-core` unless noted:
   `tr!` contexts of the app are checked by `librepcb-i18n`'s
   `context_check` (app-only strings in its `NEW_STRINGS`).
 
+## Interactive 3D board viewer
+
+- `librepcb-render3d` builds physical meshes from `BoardPhysicalGeometry`,
+  including through/blind/buried drills, copper, mask, silkscreen and paste.
+  `librepcb-step` supplies directly tessellated component bodies with their
+  existing placement, normals and surface colors. CAD/GPU work runs on owned
+  snapshots in the viewer worker, outside the project lock.
+- The Slint board's `3D` button opens the existing 3D tab. Orbit, pan, zoom,
+  top/bottom, fit (including component bounds), material opacity and return to
+  `2D` are connected. Project edits and shared undo/redo refresh the snapshot.
+- Bevy renders offscreen with PBR materials, lights and tone mapping. Readback
+  into Slint images works with the software UI renderer; shared Slint/Bevy GPU
+  textures are still an optimization to implement.
+- GPU acceptance ran without a window server on Intel Arc (MTL), Mesa Vulkan.
+  The GPU test checks rendering, camera-only updates, both sides and unaligned
+  viewport resizing. The application GPU scenario checks navigation, material
+  sliders, a command-bus color edit, undo and closing/returning to 2D.
+- The actual application was driven through Slint's `ui-debug-mcp` server:
+  CAN–USB orbit/zoom, bottom view and return to 2D, with all 40 recorded pointer
+  and wheel events accepted. CAN–USB has 44,031 render triangles in 115
+  material groups. Dark/light application screenshots were inspected.
+- Run `librepcb --project /path/to/project.lppz --tab board3d`; add
+  `--screenshot /path/to/view.png` for an offscreen GPU/UI capture. Diagnostic
+  artifacts and logs are in
+  `/home/okhsunrog/tmp_zfs/codex_tmp/librepcb-bevy-3d/`.
+
+Validation: all workspace test targets pass across the application run and the
+separate remaining-workspace run: 1,503 passed, 10 ignored by default. Both
+GPU tests also pass when explicitly enabled on the GPU host. The initial overall
+shell was interrupted by SIGTERM; the separate Cargo run completed with status
+0. Workspace Clippy with warnings denied, formatting, the application build
+with `ui-debug-mcp`, and the headless CAN–USB screenshot command pass.
+
 ## Merge integration
 
 - The CLI, app and MCP install `librepcb-step::board_exporter()`; `jobs_run`
@@ -160,7 +195,7 @@ Done, in `crates/librepcb-core` unless noted:
 - Slint dependencies, build compiler and canvas adapter use the same master
   revision `aebe3dd580ce0594de272bc5797b7444a2aa18fd` (1.20.0 development snapshot).
 
-Validation of the merged tree: 1,499 Rust tests pass across the complete
+Validation before the 3D viewer changes: 1,499 Rust tests pass across the complete
 workspace run and the focused graphics/i18n reruns after the two merge fixes;
 eight tests are ignored. All 53 headless application scenarios and the new
 stdio STEP/PDF regression pass. The unmodified upstream CLI suite reports
@@ -190,7 +225,8 @@ Gerber export — and the official `librepcb-cli` reports ERC 0, DRC 0.
 3. MCP: stdio MCP mode for Freerouting, subcircuit templates, design
    intent file (see `mcp-research-konnect.md`), more end-to-end scenarios
    (ICs with multiple gates, multi-page schematics, 4-layer boards).
-4. Interactive 3D viewer and broader STEP representation support. Mechanical
+4. Extend the 3D viewer to package editors, replace GPU readback with shared
+   Slint/Bevy textures, and broaden STEP representation support. Mechanical
    STEP is already implemented by `librepcb-step` (Monstertruck, no C++ FFI).
 
 ## How the work is organized

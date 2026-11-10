@@ -13,6 +13,7 @@
 
 pub mod base_element_core;
 pub mod board_2d;
+pub mod board_3d;
 pub mod board_view;
 pub mod category;
 pub mod component;
@@ -45,6 +46,7 @@ use librepcb_i18n::tr;
 use slint::language::{PointerEvent, PointerEventButton, PointerEventKind};
 
 pub use board_2d::Board2dTab;
+pub use board_3d::Board3dTab;
 pub use category::CategoryTab;
 pub use component::{ComponentRowEvent, ComponentRowSink, ComponentTab};
 pub use create_library::CreateLibraryTab;
@@ -87,6 +89,8 @@ pub enum Tab {
     Schematic(Box<SchematicTab>),
     /// A board (2D view).
     Board2d(Box<Board2dTab>),
+    /// Interactive physical board viewer (Bevy).
+    Board3d(Box<Board3dTab>),
     /// The "create library" tab.
     CreateLibrary(Box<CreateLibraryTab>),
     /// The "download library" tab.
@@ -116,6 +120,7 @@ pub enum Tab {
 #[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum DerivedWrite {
+    Board3d(ui::Board3dTabData),
     /// `CreateLibraryTabData`.
     CreateLibrary(ui::CreateLibraryTabData),
     /// `DownloadLibraryTabData`.
@@ -386,6 +391,7 @@ impl Tab {
             Self::Home(id) => *id,
             Self::Schematic(t) => t.id(),
             Self::Board2d(t) => t.id(),
+            Self::Board3d(t) => t.id(),
             Self::CreateLibrary(t) => t.id(),
             Self::DownloadLibrary(t) => t.id(),
             Self::Library(t) => t.id(),
@@ -491,6 +497,7 @@ impl Tab {
     /// Applies per-kind data written by the UI.
     pub fn set_derived(&mut self, data: DerivedWrite) -> TabUpdate {
         match (self, data) {
+            (Self::Board3d(t), DerivedWrite::Board3d(d)) => t.set_derived_ui_data(&d),
             (Self::CreateLibrary(t), DerivedWrite::CreateLibrary(d)) => t.set_derived_ui_data(&d),
             (Self::DownloadLibrary(t), DerivedWrite::DownloadLibrary(d)) => {
                 t.set_derived_ui_data(&d)
@@ -529,6 +536,7 @@ impl Tab {
         match self {
             Self::Schematic(t) => Some(t.project()),
             Self::Board2d(t) => Some(t.project()),
+            Self::Board3d(t) => Some(t.project()),
             Self::ProjectLibrary(t) => Some(t.project()),
             _ => None,
         }
@@ -540,6 +548,7 @@ impl Tab {
             Self::Home(_) => return home::ui_data(),
             Self::Schematic(t) => t.ui_data(),
             Self::Board2d(t) => t.ui_data(),
+            Self::Board3d(t) => t.ui_data(),
             Self::CreateLibrary(t) => return t.ui_data(),
             Self::DownloadLibrary(t) => return t.ui_data(),
             Self::Library(t) => return t.ui_data(),
@@ -554,7 +563,9 @@ impl Tab {
         };
         // The graphics export (PDF) is handled by the application (see
         // `outputs.rs`).
-        data.features.export_graphics = ui::FeatureState::Enabled;
+        if !matches!(self, Self::Board3d(_)) {
+            data.features.export_graphics = ui::FeatureState::Enabled;
+        }
         data
     }
 
@@ -599,6 +610,7 @@ impl Tab {
             Self::Home(_) => TabUpdate::default(),
             Self::Schematic(t) => t.trigger(action),
             Self::Board2d(t) => t.trigger(action),
+            Self::Board3d(t) => t.trigger(action),
             Self::CreateLibrary(t) => t.trigger(action),
             Self::DownloadLibrary(t) => t.trigger(action),
             Self::Library(t) => t.trigger(action),
@@ -731,6 +743,7 @@ impl Tab {
             Self::Symbol(t) => t.render_scene(width, height, scale_factor),
             Self::Package(t) => t.render_scene(width, height, scale_factor),
             Self::Board2d(t) => t.render_scene(width, height, scale_factor),
+            Self::Board3d(t) => t.render_scene(width, height, scale_factor),
         }
     }
 
@@ -740,6 +753,7 @@ impl Tab {
         match self {
             Self::Schematic(t) => t.pointer_event(kind, button, pos, modifiers),
             Self::Board2d(t) => t.pointer_event(kind, button, pos, modifiers),
+            Self::Board3d(t) => t.pointer_event(kind, button, pos, modifiers),
             Self::Symbol(t) => t.pointer_event(kind, button, pos, modifiers),
             Self::Package(t) => t.pointer_event(kind, button, pos, modifiers),
             _ => TabUpdate::default(),
@@ -750,6 +764,7 @@ impl Tab {
     /// handled.
     pub fn key_pressed(&mut self, event: &slint::language::KeyEvent) -> (bool, TabUpdate) {
         match self {
+            Self::Board3d(t) => t.key_pressed(event),
             Self::Home(_)
             | Self::CreateLibrary(_)
             | Self::DownloadLibrary(_)
@@ -772,6 +787,7 @@ impl Tab {
     pub fn key_released(&mut self, event: &slint::language::KeyEvent) -> (bool, TabUpdate) {
         match self {
             Self::Home(_)
+            | Self::Board3d(_)
             | Self::CreateLibrary(_)
             | Self::DownloadLibrary(_)
             | Self::Library(_)
@@ -792,6 +808,7 @@ impl Tab {
     pub fn context_menu_action(&mut self, index: usize) -> TabUpdate {
         match self {
             Self::Home(_)
+            | Self::Board3d(_)
             | Self::CreateLibrary(_)
             | Self::DownloadLibrary(_)
             | Self::Library(_)
@@ -962,6 +979,7 @@ impl Tab {
     pub fn length_unit(&self) -> Option<LengthUnit> {
         match self {
             Self::Home(_)
+            | Self::Board3d(_)
             | Self::CreateLibrary(_)
             | Self::DownloadLibrary(_)
             | Self::Library(_)
@@ -984,6 +1002,7 @@ impl Tab {
     pub fn abort_blocking_tool(&mut self) -> TabUpdate {
         match self {
             Self::Home(_)
+            | Self::Board3d(_)
             | Self::CreateLibrary(_)
             | Self::DownloadLibrary(_)
             | Self::Library(_)
@@ -1004,6 +1023,7 @@ impl Tab {
     pub fn cross_probe(&self) -> Option<CrossProbe> {
         match self {
             Self::Home(_)
+            | Self::Board3d(_)
             | Self::CreateLibrary(_)
             | Self::DownloadLibrary(_)
             | Self::Library(_)
@@ -1024,6 +1044,7 @@ impl Tab {
     pub fn set_cross_probe(&mut self, probe: &CrossProbe) -> TabUpdate {
         match self {
             Self::Home(_)
+            | Self::Board3d(_)
             | Self::CreateLibrary(_)
             | Self::DownloadLibrary(_)
             | Self::Library(_)
@@ -1055,6 +1076,10 @@ impl Tab {
             | Self::ProjectLibrary(_) => false,
             Self::Schematic(t) => t.scrolled(pos, delta.into(), modifiers),
             Self::Board2d(t) => t.scrolled(pos, delta.into(), modifiers),
+            Self::Board3d(t) => {
+                t.scroll_event(delta.into());
+                true
+            }
             Self::Symbol(t) => t.scrolled(pos, delta.into(), modifiers),
             Self::Package(t) => t.scrolled(pos, delta.into(), modifiers),
         }
@@ -1100,6 +1125,7 @@ impl Tab {
             | Self::ProjectLibrary(_) => {}
             Self::Schematic(t) => t.bump_frame(),
             Self::Board2d(t) => t.bump_frame(),
+            Self::Board3d(t) => t.bump_frame(),
             Self::Symbol(t) => t.bump_frame(),
             Self::Package(t) => t.bump_frame(),
         }
@@ -1109,6 +1135,7 @@ impl Tab {
     pub fn set_grid_styles(&mut self, schematic: GridStyle, board: GridStyle) -> TabUpdate {
         match self {
             Self::Home(_)
+            | Self::Board3d(_)
             | Self::CreateLibrary(_)
             | Self::DownloadLibrary(_)
             | Self::Library(_)
@@ -1142,6 +1169,7 @@ impl Tab {
             | Self::ProjectLibrary(_) => TabUpdate::default(),
             Self::Schematic(t) => t.rebuild_if_modified(),
             Self::Board2d(t) => t.rebuild_if_modified(),
+            Self::Board3d(t) => t.rebuild_if_modified(),
         }
     }
 }

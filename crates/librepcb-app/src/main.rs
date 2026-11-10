@@ -18,6 +18,7 @@ enum TabArg {
     Home,
     Schematic,
     Board,
+    Board3d,
 }
 
 /// Side panel page to show.
@@ -166,6 +167,7 @@ fn run(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
             TabArg::Home => InitialTab::Home,
             TabArg::Schematic => InitialTab::Schematic,
             TabArg::Board => InitialTab::Board,
+            TabArg::Board3d => InitialTab::Board3d,
         });
     }
     if let Some(panel) = args.panel {
@@ -189,6 +191,13 @@ fn run(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
     match (headless, &args.screenshot) {
         (Some(headless), Some(path)) => {
             app.window().show()?;
+            headless.settle(2);
+            if !headless.run_until(std::time::Duration::from_secs(60), || {
+                headless.settle(1);
+                !app.has_pending_3d_frames()
+            }) {
+                return Err("3D frame did not finish within 60 seconds".into());
+            }
             headless.save_png(path)?;
             log::info!("Screenshot written to {}", path.display());
             Ok(())

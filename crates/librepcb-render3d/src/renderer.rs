@@ -70,6 +70,8 @@ pub struct Renderer {
     sender: mpsc::SyncSender<Frame>,
     parts: Vec<(Entity, Handle<StandardMaterial>, SurfaceRole, f32)>,
     size: (u32, u32),
+    warmed: bool,
+    visibility: Visibility,
     pub adapter: String,
 }
 
@@ -86,19 +88,23 @@ impl Renderer {
 
     fn initialize() -> Result<Self> {
         let mut app = App::new();
-        app.add_plugins(
-            DefaultPlugins
-                .set(WindowPlugin {
-                    primary_window: None,
-                    exit_condition: ExitCondition::DontExit,
-                    ..default()
-                })
-                .disable::<bevy::render::pipelined_rendering::PipelinedRenderingPlugin>()
-                .set(RenderPlugin {
-                    synchronous_pipeline_compilation: true,
-                    ..default()
-                }),
-        );
+        let plugins = DefaultPlugins
+            .build()
+            .disable::<bevy::app::PanicHandlerPlugin>()
+            .set(WindowPlugin {
+                primary_window: None,
+                exit_condition: ExitCondition::DontExit,
+                ..default()
+            })
+            .disable::<bevy::render::pipelined_rendering::PipelinedRenderingPlugin>()
+            .set(RenderPlugin {
+                synchronous_pipeline_compilation: true,
+                ..default()
+            });
+        // The embedding application owns process signals as well as its window.
+        #[cfg(any(unix, windows))]
+        let plugins = plugins.disable::<bevy::app::TerminalCtrlCHandlerPlugin>();
+        app.add_plugins(plugins);
         let start = Instant::now();
         while app.plugins_state() != PluginsState::Ready {
             if start.elapsed() > Duration::from_secs(30) {
@@ -145,7 +151,7 @@ impl Renderer {
                     ..default()
                 },
                 RenderTarget::Image(target.clone().into()),
-                Tonemapping::None,
+                Tonemapping::Reinhard,
                 Projection::Perspective(PerspectiveProjection {
                     fov: 45_f32.to_radians(),
                     near: 0.01,
@@ -166,11 +172,14 @@ impl Renderer {
             sender,
             parts: Vec::new(),
             size: (640, 480),
+            warmed: false,
+            visibility: Visibility::default(),
             adapter,
         })
     }
 
     pub fn set_mesh(&mut self, board: &BoardMesh) {
+        self.warmed = false;
         for (entity, material, _, _) in self.parts.drain(..) {
             if let Some(mesh) = self.app.world().get::<Mesh3d>(entity) {
                 let mesh = mesh.0.id();
@@ -236,6 +245,7 @@ impl Renderer {
             ));
         }
         if self.size != (width, height) {
+            self.warmed = false;
             self.app.world_mut().despawn(self.readback);
             self.app
                 .world_mut()
@@ -248,6 +258,10 @@ impl Renderer {
                 .insert(RenderTarget::Image(self.target.clone().into()));
             self.readback = add_readback(&mut self.app, &self.target, &self.sender, width, height);
             self.size = (width, height);
+        }
+        if self.visibility != visibility {
+            self.visibility = visibility;
+            self.warmed = false;
         }
         let mut camera = camera;
         camera.distance *= (height as f32 / width as f32).max(1.);
@@ -280,6 +294,7 @@ impl Renderer {
         }
         let start = Instant::now();
         let mut frames = 0;
+        let minimum_frames = if self.warmed { 3 } else { 8 };
         loop {
             // Drain old frames before advancing. A fresh readback after the warm-up
             // includes the requested camera/materials and compiled shader pipelines.
@@ -294,7 +309,8 @@ impl Renderer {
                 .waiting_pipelines()
                 .next()
                 .is_none();
-            if frames >= 8 && ready {
+            // Camera-only changes reuse uploaded assets and compiled pipelines.
+            if frames >= minimum_frames && ready {
                 let mut latest = None;
                 while let Ok(frame) = self.output.try_recv() {
                     if (frame.width, frame.height) == self.size {
@@ -302,6 +318,7 @@ impl Renderer {
                     }
                 }
                 if let Some(frame) = latest {
+                    self.warmed = true;
                     return Ok(frame);
                 }
             }

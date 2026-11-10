@@ -2,6 +2,7 @@
 //! instead of one per file; see AGENTS.md). The tests on Slint's headless
 //! platform share one UI thread, see [`common::with_headless()`].
 
+mod board_3d;
 mod common;
 mod dialog_screenshots;
 mod dialogs;

@@ -94,6 +94,24 @@ export component Board3dTab inherits Tab {
                 }
             }
 
+            top-view-btn := SceneButton {
+                x: parent.width - self.width;
+                text: "↑";
+                tooltip: @tr("DrawFootprintZoneToolBar" => "Top");
+                base-color: tabs[index].background-color;
+                base-text-color: tabs[index].foreground-color;
+                clicked => { Backend.trigger-tab(section-index, index, TabAction.layers-top); }
+            }
+
+            bottom-view-btn := SceneButton {
+                x: parent.width - self.width;
+                text: "↓";
+                tooltip: @tr("DrawFootprintZoneToolBar" => "Bottom");
+                base-color: tabs[index].background-color;
+                base-text-color: tabs[index].foreground-color;
+                clicked => { Backend.trigger-tab(section-index, index, TabAction.layers-bottom); }
+            }
+
             devices-alpha-ta := SliderSceneButton {
                 x: parent.width - self.width;
                 icon: @image-url("../../resources/libs/bootstrap-icons/icons/cpu.svg");
@@ -191,5 +209,9 @@ export component Board3dTab inherits Tab {
 
     key-released(event) => {
         Backend.scene-key-released(section-index, event) ? accept : reject
+    }
+
+    key-pressed(event) => {
+        Backend.scene-key-pressed(section-index, event) ? accept : reject
     }
 }

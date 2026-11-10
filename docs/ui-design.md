@@ -33,7 +33,8 @@ free; the work is the backend.
 
 What upstream still does with Qt Widgets: 72 `.ui` dialogs (property
 dialogs, board setup, output jobs, BOM review, ...) and the 3D view. Those
-need new Slint dialogs (M3, batched per area) and a new 3D renderer (M5).
+need new Slint dialogs (M3, batched per area). The board's 3D view now uses
+`librepcb-render3d` (Bevy) in the existing `Board3dTab` component.
 
 ## Decisions
 
@@ -233,10 +234,19 @@ and download library tabs, libraries panel):
   progress and cancellation, followed by a library rescan. Test:
   `tests/app/library_import.rs` (screenshots `library_import_*.png`).
 
-**M5 — the rest:** 3D board view and STEP export (needs an OpenCascade
-replacement or a mesh-based approach), PCB ordering API integration,
-printing, keyboard shortcut editor polish (recording key presses),
-accessibility pass.
+**M5 — 3D board viewing:** `tabs/board_3d.rs` feeds owned physical snapshots and
+component STEP bytes to `librepcb-render3d` on a dedicated worker thread. Bevy
+renders PBR material groups into an offscreen sRGB target; RGBA readback is
+presented through the existing `render-scene` callback, including on Slint's
+headless software platform. The board tab's `3D` button opens the existing
+`Board3dTab` component. Orbit/pan/zoom, top/bottom/fit, the material opacity
+sliders and return to `2D` are wired; edits and undo/redo replace snapshots
+without retaining the project lock during CAD/GPU work. CPU geometry tests and
+explicit GPU/UI tests cover these paths; see `crates/librepcb-render3d/README.md`.
+
+Remaining: shared Slint/Bevy GPU textures instead of readback, package-editor
+3D previews, broader STEP support, PCB ordering API integration, printing,
+keyboard shortcut editor polish (recording key presses) and accessibility.
 
 ## Risks
 

@@ -542,6 +542,17 @@ Rendering only; no file is affected.
   for future 3D consumers. Rasterization uses vello_cpu; vector output retains
   even-odd contours. Antialiasing and font shaping differ from Qt.
 
+## render3d (crate librepcb-render3d)
+
+- The interactive board viewer uses Bevy PBR rather than upstream's Qt/OpenGL
+  renderer. Lighting, tone mapping, camera controls, triangulation and pixels
+  differ; this does not alter project or manufacturing file output. The viewer
+  reuses core's physical geometry and the STEP backend's placed component meshes.
+- Missing or unsupported STEP component bodies are reported while retaining
+  the PCB and successfully loaded components. Surface colors/opacity are kept;
+  material roughness and metallic response are viewer defaults because STEP
+  presentation styles do not supply the PBR parameters used by Bevy.
+
 ## project (ERC, attribute lookup, BOM, JSON export)
 
 - ERC (`project::erc`): where upstream iterates a `QHash`/`QSet` (nets
@@ -1262,6 +1273,13 @@ upstream `librepcb-cli` 2.1.1 except for:
 
 ## app (crate librepcb-app)
 
+- **Board 3D viewer:** Bevy renders the shared physical board geometry and STEP
+  component meshes into an offscreen image. The current Slint adapter reads
+  pixels back from the GPU; direct shared-texture presentation is not wired yet.
+  A supported graphics adapter is required even with Slint's software renderer.
+  There are no environment-map presets, manufacturing stackup editing, solder
+  fillets or package-editor 3D previews. Drill depths use evenly spaced enabled
+  copper layers because the model does not provide dielectric layer thicknesses.
 - **Project lifecycle (M3c):** example projects are not downloaded when a
   workspace is created; wizard locations, EAGLE/KiCad import paths and
   options are not remembered in the client settings; the project library

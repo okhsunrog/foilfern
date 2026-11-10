@@ -87,6 +87,7 @@ and [docs/mcp-design.md](docs/mcp-design.md).
 | `crates/librepcb-i18n` | Translations for strings from Rust code, using the upstream catalogs |
 | `crates/librepcb-network` | Async networking (downloads, LibrePCB API) |
 | `crates/librepcb-canvas` | 2D rendering canvas (vello_cpu) with hit testing, and a Slint adapter |
+| `crates/librepcb-render3d` | Physical board meshes and interactive offscreen Bevy 3D rendering |
 | `crates/librepcb-scene` | Schematic/board/symbol/footprint scenes, PNG rendering and graphics export (PDF/SVG) |
 | `crates/librepcb-editor` | UI-independent editing commands with undo, used by MCP and the future UI |
 | `crates/librepcb-autoroute` | Built-in grid autorouter |
@@ -142,6 +143,19 @@ To see the canvas demo:
 ```sh
 cargo run --release -p librepcb-canvas --features slint --example canvas_demo
 ```
+
+To open a board's interactive 3D view:
+
+```sh
+cargo run -p librepcb-app -- --project /path/to/project.lppz --tab board3d
+```
+
+On Linux, 3D rendering needs a Vulkan loader and a compatible driver
+(`libvulkan1` and `mesa-vulkan-drivers` on Debian/Ubuntu, installed by the setup
+script). It also works without a display server: add `--screenshot view.png`.
+On NixOS, the development shell must include `vulkan-loader` in
+`LD_LIBRARY_PATH`. Slint can still use its software renderer. See
+[the renderer notes](crates/librepcb-render3d/README.md) for controls and GPU tests.
 
 ## Documentation
 

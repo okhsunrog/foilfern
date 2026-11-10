@@ -38,6 +38,8 @@ const NEW_CONTEXTS: &[&str] = &[
 
 /// Strings without upstream counterpart: `(context, source string)`.
 const NEW_STRINGS: &[(&str, &str)] = &[
+    // Bevy-based 3D board viewer diagnostics.
+    ("Board3dTab", "Failed to render 3D board: {0}"),
     // MCP placement and schematic tidy commands.
     ("CmdMoveSelectedSchematicItems", "Move Schematic Items"),
     // Read-only element editors refusing changes.

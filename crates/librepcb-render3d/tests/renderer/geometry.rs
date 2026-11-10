@@ -5,7 +5,7 @@ use librepcb_core::{
         ProjectLoader,
         board::{BoardPhysicalGeometry, PhysicalHole, PhysicalHoleDepth},
     },
-    types::{Layer, Length, Point, PositiveLength},
+    types::{Layer, Length, PcbColor, Point, PositiveLength},
 };
 use librepcb_render3d::{BoardMesh, SurfaceRole};
 use std::sync::Arc;
@@ -109,6 +109,8 @@ fn vias_have_real_depth_and_invalid_spans_are_omitted() {
 #[test]
 fn surfaces_keep_materials_on_the_correct_side() {
     let mut data = snapshot();
+    data.solder_resist = Some(PcbColor::Green);
+    data.surfaces[0].solder_resist = vec![rect(0., 0., 10., 10.)];
     data.surfaces[0]
         .copper
         .insert(Layer::TOP_COPPER, vec![rect(1., 1., 2., 2.)]);
@@ -127,4 +129,13 @@ fn surfaces_keep_materials_on_the_correct_side() {
         .unwrap();
     assert!(silk.positions.iter().all(|p| p[2] < 0.));
     assert!(silk.normals.iter().all(|n| n[2] < 0.));
+    let mask = mesh
+        .parts
+        .iter()
+        .find(|p| p.role == SurfaceRole::SolderResist)
+        .unwrap();
+    assert!(
+        mask.color[3] > 0. && mask.color[3] < 1.,
+        "physical mask must retain its transparency over copper"
+    );
 }
