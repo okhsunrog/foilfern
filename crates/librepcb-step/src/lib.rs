@@ -178,14 +178,26 @@ impl StepModel {
     /// Load and place component bodies without creating a mechanical PCB body.
     /// Physical viewers build their own depth-aware substrate and material layers.
     pub fn from_components(project: &Project, data: &BoardPhysicalGeometry) -> Result<Self> {
+        Self::from_component_source(data, |package, model| {
+            Ok(project
+                .directory()
+                .read(&format!("library/pkg/{package}/{model}.step"))?)
+        })
+    }
+
+    /// Import from caller-owned model bytes, so worker threads do not need to
+    /// retain a project lock while the kernel parses and tessellates geometry.
+    pub fn from_component_source(
+        data: &BoardPhysicalGeometry,
+        read_model: impl Fn(librepcb_core::types::Uuid, librepcb_core::types::Uuid) -> Result<Vec<u8>>,
+    ) -> Result<Self> {
         protected(|| {
             let mut solids = Vec::new();
             let mut cache = BTreeMap::new();
             for device in &data.devices {
                 let key = (device.package, device.model);
                 if let std::collections::btree_map::Entry::Vacant(entry) = cache.entry(key) {
-                    let path = format!("library/pkg/{}/{}.step", device.package, device.model);
-                    let bytes = project.directory().read(&path)?;
+                    let bytes = read_model(device.package, device.model)?;
                     entry.insert(import(&bytes).map_err(|error| Error::ComponentModel {
                         component: device.name.clone(),
                         source: Box::new(error),

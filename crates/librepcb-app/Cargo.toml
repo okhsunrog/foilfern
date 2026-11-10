@@ -32,6 +32,7 @@ librepcb-i18n = { version = "0.1.0", path = "../librepcb-i18n" }
 librepcb-import = { version = "0.1.0", path = "../librepcb-import" }
 librepcb-mcp = { version = "0.1.0", path = "../librepcb-mcp", features = ["http"] }
 librepcb-network = { version = "0.1.0", path = "../librepcb-network" }
+librepcb-render3d = { version = "0.1.0", path = "../librepcb-render3d" }
 librepcb-scene = { version = "0.1.0", path = "../librepcb-scene" }
 librepcb-step = { version = "0.1.0", path = "../librepcb-step" }
 log = "0.4.34"

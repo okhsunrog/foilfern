@@ -1,0 +1,21 @@
+[package]
+name = "librepcb-render3d"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+bevy = { version = "0.20.1", default-features = false, features = ["std", "async_executor", "bevy_asset", "bevy_core_pipeline", "bevy_pbr", "bevy_window", "multi_threaded", "png"] }
+clipper = { version = "0.1.0", path = "../clipper" }
+earcutr = "0.5.0"
+libm = "0.2.16"
+librepcb-core = { version = "0.1.0", path = "../librepcb-core" }
+librepcb-step = { version = "0.1.0", path = "../librepcb-step" }
+static_assertions = "1.1.0"
+thiserror = "2.0.21"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+png = "0.18.1"
