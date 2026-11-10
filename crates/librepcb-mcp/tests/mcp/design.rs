@@ -29,6 +29,7 @@ fn add(session: &mut Session, part: &str) -> ToolOutput {
         ComponentAddArgs {
             part: part.into(),
             device: None,
+            symbol_variant: None,
             designator: None,
             value: None,
             schematic: None,
@@ -161,6 +162,7 @@ fn design_rc_circuit_with_populated_library() {
         ComponentAddArgs {
             part: "Diode".into(),
             device: None,
+            symbol_variant: None,
             designator: None,
             value: None,
             schematic: None,
@@ -186,6 +188,7 @@ fn design_rc_circuit_with_populated_library() {
         ComponentAddArgs {
             part: "No Such Part".into(),
             device: None,
+            symbol_variant: None,
             designator: None,
             value: None,
             schematic: None,

@@ -223,8 +223,11 @@ Gerber export — and the official `librepcb-cli` reports ERC 0, DRC 0.
    the rest of M2d (rule check location markers and autofixes, print and
    image export); M2c is done.
 3. MCP: stdio MCP mode for Freerouting, subcircuit templates, design
-   intent file (see `mcp-research-konnect.md`), more end-to-end scenarios
-   (ICs with multiple gates, multi-page schematics, 4-layer boards).
+   intent file (see `mcp-research-konnect.md`), and larger real-library
+   designs with multi-gate ICs and routed inner copper layers. The stdio
+   suite now covers explicit symbol-variant selection, individual gate
+   movement/undo, cross-page connections and four-layer fabrication output
+   using upstream fixtures; upstream CLI validation runs when available.
 4. Extend the 3D viewer to package editors, replace GPU readback with shared
    Slint/Bevy textures, and broaden STEP representation support. Mechanical
    STEP is already implemented by `librepcb-step` (Monstertruck, no C++ FFI).

@@ -38,6 +38,193 @@ async fn call_ok(
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn stdio_symbol_variants_and_multisheet_four_layer_board() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    let created = call_ok(&client, "project_create", json!({ "name": "Multisheet" })).await;
+    let path = created["path"].as_str().unwrap();
+
+    // Discover both representations of the upstream multi-gate fixture.
+    let found = call_ok(
+        &client,
+        "library_search",
+        json!({ "query": "Demo Component", "kind": "component" }),
+    )
+    .await;
+    let part = found["elements"][0]["uuid"].as_str().unwrap();
+    let detail = call_ok(&client, "library_element", json!({ "uuid": part })).await;
+    let variants = detail["symbol_variants"].as_array().unwrap();
+    for (name, count) in [("U1", 2), ("U2", 1)] {
+        let variant = variants
+            .iter()
+            .find(|v| v["gates"].as_array().unwrap().len() == count)
+            .unwrap();
+        let added = call_ok(
+            &client,
+            "component_add",
+            json!({
+                "part": part, "designator": name, "symbol_variant": variant["uuid"]
+            }),
+        )
+        .await;
+        assert_eq!(added["symbol_variant"]["uuid"], variant["uuid"]);
+        assert_eq!(added["symbols"].as_array().unwrap().len(), count);
+        if count == 2 {
+            let before = added["symbols"].clone();
+            call_ok(
+                &client,
+                "symbol_move",
+                json!({
+                    "component": name, "gate": "A", "position": { "x": 80, "y": 30 }
+                }),
+            )
+            .await;
+            let moved = call_ok(&client, "component_get", json!({ "component": name })).await;
+            for symbol in moved["symbols"].as_array().unwrap() {
+                if symbol["gate_suffix"] == "A" {
+                    assert_eq!(symbol["position"], json!({ "x": 80.0, "y": 30.0 }));
+                } else {
+                    let original = before
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .find(|s| s["uuid"] == symbol["uuid"])
+                        .unwrap();
+                    assert_eq!(symbol["position"], original["position"]);
+                }
+            }
+            call_ok(&client, "undo", json!({})).await;
+            let restored = call_ok(&client, "component_get", json!({ "component": name })).await;
+            assert_eq!(restored["symbols"], before);
+        }
+    }
+    // A malformed UUID and a UUID belonging to another entity must not add a component.
+    for variant in ["invalid", part] {
+        let failed = call(
+            &client,
+            "component_add",
+            json!({
+                "part": part, "designator": "U3", "symbol_variant": variant
+            }),
+        )
+        .await;
+        assert_eq!(failed.is_error, Some(true));
+        let missing = call(&client, "component_get", json!({ "component": "U3" })).await;
+        assert_eq!(
+            missing.structured_content.unwrap()["error"]["kind"],
+            "not_found"
+        );
+    }
+
+    // Keep the selected multi-gate variant across a save/open cycle.
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    call_ok(&client, "project_open", json!({ "path": path })).await;
+    let reopened = call_ok(&client, "component_get", json!({ "component": "U1" })).await;
+    assert_eq!(reopened["symbols"].as_array().unwrap().len(), 2);
+    for name in ["U1", "U2"] {
+        call_ok(&client, "component_remove", json!({ "component": name })).await;
+    }
+
+    // A two-resistor network spans pages; both connections need visible labels.
+    call_ok(&client, "schematic_add", json!({ "name": "IO" })).await;
+    for (name, page) in [("R1", "Main"), ("R2", "IO")] {
+        call_ok(
+            &client,
+            "component_add",
+            json!({
+                "part": "R-0805", "designator": name, "schematic": page, "value": "1k"
+            }),
+        )
+        .await;
+    }
+    for (net, pins) in [("LINK", ["R1.1", "R2.1"]), ("RETURN", ["R1.2", "R2.2"])] {
+        call_ok(&client, "connect", json!({ "net": net, "pins": pins })).await;
+    }
+    for page in ["Main", "IO"] {
+        let schematic = call_ok(&client, "schematic_get", json!({ "schematic": page })).await;
+        let pins = schematic["symbols"][0]["pins"].as_array().unwrap();
+        assert!(pins.iter().all(|p| p["wired"] == true), "{schematic:#}");
+        let segments = schematic["net_segments"].as_array().unwrap();
+        assert_eq!(segments.len(), 2, "{schematic:#}");
+        assert!(
+            segments
+                .iter()
+                .all(|s| !s["labels"].as_array().unwrap().is_empty())
+        );
+    }
+    let erc = call_ok(&client, "erc_run", json!({})).await;
+    assert_eq!(erc["errors"], 0, "{erc:#}");
+    call_ok(
+        &client,
+        "board_set_outline",
+        json!({ "width": 30, "height": 20 }),
+    )
+    .await;
+    let rules = call_ok(&client, "design_rules_set", json!({ "inner_layers": 2 })).await;
+    assert_eq!(rules["copper_layers"], 4);
+    call_ok(&client, "device_auto_place", json!({})).await;
+    let routed = call_ok(&client, "autoroute", json!({ "backend": "builtin" })).await;
+    assert_eq!(routed["unrouted"], 0, "{routed:#}");
+    let drc = call_ok(&client, "drc_run", json!({})).await;
+    assert_eq!(drc["errors"], 0, "{drc:#}");
+    let exported = call_ok(
+        &client,
+        "export_fabrication",
+        json!({
+            "output_dir": tmp.path().join("gerber")
+        }),
+    )
+    .await;
+    let files = exported["files"].as_array().unwrap();
+    let copper = files
+        .iter()
+        .filter_map(Value::as_str)
+        .filter(|f| f.contains("COPPER"))
+        .count();
+    assert_eq!(copper, 4, "{exported:#}");
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    call_ok(&client, "project_open", json!({ "path": path })).await;
+    let board = call_ok(&client, "board_get", json!({})).await;
+    assert_eq!(board["copper_layers"], 4);
+    assert_eq!(board["devices"].as_array().unwrap().len(), 2);
+    call_ok(&client, "project_close", json!({})).await;
+    if let Some(cli) = crate::common::upstream_cli() {
+        let copy = tempfile::tempdir().unwrap();
+        crate::common::copy_dir(Path::new(path).parent().unwrap(), copy.path());
+        let lpp = copy.path().join(Path::new(path).file_name().unwrap());
+        let (ok, text) = crate::common::run_cli(
+            &cli,
+            &[
+                "open-project",
+                "--erc",
+                "--drc",
+                "--export-pcb-fabrication-data",
+                lpp.to_str().unwrap(),
+            ],
+        );
+        assert!(ok || text.contains("Finished with errors!"), "{text}");
+        assert!(
+            !text.contains("[ERROR]") && !text.contains("ERROR:"),
+            "{text}"
+        );
+        assert!(text.contains("COPPER-IN1.gbr"), "{text}");
+        eprintln!("{text}");
+    } else {
+        eprintln!("librepcb-cli not found, skipping the upstream check");
+    }
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn stdio_exports_step_and_realistic_board_graphics() {
     let tmp = tempfile::tempdir().unwrap();
     let lpp = crate::common::copy_test_project("Project With Two Boards", tmp.path());

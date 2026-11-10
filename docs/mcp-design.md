@@ -182,7 +182,8 @@ import; a delegating host gets both paths in `ProjectCreateRequest`).
 
 Circuit & schematic:
 `component_add` (component or device uuid, optional designator/value,
-schematic page, position, rotation, mirror; places every gate, stacked
+symbol variant UUID from `library_element`, schematic page, position,
+rotation, mirror; places every gate, stacked
 automatically if no position), `component_remove`, `component_update`
 (designator, value, attributes, assembly options), `component_list`,
 `component_get` (signals with nets, symbols and pin positions, device),
@@ -290,6 +291,15 @@ too:
   of the board and reported (`outcome: partial`). Deterministic.
 
 ## Resources
+
+The stdio suite also selects single- and multi-gate symbol variants from
+the upstream populated-library fixture, moves an individual gate with undo,
+connects components across two pages, routes a four-layer board and exports
+all four copper layers. A save/open round trip preserves the selected variant
+and board settings. When `LIBREPCB_CLI` is available, upstream opens, checks
+and exports the generated project as well. This scenario does not need
+separately installed official libraries; its internal copper layers remain
+unused by the simple routed circuit.
 
 The stroke fonts new projects get (`resources/fontobene/*.bene`, like
 upstream's `Project::create()` copies them from `share/librepcb`) and the

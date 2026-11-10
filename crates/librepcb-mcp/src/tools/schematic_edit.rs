@@ -44,6 +44,10 @@ pub struct ComponentAddArgs {
     /// the only (or first) device of the component in the libraries.
     #[serde(default)]
     pub device: Option<String>,
+    /// UUID of the component's symbol variant, as returned by
+    /// library_element. Default: choose by the project's norm order.
+    #[serde(default)]
+    pub symbol_variant: Option<String>,
     /// Designator (default: automatic, e.g. "R1").
     #[serde(default)]
     pub designator: Option<String>,
@@ -520,10 +524,15 @@ pub fn component_add(session: &mut Session, args: ComponentAddArgs) -> ToolResul
         .transpose()?;
     let position = args.position.map(PointMm::to_point).transpose()?;
     let rotation = args.rotation.map(angle).transpose()?.unwrap_or(Angle::DEG0);
+    let symbol_variant = args
+        .symbol_variant
+        .as_deref()
+        .map(|v| resolve::required_uuid(v, "symbol variant"))
+        .transpose()?;
     let done = write(session, "component_add", args.expected_revision, |editor| {
         let added = editor.execute(AddComponent {
             component: part.component,
-            symbol_variant: None,
+            symbol_variant,
             name,
             value: args.value.clone(),
             device: part.device,
