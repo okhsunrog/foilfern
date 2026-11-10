@@ -92,7 +92,9 @@ relative to that repository.
    plus a raw `apply_mutation` escape hatch with a generated schema and full
    validation.
 4. **Skills**: skill and agent files in this repository, installed by
-   `librepcb-mcp init`; MCP prompts/resources later for other clients.
+   `librepcb-mcp init` (installer still planned). The client-independent
+   board workflow is now embedded as `librepcb://guides/board-design`, a
+   standard MCP resource available over stdio and HTTP without installation.
 5. **Toolsets**: no dynamic loading at first; keep the surface under about
    60 tools.
 6. **Design rules**: technical constraints only in LibrePCB's own

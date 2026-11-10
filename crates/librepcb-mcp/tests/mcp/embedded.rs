@@ -348,6 +348,19 @@ fn http_end_to_end_on_localhost() {
     runtime.block_on(async {
         let transport = StreamableHttpClientTransport::from_uri(server.url());
         let client = ().serve(transport).await.unwrap();
+        let guides = client.list_all_resources().await.unwrap();
+        assert!(
+            guides
+                .iter()
+                .any(|r| r.uri == "librepcb://guides/board-design")
+        );
+        let guide = client
+            .read_resource(rmcp::model::ReadResourceRequestParams::new(
+                "librepcb://guides/board-design",
+            ))
+            .await
+            .unwrap();
+        assert!(!guide.contents.is_empty());
         let tools = client.list_all_tools().await.unwrap();
         assert!(tools.iter().any(|t| t.name == "schematic_add"));
         let info = call_ok(&client, "server_info", json!({})).await;

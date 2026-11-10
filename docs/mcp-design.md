@@ -6,6 +6,15 @@ end through MCP alone — find parts, draw the schematic, place and route the
 board, run ERC/DRC, export manufacturing data — and the result opens in
 upstream LibrePCB.
 
+The server advertises the bundled Markdown resource
+`librepcb://guides/board-design` through `resources/list` and `resources/read`
+over both transports, including the embedded host. It contains the
+[board design workflow](mcp-board-workflow.md), with multi-gate and
+multi-page usage, layer-count conventions and error recovery. Initialization
+instructions point clients to it. Reading the guide needs no workspace or
+project, does not touch session state, and works from an installed binary
+without the repository or client-specific configuration files.
+
 ## Layers
 
 ```

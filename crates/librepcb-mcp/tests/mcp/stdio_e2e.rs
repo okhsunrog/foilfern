@@ -4,7 +4,10 @@
 use std::path::Path;
 
 use rmcp::ServiceExt;
-use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock};
+use rmcp::model::{
+    CallToolRequestParams, CallToolResult, ContentBlock, ReadResourceRequestParams,
+    ResourceContents,
+};
 use rmcp::service::{RoleClient, RunningService};
 use rmcp::transport::TokioChildProcess;
 use serde_json::{Value, json};
@@ -264,6 +267,42 @@ async fn stdio_end_to_end() {
     let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
     cmd.arg("--workspace").arg(&ws);
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+
+    // The bundled workflow is discoverable before a project is opened.
+    assert!(client.peer_info().unwrap().capabilities.resources.is_some());
+    let resources = client.list_all_resources().await.unwrap();
+    let guide = resources
+        .iter()
+        .find(|r| r.uri == "librepcb://guides/board-design")
+        .unwrap();
+    assert_eq!(guide.mime_type.as_deref(), Some("text/markdown"));
+    let read = client
+        .read_resource(ReadResourceRequestParams::new(&guide.uri))
+        .await
+        .unwrap();
+    let [
+        ResourceContents::TextResourceContents {
+            uri,
+            text,
+            mime_type,
+            ..
+        },
+    ] = read.contents.as_slice()
+    else {
+        panic!("expected a Markdown guide: {read:?}");
+    };
+    assert_eq!(uri, &guide.uri);
+    assert_eq!(mime_type.as_deref(), Some("text/markdown"));
+    assert_eq!(guide.size, Some(text.len() as u64));
+    assert!(text.contains("symbol_variant") && text.contains("expected_revision"));
+    let missing = client
+        .read_resource(ReadResourceRequestParams::new("librepcb://guides/missing"))
+        .await
+        .unwrap_err();
+    let rmcp::ServiceError::McpError(error) = missing else {
+        panic!("expected a resource error: {missing:?}");
+    };
+    assert_eq!(error.code, rmcp::model::ErrorCode::RESOURCE_NOT_FOUND);
 
     // Tools.
     let tools = client.list_all_tools().await.unwrap();

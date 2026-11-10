@@ -17,7 +17,8 @@ use rmcp::handler::server::tool::ToolCallContext;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
     CallToolRequestParams, CallToolResponse, CallToolResult, Implementation, JsonObject,
-    ServerCapabilities, ServerConfig,
+    ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResponse,
+    ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerConfig,
 };
 use rmcp::service::{RequestContext, RoleServer};
 use rmcp::{ErrorData as McpError, ServerHandler, tool, tool_handler, tool_router};
@@ -57,6 +58,8 @@ use crate::tools::{
 pub const INSTRUCTIONS: &str = "LibrePCB MCP server: design schematics and PCBs end to end; \
 the files open in upstream LibrePCB. One workspace (libraries) and one project are open at a \
 time.\n\
+Read the MCP resource librepcb://guides/board-design for the full design workflow, \
+multi-gate components, multi-page schematics, layer settings and recovery.\n\
 Workflow: workspace_open/workspace_create -> library_install (e.g. [\"LibrePCB Base\"]) or \
 library_rescan -> library_search (find parts; multi-word queries like \"resistor 0805\" work) -> \
 project_create -> component_add (part = name or device/component UUID; placed automatically) -> \
@@ -77,6 +80,9 @@ stable kind (not_found, invalid_argument, conflict, stale_revision, no_project, 
 io, network, not_available, refused, internal). Nothing is written to disk before project_save. \
 When the server runs inside the LibrePCB app, the user sees your edits live and shares the undo \
 history; the app may refuse opening or closing projects (kind refused).";
+
+const BOARD_DESIGN_URI: &str = "librepcb://guides/board-design";
+const BOARD_DESIGN_GUIDE: &str = include_str!("../../../docs/mcp-board-workflow.md");
 
 /// Message prefix of rmcp's argument deserialization errors.
 const DESERIALIZE_ERROR_PREFIX: &str = "failed to deserialize parameters:";
@@ -1008,12 +1014,51 @@ impl ServerHandler for LibrePcbMcp {
         Ok(response)
     }
 
+    async fn list_resources(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, McpError> {
+        Ok(ListResourcesResult::with_all_items(vec![
+            Resource::new(BOARD_DESIGN_URI, "board-design")
+                .with_title("Designing a board through MCP")
+                .with_description(
+                    "Workflow for parts, schematics, layout, checks, exports and recovery.",
+                )
+                .with_mime_type("text/markdown")
+                .with_size(BOARD_DESIGN_GUIDE.len() as u64),
+        ]))
+    }
+
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResponse, McpError> {
+        if request.uri != BOARD_DESIGN_URI {
+            return Err(McpError::resource_not_found(
+                "Unknown LibrePCB resource; use resources/list to discover available guides.",
+                Some(serde_json::json!({ "uri": request.uri })),
+            ));
+        }
+        Ok(ReadResourceResult::new(vec![
+            ResourceContents::text(BOARD_DESIGN_GUIDE, BOARD_DESIGN_URI)
+                .with_mime_type("text/markdown"),
+        ])
+        .into())
+    }
+
     fn get_info(&self) -> ServerConfig {
-        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(Implementation::new(
-                "librepcb-mcp",
-                env!("CARGO_PKG_VERSION"),
-            ))
-            .with_instructions(INSTRUCTIONS)
+        ServerConfig::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                .enable_resources()
+                .build(),
+        )
+        .with_server_info(Implementation::new(
+            "librepcb-mcp",
+            env!("CARGO_PKG_VERSION"),
+        ))
+        .with_instructions(INSTRUCTIONS)
     }
 }

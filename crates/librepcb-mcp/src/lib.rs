@@ -34,6 +34,11 @@
 //! `librepcb-mcp --workspace <dir>` as stdio server; logs go to stderr
 //! (`RUST_LOG=debug` for more).
 //!
+//! The bundled MCP resource `librepcb://guides/board-design` explains the
+//! full workflow, pin/gate addressing, multi-page and four-layer designs,
+//! revision checks and recovery. Discover it with `resources/list` and
+//! read it with `resources/read`; no project needs to be open.
+//!
 //! The server takes the upstream-compatible directory lock of the open
 //! project, so LibrePCB refuses to open the project at the same time (and
 //! vice versa); close the project (`project_close`) before editing it in
