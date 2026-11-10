@@ -71,17 +71,35 @@ fn upstream_models_export_and_mesh_without_a_display() {
         )
         .unwrap();
         assert!(meshes.iter().any(|mesh| !mesh.mesh.indices.is_empty()));
-        assert!(materials.unwrap().len() >= 2);
+        let materials = materials.unwrap();
+        assert!(materials.len() >= 2);
         let stats = again.tessellation_stats(0.01).unwrap();
         assert_eq!(
             stats.vertices,
             meshes.iter().map(|m| m.mesh.indices.len()).sum::<usize>()
         );
         assert!(stats.colors >= 2);
+        let surfaces = again.triangle_surfaces(0.01).unwrap();
+        let vertices: usize = surfaces.iter().map(|s| s.positions.len()).sum();
+        assert_eq!(vertices, stats.vertices);
+        for surface in &surfaces {
+            assert_eq!(surface.positions.len(), surface.normals.len());
+            assert_eq!(surface.positions.len() % 3, 0);
+            assert!(surface.positions.iter().flatten().all(|v| v.is_finite()));
+            for normal in &surface.normals {
+                let length: f32 = normal.iter().map(|v| v * v).sum();
+                assert!((length - 1.).abs() < 1e-4);
+            }
+            assert!(materials.iter().any(|material| {
+                material.diffuse == Some(surface.material.color.map(|v| v as f32))
+                    && material.dissolve == Some(surface.material.opacity as f32)
+            }));
+        }
         if name == "colors.step" {
             assert_eq!(stats.colors, 5);
         }
         assert!(again.tessellation_stats(0.).is_err());
         assert!(again.to_obj(f64::NAN).is_err());
+        assert!(again.triangle_surfaces(f64::NAN).is_err());
     }
 }

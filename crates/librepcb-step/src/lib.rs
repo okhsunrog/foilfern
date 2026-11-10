@@ -40,6 +40,18 @@ pub struct TessellationStats {
     pub colors: usize,
 }
 
+/// An owned render surface in millimetres, independent of the CAD kernel and GPU.
+/// Vertices are expanded in triangle order; normals retain the imported surface
+/// orientation. STEP surface colors are sRGB values, as in OBJ/MTL export.
+#[derive(Debug, Clone)]
+pub struct TriangleSurface {
+    pub name: String,
+    pub material: SurfaceMaterial,
+    pub positions: Vec<[f32; 3]>,
+    pub normals: Vec<[f32; 3]>,
+}
+static_assertions::assert_impl_all!(TriangleSurface: Send, Sync);
+
 /// Adapter shared by CLI, standalone MCP and the desktop application's jobs.
 pub fn board_exporter() -> librepcb_core::project::BoardStepExporter {
     Box::new(|project, board, variant| {
@@ -155,6 +167,19 @@ impl StepModel {
                     shell.fill(Some(material));
                 }
             }
+            solids.extend(Self::from_components(project, &data)?.solids);
+            Ok(Self {
+                solids,
+                approximated_contours: body.approximated_contours,
+            })
+        })
+    }
+
+    /// Load and place component bodies without creating a mechanical PCB body.
+    /// Physical viewers build their own depth-aware substrate and material layers.
+    pub fn from_components(project: &Project, data: &BoardPhysicalGeometry) -> Result<Self> {
+        protected(|| {
+            let mut solids = Vec::new();
             let mut cache = BTreeMap::new();
             for device in &data.devices {
                 let key = (device.package, device.model);
@@ -176,7 +201,7 @@ impl StepModel {
             }
             Ok(Self {
                 solids,
-                approximated_contours: body.approximated_contours,
+                approximated_contours: 0,
             })
         })
     }
@@ -194,6 +219,66 @@ impl StepModel {
         protected(|| {
             let (mesh, groups) = self.tessellate(tolerance_mm)?;
             operation(materials::export_obj(&mesh, &groups))
+        })
+    }
+
+    /// Tessellate directly for rendering, without an OBJ text round-trip.
+    pub fn triangle_surfaces(&self, tolerance_mm: f64) -> Result<Vec<TriangleSurface>> {
+        protected(|| {
+            if !tolerance_mm.is_finite() || tolerance_mm <= 0. {
+                return Err(Error::Geometry("invalid tessellation tolerance".into()));
+            }
+            let mut output = Vec::<TriangleSurface>::new();
+            for solid in &self.solids {
+                let (mesh, groups) = operation(kernel::tessellate_solid(solid, tolerance_mm))?;
+                let mut triangles = mesh.tri_faces().iter();
+                let first = output.len();
+                for (count, material) in groups {
+                    let material = material.unwrap_or(materials::DEFAULT_MATERIAL);
+                    let index = output[first..]
+                        .iter()
+                        .position(|surface| surface.material == material)
+                        .map(|i| first + i)
+                        .unwrap_or_else(|| {
+                            output.push(TriangleSurface {
+                                name: solid.name.clone(),
+                                material,
+                                positions: Vec::new(),
+                                normals: Vec::new(),
+                            });
+                            output.len() - 1
+                        });
+                    for triangle in triangles.by_ref().take(count) {
+                        let positions = triangle.map(|v| mesh.positions()[v.pos]);
+                        let a = positions[1] - positions[0];
+                        let b = positions[2] - positions[0];
+                        let normal = [
+                            a.y * b.z - a.z * b.y,
+                            a.z * b.x - a.x * b.z,
+                            a.x * b.y - a.y * b.x,
+                        ];
+                        let length = libm::sqrt(normal.iter().map(|v| v * v).sum());
+                        if length <= f64::EPSILON {
+                            continue;
+                        }
+                        let fallback = normal.map(|v| (v / length) as f32);
+                        for (vertex, position) in triangle.iter().zip(positions) {
+                            output[index].positions.push([
+                                position.x as f32,
+                                position.y as f32,
+                                position.z as f32,
+                            ]);
+                            let normal = vertex
+                                .nor
+                                .and_then(|i| mesh.normals().get(i))
+                                .map_or(fallback, |n| [n.x as f32, n.y as f32, n.z as f32]);
+                            output[index].normals.push(normal);
+                        }
+                    }
+                }
+            }
+            output.retain(|surface| !surface.positions.is_empty());
+            Ok(output)
         })
     }
 

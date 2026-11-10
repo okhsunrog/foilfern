@@ -20,6 +20,11 @@ on their worker threads. The crate does not retain a project or GPU handle.
 surface appearances using the same mesh as OBJ export. `librepcb-cli open-step`
 validates standalone models; `--tesselate` reports these counts without a display.
 
+`from_components(project, snapshot)` prepares placed component bodies separately
+from the mechanical board. `triangle_surfaces(tolerance)` exposes owned triangle
+positions, surface normals and sRGB/opacity directly to renderers, without
+serializing OBJ or introducing a rendering dependency into the CAD backend.
+
 `minify_step(bytes)` is a separate document transformation, porting upstream's
 fixed-point deduplication without a BRep round-trip. It retains header/footer
 records, assembly/representation identities, units and styles. References and
