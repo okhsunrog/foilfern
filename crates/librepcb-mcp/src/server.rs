@@ -892,7 +892,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Prepare via dimension changes and connected via/junction moves for routing_preview and routing_apply. Position and dimensions are in millimeters."
+        description = "Prepare via dimension changes, connected via/junction moves, or trace path replacements for routing_preview and routing_apply. Positions and dimensions are in millimeters."
     )]
     async fn routing_edit_prepare(
         &self,

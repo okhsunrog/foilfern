@@ -757,6 +757,144 @@ fn reviewed_edit_preserves_anchors_and_rejects_new_clearance_errors() {
 }
 
 #[test]
+fn reviewed_replacement_preserves_connections_and_rejects_branches_and_drc_errors() {
+    use librepcb_mcp::tools::layout::board_get;
+
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let layout = |session: &Session| board_get(session, Default::default()).unwrap().result;
+    let board = layout(&session);
+    let pads = board["devices"][0]["pads"].as_array().unwrap();
+    let y = |net| {
+        pads.iter().find(|pad| pad["net"] == net).unwrap()["position"]["y"]
+            .as_f64()
+            .unwrap()
+    };
+    let (y_a, y_b) = (y("A"), y("B"));
+    let away = (y_a - y_b).signum();
+    let add_trace = |session: &mut Session, request| {
+        board_edit::trace_add(session, args(request))
+            .unwrap()
+            .result
+    };
+    let old = add_trace(
+        &mut session,
+        json!({
+            "from":"R1.1","to":"R2.1","width":0.2,"points":[{"x":10,"y":y_a}]
+        }),
+    );
+    add_trace(&mut session, json!({"from":"R1.2","to":"R2.2","width":0.2}));
+    let traces: Vec<_> = old["traces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["uuid"].clone())
+        .collect();
+    let before = layout(&session);
+    let junction = before["traces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|trace| [&trace["from"], &trace["to"]])
+        .find_map(|end| end.get("junction"))
+        .unwrap();
+    let request = |points| json!({"replacements":[{"traces":traces,"points":points}]});
+    let prepare = |session: &mut Session, points| {
+        let job = routing::prepare_edit_job(session, args(request(points)))?;
+        let candidate = routing::run_job(job)?;
+        routing::finish_prepare(session, candidate).map(|out| out.result)
+    };
+    let waypoints = json!([{"x":8,"y":y_a+away},{"x":12,"y":y_a+away}]);
+    add_trace(
+        &mut session,
+        json!({
+            "from":junction,"to":{"x":10,"y":y_a+away},"width":0.2
+        }),
+    );
+    let branched = layout(&session);
+    let error = prepare(&mut session, waypoints.clone()).unwrap_err();
+    assert!(error.message.contains("branch"), "{error}");
+    assert_eq!(layout(&session), branched);
+    write::undo_redo(&mut session, Default::default(), false).unwrap();
+    assert_eq!(layout(&session), before);
+    let history = session.project().unwrap().editor.undo_stack().index();
+    let revision = session.project().unwrap().project().revision();
+
+    let collision = prepare(&mut session, json!([{"x":10,"y":y_b}])).unwrap();
+    assert_eq!(
+        collision["validation"]["acceptable"], false,
+        "{collision:#}"
+    );
+    assert!(
+        collision["validation"]["new_copper_error_count"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+    assert_eq!(
+        routing::routing_apply(
+            &mut session,
+            args(json!({
+                "candidate":collision["candidate"]
+            }))
+        )
+        .unwrap_err()
+        .kind,
+        ErrorKind::Refused
+    );
+    assert_eq!(session.project().unwrap().project().revision(), revision);
+    assert_eq!(layout(&session), before);
+
+    let prepared = prepare(&mut session, waypoints).unwrap();
+    assert_eq!(prepared["validation"]["acceptable"], true, "{prepared:#}");
+    assert_eq!(prepared["validation"]["after"]["unrouted"], 0);
+    let candidate = prepared["candidate"].clone();
+    let preview = routing::routing_preview(&session, args(json!({"candidate":candidate})))
+        .unwrap()
+        .result;
+    assert_eq!(preview["mutation_count"], 2);
+    let patch: Vec<Mutation> = serde_json::from_value(preview["mutations"].clone()).unwrap();
+    let [
+        Mutation::Board(librepcb_core::project::BoardMutation::AddNetSegmentElements {
+            elements,
+            ..
+        }),
+        ..,
+    ] = patch.as_slice()
+    else {
+        panic!("Preview must contain the replacement geometry");
+    };
+    let new_ids: Vec<_> = elements
+        .traces
+        .iter()
+        .map(|trace| json!(trace.uuid()))
+        .collect();
+    assert_eq!(layout(&session), before);
+    routing::routing_apply(&mut session, args(json!({"candidate":candidate}))).unwrap();
+    let after = layout(&session);
+    assert_eq!(after["air_wires"], json!([]));
+    for trace in after["traces"].as_array().unwrap() {
+        assert!(!traces.contains(&trace["uuid"]));
+        if trace["net"] == "A" {
+            assert!(new_ids.contains(&trace["uuid"]));
+            assert_eq!(trace["segment"], old["segment"]);
+            assert_eq!(trace["width"], 0.2);
+            assert_eq!(trace["layer"], old["layer"]);
+        } else {
+            assert!(before["traces"].as_array().unwrap().contains(trace));
+        }
+    }
+    assert_eq!(
+        session.project().unwrap().editor.undo_stack().index(),
+        history + 1
+    );
+    write::undo_redo(&mut session, Default::default(), false).unwrap();
+    assert_eq!(layout(&session), before);
+    write::undo_redo(&mut session, Default::default(), true).unwrap();
+    assert_eq!(layout(&session), after);
+}
+
+#[test]
 fn reviewed_edit_rejects_losing_a_plane_connection() {
     use librepcb_mcp::tools::layout::board_get;
 

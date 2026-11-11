@@ -42,6 +42,9 @@ use super::{NetRef, PadRef, resolve};
 use crate::editor::{Command, Transaction};
 use crate::error::{Error, Result};
 
+mod trace_replacement;
+pub use trace_replacement::TraceReplacement;
+
 fn brd(m: BoardMutation) -> Mutation {
     Mutation::Board(m)
 }
@@ -1592,13 +1595,16 @@ pub struct RoutingAnchorMove {
     pub position: Point,
 }
 
-/// Groups via sizing and connected anchor moves. The routing service checks
+/// Groups via sizing, connected anchor moves and trace path replacements.
+/// The routing service checks
 /// this command on a detached board before publishing a candidate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EditRoutingGeometry {
     pub board: BoardId,
     pub vias: Vec<ViaDimensions>,
     pub moves: Vec<RoutingAnchorMove>,
+    #[serde(default)]
+    pub replacements: Vec<TraceReplacement>,
 }
 
 impl Command for EditRoutingGeometry {
@@ -1609,7 +1615,7 @@ impl Command for EditRoutingGeometry {
     }
 
     fn execute(self, tx: &mut Transaction<'_>) -> Result<()> {
-        if self.vias.is_empty() && self.moves.is_empty() {
+        if self.vias.is_empty() && self.moves.is_empty() && self.replacements.is_empty() {
             return Err(Error::InvalidArgument("No routing edits requested.".into()));
         }
         let p = tx.project();
@@ -1642,8 +1648,10 @@ impl Command for EditRoutingGeometry {
                 ));
             }
         }
+        let replacements = trace_replacement::plan(p, b, self.replacements, &positions)?;
         let mut updates = Vec::new();
         for (segment, data) in b.net_segments() {
+            let replacement = replacements.get(segment);
             let mut elements = BoardSegmentElements::default();
             let mut moved = BTreeMap::new();
             for via in data.vias().values() {
@@ -1687,7 +1695,8 @@ impl Command for EditRoutingGeometry {
                         .or_else(|| b.anchor_position(data, anchor, p.library(), p.circuit()))
                 };
                 for trace in data.traces().values() {
-                    if (moved.contains_key(&trace.p1()) || moved.contains_key(&trace.p2()))
+                    if replacement.is_none_or(|edit| !edit.removed.traces.contains(&trace.uuid()))
+                        && (moved.contains_key(&trace.p1()) || moved.contains_key(&trace.p2()))
                         && let Some(start) = position(trace.p1())
                         && Some(start) == position(trace.p2())
                     {
@@ -1716,6 +1725,20 @@ impl Command for EditRoutingGeometry {
         }
         for update in updates {
             tx.apply(brd(update))?;
+        }
+        for (segment, replacement) in replacements {
+            let segment = BoardNetSegmentRef {
+                board: self.board,
+                segment,
+            };
+            tx.apply(brd(BoardMutation::AddNetSegmentElements {
+                segment,
+                elements: replacement.added,
+            }))?;
+            tx.apply(brd(BoardMutation::RemoveNetSegmentElements {
+                segment,
+                elements: replacement.removed,
+            }))?;
         }
         Ok(())
     }

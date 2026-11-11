@@ -438,6 +438,17 @@ pub struct RoutingMoveArgs {
     pub position: crate::units::PointMm,
 }
 
+/// Replaces a connected path between existing anchors.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RoutingTraceReplacementArgs {
+    /// Trace UUIDs in path order, with the same layer and width.
+    pub traces: Vec<String>,
+    /// New interior points in board millimeters. For one trace, start at its
+    /// `from` anchor in board_get. An empty list creates a straight trace.
+    pub points: Vec<crate::units::PointMm>,
+}
+
 /// Prepare one atomic connected edit for preview and validation.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -447,12 +458,16 @@ pub struct RoutingEditArgs {
     pub vias: Vec<RoutingViaSizeArgs>,
     #[serde(default)]
     pub moves: Vec<RoutingMoveArgs>,
+    #[serde(default)]
+    pub replacements: Vec<RoutingTraceReplacementArgs>,
     pub expected_revision: Option<u64>,
 }
 
 pub fn prepare_edit_job(session: &Session, args: RoutingEditArgs) -> ToolResult<RoutingJob> {
     use librepcb_core::geometry::TraceAnchor;
-    use librepcb_editor::commands::{EditRoutingGeometry, RoutingAnchorMove, ViaDimensions};
+    use librepcb_editor::commands::{
+        EditRoutingGeometry, RoutingAnchorMove, TraceReplacement, ViaDimensions,
+    };
 
     let open = session.project()?;
     write::check_revision(open.project(), args.expected_revision)?;
@@ -483,7 +498,33 @@ pub fn prepare_edit_job(session: &Session, args: RoutingEditArgs) -> ToolResult<
             })
         })
         .collect::<ToolResult<_>>()?;
+    let replacements = args
+        .replacements
+        .into_iter()
+        .map(|replacement| {
+            Ok(TraceReplacement {
+                traces: replacement
+                    .traces
+                    .iter()
+                    .map(|uuid| crate::resolve::required_uuid(uuid, "trace"))
+                    .collect::<ToolResult<_>>()?,
+                points: replacement
+                    .points
+                    .into_iter()
+                    .map(crate::units::PointMm::to_point)
+                    .collect::<ToolResult<_>>()?,
+            })
+        })
+        .collect::<ToolResult<_>>()?;
     open.routing
-        .prepare_edit(&open.editor, EditRoutingGeometry { board, vias, moves })
+        .prepare_edit(
+            &open.editor,
+            EditRoutingGeometry {
+                board,
+                vias,
+                moves,
+                replacements,
+            },
+        )
         .map_err(routing_error)
 }

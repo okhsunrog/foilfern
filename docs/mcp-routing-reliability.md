@@ -100,6 +100,20 @@ new UUIDs can cause an existing physical violation to be newly reported;
 the detailed identities and before/after counts make that conservative
 comparison explicit. Do not infer a physical regression from counts alone.
 
+## Reviewed trace replacement
+
+`routing_edit_prepare` accepts `replacements` alongside via dimensions
+and anchor moves. Each item names `traces` in chain order and `points`
+in board millimeters. The new path uses the existing endpoints, net,
+layer and width. With one trace the points start at its `from` end as
+reported by `board_get`. An empty point list joins the endpoints directly.
+Interior junctions must be unbranched. Vias, pads and branch junctions
+can serve as endpoints.
+
+Preview exposes the exact new trace and junction UUIDs and the elements
+to remove. Apply requires completed DRC, no new errors and no increased
+air-wire count on any net. Undo restores the original path in one step.
+
 ## Current routing stage and next work
 
 The [unified routing service design](routing-service-design.md) is the detailed

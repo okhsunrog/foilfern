@@ -273,6 +273,11 @@ follow the anchor with unchanged IDs and connectivity. Prepare runs full model
 checks on the detached edit. Preview/apply use the same exact patch, revision
 checks and undo history as builtin routing.
 
+`routing_edit_prepare` can also replace an ordered chain of traces on
+one layer and width with new waypoints. Both endpoints stay attached,
+including any branches at those endpoints. Only the selected traces
+and their unbranched internal junctions are replaced.
+
 Builtin now preserves failed original requests alongside rebuilt air wires.
 The last strict and rip-up attempts are reported separately. They distinguish
 missing access, a drained search frontier, a search budget cutoff, exact
@@ -280,9 +285,9 @@ geometry rejection, and rip-up limits. Unattempted work can report cancellation.
 See [builtin search evidence](mcp-routing-reliability.md#builtin-search-evidence)
 for the field contract.
 
-Remaining R2 work includes locating specific blockers along the search,
-separating pre-existing copper from routes that can be changed, and adding
-local topology changes. Report suggested remedies as hypotheses until a trial
+Remaining R2 work includes locating specific blockers along the search
+and separating pre-existing copper from routes that can be changed.
+Report suggested remedies as hypotheses until a trial
 verifies them. A drained heuristic frontier only describes the attempted grid
 search.
 
