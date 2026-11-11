@@ -1,0 +1,412 @@
+{
+  "placements": [
+    {
+      "component": "U6",
+      "position": {
+        "x": 124,
+        "y": -133.3
+      }
+    },
+    {
+      "component": "C19",
+      "position": {
+        "x": 128.4,
+        "y": -134.6
+      }
+    }
+  ],
+  "remove_traces": [
+    "032aa49e-7317-48fc-9fea-b0b502391ed5",
+    "1b3c4954-7e53-4aba-97ad-e524eb6d2586",
+    "1c073fb8-feab-4bf7-b71a-49d8dd206909",
+    "1df57712-8287-4182-b123-76b0b102a9ed",
+    "2096542c-330c-442e-a3e7-8bbc68762c83",
+    "2202df4d-0d97-4052-81cc-473773a38a34",
+    "258ecec3-47e9-47a4-8aa5-96c6cbec960b",
+    "26986c14-e60f-4451-964a-6b52f170ab69",
+    "2753e47c-701e-4141-93c3-80e00bff6887",
+    "2ef7bec3-00d4-45f5-bd59-ac8a704694b4",
+    "32f2cee8-f9ef-498c-a780-d8ddde431230",
+    "387f0b06-87b5-409c-83ba-f0e67456d21e",
+    "38cc9ffc-bb38-462b-9932-27b399322c0a",
+    "4a603a32-c815-4171-88b6-c61f25cf1b31",
+    "4af25654-2afe-468d-aa8c-0b572c81b67a",
+    "572fea18-ae65-40ba-940d-10ac9ec2e3ba",
+    "5a4fdd6e-3fb5-44f1-b0a2-0a61aee2a96b",
+    "63c402c8-f28f-495c-add6-b14b2311a7fe",
+    "75ef8cfd-5831-4699-9bb4-fdb5b96b7721",
+    "761c9649-3add-4db6-bc68-e5e2c422297b",
+    "7e4785a1-3b1c-4a42-9f12-8b619f6c1fa5",
+    "89e13dcf-4828-4997-a3f7-2199bdbbd554",
+    "95cd7709-4cec-4c3b-82b3-d3745312e16b",
+    "9636252a-51c4-4a8f-ae42-f04a009e1e39",
+    "a03fa999-9902-4dc2-a250-66c579b3c30f",
+    "a72c9318-5aec-45de-9dfe-64ba3399eba5",
+    "ac9e0d08-0d5a-4f73-b4f7-0a099f36b8cd",
+    "ad12d33c-2afa-4ceb-9925-02635bfb85ba",
+    "ad6fa70a-01f9-4924-b2ee-f8d80d7d28ed",
+    "b3bc2d0e-501d-4714-9392-b5678eeedded",
+    "bc688314-36fc-4688-8671-b5db81e6b0be",
+    "c1f91c08-fd60-4766-94cc-361fb55a1ff1",
+    "c3602b48-87af-4424-aecb-fe3b2bc08cd3",
+    "c47586c3-6f61-4c82-beee-970b0c3b1105",
+    "cece3a45-92eb-4ec7-94a0-010f01b7540e",
+    "d647fba4-e590-48b2-947d-563b2952e632",
+    "d909aedd-801b-430a-a672-cc5a54b32f09",
+    "da3055d2-97eb-4e15-adbb-0093d6a526b6",
+    "dc27ea56-ba97-4f70-8bea-1faed5033523",
+    "de166d6f-8287-4146-b439-593e131483eb",
+    "ded03d6a-5cbe-4ff2-83d4-c6d7851733b7",
+    "e91e629d-578f-46a0-aed3-58a9151a3226",
+    "f2125720-fc01-426e-a374-64d56c8eabfa",
+    "f8ba6cbb-727d-4124-9626-32a11d1fc6eb",
+    "f973afde-8e66-4e15-9e9d-c9562ea707f5",
+    "fad1e032-c864-48da-806b-e4d68d7f93b0",
+    "fb571d1b-d936-48cd-bdb1-ac59be2d86f7",
+    "fb6c02b2-84e7-485e-9ad3-ac340bce6cdd",
+    "f1b0bb98-3595-478a-8146-d025bbe883b7",
+    "f98b11e2-9c7b-4360-9284-640740b00886"
+  ],
+  "remove_vias": [
+    "207bbb10-819d-4b19-bde1-8752fefeb4e0",
+    "abce3668-fa03-4b04-963a-aedbd619b54c",
+    "cde7681d-ea71-450c-b5ca-5ef7832adc66",
+    "4a0c2ac6-66bc-4135-83cf-139226069e02"
+  ],
+  "vias": [
+    {
+      "label": "u6-vdd",
+      "net": "VCC",
+      "position": {
+        "x": 124.8,
+        "y": -134.5
+      },
+      "drill": 0.3,
+      "size": 0.6
+    },
+    {
+      "label": "c19-ground",
+      "net": "GND",
+      "position": {
+        "x": 129.1,
+        "y": -134.12
+      },
+      "drill": 0.3,
+      "size": 0.6
+    },
+    {
+      "label": "sda-right",
+      "net": "SDA",
+      "position": {
+        "x": 123.1,
+        "y": -133.7
+      },
+      "drill": 0.3,
+      "size": 0.6
+    },
+    {
+      "label": "scl-right",
+      "net": "SCL",
+      "position": {
+        "x": 123.15,
+        "y": -134.55
+      },
+      "drill": 0.3,
+      "size": 0.6
+    },
+    {
+      "label": "vdd-crossing",
+      "net": "VCC",
+      "position": {
+        "x": 117.45,
+        "y": -133.65
+      },
+      "drill": 0.3,
+      "size": 0.6
+    },
+    {
+      "label": "u6-return",
+      "net": "GND",
+      "position": {
+        "x": 122.8,
+        "y": -132.5
+      },
+      "drill": 0.3,
+      "size": 0.6
+    }
+  ],
+  "traces": [
+    {
+      "from": "R17.3",
+      "to": "U6.10",
+      "layer": "top",
+      "width": 0.2,
+      "points": [
+        {
+          "x": 121.3,
+          "y": -135.5
+        },
+        {
+          "x": 123.75,
+          "y": -135.5
+        },
+        {
+          "x": 123.75,
+          "y": -133.75
+        },
+        {
+          "x": 125.2,
+          "y": -132.3
+        }
+      ]
+    },
+    {
+      "from": "R17.2",
+      "to": "U6.9",
+      "layer": "top",
+      "width": 0.2,
+      "points": [
+        {
+          "x": 126.7,
+          "y": -135.5
+        },
+        {
+          "x": 124.2,
+          "y": -135.5
+        },
+        {
+          "x": 124.2,
+          "y": -133.9
+        },
+        {
+          "x": 125.3,
+          "y": -132.8
+        }
+      ]
+    },
+    {
+      "from": "U6.2",
+      "to": "3ac3f7e5-314f-4a64-b06f-27b4188d61d1",
+      "layer": "top",
+      "width": 0.2
+    },
+    {
+      "from": "U6.1",
+      "to": "U6.2",
+      "layer": "top",
+      "width": 0.2
+    },
+    {
+      "from": "U6.3",
+      "to": "e9f8a19d-a2ba-4b4b-9747-b32ac8e94e72",
+      "layer": "top",
+      "width": 0.2,
+      "points": [
+        {
+          "x": 120.5,
+          "y": -133.3
+        },
+        {
+          "x": 120.0,
+          "y": -132.8
+        },
+        {
+          "x": 120.0,
+          "y": -131.55
+        }
+      ]
+    },
+    {
+      "from": "U6.7",
+      "to": "C19.1",
+      "layer": "top",
+      "width": 0.2,
+      "points": [
+        {
+          "x": 126.15,
+          "y": -133.75
+        },
+        {
+          "x": 127.8,
+          "y": -133.75
+        },
+        {
+          "x": 128.1,
+          "y": -134.05
+        }
+      ]
+    },
+    {
+      "from": "C19.1",
+      "to": {
+        "via": "c19-ground"
+      },
+      "layer": "top",
+      "width": 0.4
+    },
+    {
+      "from": "R17.4",
+      "to": "1efc4dda-7c61-407c-a8da-af6bb8951d94",
+      "layer": "top",
+      "width": 0.6,
+      "points": [
+        {
+          "x": 119.3,
+          "y": -138.135
+        },
+        {
+          "x": 119.3,
+          "y": -128.6
+        },
+        {
+          "x": 122.35,
+          "y": -125.55
+        }
+      ]
+    },
+    {
+      "from": {
+        "via": "sda-right"
+      },
+      "to": "U6.4",
+      "layer": "top",
+      "width": 0.2,
+      "points": [
+        {
+          "x": 122.85,
+          "y": -133.8
+        }
+      ]
+    },
+    {
+      "from": {
+        "via": "scl-right"
+      },
+      "to": "U6.5",
+      "layer": "top",
+      "width": 0.2
+    },
+    {
+      "from": "U6.8",
+      "to": "00ac50b2-e0ab-46bb-b604-ba73a6ad1e46",
+      "layer": "top",
+      "width": 0.25,
+      "points": [
+        {
+          "x": 127.35,
+          "y": -133.3
+        },
+        {
+          "x": 128.65,
+          "y": -132
+        }
+      ]
+    },
+    {
+      "from": {
+        "via": "u6-vdd"
+      },
+      "to": "U6.6",
+      "layer": "top",
+      "width": 0.25,
+      "points": [
+        {
+          "x": 126,
+          "y": -134.5
+        },
+        {
+          "x": 126,
+          "y": -134.4
+        }
+      ]
+    },
+    {
+      "from": "U6.6",
+      "to": "C19.2",
+      "layer": "top",
+      "width": 0.3,
+      "points": [
+        {
+          "x": 126.1,
+          "y": -134.5
+        },
+        {
+          "x": 126.55,
+          "y": -134.95
+        },
+        {
+          "x": 128.1,
+          "y": -134.95
+        }
+      ]
+    },
+    {
+      "from": "d88b9637-81e4-48b4-a154-6a1f68fee33f",
+      "to": {
+        "via": "sda-right"
+      },
+      "layer": "bottom",
+      "width": 0.2
+    },
+    {
+      "from": "936e11f0-5e3c-443e-bb69-8a81570dfcdc",
+      "to": {
+        "via": "scl-right"
+      },
+      "layer": "inner2",
+      "width": 0.2,
+      "points": [
+        {
+          "x": 118.2,
+          "y": -132.9
+        }
+      ]
+    },
+    {
+      "from": "61a4e2b4-290f-4535-8064-77bf4d065e1a",
+      "to": {
+        "via": "vdd-crossing"
+      },
+      "layer": "inner2",
+      "width": 0.4
+    },
+    {
+      "from": {
+        "via": "vdd-crossing"
+      },
+      "to": {
+        "via": "u6-vdd"
+      },
+      "layer": "bottom",
+      "width": 0.4,
+      "points": [
+        {
+          "x": 117.45,
+          "y": -135.6
+        },
+        {
+          "x": 123.9,
+          "y": -135.6
+        },
+        {
+          "x": 124.8,
+          "y": -134.7
+        }
+      ]
+    },
+    {
+      "from": "U6.2",
+      "to": {
+        "via": "u6-return"
+      },
+      "layer": "top",
+      "width": 0.2,
+      "points": [
+        {
+          "x": 122.5,
+          "y": -132.8
+        }
+      ]
+    }
+  ]
+}

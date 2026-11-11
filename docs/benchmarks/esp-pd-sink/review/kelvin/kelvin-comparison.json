@@ -1,0 +1,231 @@
+{
+  "baseline": {
+    "projected_loop_area_mm2": 11.499900000004345,
+    "plus_mm": 8.575016587651632,
+    "minus_mm": 7.565299718464558,
+    "plus_points_mm": [
+      [
+        120.57,
+        -136.23
+      ],
+      [
+        120.9,
+        -135.9
+      ],
+      [
+        120.9,
+        -135.3
+      ],
+      [
+        121.8,
+        -135.3
+      ],
+      [
+        122.4,
+        -134.7
+      ],
+      [
+        123.75,
+        -133.35
+      ],
+      [
+        123.75,
+        -132.45
+      ],
+      [
+        125.2,
+        -131.0
+      ],
+      [
+        126.1,
+        -131.0
+      ]
+    ],
+    "minus_points_mm": [
+      [
+        127.43,
+        -136.23
+      ],
+      [
+        126.75,
+        -136.05
+      ],
+      [
+        124.2,
+        -133.5
+      ],
+      [
+        124.2,
+        -132.9
+      ],
+      [
+        124.95,
+        -132.15
+      ],
+      [
+        124.95,
+        -131.85
+      ],
+      [
+        125.25,
+        -131.55
+      ],
+      [
+        126.05,
+        -131.55
+      ],
+      [
+        126.1,
+        -131.5
+      ]
+    ],
+    "scope": "Closed 2D centerline polygon between dedicated shunt sense pads and INA inputs; excludes barrels/internal paths; not an inductance/noise model."
+  },
+  "fixed": {
+    "projected_loop_area_mm2": 11.872400000001107,
+    "plus_mm": 8.575016587651632,
+    "minus_mm": 7.48479559184096,
+    "plus_points_mm": [
+      [
+        120.57,
+        -136.23
+      ],
+      [
+        120.9,
+        -135.9
+      ],
+      [
+        120.9,
+        -135.3
+      ],
+      [
+        121.8,
+        -135.3
+      ],
+      [
+        122.4,
+        -134.7
+      ],
+      [
+        123.75,
+        -133.35
+      ],
+      [
+        123.75,
+        -132.45
+      ],
+      [
+        125.2,
+        -131.0
+      ],
+      [
+        126.1,
+        -131.0
+      ]
+    ],
+    "minus_points_mm": [
+      [
+        127.43,
+        -136.23
+      ],
+      [
+        124.2,
+        -133.5
+      ],
+      [
+        124.2,
+        -132.6
+      ],
+      [
+        125.3,
+        -131.5
+      ],
+      [
+        126.1,
+        -131.5
+      ]
+    ],
+    "scope": "Closed 2D centerline polygon between dedicated shunt sense pads and INA inputs; excludes barrels/internal paths; not an inductance/noise model."
+  },
+  "selected": {
+    "projected_loop_area_mm2": 6.418650000003254,
+    "plus_mm": 8.18298556597333,
+    "minus_mm": 7.488010819142742,
+    "plus_points_mm": [
+      [
+        120.57,
+        -136.23
+      ],
+      [
+        121.3,
+        -135.5
+      ],
+      [
+        123.75,
+        -135.5
+      ],
+      [
+        123.75,
+        -133.75
+      ],
+      [
+        125.2,
+        -132.3
+      ],
+      [
+        126.1,
+        -132.3
+      ]
+    ],
+    "minus_points_mm": [
+      [
+        127.43,
+        -136.23
+      ],
+      [
+        126.7,
+        -135.5
+      ],
+      [
+        124.2,
+        -135.5
+      ],
+      [
+        124.2,
+        -133.9
+      ],
+      [
+        125.3,
+        -132.8
+      ],
+      [
+        126.1,
+        -132.8
+      ]
+    ],
+    "scope": "Closed 2D centerline polygon between dedicated shunt sense pads and INA inputs; excludes barrels/internal paths; not an inductance/noise model."
+  },
+  "vbus_replaced_section": {
+    "baseline": {
+      "length_mm": 13.58629913114744,
+      "widths_mm": [
+        0.4
+      ],
+      "sum_length_over_width": 33.9657478278686,
+      "layers": [
+        "top_cu"
+      ]
+    },
+    "selected": {
+      "length_mm": 16.363351365237946,
+      "widths_mm": [
+        0.6
+      ],
+      "sum_length_over_width": 27.272252275396582,
+      "layers": [
+        "top_cu"
+      ]
+    },
+    "scope": "Uniform-thickness rectangular-trace resistance proxy only; no copper thickness, pour current sharing, thermal or current rating asserted."
+  }
+}

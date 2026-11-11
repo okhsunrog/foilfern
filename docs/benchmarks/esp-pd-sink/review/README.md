@@ -44,5 +44,6 @@ renders and performance evidence are described in [REPORT.md](REPORT.md).
 The next batch completed [OLED RESET placement and routing](reset/REPORT.md).
 Use its compact native project for continued layout work.
 
-[U2 VDD/VCONN decoupling](u2/REPORT.md) is now completed. Its selected native
-project is the current continuation point; U6/R17 Kelvin routing is next.
+[U2 VDD/VCONN decoupling](u2/REPORT.md) and [U6/R17 Kelvin routing](kelvin/REPORT.md)
+are completed. The Kelvin report links the current selected native project.
+Next are the ADC C4 placement alternatives and SW5 schematic-mode review.

@@ -1,5 +1,8 @@
 # U2 VDD and VCONN decoupling review
 
+Subsequent [U6/R17 Kelvin work](../kelvin/REPORT.md) is completed and links the
+latest native continuation project. ADC C4 alternatives and SW5 review are next.
+
 2026-11-11. Continues the [OLED RESET batch](../reset/REPORT.md) at `7d65aa2`.
 The input is its saved compact board; previous OLED, RESET and U5 improvements
 are preserved.

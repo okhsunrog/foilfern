@@ -1,8 +1,8 @@
 # ESP-PD-Sink: first placement review batch
 
-Subsequent work: [OLED RESET](reset/REPORT.md) and [U2 decoupling](u2/REPORT.md)
-are completed. The U2 report links the latest native board; U6/R17 Kelvin routing
-is the next layout step.
+Subsequent work: [OLED RESET](reset/REPORT.md), [U2 decoupling](u2/REPORT.md) and
+[U6/R17 Kelvin routing](kelvin/REPORT.md) are completed. The Kelvin report links
+the latest native board; ADC C4 alternatives and SW5-mode review are next.
 
 2026-11-11. Source: `968d90a` (the handoff commit; PCB implementation unchanged
 from `c7df48a`). This batch completes the first OLED analog, U5 feedback and

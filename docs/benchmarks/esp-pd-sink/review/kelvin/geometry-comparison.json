@@ -1,0 +1,182 @@
+{
+  "baseline": {
+    "segments": 981,
+    "vias": 142,
+    "trace_length_mm": 1507.7774445959456
+  },
+  "fixed": {
+    "segments": 977,
+    "vias": 142,
+    "trace_length_mm": 1507.696940469322
+  },
+  "selected": {
+    "segments": 979,
+    "vias": 144,
+    "trace_length_mm": 1523.6889623666261
+  },
+  "traces": {
+    "removed": [
+      "032aa49e-7317-48fc-9fea-b0b502391ed5",
+      "1b3c4954-7e53-4aba-97ad-e524eb6d2586",
+      "1c073fb8-feab-4bf7-b71a-49d8dd206909",
+      "1df57712-8287-4182-b123-76b0b102a9ed",
+      "2096542c-330c-442e-a3e7-8bbc68762c83",
+      "2202df4d-0d97-4052-81cc-473773a38a34",
+      "258ecec3-47e9-47a4-8aa5-96c6cbec960b",
+      "26986c14-e60f-4451-964a-6b52f170ab69",
+      "2753e47c-701e-4141-93c3-80e00bff6887",
+      "2ef7bec3-00d4-45f5-bd59-ac8a704694b4",
+      "32f2cee8-f9ef-498c-a780-d8ddde431230",
+      "387f0b06-87b5-409c-83ba-f0e67456d21e",
+      "38cc9ffc-bb38-462b-9932-27b399322c0a",
+      "4a603a32-c815-4171-88b6-c61f25cf1b31",
+      "4af25654-2afe-468d-aa8c-0b572c81b67a",
+      "572fea18-ae65-40ba-940d-10ac9ec2e3ba",
+      "5a4fdd6e-3fb5-44f1-b0a2-0a61aee2a96b",
+      "63c402c8-f28f-495c-add6-b14b2311a7fe",
+      "75ef8cfd-5831-4699-9bb4-fdb5b96b7721",
+      "761c9649-3add-4db6-bc68-e5e2c422297b",
+      "7e4785a1-3b1c-4a42-9f12-8b619f6c1fa5",
+      "89e13dcf-4828-4997-a3f7-2199bdbbd554",
+      "95cd7709-4cec-4c3b-82b3-d3745312e16b",
+      "9636252a-51c4-4a8f-ae42-f04a009e1e39",
+      "a03fa999-9902-4dc2-a250-66c579b3c30f",
+      "a72c9318-5aec-45de-9dfe-64ba3399eba5",
+      "ac9e0d08-0d5a-4f73-b4f7-0a099f36b8cd",
+      "ad12d33c-2afa-4ceb-9925-02635bfb85ba",
+      "ad6fa70a-01f9-4924-b2ee-f8d80d7d28ed",
+      "b3bc2d0e-501d-4714-9392-b5678eeedded",
+      "bc688314-36fc-4688-8671-b5db81e6b0be",
+      "c1f91c08-fd60-4766-94cc-361fb55a1ff1",
+      "c3602b48-87af-4424-aecb-fe3b2bc08cd3",
+      "c47586c3-6f61-4c82-beee-970b0c3b1105",
+      "cece3a45-92eb-4ec7-94a0-010f01b7540e",
+      "d647fba4-e590-48b2-947d-563b2952e632",
+      "d909aedd-801b-430a-a672-cc5a54b32f09",
+      "da3055d2-97eb-4e15-adbb-0093d6a526b6",
+      "dc27ea56-ba97-4f70-8bea-1faed5033523",
+      "de166d6f-8287-4146-b439-593e131483eb",
+      "ded03d6a-5cbe-4ff2-83d4-c6d7851733b7",
+      "e91e629d-578f-46a0-aed3-58a9151a3226",
+      "f1b0bb98-3595-478a-8146-d025bbe883b7",
+      "f2125720-fc01-426e-a374-64d56c8eabfa",
+      "f8ba6cbb-727d-4124-9626-32a11d1fc6eb",
+      "f973afde-8e66-4e15-9e9d-c9562ea707f5",
+      "f98b11e2-9c7b-4360-9284-640740b00886",
+      "fad1e032-c864-48da-806b-e4d68d7f93b0",
+      "fb571d1b-d936-48cd-bdb1-ac59be2d86f7",
+      "fb6c02b2-84e7-485e-9ad3-ac340bce6cdd"
+    ],
+    "added": [
+      "029792da-9483-4bf9-9e7a-53a7c2dba86e",
+      "0446a892-dd44-4918-83f5-419800a7478b",
+      "16d4e8b9-d163-4bd3-89d1-53ef24c96bda",
+      "1d9c7a14-5696-43c1-9b30-fa3540cc684f",
+      "20e2312d-fa02-4322-9937-b36fe2eb1715",
+      "26e10e92-4b65-4ed4-aadb-9434159854d9",
+      "2999f505-e1d9-4fdb-b576-1a07eda9b7d5",
+      "2a3be47a-bbdd-4ee3-a642-33d50507cae8",
+      "35763ba0-8918-4bde-a3af-990e512ecd9c",
+      "35a33ec6-a2a2-4524-a00d-dfbe2fc8ad18",
+      "368fc2e9-ca1a-4498-9f94-3ce2b9d682ba",
+      "433969cb-e33b-4e6f-985b-da2a445256ae",
+      "479ea966-fd15-421f-bd19-9823778d8b56",
+      "498020b1-e888-4214-8309-d445afca54d1",
+      "4a5c7002-4edb-4cde-aac4-30b19295c17d",
+      "4cb2ddff-bc6e-48dc-8b72-f57fa296e229",
+      "4d7c5aaf-88b5-45ce-bab4-8fdd9632d22d",
+      "553cc9b7-1dfd-4f7d-831e-96e7055af13e",
+      "63854229-328f-4d8e-a83d-4400dcb80d0e",
+      "6809680d-bc2f-4cfb-a7e6-630726512344",
+      "6b0b0127-3d59-4488-a324-e742178bc841",
+      "6b154365-8afa-4aaa-a6e0-14ab89b2b303",
+      "76afaab4-701b-4bba-b6e8-a08f3a07d2e1",
+      "77b50616-6f0a-46b0-ba7e-c4e488cc10d5",
+      "83f21f02-a46a-4b40-890d-9d0606f7d0b4",
+      "84a799c9-1cde-4999-8cb7-0fbab0f946bc",
+      "8b6bc9ef-5716-491c-bb3e-d8e6163e8770",
+      "8d59b00b-af8e-49d7-80f8-fc254668ac2a",
+      "91c4641b-d6b0-403e-8152-f45913c0450f",
+      "9fe2c620-5f8e-4741-bc70-0cbad7084c59",
+      "a0b102b5-118c-4b11-9d1c-4d3c854b7fd8",
+      "a2c13388-8bc0-45bd-9e03-a2b998a0b66a",
+      "a61c8081-e963-45cd-aa06-9492971ed8dd",
+      "b235a9d6-7f0c-49bb-a354-ef512b27c1dc",
+      "c039d859-1ae0-4636-95df-ed4eae334513",
+      "c7c9a63f-b95d-4723-acf8-ff6650d077df",
+      "c8ce4b8a-589f-43d9-8c41-0d1ec41289cb",
+      "d1bcfd88-0938-445f-ab3f-150dd233d823",
+      "d5f4bc3b-2fc2-4436-9770-a10dbad61b11",
+      "e0906976-33ac-4b89-978e-e8a457af3a4a",
+      "e1acc7dd-d218-4f32-af7e-1cfc709129ac",
+      "e3a9c606-56e8-48b0-a684-ca8d09aa10c8",
+      "e86e859b-1c14-43b8-bb6c-2f86ff6317ca",
+      "e8fc6e58-07e0-45a9-b7e0-28bb4b64f2a5",
+      "ef210538-d1bc-4145-915a-2a9de5d33354",
+      "f688d4a3-43a6-4378-afe9-6dfd523d3c6f",
+      "fefe14d2-a64c-4917-9a61-7beddd72ee1a",
+      "ff7c9ce4-aba1-4554-ab00-eb3196040765"
+    ],
+    "retained_geometry_preserved": true
+  },
+  "vias": {
+    "removed": [
+      "207bbb10-819d-4b19-bde1-8752fefeb4e0",
+      "4a0c2ac6-66bc-4135-83cf-139226069e02",
+      "abce3668-fa03-4b04-963a-aedbd619b54c",
+      "cde7681d-ea71-450c-b5ca-5ef7832adc66"
+    ],
+    "added": [
+      "1df54c2d-7ddf-47b7-ad63-04faf56dad18",
+      "30eb8073-b20f-4903-9b0d-3e4c77ab8092",
+      "56a72791-fdb8-40a5-bf39-49ddaef22829",
+      "5c196e5b-69bf-4ef7-8834-1a0f822e6e2b",
+      "6d5565cd-2a48-4572-a977-7250f7e288f8",
+      "c233e7eb-231d-4600-9062-00c7e0ce6711"
+    ],
+    "retained_geometry_preserved": true
+  },
+  "placements": [
+    {
+      "designator": "C19",
+      "before": {
+        "position": {
+          "x": 128.4,
+          "y": -133.3
+        },
+        "rotation": -90.0,
+        "side": "top"
+      },
+      "after": {
+        "position": {
+          "x": 128.4,
+          "y": -134.6
+        },
+        "rotation": -90.0,
+        "side": "top"
+      }
+    },
+    {
+      "designator": "U6",
+      "before": {
+        "position": {
+          "x": 124.0,
+          "y": -132.0
+        },
+        "rotation": 0.0,
+        "side": "top"
+      },
+      "after": {
+        "position": {
+          "x": 124.0,
+          "y": -133.3
+        },
+        "rotation": 0.0,
+        "side": "top"
+      }
+    }
+  ],
+  "mechanical_and_plane_settings_preserved": true,
+  "netlist_byte_identical": true,
+  "drc_messages_identical": true
+}
