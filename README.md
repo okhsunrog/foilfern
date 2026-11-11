@@ -1,172 +1,145 @@
-# librepcb-rs
+<p align="center">
+  <img src="docs/assets/foilfern.png" width="176" height="176" alt="Foilfern logo" />
+</p>
 
-A work-in-progress rewrite of [LibrePCB](https://librepcb.org) — the free EDA
-suite for schematics and PCBs — in Rust, with a [Slint](https://slint.dev) UI
-and no Qt.
+<h1 align="center">Foilfern</h1>
 
-The goals:
+<p align="center">
+  <strong>Open-source PCB design in Rust for engineers and AI agents.</strong><br />
+  Go from a design brief to an editable schematic, a routed board, and manufacturing files.
+  Work in the Slint desktop editor, run checks from the command line, or let an agent drive the
+  same project through MCP.
+</p>
 
-- **File-compatible with upstream LibrePCB.** Everything upstream writes can be
-  read, and everything this project writes can be read by upstream. Files are
-  written byte-identically to upstream's canonical format.
-- **Idiomatic Rust**, not a line-by-line transliteration: plain data models,
-  no Qt emulation, existing crates wherever they fit.
-- **Designing boards with AI agents.** An MCP server built on the same model
-  as the editor, so agents can query and edit projects, run ERC/DRC and
-  export manufacturing data, with every change validated and undoable.
+<p align="center">
+  <a href="#build-from-source">Build from source</a> ·
+  <a href="#ai-agents-over-mcp">Connect an agent</a> ·
+  <a href="#stm32g474-routing-example">Routing example</a> ·
+  <a href="docs/status.md">Project status</a>
+</p>
 
-This is an unofficial project and is not affiliated with the LibrePCB
-project. All credit for the design, the file format and the original code
-goes to the [LibrePCB developers](https://github.com/LibrePCB/LibrePCB).
+<p align="center">
+  <img src="docs/assets/stm32g474-3d.png" width="840"
+       alt="3D render of the STM32G474 board with a buck converter footprint, SWD and GPIO headers" />
+</p>
 
-## Built with AI agents
+*An STM32G474 development board with a 5 V to 3.3 V buck converter, rendered
+from its LibrePCB project by Foilfern's 3D renderer.
+[Read the board and routing experiment](docs/mcp-routing-reliability.md#stm32g474-with-buck-converter-and-bottom-gnd-pour).*
 
-Most of the code in this repository was written by AI coding agents (Claude
-Code) under human direction, porting the upstream C++ code module by module.
-Treat it accordingly. What keeps it honest is a strict verification setup:
+## What works
 
-- the upstream unit tests are ported with their original test vectors;
-- round-trip tests load every file in upstream's test data and require
-  byte-identical output;
-- where possible, results are compared directly against the upstream
-  `librepcb-cli` (library checks, file format migrations, export generators).
+- **Schematics.** Install libraries, pick parts and footprints, place symbols,
+  connect pins, and run electrical rule checks (ERC).
+- **PCB layout.** Set the board outline and rules, place components, and edit
+  traces, vias, and copper pours. Inspect the board in the interactive 3D view.
+- **Routing.** Compare candidates from the same board snapshot by new design
+  rule check (DRC) errors, open connections, via count, and trace length.
+  Preview the changes and apply the chosen candidate as one undo step.
+- **Manufacturing.** Run ERC and DRC, save an editable LibrePCB project, and
+  export Gerber, Excellon, BOM, and pick-and-place files.
 
-Every intentional behavior difference from upstream is listed in
-[COMPAT.md](COMPAT.md).
+## Build from source
 
-## Status
-
-The headless core, a command line tool and an MCP server work; the Slint
-application is next.
-
-| Area | State |
-|---|---|
-| Base types, S-expression file format, geometry, stroke fonts, Clipper 1 port | done |
-| Libraries (symbols, packages, components, devices, ...) and their checks | done, check output identical to upstream |
-| File format migrations (v0.1 → v1 → v2) | done, byte-identical to upstream |
-| Project model: circuit, schematics, boards (undoable mutations, change journal) | done |
-| ERC, DRC | done, messages identical to upstream on all test projects |
-| Plane fragments, Gerber/Excellon, pick & place, IPC-D-356A, BOM, JSON exports | done, byte-identical to upstream |
-| Graphics export (PDF/SVG/PNG), output jobs | done (graphics not byte-identical to Qt) |
-| `librepcb-cli` | native CLI, including standalone STEP validation/tessellation, minification and mechanical output jobs |
-| Workspace, library index, library download | done |
-| Editing commands with undo, autorouting (built-in router, Freerouting via Specctra DSN/SES) | done |
-| MCP server | working: agents design schematics and boards end to end |
-| Slint viewer and editor | implemented with embedded MCP; desktop platform acceptance remains separate |
-
-See [docs/roadmap.md](docs/roadmap.md) for the milestones and
-[docs/status.md](docs/status.md) for the current state and next steps.
-
-## MCP server
-
-`librepcb-mcp` lets an AI agent design a board through the
-[Model Context Protocol](https://modelcontextprotocol.io): search parts in
-the LibrePCB libraries, draw the schematic, place and route the board, run
-ERC/DRC and export manufacturing data. The projects open in upstream
-LibrePCB.
+From the repository root, use a recent stable Rust toolchain. On Debian or
+Ubuntu, [the setup script](scripts/cloud-setup.sh) installs the development
+dependencies and prepares the upstream LibrePCB checkout used by the tests.
 
 ```sh
-cargo install --path crates/librepcb-mcp
-claude mcp add librepcb -- librepcb-mcp --workspace ~/LibrePCB-Workspace
+cargo run --locked -p librepcb-app -- --project /path/to/board.lpp
+cargo run --locked -p librepcb-cli -- open-project /path/to/board.lpp --erc --drc
 ```
 
-Then ask for a design, e.g. "design a two-transistor LED blinker powered
-from a 2-pin header, route it and export Gerbers". Libraries are installed
-with the `library_install` tool (or copied to
-`<workspace>/data/libraries/local/`). Autorouting uses
-[Freerouting](https://github.com/freerouting/freerouting) when a
-`freerouting` launcher or `LIBREPCB_FREEROUTING_JAR` (Java 25) is
-available, else the built-in router. See `crates/librepcb-mcp/src/lib.rs`
-and [docs/mcp-design.md](docs/mcp-design.md).
+Add `--tab board3d` to the desktop command to open the 3D view.
+[3D controls and graphics requirements](crates/librepcb-render3d/README.md)
 
-## Repository layout
+## AI agents over MCP
 
-| Path | Contents |
-|---|---|
-| `crates/librepcb-core` | The domain model: types, serialization, geometry, libraries, project model, exports |
-| `crates/librepcb-i18n` | Translations for strings from Rust code, using the upstream catalogs |
-| `crates/librepcb-network` | Async networking (downloads, LibrePCB API) |
-| `crates/librepcb-canvas` | 2D rendering canvas (vello_cpu) with hit testing, and a Slint adapter |
-| `crates/librepcb-render3d` | Physical board meshes and interactive offscreen Bevy 3D rendering |
-| `crates/librepcb-scene` | Schematic/board/symbol/footprint scenes, PNG rendering and graphics export (PDF/SVG) |
-| `crates/librepcb-editor` | UI-independent editing commands with undo, used by MCP and the future UI |
-| `crates/librepcb-autoroute` | Built-in grid autorouter |
-| `crates/librepcb-cli` | Port of the upstream `librepcb-cli` |
-| `crates/librepcb-mcp` | MCP server for AI agents |
-| `crates/clipper` | Pure-Rust port of the Clipper 1 polygon clipping library |
-| `tools/ts2po` | Converter from upstream Qt `.ts` translations to gettext `.po` |
-| `lang/` | Translation catalogs (25 languages) |
-| `spikes/` | Throwaway prototypes (canvas rendering, Slint translations) |
-| `docs/` | Roadmap, porting guide, project model design, MCP research |
+Foilfern exposes project editing, validation, and exports through the
+[Model Context Protocol](https://modelcontextprotocol.io/). The standalone
+server runs headless. With the embedded server, you can watch the agent work
+in the open project and undo its edits from the desktop editor's history.
 
-## Building and testing
-
-You need a recent stable Rust toolchain (edition 2024).
-
-Many tests use upstream LibrePCB's test data, and some compare against the
-upstream command line tool. `scripts/cloud-setup.sh` sets both up on a fresh
-machine (Debian/Ubuntu packages, Rust if missing, the pinned upstream checkout
-next to this repository, and the official `librepcb-cli` release run through
-Xvfb):
+Install the standalone server from the checkout.
 
 ```sh
-scripts/cloud-setup.sh
+cargo install --locked --path crates/librepcb-mcp
 ```
 
-Or check out upstream manually:
+Register it with your MCP client. The server opens the workspace you pass and
+creates it if needed.
+
+**Codex**
 
 ```sh
-git clone https://github.com/LibrePCB/LibrePCB.git ../LibrePCB
-git -C ../LibrePCB submodule update --init tests/data share/librepcb/fontobene i18n libs/fontobene-qt
+codex mcp add foilfern -- librepcb-mcp --workspace "$HOME/LibrePCB-Workspace"
 ```
 
-The location is set by `LIBREPCB_UPSTREAM_DIR` in `.cargo/config.toml`
-(default `../LibrePCB`) and can be overridden from the environment:
+**Claude Code**
 
 ```sh
-LIBREPCB_UPSTREAM_DIR=/path/to/LibrePCB cargo test
+claude mcp add --transport stdio foilfern -- librepcb-mcp --workspace "$HOME/LibrePCB-Workspace"
 ```
 
-Then:
+For other clients, configure a stdio server with the command `librepcb-mcp`
+and arguments `--workspace` and the absolute workspace path. To connect to an
+open desktop project, launch the editor with `--mcp` and point a Streamable
+HTTP client at `http://127.0.0.1:8766/mcp`.
+
+Try a first design brief.
+
+> Create a 3.3 V LED indicator board with a two-pin power header. Select an LED
+> and series resistor, draw the schematic, and place the parts on a two-layer
+> board. Run ERC and prepare a routing candidate. Show me the preview and DRC
+> result before applying it, then save the project and export the fabrication
+> files.
+
+[MCP board workflow](docs/mcp-board-workflow.md) · [Server design](docs/mcp-design.md)
+
+## STM32G474 routing example
+
+In a recorded run on an earlier version of the STM32G474 board, the built-in
+router tried three orders from the same placement, design rules, and 57 open
+connections.
+
+| Initial routing order | Open connections | New DRC errors | Vias | Total trace length |
+| --- | ---: | ---: | ---: | ---: |
+| Constrained pads first | **0** | 0 | **47** | 765.49 mm |
+| Longest connections first | **0** | 0 | 56 | 741.53 mm |
+| Shortest connections first | 1 | 0 | 40 | 719.54 mm |
+
+The chosen route closed every connection with nine fewer vias than the other
+complete candidate. It was previewed, applied, saved, and reopened. Upstream
+LibrePCB reported two pre-existing silkscreen warnings.
+[Routing settings and results](docs/mcp-routing-reliability.md#stm32-comparison-of-initial-orders)
+
+## LibrePCB compatibility
+
+Foilfern started as `librepcb-rs`, an independent Rust implementation of
+[LibrePCB](https://github.com/LibrePCB/LibrePCB). It aims to preserve
+interoperability with native LibrePCB projects and libraries. Tests cover file
+round trips, migrations, checks, and selected exports against upstream
+fixtures and `librepcb-cli`.
+[Compatibility and known gaps](COMPAT.md) · [Roadmap](docs/roadmap.md)
+
+## Contributing
+
+[The porting guide](docs/porting-guide.md) covers the upstream reference and
+test setup. The default upstream checkout is `../LibrePCB`; set
+`LIBREPCB_UPSTREAM_DIR` if yours is elsewhere. Set `LIBREPCB_CLI` to an
+upstream CLI binary to enable reference comparisons.
 
 ```sh
-cargo test --workspace
+cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
 ```
 
-The file format migration test compares against the upstream command line
-tool (same file format version), taken from `LIBREPCB_CLI` or `librepcb-cli`
-on the `PATH`; without it, that comparison is skipped.
-
-To see the canvas demo:
-
-```sh
-cargo run --release -p librepcb-canvas --features slint --example canvas_demo
-```
-
-To open a board's interactive 3D view:
-
-```sh
-cargo run -p librepcb-app -- --project /path/to/project.lppz --tab board3d
-```
-
-On Linux, 3D rendering needs a Vulkan loader and a compatible driver
-(`libvulkan1` and `mesa-vulkan-drivers` on Debian/Ubuntu, installed by the setup
-script). It also works without a display server: add `--screenshot view.png`.
-On NixOS, the development shell must include `vulkan-loader` in
-`LD_LIBRARY_PATH`. Slint can still use its software renderer. See
-[the renderer notes](crates/librepcb-render3d/README.md) for controls and GPU tests.
-
-## Documentation
-
-- [docs/roadmap.md](docs/roadmap.md) — milestones
-- [docs/porting-guide.md](docs/porting-guide.md) — conventions for porting upstream code
-- [docs/project-model-design.md](docs/project-model-design.md) — design of the project model, mutations, undo and change tracking
-- [docs/mcp-research-konnect.md](docs/mcp-research-konnect.md) — lessons from an existing KiCad MCP server, and our MCP decisions
-- [docs/mcp-design.md](docs/mcp-design.md) — design of the MCP server and its tools
-- [COMPAT.md](COMPAT.md) — intentional differences from upstream
+[Project model and undo](docs/project-model-design.md) ·
+[Routing service](docs/routing-service-design.md)
 
 ## License
 
-GNU General Public License v3.0 or later, like upstream LibrePCB. See
-[LICENSE.txt](LICENSE.txt).
+GNU General Public License v3.0 or later. [Full license](LICENSE.txt).
+The original design, file formats, and reference implementation are the work
+of the upstream LibrePCB developers.
