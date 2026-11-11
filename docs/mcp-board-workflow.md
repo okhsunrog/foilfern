@@ -175,6 +175,25 @@ Length totals cover the full lists. Keep using the candidate's DRC and
 connectivity checks when deciding whether to apply. See the
 [ground coverage and stitch workflow](routing-service-design.md#ground-reference-coverage-and-targeted-stitching).
 
+Use `trace_path_measure` to compare the explicit routed path between two
+same-net pads without collecting trace segments manually:
+
+```json
+{"board":"default","from":"OLED1.28","to":"C21.1"}
+```
+
+The result identifies its project, board and revision, resolved pad identities,
+centerline length in mm, layers, traces and unique via anchors. Supply
+`expected_revision` when reviewing a particular snapshot. UUID endpoint objects
+also work, for example `{"component":"<instance UUID>","pad":"<pad UUID>"}`.
+An ambiguous pin refuses; specify its physical footprint pad UUID.
+
+Inspect `status` before using the length. `not_measured` with null length means
+no explicit anchored trace path was found, including cases joined through a
+plane. It does not mean disconnected or zero length. Plane copper, unanchored
+copper overlaps and via barrels are excluded; continue using `unrouted`,
+reference coverage and DRC for connectivity and reference checks.
+
 ## Save and deliver
 
 After the final edits, rerun ERC, DRC and `unrouted`. Export fabrication

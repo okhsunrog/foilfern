@@ -32,11 +32,12 @@ match the archived evidence within 0.001 mm, including via counts; every group p
 resolves to an existing component, signal and footprint pad. U5.1–C16.1 correctly
 reports no trace-only measurement rather than assuming an absent ground return.
 
-Next small API step: a read-only `review_measure` accepting these explicit groups
-and endpoints, returning resolved identities, measurement status/reason and the
-source project/revision. Store resolved references alongside human labels; reject
-unresolved/ambiguous pins. Add enforced allowed-area or reference-copper constraints
-only after the measured board experiments establish the needed semantics.
+The product now provides read-only `trace_path_measure` for explicit pad pairs,
+including resolved identities, board/project/revision, length, layers, via and
+trace IDs, and an explicit unmeasured result for absent trace-only paths.
+See [the MCP contract](../../../mcp-design.md#read-only-trace-path-measurements).
+The group/requirements document remains an external review prototype; bulk group
+storage and enforced allowed-area/reference constraints are future work.
 
 The completed first batch, accepted candidate arguments, native project archive,
 renders and performance evidence are described in [REPORT.md](REPORT.md).
@@ -50,5 +51,5 @@ and [ADC C4 alternatives/SW5 review](adc/REPORT.md) are completed.
 native project. [Guarded routing-baseline reuse](performance/REPORT.md) is now
 implemented in Rust. [Release validation on the original fixture](performance/release/REPORT.md)
 confirms faster repeated preparation with equivalent DRC, connectivity and geometry.
-The current handoff prioritizes bounded builtin profiling, then the read-only
-MCP path measurement API. Connected-footprint side changes remain later work.
+Bounded builtin profiling is recorded beside it; the read-only path API is
+implemented in core/MCP. Connected-footprint side changes remain later work.

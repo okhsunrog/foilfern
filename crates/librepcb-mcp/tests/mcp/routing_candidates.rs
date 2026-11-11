@@ -1922,3 +1922,163 @@ fn reviewed_edit_rejects_losing_a_plane_connection() {
     assert_eq!(error.kind, ErrorKind::Refused);
     assert_eq!(board_value(&session), before);
 }
+
+#[test]
+fn trace_path_measurement_distinguishes_instances_and_selects_shortest_branch() {
+    use librepcb_mcp::tools::{layout, trace_path};
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let board = layout::board_get(&session, Default::default())
+        .unwrap()
+        .result;
+    let pads: Vec<_> = board["devices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|d| d["designator"] == "R1" || d["designator"] == "R2")
+        .map(|d| {
+            d["pads"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|p| p["name"] == "1")
+                .unwrap()
+        })
+        .collect();
+    assert_eq!(
+        pads[0]["uuid"], pads[1]["uuid"],
+        "shared package pad UUID must not merge device instances"
+    );
+    board_edit::trace_add(
+        &mut session,
+        args(json!({"from":"R1.1", "to":"R2.1", "width":0.2,
+        "points":[{"x":5,"y":7},{"x":15,"y":7}]})),
+    )
+    .unwrap();
+    let query = || args(json!({"from":"R1.1", "to":"R2.1"}));
+    let measured = trace_path::trace_path_measure(&session, query())
+        .unwrap()
+        .result;
+    assert_eq!(measured["status"], "measured");
+    assert!(
+        (measured["length_mm"].as_f64().unwrap() - 14.05).abs() < 1e-9,
+        "{measured}"
+    );
+    assert_eq!(measured["direct_mm"], 10.0);
+    assert_eq!(measured["via_count"], 0);
+    assert_eq!(measured["layers"], json!(["top_cu"]));
+    let from = measured["from"].clone();
+    let to = measured["to"].clone();
+    let identities = args(
+        json!({"from":{"component":from["component"], "pad":from["pad"]},
+        "to":{"component":to["component"], "pad":to["pad"]}}),
+    );
+    assert_eq!(
+        trace_path::trace_path_measure(&session, identities)
+            .unwrap()
+            .result,
+        measured
+    );
+    board_edit::trace_add(
+        &mut session,
+        args(json!({"from":"R1.1", "to":"R2.1", "width":0.2})),
+    )
+    .unwrap();
+    let revision = session.project().unwrap().project().revision();
+    let before = board_value(&session);
+    let measured = trace_path::trace_path_measure(&session, query())
+        .unwrap()
+        .result;
+    assert_eq!(measured["length_mm"], 10.0);
+    assert_eq!(measured["traces"].as_array().unwrap().len(), 1);
+    assert_eq!(measured["base_revision"], revision);
+    assert_eq!(board_value(&session), before);
+    assert_eq!(session.project().unwrap().project().revision(), revision);
+    let stale = trace_path::trace_path_measure(
+        &session,
+        args(json!({"from":"R1.1", "to":"R2.1", "expected_revision":revision-1})),
+    )
+    .unwrap_err();
+    assert_eq!(stale.kind, ErrorKind::StaleRevision);
+}
+
+#[test]
+fn trace_path_measurement_reports_plane_length_as_unmeasured_and_rejects_bad_endpoints() {
+    use librepcb_mcp::tools::trace_path;
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    board_edit::plane_add(&mut session, args(json!({"net":"A", "layer":"top"}))).unwrap();
+    let measured =
+        trace_path::trace_path_measure(&session, args(json!({"from":"R1.1", "to":"R2.1"})))
+            .unwrap()
+            .result;
+    assert_eq!(measured["status"], "not_measured");
+    assert!(measured["length_mm"].is_null());
+    assert_eq!(measured["same_net_plane_present"], true);
+    assert_eq!(measured["plane_copper_measured"], false);
+    assert!(
+        measured["reason"]
+            .as_str()
+            .unwrap()
+            .contains("not a connectivity verdict")
+    );
+    let different =
+        trace_path::trace_path_measure(&session, args(json!({"from":"R1.1", "to":"R2.2"})))
+            .unwrap_err();
+    assert_eq!(different.kind, ErrorKind::InvalidArgument);
+    let missing =
+        trace_path::trace_path_measure(&session, args(json!({"from":"R1.99", "to":"R2.1"})))
+            .unwrap_err();
+    assert_eq!(missing.kind, ErrorKind::NotFound);
+    let same = trace_path::trace_path_measure(&session, args(json!({"from":"R1.1", "to":"R1.1"})))
+        .unwrap()
+        .result;
+    assert_eq!(same["status"], "measured");
+    assert_eq!(same["length_mm"], 0.0);
+}
+
+#[test]
+fn trace_path_measurement_counts_real_vias_and_both_layers() {
+    use librepcb_mcp::tools::trace_path;
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let mut vias = Vec::new();
+    for x in [7, 13] {
+        vias.push(
+            board_edit::via_add(
+                &mut session,
+                args(json!({"net":"A", "position":{"x":x,"y":9.025},
+            "drill":0.3,"size":0.6})),
+            )
+            .unwrap()
+            .result["uuid"]
+                .clone(),
+        );
+    }
+    for (from, to, layer) in [
+        (json!("R1.1"), vias[0].clone(), "top"),
+        (vias[0].clone(), vias[1].clone(), "bottom"),
+        (vias[1].clone(), json!("R2.1"), "top"),
+    ] {
+        board_edit::trace_add(
+            &mut session,
+            args(json!({"from":from,"to":to,"layer":layer,"width":0.2})),
+        )
+        .unwrap();
+    }
+    let measured =
+        trace_path::trace_path_measure(&session, args(json!({"from":"R1.1", "to":"R2.1"})))
+            .unwrap()
+            .result;
+    assert_eq!(measured["length_mm"], 10.0);
+    assert_eq!(measured["via_count"], 2);
+    assert_eq!(measured["layers"], json!(["bot_cu", "top_cu"]));
+    let ids: std::collections::BTreeSet<_> = measured["vias"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v["uuid"].as_str().unwrap())
+        .collect();
+    assert!(vias.iter().all(|v| ids.contains(v.as_str().unwrap())));
+    assert_eq!(measured["via_barrel_length_measured"], false);
+}

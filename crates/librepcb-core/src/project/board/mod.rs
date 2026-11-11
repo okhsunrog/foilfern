@@ -53,6 +53,7 @@ mod polygon_data;
 mod reference_coverage;
 mod specctra_export;
 mod stroke_text_data;
+mod trace_path;
 mod via;
 mod zone_data;
 
@@ -92,6 +93,7 @@ pub use specctra_export::{
     segment_net_name, via_padstack_id,
 };
 pub use stroke_text_data::BoardStrokeTextData;
+pub use trace_path::{PathTrace, TracePath, centerline_length_mm};
 pub use via::ViaView;
 pub use zone_data::BoardZoneData;
 

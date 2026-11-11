@@ -15,3 +15,5 @@ pub mod schematic_edit;
 pub mod write;
 
 pub mod routing;
+
+pub mod trace_path;

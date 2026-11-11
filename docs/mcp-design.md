@@ -236,6 +236,32 @@ given).
 Escape hatch: `mutation_apply` (core `Mutation` JSON, full validation, one
 undo group), `mutation_schema`.
 
+### Read-only trace path measurements
+
+`trace_path_measure` accepts `from`, `to`, optional `board` and
+`expected_revision`. Endpoints are `"OLED1.28"` style pad addresses or
+`{"component":"<instance UUID>","pad":"<footprint pad UUID>"}`. Pad UUID,
+package pad name and component signal name are tried in that order; an
+ambiguous signal/name refuses instead of selecting an arbitrary physical pad.
+Both resolved pads must have the same assigned net.
+
+The response pins `project`, `board` and `base_revision`, resolves both endpoint
+identities, and reports `direct_mm`. A measured shortest explicit path includes
+`length_mm`, layers, ordered trace IDs/segment IDs/widths/lengths and unique
+segment-scoped via anchors. Lengths follow trace centerlines between anchors,
+including pad centers; via barrel length is excluded. Footprint pads are keyed
+by component instance and pad, local anchors by segment and layer. Only valid
+via/pad copper joins layers; a junction is not an implicit via.
+
+A missing explicit path returns partial `status: "not_measured"`, null
+`length_mm` and a reason. Plane copper and unanchored copper overlaps are not
+measured or inferred. `same_net_plane_present` is a hint about board contents,
+not evidence that a particular plane connects these endpoints. A measured
+trace path may coexist with a shorter unmeasured plane path. These measurements
+do not replace rebuilt-plane connectivity or DRC. No model, derived plane,
+revision, history or file is changed. The algorithm lives in core and reuses
+its existing petgraph dependency; no new dependency or native format is added.
+
 ## Routing
 
 An agent cannot route by coordinates reliably. Two paths, both behind

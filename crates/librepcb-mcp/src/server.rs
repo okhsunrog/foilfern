@@ -1066,6 +1066,17 @@ impl LibrePcbMcp {
     }
 
     #[tool(
+        description = "Measure the shortest explicit anchored trace path between two same-net footprint pads. Returns project/board/revision, length in mm, layers, traces and unique via anchors. Read-only: plane copper, unanchored copper contacts and via barrels are not measured; no path is not a connectivity verdict."
+    )]
+    async fn trace_path_measure(
+        &self,
+        Parameters(args): Parameters<crate::tools::trace_path::TracePathArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| crate::tools::trace_path::trace_path_measure(s, args))
+            .await
+    }
+
+    #[tool(
         description = "Inspect effective builtin routing rules and their sources, grid access and local clearance blockers for one net. Optionally attach an annotated PNG for one endpoint and copper layer."
     )]
     async fn routing_diagnose(
