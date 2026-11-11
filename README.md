@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/foilfern.png" width="176" height="176" alt="Foilfern logo" />
+  <img src="docs/assets/foilfern.svg" width="176" height="176" alt="Foilfern logo" />
 </p>
 
 <h1 align="center">Foilfern</h1>
@@ -23,8 +23,10 @@
        alt="3D render of the STM32G474 board with a buck converter footprint, SWD and GPIO headers" />
 </p>
 
-*An STM32G474 development board with a 5 V to 3.3 V buck converter, rendered
-from its LibrePCB project by Foilfern's 3D renderer.
+*Codex designed this STM32G474 development board from scratch in Foilfern
+through MCP. It created the schematic, placed the components, and routed
+the entire PCB, including the 5 V to 3.3 V buck converter. Foilfern rendered
+the finished layout in 3D.
 [Read the board and routing experiment](docs/mcp-routing-reliability.md#stm32g474-with-buck-converter-and-bottom-gnd-pour).*
 
 ## What works
