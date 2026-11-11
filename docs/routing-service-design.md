@@ -304,6 +304,68 @@ Acceptance: an agent can inspect a remaining connection, identify a concrete
 blocker, make a bounded edit and verify progress without hand-editing files or
 recreating unrelated copper.
 
+#### Ground reference coverage and targeted stitching
+
+`plane_diagnose` and `plane_stitch_prepare` are implemented. The diagnostic
+locates discarded fragments and can probe a point. A stitch candidate checks
+that a proposed through via and a lead to an existing same-net anchor bring
+the fragment at the via center into the fill. The
+[STM32G474 buck replay](mcp-routing-reliability.md#stm32g474-with-buck-converter-and-bottom-gnd-pour)
+demonstrated recovered copper and unchanged DRC and air-wire counts. Ground
+coverage under individual signal traces is the next step.
+
+**Find the gap.** The caller selects signal nets and the reference net and
+layer. Start with straight trace segments on a signal layer next to the
+selected reference layer. Project each trace centerline onto the freshly
+rebuilt, connected pour on that reference layer. Report uncovered intervals,
+including holes in the fill. For each interval give the signal net, trace
+UUID, layer, start and end in board coordinates, and length. Include checked
+and uncovered lengths per net and identify selected geometry outside the
+supported layer pair. A report with no checked traces gives no coverage
+result. This is a geometric check. The result describes copper under the
+centerline and leaves return impedance, loop inductance and signal quality
+unmeasured.
+
+**Choose the repair.** When a trace crosses a slot in its reference copper,
+first try moving the signal over continuous ground or rerouting the trace
+that cut the pour. Try a stitch when a discarded fragment fills a specific
+gap and a short connection to ground on another layer can restore it. A
+nearby same-net ground via at a signal layer transition can also provide a
+local path between two reference layers. That transition check is a later
+extension of the centerline check. A via connects the copper it touches.
+Rebuild and measure again to find out whether the gap under the signal
+actually changed.
+
+**Compare candidates.** Evaluate the baseline and each candidate on
+snapshots of the same source revision, using the same nets and reference
+layer. Rebuild the fill on each snapshot and include the before and after
+coverage in `routing_preview` alongside full DRC and connectivity. Show
+which gaps disappeared, shrank or appeared, with per-net uncovered lengths
+so gains on one signal cannot hide a regression on another. Apply through
+the existing revision-bound candidate workflow. A candidate resolves the
+targeted gap when that gap disappears and no new gaps appear on the selected
+nets. A candidate that shortens the gap can be reported as a partial
+improvement. The candidate must still meet the existing DRC and connectivity
+checks. Recovered area and via count are supporting evidence.
+
+**Leave unused islands discarded.** Report their geometry for inspection.
+Consider restoring a fragment when it supports an identified signal, return
+path, or other design requirement. The number of discarded fragments is a
+diagnostic, with no target count. Power distribution has its own criteria.
+Evaluate a power pour against the source-to-load path, including narrow
+sections and current through vias. On a buck converter, review the switching
+loop and switch-node copper separately from signal ground coverage.
+
+**Acceptance.** On a copy of the STM32G474 buck board, use `SWCLK` and
+`SWDIO` as the selected nets and bottom `GND` as the reference for their
+top traces. Introduce a known gap under a trace while keeping zero air
+wires. The report must locate it, and a reviewed reroute that removes the
+gap must show the improvement before apply. Compare the saved case with
+and without the stitch at `C2.2`. Its 70.30 mm² of recovered copper counts
+as a coverage improvement only where the measured intervals change.
+Confirm that preview leaves the live board intact and apply reproduces the
+checked result without new DRC errors or connectivity regressions.
+
 ### R3 — pad escape and planned local rerouting
 
 The first pad escape strategy adds exact-checked local paths from a pad
@@ -388,8 +450,10 @@ while preserving protected geometry and reporting all placement or pin changes.
 
 ### R6 — electrical specialization and reproducible quality gates
 
-Add coupled differential routing, length/skew targets and reference/return-path
-checks only after ordinary routing and topology are reliable. Numerical helpers
+Add coupled differential routing, length/skew targets and electrical
+return-path analysis after ordinary routing and topology are reliable. Use
+the [geometric ground coverage check](#ground-reference-coverage-and-targeted-stitching)
+as an earlier diagnostic. Numerical helpers
 can come from `pcb-toolkit` through a unit-checked boundary, with model name,
 validity range and validation status exposed. Formula output is not a field
 solver or proof of whole-board signal integrity.

@@ -126,6 +126,13 @@ areas at the site before and after, plus full DRC and connectivity checks.
 Use `routing_preview` to inspect the exact copper edits and `routing_apply`
 to commit an acceptable candidate as a single undo step.
 
+Leave unused islands discarded. Use a stitch when the recovered copper
+serves a specific connection or return path. Inspect both layers around a
+critical signal before and after the edit. The current stitch check confirms
+the fill at the via center. The
+[planned ground coverage check](routing-service-design.md#ground-reference-coverage-and-targeted-stitching)
+will report the affected trace intervals and compare them across candidates.
+
 ## Save and deliver
 
 After the final edits, rerun ERC, DRC and `unrouted`. Export fabrication
