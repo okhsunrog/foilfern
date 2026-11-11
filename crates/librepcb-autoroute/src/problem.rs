@@ -202,6 +202,8 @@ pub struct RoutingRules {
     pub search_evidence: bool,
     /// Add exact-checked exits from pads to nearby grid nodes.
     pub pad_escape: bool,
+    /// Route these nets first and protect their new copper from lower priority nets.
+    pub critical_nets: BTreeSet<NetId>,
 }
 
 impl Default for RoutingRules {
@@ -223,6 +225,7 @@ impl Default for RoutingRules {
             max_rip_ups: 3,
             search_evidence: false,
             pad_escape: false,
+            critical_nets: BTreeSet::new(),
         }
     }
 }

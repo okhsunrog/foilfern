@@ -970,6 +970,15 @@ impl<'p> Router<'p> {
             if !ok {
                 return (Err(UnroutedReason::GeometryRejected), ripped);
             }
+            if !self.is_critical(wire.net)
+                && conflicts.iter().any(|&id| {
+                    self.routes[id]
+                        .as_ref()
+                        .is_some_and(|route| self.is_critical(route.net))
+                })
+            {
+                return (Err(UnroutedReason::ProtectedRoute), ripped);
+            }
             if locked {
                 return (Err(UnroutedReason::RipUpLimit), ripped);
             }
@@ -1250,21 +1259,84 @@ impl<'p> Router<'p> {
         }
     }
 
+    fn is_critical(&self, net: u32) -> bool {
+        self.problem
+            .rules
+            .critical_nets
+            .contains(&self.nets[net as usize])
+    }
+
+    /// Rank the marked pads by exclusive and total exterior entries on the
+    /// initial board. A node shared with another net is a weaker option.
+    fn pad_access_pressure(&mut self) -> BTreeMap<usize, (usize, usize)> {
+        if !self.problem.rules.pad_escape {
+            return BTreeMap::new();
+        }
+        let terminals: BTreeMap<_, _> = self
+            .wires
+            .iter()
+            .flat_map(|w| [(w.a, w.net), (w.b, w.net)])
+            .filter(|&(t, _)| self.problem.pad_terminals.contains(&TerminalId(t)))
+            .collect();
+        let mut owners = HashMap::new();
+        let mut entries = Vec::with_capacity(terminals.len());
+        for (t, net) in terminals {
+            let h = self.width_of(net).to_nm() / 2;
+            self.ensure_trace_map(h);
+            let nodes: Vec<_> = self
+                .terminal_access(t, net, h)
+                .into_iter()
+                .filter(|a| a.escape)
+                .map(|a| a.node)
+                .collect();
+            for &node in &nodes {
+                let owner = owners.entry(node).or_insert(Some(net));
+                if *owner != Some(net) {
+                    *owner = None;
+                }
+            }
+            entries.push((t, net, nodes));
+        }
+        entries
+            .into_iter()
+            .map(|(t, net, nodes)| {
+                let exclusive = nodes.iter().filter(|n| owners[n] == Some(net)).count();
+                (t, (exclusive, nodes.len()))
+            })
+            .collect()
+    }
+
     pub fn run(mut self, progress: &mut dyn FnMut(Progress) -> ControlFlow<()>) -> RoutingResult {
         let problem = self.problem;
+        let pressure = self.pad_access_pressure();
         let mut order: Vec<usize> = (0..self.wires.len()).collect();
-        let length = |w: &Wire| {
+        let rank = |w: &Wire| {
             let (a, b) = (
                 P::from(problem.terminals[w.a].position),
                 P::from(problem.terminals[w.b].position),
             );
             let (dx, dy) = ((a.x - b.x) as f64, (a.y - b.y) as f64);
-            (dx * dx + dy * dy).sqrt()
+            let access = |t| {
+                pressure
+                    .get(&t)
+                    .copied()
+                    .unwrap_or((usize::MAX, usize::MAX))
+            };
+            (
+                !self.is_critical(w.net),
+                access(w.a).min(access(w.b)),
+                (dx * dx + dy * dy).sqrt(),
+            )
         };
+        let ranks: Vec<_> = self.wires.iter().map(rank).collect();
         order.sort_by(|&x, &y| {
-            length(&self.wires[x])
-                .total_cmp(&length(&self.wires[y]))
-                .then(x.cmp(&y))
+            let (critical_x, access_x, length_x) = ranks[x];
+            let (critical_y, access_y, length_y) = ranks[y];
+            critical_x
+                .cmp(&critical_y)
+                .then_with(|| access_x.cmp(&access_y))
+                .then_with(|| length_x.total_cmp(&length_y))
+                .then_with(|| x.cmp(&y))
         });
 
         let mut failures = vec![AttemptFailures::default(); self.wires.len()];

@@ -87,6 +87,8 @@ pub enum UnroutedReason {
     GeometryRejected,
     /// A conflicting route reached its rip-up limit.
     RipUpLimit,
+    /// The soft path would displace a higher priority route.
+    ProtectedRoute,
     /// The soft path did not intersect any routes that could be ripped up.
     NoRipUpConflict,
     /// The route was attached to a route removed by final geometry checks.

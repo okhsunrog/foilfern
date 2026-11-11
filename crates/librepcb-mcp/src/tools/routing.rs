@@ -1,7 +1,9 @@
 //! Builtin reviewed routing: detached preparation, paginated exact preview,
 //! single-transaction apply and explicit disposal. No upstream counterpart.
 
+use librepcb_core::project::Project;
 use librepcb_core::types::Uuid;
+use librepcb_editor::commands::NetRef;
 use librepcb_editor::routing_service::{
     RegionalRoutingRequest, RoutingCandidate, RoutingCandidateInfo, RoutingError, RoutingJob,
 };
@@ -47,6 +49,9 @@ pub struct RoutingPrepareArgs {
     /// Try extra exact-checked exits from nearby pads.
     #[serde(default)]
     pub pad_escape: bool,
+    /// Net names or UUIDs to route first and protect from lower priority nets.
+    #[serde(default)]
+    pub critical_nets: Vec<String>,
     #[serde(default)]
     /// Reject if the current live revision differs.
     pub expected_revision: Option<u64>,
@@ -96,6 +101,12 @@ fn candidate_id(id: &str) -> ToolResult<Uuid> {
         .map_err(|_| ToolError::invalid("candidate must be a UUID returned by routing_prepare."))
 }
 
+fn critical_nets(project: &Project, keys: &[String]) -> ToolResult<Vec<NetRef>> {
+    keys.iter()
+        .map(|key| crate::resolve::net(project, key).map(|(id, _)| NetRef::Id(id)))
+        .collect()
+}
+
 /// Snapshot under the session lock; the returned job needs no live handles.
 pub fn prepare_job(session: &Session, args: RoutingPrepareArgs) -> ToolResult<RoutingJob> {
     let open = session.project()?;
@@ -115,6 +126,7 @@ pub fn prepare_job(session: &Session, args: RoutingPrepareArgs) -> ToolResult<Ro
     let mut command = board_edit::builtin_command(open.project(), board, &options)?;
     command.search_evidence = args.search_evidence;
     command.pad_escape = args.pad_escape;
+    command.critical_nets = critical_nets(open.project(), &args.critical_nets)?;
     open.routing
         .prepare(&open.editor, command)
         .map_err(routing_error)
@@ -485,12 +497,15 @@ pub struct RoutingEditRouteArgs {
     /// Try extra exact-checked exits from nearby pads.
     #[serde(default)]
     pub pad_escape: bool,
+    /// Net names or UUIDs to route first and protect from lower priority nets.
+    #[serde(default)]
+    pub critical_nets: Vec<String>,
 }
 
 impl RoutingEditRouteArgs {
     fn command(
         self,
-        project: &librepcb_core::project::Project,
+        project: &Project,
         board: librepcb_core::project::BoardId,
     ) -> ToolResult<librepcb_editor::commands::Autoroute> {
         let mut command = board_edit::builtin_command(
@@ -508,6 +523,7 @@ impl RoutingEditRouteArgs {
         )?;
         command.search_evidence = self.search_evidence;
         command.pad_escape = self.pad_escape;
+        command.critical_nets = critical_nets(project, &self.critical_nets)?;
         Ok(command)
     }
 }

@@ -119,6 +119,9 @@ pub struct Autoroute {
     /// Check additional ways to reach the grid from pads.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pad_escape: bool,
+    /// Nets routed first and protected from rip-up by other nets.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub critical_nets: Vec<NetRef>,
     /// Limits new copper to a rectangular region.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub region: Option<RoutingBounds>,
@@ -277,6 +280,7 @@ fn reason_name(reason: UnroutedReason) -> &'static str {
         UnroutedReason::SearchBudget => "search_budget",
         UnroutedReason::GeometryRejected => "geometry_rejected",
         UnroutedReason::RipUpLimit => "rip_up_limit",
+        UnroutedReason::ProtectedRoute => "protected_route",
         UnroutedReason::NoRipUpConflict => "no_rip_up_conflict",
         UnroutedReason::AttachmentRemoved => "attachment_removed",
         UnroutedReason::NotRouted => "not_routed",
@@ -733,7 +737,12 @@ pub fn extract_problem(
     copper_layers.sort_by_key(|l| l.copper_number());
 
     let inputs = rules::Inputs::new(p, b, options);
-    let routing_rules = inputs.routing_rules();
+    let mut routing_rules = inputs.routing_rules();
+    routing_rules.critical_nets = options
+        .critical_nets
+        .iter()
+        .map(|net| resolve::required_net(p, net).map(|id| id.0))
+        .collect::<Result<_>>()?;
     let trace_width = routing_rules.trace_width;
     let region = options.region.map(RoutingBounds::region).transpose()?;
 

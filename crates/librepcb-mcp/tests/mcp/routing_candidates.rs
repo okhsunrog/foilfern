@@ -81,10 +81,18 @@ fn preparation_and_paginated_preview_leave_live_state_and_redo_untouched() {
     let netlist = circuit::netlist(&session).unwrap().result;
     assert!(open.editor.undo_stack().can_redo());
 
-    let prepared =
-        routing::routing_prepare(&mut session, args(json!({"expected_revision": revision})))
-            .unwrap();
+    let net = librepcb_mcp::resolve::net(open.project(), "A").unwrap().0;
+    let prepared = routing::routing_prepare(
+        &mut session,
+        args(json!({"expected_revision": revision, "pad_escape":true, "critical_nets":["A"]})),
+    )
+    .unwrap();
     assert_eq!(prepared.result["base_revision"], revision);
+    assert_eq!(prepared.result["request"]["pad_escape"], true);
+    assert_eq!(
+        prepared.result["request"]["critical_nets"],
+        json!([librepcb_editor::commands::NetRef::Id(net)])
+    );
     assert_eq!(
         prepared.result["validation"]["acceptable"], true,
         "{prepared:?}"

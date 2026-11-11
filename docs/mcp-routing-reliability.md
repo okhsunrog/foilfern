@@ -374,3 +374,50 @@ reports the number of added entries as `escape_count`.
 A fixed test uses a 0.65 mm gap, 0.2 mm trace width, 0.2 mm clearance
 and a 0.25 mm grid. The baseline reports `no_path`. With pad escape
 enabled the same grid routes the connection and passes the geometric checks.
+
+On the saved STM32 board with one open connection, enabling pad escape
+increased the grid entries for `U1.21` from 17 to 25 at 0.1 mm pitch.
+The other endpoint retained four entries. Both attempts still reported
+`no_path` with one open air wire and no new DRC errors. This explains
+why more pad entries alone do not replace the targeted local edit above.
+
+### Routing order and critical nets
+
+With pad escape enabled the builtin router scores the exact-checked
+exterior entries on the initial board. For each air wire it considers the
+more constrained pad, comparing exclusive entries first and total entries
+second. A layer/node pair reachable by different nets counts as shared.
+Wire length breaks ties.
+
+Pass `critical_nets: ["V3V3"]` to `routing_prepare` or in a nested builtin
+`route` to give those nets the first routing tier. A lower priority net
+can still take a clear path, but its soft attempt reports `protected_route`
+if that path would rip up a critical route generated in the same trial.
+This option does not guarantee the critical net is connected: check the
+candidate's remaining air wires and DRC before applying. With both options
+omitted, the order stays shortest first.
+
+Single-layer regression cases verify that a constrained pad can take
+precedence over a shorter crossing, and that a declared critical net keeps
+its route when an ordinary net tries to cross it.
+
+The full STM32 replay starts from the same placements with existing routing
+removed, 57 air wires, and the same grid (0.1 mm), trace width (0.2 mm)
+and via dimensions (0.3/0.6 mm) for all three candidates:
+
+| Builtin options | Remaining air wires | New DRC errors | Traces | Vias |
+| --- | --- | ---: | ---: | ---: |
+| Default order | 1 (`V3V3`) | 0 | 470 | 42 |
+| `pad_escape` | 0 | 0 | 466 | 47 |
+| `pad_escape` + `critical_nets: ["V3V3"]` | 2 (`NRST`, `GPIO_J4_3`) | 0 | 404 | 32 |
+
+The complete candidate went through MCP preview, apply, save and reopen
+with zero remaining air wires. Upstream LibrePCB reported only the two
+existing silkscreen-to-mask warnings, no missing connections or copper
+violations.
+
+The complete candidate combines the added pad entries with constrained
+ordering; this comparison does not isolate their individual effects.
+Giving a net explicit priority can trade overall completion for that
+net's connectivity, so compare a trial with and without priority before
+applying it.

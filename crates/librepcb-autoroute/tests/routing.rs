@@ -451,6 +451,55 @@ fn single_layer_crossing_is_unroutable() {
     assert_eq!(r.unrouted[0].reason, UnroutedReason::NoPath);
     assert_eq!(r.vias().count(), 0);
     assert_clean(&p, &r);
+
+    // Give the previously unrouted net priority. The ordinary net would
+    // otherwise be able to rip it up during the soft search.
+    let critical = [a, b].into_iter().find(|n| *n != r.routes[0].net).unwrap();
+    p.rules.critical_nets.insert(critical);
+    let prioritized = route(&p).unwrap();
+    assert_eq!(prioritized.routes.len(), 1);
+    assert_eq!(prioritized.routes[0].net, critical);
+    assert_eq!(prioritized.unrouted.len(), 1);
+    assert_eq!(
+        prioritized.unrouted[0].soft_reason,
+        Some(UnroutedReason::ProtectedRoute)
+    );
+    assert_eq!(prioritized.stats.rip_ups, 0);
+    assert_clean(&p, &prioritized);
+}
+
+#[test]
+fn constrained_pad_escape_routes_before_a_shorter_crossing() {
+    let rules = RoutingRules {
+        allowed_layers: Some(vec![Layer::TOP_COPPER]),
+        max_rip_ups: 0,
+        ..RoutingRules::default()
+    };
+    let mut p = RoutingProblem::new(rect_outline(20.0, 24.0), two_layers(), rules);
+    let (short, constrained) = (net(1), net(2));
+    let a = smd(&mut p, short, 1.2, 12.0, 1.6, 1.6);
+    let b = smd(&mut p, short, 18.8, 12.0, 1.6, 1.6);
+    let c = smd(&mut p, constrained, 10.0, 1.2, 0.6, 1.6);
+    let d = smd(&mut p, constrained, 10.0, 22.8, 1.6, 1.6);
+    p.pad_terminals.extend([a, b, c, d]);
+    p.connect(a, b);
+    p.connect(c, d);
+    // Bracket the lower pad so its only exits are along a narrow channel.
+    for x in [8.0, 12.0] {
+        p.add_obstacle(Obstacle::keepout(
+            Shape::rect(pt(x, 1.15), mm(2.75), mm(3.0)),
+            LayerScope::All,
+        ));
+    }
+    let baseline = route(&p).unwrap();
+    assert_eq!(baseline.routes.len(), 1);
+    assert_eq!(baseline.routes[0].net, short);
+
+    p.rules.pad_escape = true;
+    let prioritized = route(&p).unwrap();
+    assert_eq!(prioritized.routes.len(), 1);
+    assert_eq!(prioritized.routes[0].net, constrained);
+    assert_clean(&p, &prioritized);
 }
 
 #[test]

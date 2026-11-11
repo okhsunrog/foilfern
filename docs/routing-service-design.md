@@ -311,9 +311,18 @@ to several nearby nodes outside its copper. Off-grid pads can use a
 The option is available to reviewed builtin and regional routing.
 See [pad escape trials](mcp-routing-reliability.md#pad-escape-trials).
 
-Group neighboring LQFP pads where their escape choices interfere and add
-local grid refinement for paths that need more than one bend. Prioritize
-constrained exits and mandatory critical nets.
+With pad escape enabled, the initial route order favors pads with fewer
+exclusive exits, then fewer exits overall. Exits are shared when pads
+from different nets can enter the same grid node on the same layer.
+An explicit `critical_nets` tier comes first. A lower priority route
+cannot rip up copper generated for a critical net in the same run.
+These are ordering and protection rules; critical connectivity still
+needs to be checked on the candidate.
+
+Plan interacting LQFP fanouts jointly when the order alone is not enough.
+Add local refinement for paths that need more than one bend, and compare
+candidate exits that overlap geometrically even when their grid nodes
+differ.
 
 The first regional workflow accepts a rectangular routing area, named nets,
 and an explicit rip-up list of trace and via UUIDs. It verifies protected
