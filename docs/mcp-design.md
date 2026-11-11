@@ -359,6 +359,11 @@ mm, plus `expected_revision`. It captures an isolated native snapshot, releases
 the host locks, runs builtin search and before/after DRC, and retains the exact
 mutation candidate only if its source project session and revision still match.
 It does not edit the live board or its revision, dirty state, undo/redo or files.
+If rebuilt planes leave more connections open on a net, validation lists its
+ID in `unrouted_regressions` and includes names, before/after counts and
+sampled air-wire endpoints in mm in `unrouted_regression_details`. These
+endpoints describe the rebuilt connection tree and help locate lost plane
+contacts. The sample covers up to 20 nets and eight air wires per net.
 
 `routing_compare` uses one detached baseline and a fresh copy of it for
 each of two or three distinct builtin initial orders. Pass common

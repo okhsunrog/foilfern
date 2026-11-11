@@ -131,6 +131,15 @@ fn builtin_candidate_cannot_break_another_nets_plane_connection() {
         1,
         "{candidate:#}"
     );
+    let split = &validation["unrouted_regression_details"][0];
+    assert_eq!(split["net"], validation["unrouted_regressions"][0]);
+    assert_eq!(split["name"], "A");
+    assert_eq!(split["before"], 0);
+    assert_eq!(split["after"], 1);
+    let gap = &split["air_wires"][0];
+    let ends = [&gap["from_mm"], &gap["to_mm"]];
+    assert!(ends.contains(&&json!([7.0, 9.025])), "{gap}");
+    assert!(ends.contains(&&json!([14.0, 9.025])), "{gap}");
     assert_eq!(validation["acceptable"], false, "{candidate:#}");
     let rejected = routing::routing_apply(
         &mut session,

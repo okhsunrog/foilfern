@@ -9,6 +9,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use librepcb_core::geometry::TraceAnchor;
+use librepcb_core::project::board::AirWire;
 use librepcb_core::project::board::drc::DrcMessageKind;
 use librepcb_core::project::{BoardId, ComponentInstanceId, NetSignalId};
 use librepcb_core::rule_check::Severity;
@@ -44,8 +46,31 @@ pub struct RoutingSnapshot {
     pub checks: RoutingCheckSummary,
     errors: BTreeMap<String, RoutingError>,
     unrouted_by_net: BTreeMap<NetSignalId, usize>,
+    unrouted_examples: BTreeMap<NetSignalId, (String, Vec<AirWire>)>,
     signals: BTreeMap<(ComponentInstanceId, Uuid), Option<NetSignalId>>,
     nets: BTreeSet<NetSignalId>,
+}
+
+const MAX_REGRESSION_NETS: usize = 20;
+const MAX_REGRESSION_CONNECTIONS: usize = 8;
+
+/// A sampled air wire after rebuilding the candidate's copper planes.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RoutingGap {
+    pub from: TraceAnchor,
+    pub to: TraceAnchor,
+    pub from_mm: (f64, f64),
+    pub to_mm: (f64, f64),
+}
+
+/// Name, counts and sampled locations for a regressed net.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RoutingRegression {
+    pub net: NetSignalId,
+    pub name: String,
+    pub before: usize,
+    pub after: usize,
+    pub air_wires: Vec<RoutingGap>,
 }
 
 impl RoutingSnapshot {
@@ -61,7 +86,7 @@ impl RoutingSnapshot {
 }
 
 /// Comparison of the applied result with the pre-routing board.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RoutingValidation {
     pub before: RoutingCheckSummary,
     pub after: RoutingCheckSummary,
@@ -75,6 +100,10 @@ pub struct RoutingValidation {
     /// Nets whose rebuilt air-wire count increased.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub unrouted_regressions: Vec<NetSignalId>,
+    /// First 20 regressed nets, with at most eight resulting air wires each.
+    /// These are samples of the rebuilt tree, not an edge-by-edge diff.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unrouted_regression_details: Vec<RoutingRegression>,
     pub resolved_error_count: usize,
     /// At most 50 newly reported errors (the count above is never truncated).
     pub new_errors: Vec<RoutingError>,
@@ -165,15 +194,38 @@ pub fn capture_routing_state(
                 .map(move |(signal, instance)| ((component.id(), *signal), instance.net()))
         })
         .collect();
-    let unrouted_by_net = p
+    let air_wires: Vec<_> = p
         .board(board)
         .into_iter()
         .flat_map(|b| b.derived().air_wires())
-        .filter_map(|(net, wires)| net.map(|net| (net, wires.len())))
+        .filter_map(|(net, wires)| net.map(|net| (net, wires)))
+        .collect();
+    let unrouted_by_net = air_wires
+        .iter()
+        .map(|(id, wires)| (*id, wires.len()))
+        .collect();
+    let unrouted_examples = air_wires
+        .into_iter()
+        .filter(|(_, wires)| !wires.is_empty())
+        .filter_map(|(id, wires)| {
+            let net = p.circuit().net_signals().get(&id)?;
+            Some((
+                id,
+                (
+                    net.name().as_str().to_owned(),
+                    wires
+                        .iter()
+                        .take(MAX_REGRESSION_CONNECTIONS)
+                        .cloned()
+                        .collect(),
+                ),
+            ))
+        })
         .collect();
     Ok(RoutingSnapshot {
         checks,
         unrouted_by_net,
+        unrouted_examples,
         errors,
         signals,
         nets: p.circuit().net_signals().keys().copied().collect(),
@@ -189,6 +241,34 @@ impl RoutingValidation {
             .map(|(_, error)| error.clone())
             .collect();
         let netlist_preserved = before.signals == after.signals && before.nets == after.nets;
+        let unrouted_regressions: Vec<_> = after
+            .unrouted_by_net
+            .iter()
+            .filter(|(net, count)| **count > before.unrouted_by_net.get(net).copied().unwrap_or(0))
+            .map(|(net, _)| *net)
+            .collect();
+        let unrouted_regression_details = unrouted_regressions
+            .iter()
+            .take(MAX_REGRESSION_NETS)
+            .filter_map(|id| {
+                let (name, wires) = after.unrouted_examples.get(id)?;
+                Some(RoutingRegression {
+                    net: *id,
+                    name: name.clone(),
+                    before: before.unrouted_by_net.get(id).copied().unwrap_or(0),
+                    after: after.unrouted_by_net[id],
+                    air_wires: wires
+                        .iter()
+                        .map(|wire| RoutingGap {
+                            from: wire.p1(),
+                            to: wire.p2(),
+                            from_mm: wire.p1_position().to_mm(),
+                            to_mm: wire.p2_position().to_mm(),
+                        })
+                        .collect(),
+                })
+            })
+            .collect();
         Self {
             acceptable: before.checks.complete
                 && after.checks.complete
@@ -198,14 +278,8 @@ impl RoutingValidation {
             netlist_preserved,
             new_error_count: new_errors.len(),
             new_copper_error_count: new_errors.iter().filter(|e| e.copper).count(),
-            unrouted_regressions: after
-                .unrouted_by_net
-                .iter()
-                .filter(|(net, count)| {
-                    **count > before.unrouted_by_net.get(net).copied().unwrap_or(0)
-                })
-                .map(|(net, _)| *net)
-                .collect(),
+            unrouted_regressions,
+            unrouted_regression_details,
             resolved_error_count: before
                 .errors
                 .keys()
