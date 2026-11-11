@@ -1,0 +1,59 @@
+[
+  {
+    "file": "ESP-PD-Sink_COPPER-BOTTOM.gbr",
+    "equal_excluding_generator_creation_date_checksum": false,
+    "canonical_copper_primitives_equal": true
+  },
+  {
+    "file": "ESP-PD-Sink_COPPER-IN1.gbr",
+    "equal_excluding_generator_creation_date_checksum": false,
+    "canonical_copper_primitives_equal": true
+  },
+  {
+    "file": "ESP-PD-Sink_COPPER-IN2.gbr",
+    "equal_excluding_generator_creation_date_checksum": false,
+    "canonical_copper_primitives_equal": true
+  },
+  {
+    "file": "ESP-PD-Sink_COPPER-TOP.gbr",
+    "equal_excluding_generator_creation_date_checksum": false
+  },
+  {
+    "file": "ESP-PD-Sink_DRILLS-NPTH.drl",
+    "equal_excluding_generator_creation_date_checksum": true,
+    "canonical_drill_primitives_equal": true
+  },
+  {
+    "file": "ESP-PD-Sink_DRILLS-PTH.drl",
+    "equal_excluding_generator_creation_date_checksum": false,
+    "canonical_drill_primitives_equal": true
+  },
+  {
+    "file": "ESP-PD-Sink_OUTLINES.gbr",
+    "equal_excluding_generator_creation_date_checksum": true
+  },
+  {
+    "file": "ESP-PD-Sink_SILKSCREEN-BOTTOM.gbr",
+    "equal_excluding_generator_creation_date_checksum": false
+  },
+  {
+    "file": "ESP-PD-Sink_SILKSCREEN-TOP.gbr",
+    "equal_excluding_generator_creation_date_checksum": false
+  },
+  {
+    "file": "ESP-PD-Sink_SOLDERMASK-BOTTOM.gbr",
+    "equal_excluding_generator_creation_date_checksum": false
+  },
+  {
+    "file": "ESP-PD-Sink_SOLDERMASK-TOP.gbr",
+    "equal_excluding_generator_creation_date_checksum": false
+  },
+  {
+    "file": "ESP-PD-Sink_SOLDERPASTE-BOTTOM.gbr",
+    "equal_excluding_generator_creation_date_checksum": true
+  },
+  {
+    "file": "ESP-PD-Sink_SOLDERPASTE-TOP.gbr",
+    "equal_excluding_generator_creation_date_checksum": false
+  }
+]

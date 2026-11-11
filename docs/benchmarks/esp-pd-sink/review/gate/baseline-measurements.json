@@ -1,0 +1,3527 @@
+{
+  "format": "foilfern-review-prototype-v1",
+  "board_uuid": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+  "groups": [
+    {
+      "id": "oled-pump",
+      "components": [
+        {
+          "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "designator": "OLED1"
+        },
+        {
+          "component_uuid": "8bc1eef6-a643-4eb5-9610-c03405fd6f8b",
+          "designator": "C23"
+        },
+        {
+          "component_uuid": "396c4be1-0cc7-4b07-8eb2-6b8fd53e7a72",
+          "designator": "C24"
+        }
+      ],
+      "pins": [
+        {
+          "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "designator": "OLED1",
+          "signal_uuid": "4913a7c9-8cb3-4fed-95c3-a12ab3988d7a",
+          "signal_name": "C2P",
+          "address": "OLED1.2",
+          "footprint_pad_uuids": [
+            "f6c5b553-2ec8-4fa9-9cad-20feca88640b"
+          ]
+        },
+        {
+          "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "designator": "OLED1",
+          "signal_uuid": "67433240-1833-46cf-9bef-349faceba430",
+          "signal_name": "C2N",
+          "address": "OLED1.3",
+          "footprint_pad_uuids": [
+            "3a3f9774-fc34-427e-8c72-27140ed995c5"
+          ]
+        },
+        {
+          "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "designator": "OLED1",
+          "signal_uuid": "0aa110d4-ff29-4c55-9978-8ed4accacba1",
+          "signal_name": "C1P",
+          "address": "OLED1.4",
+          "footprint_pad_uuids": [
+            "4c6b7e51-8684-4a42-b520-d444f18ce293"
+          ]
+        },
+        {
+          "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "designator": "OLED1",
+          "signal_uuid": "84a491e4-4af2-4659-a699-e815fa2c69bf",
+          "signal_name": "C1N",
+          "address": "OLED1.5",
+          "footprint_pad_uuids": [
+            "96a6753c-5f6d-49fd-9b57-418a30021a2d"
+          ]
+        },
+        {
+          "component_uuid": "8bc1eef6-a643-4eb5-9610-c03405fd6f8b",
+          "designator": "C23",
+          "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+          "signal_name": "1",
+          "address": "C23.1",
+          "footprint_pad_uuids": [
+            "c3344437-f2ee-457e-9a9a-e33cb5b88abd"
+          ]
+        },
+        {
+          "component_uuid": "8bc1eef6-a643-4eb5-9610-c03405fd6f8b",
+          "designator": "C23",
+          "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+          "signal_name": "2",
+          "address": "C23.2",
+          "footprint_pad_uuids": [
+            "eb92f41c-86aa-4c4d-8016-8eba56271e88"
+          ]
+        },
+        {
+          "component_uuid": "396c4be1-0cc7-4b07-8eb2-6b8fd53e7a72",
+          "designator": "C24",
+          "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+          "signal_name": "1",
+          "address": "C24.1",
+          "footprint_pad_uuids": [
+            "0254ac88-551b-459e-88e9-d50395d67def"
+          ]
+        },
+        {
+          "component_uuid": "396c4be1-0cc7-4b07-8eb2-6b8fd53e7a72",
+          "designator": "C24",
+          "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+          "signal_name": "2",
+          "address": "C24.2",
+          "footprint_pad_uuids": [
+            "0b13479b-c667-4cd9-883a-e80782c6cd7d"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "oled-analog",
+      "components": [
+        {
+          "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "designator": "OLED1"
+        },
+        {
+          "component_uuid": "47636e52-8e93-463f-aaf9-4bf0a48f15bf",
+          "designator": "C21"
+        },
+        {
+          "component_uuid": "90b44ab4-5503-4893-b19d-d2dd2174465b",
+          "designator": "C22"
+        },
+        {
+          "component_uuid": "b24cffe8-0154-46c9-b75a-c76ac7ccec5e",
+          "designator": "R21"
+        }
+      ],
+      "pins": [
+        {
+          "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "designator": "OLED1",
+          "signal_uuid": "7730649f-648a-42f6-94a3-72142fbc86ed",
+          "signal_name": "IREF",
+          "address": "OLED1.26",
+          "footprint_pad_uuids": [
+            "2283cdc4-3602-4d45-a471-bdeac5777c1c"
+          ]
+        },
+        {
+          "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "designator": "OLED1",
+          "signal_uuid": "7d008a4f-15ba-4cde-acb1-88c56bf0474b",
+          "signal_name": "VCOMH",
+          "address": "OLED1.27",
+          "footprint_pad_uuids": [
+            "b6ae1d86-6f20-47ef-87ce-607eb4f44cc3"
+          ]
+        },
+        {
+          "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "designator": "OLED1",
+          "signal_uuid": "37049889-4387-4674-95ab-7568ddefc5b0",
+          "signal_name": "VCC",
+          "address": "OLED1.28",
+          "footprint_pad_uuids": [
+            "e3a46b4a-cfb9-4bc5-9ef8-b4d0bfaf0079"
+          ]
+        },
+        {
+          "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "designator": "OLED1",
+          "signal_uuid": "f4087faf-6d8e-45ab-8a0a-0021177bac6a",
+          "signal_name": "VLSS",
+          "address": "OLED1.29",
+          "footprint_pad_uuids": [
+            "4effac68-0772-4ff6-a135-b95c6e6fda44"
+          ]
+        },
+        {
+          "component_uuid": "47636e52-8e93-463f-aaf9-4bf0a48f15bf",
+          "designator": "C21",
+          "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+          "signal_name": "1",
+          "address": "C21.1",
+          "footprint_pad_uuids": [
+            "46af46a6-d163-43dc-8b9e-6d16873d7122"
+          ]
+        },
+        {
+          "component_uuid": "47636e52-8e93-463f-aaf9-4bf0a48f15bf",
+          "designator": "C21",
+          "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+          "signal_name": "2",
+          "address": "C21.2",
+          "footprint_pad_uuids": [
+            "0ca1558d-d305-4509-9bb4-f0ffcc1693a1"
+          ]
+        },
+        {
+          "component_uuid": "90b44ab4-5503-4893-b19d-d2dd2174465b",
+          "designator": "C22",
+          "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+          "signal_name": "1",
+          "address": "C22.1",
+          "footprint_pad_uuids": [
+            "43214e6d-68b6-4638-b535-7bea06a4fa65"
+          ]
+        },
+        {
+          "component_uuid": "90b44ab4-5503-4893-b19d-d2dd2174465b",
+          "designator": "C22",
+          "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+          "signal_name": "2",
+          "address": "C22.2",
+          "footprint_pad_uuids": [
+            "33407433-e46d-454b-bdc8-1282aac590cc"
+          ]
+        },
+        {
+          "component_uuid": "b24cffe8-0154-46c9-b75a-c76ac7ccec5e",
+          "designator": "R21",
+          "signal_uuid": "e147cffd-7048-4b89-96a9-35cef8badf71",
+          "signal_name": "2",
+          "address": "R21.2",
+          "footprint_pad_uuids": [
+            "d1a526ad-d6f3-4ab2-ad81-93ac789babfe"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "oled-reset",
+      "components": [
+        {
+          "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "designator": "OLED1"
+        },
+        {
+          "component_uuid": "7eebb053-38df-44c0-bf91-7c821578dce6",
+          "designator": "R22"
+        },
+        {
+          "component_uuid": "fb9cd7b1-a43e-41c4-a864-415627ba3910",
+          "designator": "C27"
+        },
+        {
+          "component_uuid": "c6fa87d8-14bc-48b2-8f8f-47d1754a5ce5",
+          "designator": "D4"
+        }
+      ],
+      "pins": [
+        {
+          "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "designator": "OLED1",
+          "signal_uuid": "c4b87ca1-2d24-411b-a260-989a27256371",
+          "signal_name": "!RES",
+          "address": "OLED1.14",
+          "footprint_pad_uuids": [
+            "48f07743-50df-4682-b4c4-4c292e020664"
+          ]
+        },
+        {
+          "component_uuid": "7eebb053-38df-44c0-bf91-7c821578dce6",
+          "designator": "R22",
+          "signal_uuid": "52cf08c6-caad-4d32-a732-6bb6151a2bef",
+          "signal_name": "2",
+          "address": "R22.2",
+          "footprint_pad_uuids": [
+            "6da4325e-14f4-4343-a1b1-ab4fdcd36874"
+          ]
+        },
+        {
+          "component_uuid": "fb9cd7b1-a43e-41c4-a864-415627ba3910",
+          "designator": "C27",
+          "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+          "signal_name": "1",
+          "address": "C27.1",
+          "footprint_pad_uuids": [
+            "a7c1d00e-a807-4c22-9032-06274c83ec24"
+          ]
+        },
+        {
+          "component_uuid": "c6fa87d8-14bc-48b2-8f8f-47d1754a5ce5",
+          "designator": "D4",
+          "signal_uuid": "feda23b4-ad83-4438-854c-a5f73078933b",
+          "signal_name": "A",
+          "address": "D4.2",
+          "footprint_pad_uuids": [
+            "b9295b2c-07f2-4169-b436-15f447fee30a"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "u5-feedback",
+      "components": [
+        {
+          "component_uuid": "29b1e527-e498-4400-9588-1c71503dd368",
+          "designator": "U5"
+        },
+        {
+          "component_uuid": "c1f3e0f8-5b79-4059-aa4b-efd1598958b7",
+          "designator": "R14"
+        },
+        {
+          "component_uuid": "3116319d-dada-43ab-b48c-8043a69c246f",
+          "designator": "R16"
+        },
+        {
+          "component_uuid": "578345c1-6ed1-4781-a171-9f1273f6f326",
+          "designator": "R30"
+        }
+      ],
+      "pins": [
+        {
+          "component_uuid": "29b1e527-e498-4400-9588-1c71503dd368",
+          "designator": "U5",
+          "signal_uuid": "97f14271-2f3f-48ff-9bea-516cfdce483e",
+          "signal_name": "FB",
+          "address": "U5.5",
+          "footprint_pad_uuids": [
+            "45603ef0-86d4-4438-bda8-aa5cfe7f84dd"
+          ]
+        },
+        {
+          "component_uuid": "c1f3e0f8-5b79-4059-aa4b-efd1598958b7",
+          "designator": "R14",
+          "signal_uuid": "86582aa8-a4e1-4e5d-92f9-639b4c6047fc",
+          "signal_name": "1",
+          "address": "R14.1",
+          "footprint_pad_uuids": [
+            "86781952-9aa8-4a98-95f2-fdbcb63cc4fe"
+          ]
+        },
+        {
+          "component_uuid": "3116319d-dada-43ab-b48c-8043a69c246f",
+          "designator": "R16",
+          "signal_uuid": "e147cffd-7048-4b89-96a9-35cef8badf71",
+          "signal_name": "2",
+          "address": "R16.2",
+          "footprint_pad_uuids": [
+            "2e8a69dd-e7aa-45f2-90aa-f011a26e88da"
+          ]
+        },
+        {
+          "component_uuid": "29b1e527-e498-4400-9588-1c71503dd368",
+          "designator": "U5",
+          "signal_uuid": "97c21407-776f-46ab-814d-36e14ae623a2",
+          "signal_name": "RT/SYNC",
+          "address": "U5.4",
+          "footprint_pad_uuids": [
+            "2fb98582-8ce5-430d-adce-5d85754a3c40"
+          ]
+        },
+        {
+          "component_uuid": "578345c1-6ed1-4781-a171-9f1273f6f326",
+          "designator": "R30",
+          "signal_uuid": "e147cffd-7048-4b89-96a9-35cef8badf71",
+          "signal_name": "2",
+          "address": "R30.2",
+          "footprint_pad_uuids": [
+            "14e22dfe-2a4b-498c-a1f6-d26d08fb018b"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "u5-input",
+      "components": [
+        {
+          "component_uuid": "29b1e527-e498-4400-9588-1c71503dd368",
+          "designator": "U5"
+        },
+        {
+          "component_uuid": "490da570-da03-4777-a171-22361bf334b9",
+          "designator": "C15"
+        },
+        {
+          "component_uuid": "65a898a8-e877-4b6e-9022-54c334fa1628",
+          "designator": "C16"
+        }
+      ],
+      "pins": [
+        {
+          "component_uuid": "29b1e527-e498-4400-9588-1c71503dd368",
+          "designator": "U5",
+          "signal_uuid": "38b703ec-e452-4464-bf1b-1b3a7dc42ce2",
+          "signal_name": "VIN",
+          "address": "U5.3",
+          "footprint_pad_uuids": [
+            "8786dec7-e261-4cbd-af80-5a44a4ecc638"
+          ]
+        },
+        {
+          "component_uuid": "29b1e527-e498-4400-9588-1c71503dd368",
+          "designator": "U5",
+          "signal_uuid": "4dff160b-7053-42ca-85d5-20ed7d355310",
+          "signal_name": "GND",
+          "address": "U5.1",
+          "footprint_pad_uuids": [
+            "3bdd2b12-3a4a-44ba-a891-f0c2248611e2"
+          ]
+        },
+        {
+          "component_uuid": "490da570-da03-4777-a171-22361bf334b9",
+          "designator": "C15",
+          "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+          "signal_name": "1",
+          "address": "C15.1",
+          "footprint_pad_uuids": [
+            "1d58f65e-1baa-403e-82c7-11d61a583a92"
+          ]
+        },
+        {
+          "component_uuid": "490da570-da03-4777-a171-22361bf334b9",
+          "designator": "C15",
+          "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+          "signal_name": "2",
+          "address": "C15.2",
+          "footprint_pad_uuids": [
+            "b31a00af-65ef-4607-a7d6-d6a429dfd4ef"
+          ]
+        },
+        {
+          "component_uuid": "65a898a8-e877-4b6e-9022-54c334fa1628",
+          "designator": "C16",
+          "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+          "signal_name": "1",
+          "address": "C16.1",
+          "footprint_pad_uuids": [
+            "8866c790-9e58-4396-a3ce-07caac6ac5f2"
+          ]
+        },
+        {
+          "component_uuid": "65a898a8-e877-4b6e-9022-54c334fa1628",
+          "designator": "C16",
+          "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+          "signal_name": "2",
+          "address": "C16.2",
+          "footprint_pad_uuids": [
+            "ab1c3a2e-269e-44e8-abbd-46a421128aa1"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kelvin",
+      "components": [
+        {
+          "component_uuid": "eb6a091d-40e8-4718-a623-2c1ee9b66598",
+          "designator": "R17"
+        },
+        {
+          "component_uuid": "e645663f-5fce-40b7-bc43-fc7faeaa81d6",
+          "designator": "U6"
+        },
+        {
+          "component_uuid": "21d933d2-ba69-4ce7-8a0f-6715480d96b9",
+          "designator": "C19"
+        }
+      ],
+      "pins": [
+        {
+          "component_uuid": "eb6a091d-40e8-4718-a623-2c1ee9b66598",
+          "designator": "R17",
+          "signal_uuid": "63f76f75-a112-4bc5-a7b7-4ec73d40643b",
+          "signal_name": "2",
+          "address": "R17.2",
+          "footprint_pad_uuids": [
+            "c17869ab-8134-4548-89a2-b914c47dcb41"
+          ]
+        },
+        {
+          "component_uuid": "eb6a091d-40e8-4718-a623-2c1ee9b66598",
+          "designator": "R17",
+          "signal_uuid": "6860f156-ec12-4880-9103-0bb1d2259e1b",
+          "signal_name": "3",
+          "address": "R17.3",
+          "footprint_pad_uuids": [
+            "0458d2c1-b923-422f-8a5a-3b6068c79240"
+          ]
+        },
+        {
+          "component_uuid": "e645663f-5fce-40b7-bc43-fc7faeaa81d6",
+          "designator": "U6",
+          "signal_uuid": "8381e4c1-405b-4034-9ea8-84bc324b837a",
+          "signal_name": "Vin-",
+          "address": "U6.9",
+          "footprint_pad_uuids": [
+            "19bad1c8-3df9-4786-9583-7f8ad30d711f"
+          ]
+        },
+        {
+          "component_uuid": "e645663f-5fce-40b7-bc43-fc7faeaa81d6",
+          "designator": "U6",
+          "signal_uuid": "bc5363eb-fe6b-4ad9-a465-16a5f32c9eed",
+          "signal_name": "Vin+",
+          "address": "U6.10",
+          "footprint_pad_uuids": [
+            "4fdfa785-0c28-417d-ace7-234c77b23169"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "power-output",
+      "components": [
+        {
+          "component_uuid": "eb6a091d-40e8-4718-a623-2c1ee9b66598",
+          "designator": "R17"
+        },
+        {
+          "component_uuid": "4deb09af-ea4b-41e5-be29-dd2d03e0bff2",
+          "designator": "Q1"
+        },
+        {
+          "component_uuid": "ce96b5bb-c857-4a78-8f07-fb99757e7f49",
+          "designator": "Q2"
+        },
+        {
+          "component_uuid": "cac43f6c-4e48-417e-a04a-074187569c16",
+          "designator": "J3"
+        }
+      ],
+      "pins": []
+    },
+    {
+      "id": "u2-vdd",
+      "components": [
+        {
+          "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+          "designator": "U2"
+        },
+        {
+          "component_uuid": "9718a5eb-e0bc-4705-8228-3aa65888d660",
+          "designator": "C29"
+        }
+      ],
+      "pins": [
+        {
+          "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+          "designator": "U2",
+          "signal_uuid": "e504aa85-0ec4-47d3-9d64-babc4d94eef9",
+          "signal_name": "VDD",
+          "address": "U2.3",
+          "footprint_pad_uuids": [
+            "303f748f-dbe8-4850-ac29-60d5343e80f2"
+          ]
+        },
+        {
+          "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+          "designator": "U2",
+          "signal_uuid": "e504aa85-0ec4-47d3-9d64-babc4d94eef9",
+          "signal_name": "VDD",
+          "address": "U2.4",
+          "footprint_pad_uuids": [
+            "a19f99e5-0524-40d2-b83c-ebea4082721f"
+          ]
+        },
+        {
+          "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+          "designator": "U2",
+          "signal_uuid": "d403026b-28a3-4726-839e-660ffeb3272b",
+          "signal_name": "GND",
+          "address": "U2.15",
+          "footprint_pad_uuids": [
+            "b9840321-d4b0-4bf3-93f9-3fffcbd8d367"
+          ]
+        },
+        {
+          "component_uuid": "9718a5eb-e0bc-4705-8228-3aa65888d660",
+          "designator": "C29",
+          "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+          "signal_name": "1",
+          "address": "C29.1",
+          "footprint_pad_uuids": [
+            "e728909a-9a5d-412b-b8ac-4eda6d8c1379"
+          ]
+        },
+        {
+          "component_uuid": "9718a5eb-e0bc-4705-8228-3aa65888d660",
+          "designator": "C29",
+          "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+          "signal_name": "2",
+          "address": "C29.2",
+          "footprint_pad_uuids": [
+            "98e397c1-a6e3-439f-b602-0920de9475b1"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "u2-vconn",
+      "components": [
+        {
+          "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+          "designator": "U2"
+        },
+        {
+          "component_uuid": "ce3452f5-493e-4d2f-8070-52f8df8e08eb",
+          "designator": "C30"
+        }
+      ],
+      "pins": [
+        {
+          "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+          "designator": "U2",
+          "signal_uuid": "4eaed949-8743-4328-a02f-541a390bc313",
+          "signal_name": "VCONN_1",
+          "address": "U2.12",
+          "footprint_pad_uuids": [
+            "9dda5b5d-6443-470c-b65c-7e741a1fe7f1"
+          ]
+        },
+        {
+          "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+          "designator": "U2",
+          "signal_uuid": "e7f86e96-f291-4008-a736-f977e29f7ecd",
+          "signal_name": "VCONN_2",
+          "address": "U2.13",
+          "footprint_pad_uuids": [
+            "176be25b-2962-4efa-8870-239e980cae4c"
+          ]
+        },
+        {
+          "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+          "designator": "U2",
+          "signal_uuid": "d403026b-28a3-4726-839e-660ffeb3272b",
+          "signal_name": "GND",
+          "address": "U2.8",
+          "footprint_pad_uuids": [
+            "5498469c-d879-40f9-973e-c0f0f25be11d"
+          ]
+        },
+        {
+          "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+          "designator": "U2",
+          "signal_uuid": "d403026b-28a3-4726-839e-660ffeb3272b",
+          "signal_name": "GND",
+          "address": "U2.9",
+          "footprint_pad_uuids": [
+            "d60d1c37-1e0b-46f4-a097-8c9566d73cc4"
+          ]
+        },
+        {
+          "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+          "designator": "U2",
+          "signal_uuid": "d403026b-28a3-4726-839e-660ffeb3272b",
+          "signal_name": "GND",
+          "address": "U2.15",
+          "footprint_pad_uuids": [
+            "b9840321-d4b0-4bf3-93f9-3fffcbd8d367"
+          ]
+        },
+        {
+          "component_uuid": "ce3452f5-493e-4d2f-8070-52f8df8e08eb",
+          "designator": "C30",
+          "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+          "signal_name": "1",
+          "address": "C30.1",
+          "footprint_pad_uuids": [
+            "12532ab5-93f7-4596-826f-471f6f1a1a7f"
+          ]
+        },
+        {
+          "component_uuid": "ce3452f5-493e-4d2f-8070-52f8df8e08eb",
+          "designator": "C30",
+          "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+          "signal_name": "2",
+          "address": "C30.2",
+          "footprint_pad_uuids": [
+            "265c3e7a-cf4c-4e37-88fe-53e70f43a85d"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "adc-vbus",
+      "components": [
+        {
+          "component_uuid": "03bbc3bc-1962-4a4a-a273-16eae2f839dc",
+          "designator": "R10"
+        },
+        {
+          "component_uuid": "7bfb1db6-500b-4f4f-b045-00ae24062682",
+          "designator": "R11"
+        },
+        {
+          "component_uuid": "26860204-3d88-4402-b703-2057c69b85fd",
+          "designator": "C4"
+        },
+        {
+          "component_uuid": "23f6f6e2-e598-4832-b465-ab76521587c1",
+          "designator": "U1"
+        },
+        {
+          "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+          "designator": "U2"
+        },
+        {
+          "component_uuid": "fdc41404-a2bd-4dde-8ff9-a0bb1504f374",
+          "designator": "SW5"
+        }
+      ],
+      "pins": [
+        {
+          "component_uuid": "fdc41404-a2bd-4dde-8ff9-a0bb1504f374",
+          "designator": "SW5",
+          "signal_uuid": "fafda348-e735-4428-9292-61bd3dc919ba",
+          "signal_name": "1",
+          "address": "SW5.1",
+          "footprint_pad_uuids": [
+            "84433c6e-4a31-4497-8363-b922758ea4d0"
+          ]
+        },
+        {
+          "component_uuid": "fdc41404-a2bd-4dde-8ff9-a0bb1504f374",
+          "designator": "SW5",
+          "signal_uuid": "4cd6c1c0-ecb8-43ce-b58b-3bb5604a6820",
+          "signal_name": "2",
+          "address": "SW5.2",
+          "footprint_pad_uuids": [
+            "d10907ba-b69e-4b9a-881b-a7c73dcb85a9"
+          ]
+        },
+        {
+          "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+          "designator": "U2",
+          "signal_uuid": "43593e21-f749-47fc-9612-eeb629e9df9f",
+          "signal_name": "VBUS",
+          "address": "U2.2",
+          "footprint_pad_uuids": [
+            "7a372eef-af52-451d-a311-cb4ef5a25b77"
+          ]
+        },
+        {
+          "component_uuid": "03bbc3bc-1962-4a4a-a273-16eae2f839dc",
+          "designator": "R10",
+          "signal_uuid": "86582aa8-a4e1-4e5d-92f9-639b4c6047fc",
+          "signal_name": "1",
+          "address": "R10.1",
+          "footprint_pad_uuids": [
+            "7e82cd01-24c6-420e-9b47-0a11f2786768"
+          ]
+        },
+        {
+          "component_uuid": "03bbc3bc-1962-4a4a-a273-16eae2f839dc",
+          "designator": "R10",
+          "signal_uuid": "e147cffd-7048-4b89-96a9-35cef8badf71",
+          "signal_name": "2",
+          "address": "R10.2",
+          "footprint_pad_uuids": [
+            "bc6b746d-4b33-4e7b-ba66-4c610dc6898d"
+          ]
+        },
+        {
+          "component_uuid": "7bfb1db6-500b-4f4f-b045-00ae24062682",
+          "designator": "R11",
+          "signal_uuid": "86582aa8-a4e1-4e5d-92f9-639b4c6047fc",
+          "signal_name": "1",
+          "address": "R11.1",
+          "footprint_pad_uuids": [
+            "2af54b68-3ac0-4543-8ffa-d3eb8ec9daf2"
+          ]
+        },
+        {
+          "component_uuid": "7bfb1db6-500b-4f4f-b045-00ae24062682",
+          "designator": "R11",
+          "signal_uuid": "e147cffd-7048-4b89-96a9-35cef8badf71",
+          "signal_name": "2",
+          "address": "R11.2",
+          "footprint_pad_uuids": [
+            "fcd659b5-1752-41b3-8a94-bb59c71f6c2c"
+          ]
+        },
+        {
+          "component_uuid": "26860204-3d88-4402-b703-2057c69b85fd",
+          "designator": "C4",
+          "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+          "signal_name": "1",
+          "address": "C4.1",
+          "footprint_pad_uuids": [
+            "0c230005-e1c9-4a19-9c8b-fd92b41bfea6"
+          ]
+        },
+        {
+          "component_uuid": "26860204-3d88-4402-b703-2057c69b85fd",
+          "designator": "C4",
+          "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+          "signal_name": "2",
+          "address": "C4.2",
+          "footprint_pad_uuids": [
+            "263fb1d4-e5de-4b92-9a96-6f095e16dfa4"
+          ]
+        },
+        {
+          "component_uuid": "23f6f6e2-e598-4832-b465-ab76521587c1",
+          "designator": "U1",
+          "signal_uuid": "a499b264-950f-4dbc-90a8-648e9caeb91b",
+          "signal_name": "GPIO3",
+          "address": "U1.8",
+          "footprint_pad_uuids": [
+            "9c2127e0-64c6-4696-a0eb-62bf55361613"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "q1-gate-clamp",
+      "components": [
+        {
+          "component_uuid": "4deb09af-ea4b-41e5-be29-dd2d03e0bff2",
+          "designator": "Q1"
+        },
+        {
+          "component_uuid": "f2af6cd7-acae-47a2-9c60-f156fbddde07",
+          "designator": "D2"
+        },
+        {
+          "component_uuid": "326814df-e82c-4034-a39d-f8c6fb73f40e",
+          "designator": "R20"
+        },
+        {
+          "component_uuid": "05251d40-39a4-489f-950b-b8f8a03072de",
+          "designator": "R27"
+        },
+        {
+          "component_uuid": "ce96b5bb-c857-4a78-8f07-fb99757e7f49",
+          "designator": "Q2"
+        }
+      ],
+      "pins": [
+        {
+          "component_uuid": "4deb09af-ea4b-41e5-be29-dd2d03e0bff2",
+          "designator": "Q1",
+          "signal_uuid": "defa9c9b-b57e-43a7-b977-9818cca63b5e",
+          "signal_name": "G",
+          "address": "Q1.4",
+          "footprint_pad_uuids": [
+            "aaafd8db-cc0f-4a76-b35a-33e66a9457f1"
+          ]
+        },
+        {
+          "component_uuid": "4deb09af-ea4b-41e5-be29-dd2d03e0bff2",
+          "designator": "Q1",
+          "signal_uuid": "c5b80afb-bd98-42f7-ba30-fa3b6af079df",
+          "signal_name": "S",
+          "address": "Q1.3",
+          "footprint_pad_uuids": [
+            "4a301117-680f-4cbf-bbb2-c53eda8c2279"
+          ]
+        },
+        {
+          "component_uuid": "f2af6cd7-acae-47a2-9c60-f156fbddde07",
+          "designator": "D2",
+          "signal_uuid": "bb2f7112-e60b-464a-9925-d69b788e053f",
+          "signal_name": "A",
+          "address": "D2.1",
+          "footprint_pad_uuids": [
+            "19e460af-4cbf-4724-9cc6-d7d2d2f8ef15"
+          ]
+        },
+        {
+          "component_uuid": "f2af6cd7-acae-47a2-9c60-f156fbddde07",
+          "designator": "D2",
+          "signal_uuid": "b965c877-deae-42a1-963c-6a46d2474e40",
+          "signal_name": "K",
+          "address": "D2.3",
+          "footprint_pad_uuids": [
+            "f653093b-d8e8-4276-9e6e-e0abb69e1803"
+          ]
+        },
+        {
+          "component_uuid": "326814df-e82c-4034-a39d-f8c6fb73f40e",
+          "designator": "R20",
+          "signal_uuid": "86582aa8-a4e1-4e5d-92f9-639b4c6047fc",
+          "signal_name": "1",
+          "address": "R20.1",
+          "footprint_pad_uuids": [
+            "5079361a-ffe5-41ef-a45a-a0fbdec1fe21"
+          ]
+        },
+        {
+          "component_uuid": "326814df-e82c-4034-a39d-f8c6fb73f40e",
+          "designator": "R20",
+          "signal_uuid": "e147cffd-7048-4b89-96a9-35cef8badf71",
+          "signal_name": "2",
+          "address": "R20.2",
+          "footprint_pad_uuids": [
+            "4c1e4a2c-1a07-4f0c-89ef-ed49227ebaf7"
+          ]
+        },
+        {
+          "component_uuid": "05251d40-39a4-489f-950b-b8f8a03072de",
+          "designator": "R27",
+          "signal_uuid": "86582aa8-a4e1-4e5d-92f9-639b4c6047fc",
+          "signal_name": "1",
+          "address": "R27.1",
+          "footprint_pad_uuids": [
+            "1b431b20-ce92-4405-a6c9-cbacf4030ba8"
+          ]
+        },
+        {
+          "component_uuid": "05251d40-39a4-489f-950b-b8f8a03072de",
+          "designator": "R27",
+          "signal_uuid": "e147cffd-7048-4b89-96a9-35cef8badf71",
+          "signal_name": "2",
+          "address": "R27.2",
+          "footprint_pad_uuids": [
+            "e4e7d91e-a28f-44c1-be30-3afc5c035c3b"
+          ]
+        },
+        {
+          "component_uuid": "ce96b5bb-c857-4a78-8f07-fb99757e7f49",
+          "designator": "Q2",
+          "signal_uuid": "e82fa902-2582-4615-84aa-dce68887ab30",
+          "signal_name": "C",
+          "address": "Q2.3",
+          "footprint_pad_uuids": [
+            "b5a51dc6-30db-470b-a24c-d7c8f068104d"
+          ]
+        }
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "id": "vcomh-length",
+      "group": "oled-analog",
+      "kind": "trace_path",
+      "from": "OLED1.27",
+      "to": "C22.1",
+      "max_length_mm": 4.32,
+      "max_vias": 0,
+      "priority": "preference",
+      "source": "HANDOFF.md: original KiCad measured comparison; an optimization target, not an electrical rating",
+      "from_ref": {
+        "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+        "designator": "OLED1",
+        "signal_uuid": "7d008a4f-15ba-4cde-acb1-88c56bf0474b",
+        "signal_name": "VCOMH",
+        "address": "OLED1.27",
+        "footprint_pad_uuids": [
+          "b6ae1d86-6f20-47ef-87ce-607eb4f44cc3"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "90b44ab4-5503-4893-b19d-d2dd2174465b",
+        "designator": "C22",
+        "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+        "signal_name": "1",
+        "address": "C22.1",
+        "footprint_pad_uuids": [
+          "43214e6d-68b6-4638-b535-7bea06a4fa65"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 2.9572886653148975,
+        "length_mm": 3.1845815280171244,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "2a9ecd03-eeb3-4a02-b5e8-d229cb2b85de",
+          "f1ffed78-cd28-4e66-879c-e96a1c577de9",
+          "81399fc6-31df-4616-9e6e-bd2150b643c4"
+        ],
+        "layer_changes": 0
+      },
+      "status": "pass"
+    },
+    {
+      "id": "oled-vcc-length",
+      "group": "oled-analog",
+      "kind": "trace_path",
+      "from": "OLED1.28",
+      "to": "C21.1",
+      "max_length_mm": 4.69,
+      "max_vias": 0,
+      "priority": "preference",
+      "source": "HANDOFF.md: original KiCad measured comparison; an optimization target, not an electrical rating",
+      "from_ref": {
+        "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+        "designator": "OLED1",
+        "signal_uuid": "37049889-4387-4674-95ab-7568ddefc5b0",
+        "signal_name": "VCC",
+        "address": "OLED1.28",
+        "footprint_pad_uuids": [
+          "e3a46b4a-cfb9-4bc5-9ef8-b4d0bfaf0079"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "47636e52-8e93-463f-aaf9-4bf0a48f15bf",
+        "designator": "C21",
+        "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+        "signal_name": "1",
+        "address": "C21.1",
+        "footprint_pad_uuids": [
+          "46af46a6-d163-43dc-8b9e-6d16873d7122"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 3.3294978975815526,
+        "length_mm": 3.820977631085017,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "8043ede1-d05c-4e54-8280-66b6e9e97d04",
+          "99d83687-089f-4c53-9fc1-2d7070ba9040",
+          "0b3504cf-773f-40cb-85fd-4559cf2f8470",
+          "9b37e9c9-fd64-4779-a208-8f2d5ea61659"
+        ],
+        "layer_changes": 0
+      },
+      "status": "pass"
+    },
+    {
+      "id": "OLED1.2-C23.2",
+      "kind": "trace_path",
+      "from": "OLED1.2",
+      "to": "C23.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified",
+      "from_ref": {
+        "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+        "designator": "OLED1",
+        "signal_uuid": "4913a7c9-8cb3-4fed-95c3-a12ab3988d7a",
+        "signal_name": "C2P",
+        "address": "OLED1.2",
+        "footprint_pad_uuids": [
+          "f6c5b553-2ec8-4fa9-9cad-20feca88640b"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "8bc1eef6-a643-4eb5-9610-c03405fd6f8b",
+        "designator": "C23",
+        "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+        "signal_name": "2",
+        "address": "C23.2",
+        "footprint_pad_uuids": [
+          "eb92f41c-86aa-4c4d-8016-8eba56271e88"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 2.8540420897386873,
+        "length_mm": 2.9313944642081715,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "4ef751a1-aa5b-47b6-9d0e-80fde62b0b45",
+          "c600982a-8067-487b-8d60-e4c53e998c3f",
+          "8375eea0-759d-4f36-be3d-76b67e037cd6"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "OLED1.3-C23.1",
+      "kind": "trace_path",
+      "from": "OLED1.3",
+      "to": "C23.1",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified",
+      "from_ref": {
+        "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+        "designator": "OLED1",
+        "signal_uuid": "67433240-1833-46cf-9bef-349faceba430",
+        "signal_name": "C2N",
+        "address": "OLED1.3",
+        "footprint_pad_uuids": [
+          "3a3f9774-fc34-427e-8c72-27140ed995c5"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "8bc1eef6-a643-4eb5-9610-c03405fd6f8b",
+        "designator": "C23",
+        "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+        "signal_name": "1",
+        "address": "C23.1",
+        "footprint_pad_uuids": [
+          "c3344437-f2ee-457e-9a9a-e33cb5b88abd"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 3.9829080142529034,
+        "length_mm": 4.3810399387333785,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "1f7a2eb1-3aea-4f64-8993-8cccc279dbf4",
+          "a9950d4c-1215-4dcd-8c11-23d1906b0dde",
+          "3a9aa7f9-7410-43fb-8da2-870683aa2a70",
+          "167f400d-87c5-43bd-b768-83bde4afe5aa",
+          "5d130e7c-880f-4a69-b889-ec5a8c5e4437",
+          "45060027-6e74-4799-9a96-50b5e26273c7",
+          "c197956f-3110-41ac-b94a-15b1f77d3f55",
+          "d974ab68-7894-4d11-9ace-e13b99b6770e"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "OLED1.4-C24.2",
+      "kind": "trace_path",
+      "from": "OLED1.4",
+      "to": "C24.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified",
+      "from_ref": {
+        "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+        "designator": "OLED1",
+        "signal_uuid": "0aa110d4-ff29-4c55-9978-8ed4accacba1",
+        "signal_name": "C1P",
+        "address": "OLED1.4",
+        "footprint_pad_uuids": [
+          "4c6b7e51-8684-4a42-b520-d444f18ce293"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "396c4be1-0cc7-4b07-8eb2-6b8fd53e7a72",
+        "designator": "C24",
+        "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+        "signal_name": "2",
+        "address": "C24.2",
+        "footprint_pad_uuids": [
+          "0b13479b-c667-4cd9-883a-e80782c6cd7d"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 2.854042089738691,
+        "length_mm": 2.9578052836583653,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "df2d8959-f42a-49f7-8a3b-31b464dcc210",
+          "c924f65e-544d-491a-8096-1f708628a426",
+          "5106e432-e469-41c1-82aa-743a5dbcd1af",
+          "aec3646d-5f2a-4729-873d-98688eb802e0"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "OLED1.5-C24.1",
+      "kind": "trace_path",
+      "from": "OLED1.5",
+      "to": "C24.1",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified",
+      "from_ref": {
+        "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+        "designator": "OLED1",
+        "signal_uuid": "84a491e4-4af2-4659-a699-e815fa2c69bf",
+        "signal_name": "C1N",
+        "address": "OLED1.5",
+        "footprint_pad_uuids": [
+          "96a6753c-5f6d-49fd-9b57-418a30021a2d"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "396c4be1-0cc7-4b07-8eb2-6b8fd53e7a72",
+        "designator": "C24",
+        "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+        "signal_name": "1",
+        "address": "C24.1",
+        "footprint_pad_uuids": [
+          "0254ac88-551b-459e-88e9-d50395d67def"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 3.9829080142529034,
+        "length_mm": 4.282319629659047,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "27d920eb-ce80-46ef-83f4-1e25ccaa8f63",
+          "78cdaa92-d18d-4881-a698-83385bde43ff",
+          "3828740a-00f7-4077-88de-1be877299184",
+          "2b569cbf-b5ab-49d3-bfa5-cfd7760e00f4",
+          "0460de5e-4578-4485-a4dd-ec5b4cdbdd23",
+          "3c07c270-9478-49f8-948d-9c800294002a"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "OLED1.14-R22.2",
+      "kind": "trace_path",
+      "from": "OLED1.14",
+      "to": "R22.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified",
+      "from_ref": {
+        "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+        "designator": "OLED1",
+        "signal_uuid": "c4b87ca1-2d24-411b-a260-989a27256371",
+        "signal_name": "!RES",
+        "address": "OLED1.14",
+        "footprint_pad_uuids": [
+          "48f07743-50df-4682-b4c4-4c292e020664"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "7eebb053-38df-44c0-bf91-7c821578dce6",
+        "designator": "R22",
+        "signal_uuid": "52cf08c6-caad-4d32-a732-6bb6151a2bef",
+        "signal_name": "2",
+        "address": "R22.2",
+        "footprint_pad_uuids": [
+          "6da4325e-14f4-4343-a1b1-ab4fdcd36874"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 2.8559597773778367,
+        "length_mm": 3.0303174593052162,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "efca97f0-f925-4f2c-91c5-3d649d28328e",
+          "7b1efc22-b836-454d-9b1a-5e8531d72b8c",
+          "f8e630af-6bd1-4b73-9394-63efa2b1b73a"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "OLED1.14-C27.1",
+      "kind": "trace_path",
+      "from": "OLED1.14",
+      "to": "C27.1",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified",
+      "from_ref": {
+        "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+        "designator": "OLED1",
+        "signal_uuid": "c4b87ca1-2d24-411b-a260-989a27256371",
+        "signal_name": "!RES",
+        "address": "OLED1.14",
+        "footprint_pad_uuids": [
+          "48f07743-50df-4682-b4c4-4c292e020664"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "fb9cd7b1-a43e-41c4-a864-415627ba3910",
+        "designator": "C27",
+        "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+        "signal_name": "1",
+        "address": "C27.1",
+        "footprint_pad_uuids": [
+          "a7c1d00e-a807-4c22-9032-06274c83ec24"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 3.670327812335037,
+        "length_mm": 4.055043032324653,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "efca97f0-f925-4f2c-91c5-3d649d28328e",
+          "7b1efc22-b836-454d-9b1a-5e8531d72b8c",
+          "f8e630af-6bd1-4b73-9394-63efa2b1b73a",
+          "3ce5a9bb-7255-41d3-953c-897700f67664"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "OLED1.14-D4.2",
+      "kind": "trace_path",
+      "from": "OLED1.14",
+      "to": "D4.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified",
+      "from_ref": {
+        "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+        "designator": "OLED1",
+        "signal_uuid": "c4b87ca1-2d24-411b-a260-989a27256371",
+        "signal_name": "!RES",
+        "address": "OLED1.14",
+        "footprint_pad_uuids": [
+          "48f07743-50df-4682-b4c4-4c292e020664"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "c6fa87d8-14bc-48b2-8f8f-47d1754a5ce5",
+        "designator": "D4",
+        "signal_uuid": "feda23b4-ad83-4438-854c-a5f73078933b",
+        "signal_name": "A",
+        "address": "D4.2",
+        "footprint_pad_uuids": [
+          "b9295b2c-07f2-4169-b436-15f447fee30a"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 4.4768850778191815,
+        "length_mm": 4.872390112823502,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "efca97f0-f925-4f2c-91c5-3d649d28328e",
+          "7b1efc22-b836-454d-9b1a-5e8531d72b8c",
+          "f8e630af-6bd1-4b73-9394-63efa2b1b73a",
+          "3ce5a9bb-7255-41d3-953c-897700f67664",
+          "bbcf85ed-d0e9-4bb2-b93e-b413e91e5cd7"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U5.3-C15.2",
+      "kind": "trace_path",
+      "from": "U5.3",
+      "to": "C15.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified",
+      "from_ref": {
+        "component_uuid": "29b1e527-e498-4400-9588-1c71503dd368",
+        "designator": "U5",
+        "signal_uuid": "38b703ec-e452-4464-bf1b-1b3a7dc42ce2",
+        "signal_name": "VIN",
+        "address": "U5.3",
+        "footprint_pad_uuids": [
+          "8786dec7-e261-4cbd-af80-5a44a4ecc638"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "490da570-da03-4777-a171-22361bf334b9",
+        "designator": "C15",
+        "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+        "signal_name": "2",
+        "address": "C15.2",
+        "footprint_pad_uuids": [
+          "b31a00af-65ef-4607-a7d6-d6a429dfd4ef"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 5.718979366984985,
+        "length_mm": 7.114989027254237,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 1,
+        "widths_mm": [
+          0.55,
+          0.65,
+          1.0
+        ],
+        "traces": [
+          "59f53bbd-9b8e-4705-bf3a-668f3a69eea2",
+          "2a4a2638-d5d0-455c-a2ef-84f56d51cff4",
+          "48a7aa26-7831-42ba-bec7-c4ad487afa5c",
+          "5a8ea98e-58e8-4ca8-a779-7ee1089d203e"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U5.3-C16.2",
+      "kind": "trace_path",
+      "from": "U5.3",
+      "to": "C16.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified",
+      "from_ref": {
+        "component_uuid": "29b1e527-e498-4400-9588-1c71503dd368",
+        "designator": "U5",
+        "signal_uuid": "38b703ec-e452-4464-bf1b-1b3a7dc42ce2",
+        "signal_name": "VIN",
+        "address": "U5.3",
+        "footprint_pad_uuids": [
+          "8786dec7-e261-4cbd-af80-5a44a4ecc638"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "65a898a8-e877-4b6e-9022-54c334fa1628",
+        "designator": "C16",
+        "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+        "signal_name": "2",
+        "address": "C16.2",
+        "footprint_pad_uuids": [
+          "ab1c3a2e-269e-44e8-abbd-46a421128aa1"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 2.3791227374811927,
+        "length_mm": 2.3791227374811927,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.55
+        ],
+        "traces": [
+          "59f53bbd-9b8e-4705-bf3a-668f3a69eea2"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U5.1-C16.1",
+      "kind": "trace_path",
+      "from": "U5.1",
+      "to": "C16.1",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified",
+      "from_ref": {
+        "component_uuid": "29b1e527-e498-4400-9588-1c71503dd368",
+        "designator": "U5",
+        "signal_uuid": "4dff160b-7053-42ca-85d5-20ed7d355310",
+        "signal_name": "GND",
+        "address": "U5.1",
+        "footprint_pad_uuids": [
+          "3bdd2b12-3a4a-44ba-a891-f0c2248611e2"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "65a898a8-e877-4b6e-9022-54c334fa1628",
+        "designator": "C16",
+        "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+        "signal_name": "1",
+        "address": "C16.1",
+        "footprint_pad_uuids": [
+          "8866c790-9e58-4396-a3ce-07caac6ac5f2"
+        ]
+      },
+      "measurement": {
+        "status": "not_checked",
+        "direct_mm": 2.6301188186087696,
+        "reason": "No trace-only path. May connect through rebuilt copper planes; inspect plane coverage separately."
+      },
+      "status": "not_checked"
+    },
+    {
+      "id": "U5.5-R14.1",
+      "kind": "trace_path",
+      "from": "U5.5",
+      "to": "R14.1",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified",
+      "from_ref": {
+        "component_uuid": "29b1e527-e498-4400-9588-1c71503dd368",
+        "designator": "U5",
+        "signal_uuid": "97f14271-2f3f-48ff-9bea-516cfdce483e",
+        "signal_name": "FB",
+        "address": "U5.5",
+        "footprint_pad_uuids": [
+          "45603ef0-86d4-4438-bda8-aa5cfe7f84dd"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "c1f3e0f8-5b79-4059-aa4b-efd1598958b7",
+        "designator": "R14",
+        "signal_uuid": "86582aa8-a4e1-4e5d-92f9-639b4c6047fc",
+        "signal_name": "1",
+        "address": "R14.1",
+        "footprint_pad_uuids": [
+          "86781952-9aa8-4a98-95f2-fdbcb63cc4fe"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 3.8599546629461856,
+        "length_mm": 4.175670631985087,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "c1565c89-c899-4b73-931a-f16b68d21d07",
+          "676f4903-d24e-4a42-b56f-cb7e32d769b4",
+          "2ab478c0-97d9-4aa4-977e-c919e84b635d",
+          "cea53251-50ea-4fc0-aff4-95cb54aca880"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U5.5-R16.2",
+      "kind": "trace_path",
+      "from": "U5.5",
+      "to": "R16.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified",
+      "from_ref": {
+        "component_uuid": "29b1e527-e498-4400-9588-1c71503dd368",
+        "designator": "U5",
+        "signal_uuid": "97f14271-2f3f-48ff-9bea-516cfdce483e",
+        "signal_name": "FB",
+        "address": "U5.5",
+        "footprint_pad_uuids": [
+          "45603ef0-86d4-4438-bda8-aa5cfe7f84dd"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "3116319d-dada-43ab-b48c-8043a69c246f",
+        "designator": "R16",
+        "signal_uuid": "e147cffd-7048-4b89-96a9-35cef8badf71",
+        "signal_name": "2",
+        "address": "R16.2",
+        "footprint_pad_uuids": [
+          "2e8a69dd-e7aa-45f2-90aa-f011a26e88da"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 3.0801379839221528,
+        "length_mm": 3.2956706319850912,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "c1565c89-c899-4b73-931a-f16b68d21d07",
+          "676f4903-d24e-4a42-b56f-cb7e32d769b4",
+          "2ab478c0-97d9-4aa4-977e-c919e84b635d"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U5.4-R30.2",
+      "kind": "trace_path",
+      "from": "U5.4",
+      "to": "R30.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified",
+      "from_ref": {
+        "component_uuid": "29b1e527-e498-4400-9588-1c71503dd368",
+        "designator": "U5",
+        "signal_uuid": "97c21407-776f-46ab-814d-36e14ae623a2",
+        "signal_name": "RT/SYNC",
+        "address": "U5.4",
+        "footprint_pad_uuids": [
+          "2fb98582-8ce5-430d-adce-5d85754a3c40"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "578345c1-6ed1-4781-a171-9f1273f6f326",
+        "designator": "R30",
+        "signal_uuid": "e147cffd-7048-4b89-96a9-35cef8badf71",
+        "signal_name": "2",
+        "address": "R30.2",
+        "footprint_pad_uuids": [
+          "14e22dfe-2a4b-498c-a1f6-d26d08fb018b"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 1.9435148571595695,
+        "length_mm": 2.0321191879147364,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "640b7762-ae03-4061-972a-a0447a9b4f7d",
+          "86a5f78c-93ad-4380-bd9d-38a533f42a14",
+          "41d9fc71-6738-471b-aff9-9854d5671960",
+          "e6f6aef4-cb88-450a-9abd-2cd8cce4c08e"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U6.9-R17.2",
+      "kind": "trace_path",
+      "from": "U6.9",
+      "to": "R17.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified",
+      "from_ref": {
+        "component_uuid": "e645663f-5fce-40b7-bc43-fc7faeaa81d6",
+        "designator": "U6",
+        "signal_uuid": "8381e4c1-405b-4034-9ea8-84bc324b837a",
+        "signal_name": "Vin-",
+        "address": "U6.9",
+        "footprint_pad_uuids": [
+          "19bad1c8-3df9-4786-9583-7f8ad30d711f"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "eb6a091d-40e8-4718-a623-2c1ee9b66598",
+        "designator": "R17",
+        "signal_uuid": "63f76f75-a112-4bc5-a7b7-4ec73d40643b",
+        "signal_name": "2",
+        "address": "R17.2",
+        "footprint_pad_uuids": [
+          "c17869ab-8134-4548-89a2-b914c47dcb41"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 3.67883133617184,
+        "length_mm": 7.488010819142742,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "a0b102b5-118c-4b11-9d1c-4d3c854b7fd8",
+          "ff7c9ce4-aba1-4554-ab00-eb3196040765",
+          "498020b1-e888-4214-8309-d445afca54d1",
+          "553cc9b7-1dfd-4f7d-831e-96e7055af13e",
+          "8b6bc9ef-5716-491c-bb3e-d8e6163e8770"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U6.10-R17.3",
+      "kind": "trace_path",
+      "from": "U6.10",
+      "to": "R17.3",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified",
+      "from_ref": {
+        "component_uuid": "e645663f-5fce-40b7-bc43-fc7faeaa81d6",
+        "designator": "U6",
+        "signal_uuid": "bc5363eb-fe6b-4ad9-a465-16a5f32c9eed",
+        "signal_name": "Vin+",
+        "address": "U6.10",
+        "footprint_pad_uuids": [
+          "4fdfa785-0c28-417d-ace7-234c77b23169"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "eb6a091d-40e8-4718-a623-2c1ee9b66598",
+        "designator": "R17",
+        "signal_uuid": "6860f156-ec12-4880-9103-0bb1d2259e1b",
+        "signal_name": "3",
+        "address": "R17.3",
+        "footprint_pad_uuids": [
+          "0458d2c1-b923-422f-8a5a-3b6068c79240"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 6.784231717740767,
+        "length_mm": 8.18298556597333,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "d5f4bc3b-2fc2-4436-9770-a10dbad61b11",
+          "c8ce4b8a-589f-43d9-8c41-0d1ec41289cb",
+          "77b50616-6f0a-46b0-ba7e-c4e488cc10d5",
+          "76afaab4-701b-4bba-b6e8-a08f3a07d2e1",
+          "e0906976-33ac-4b89-978e-e8a457af3a4a"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U1.8-C4.2",
+      "kind": "trace_path",
+      "from": "U1.8",
+      "to": "C4.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified",
+      "from_ref": {
+        "component_uuid": "23f6f6e2-e598-4832-b465-ab76521587c1",
+        "designator": "U1",
+        "signal_uuid": "a499b264-950f-4dbc-90a8-648e9caeb91b",
+        "signal_name": "GPIO3",
+        "address": "U1.8",
+        "footprint_pad_uuids": [
+          "9c2127e0-64c6-4696-a0eb-62bf55361613"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "26860204-3d88-4402-b703-2057c69b85fd",
+        "designator": "C4",
+        "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+        "signal_name": "2",
+        "address": "C4.2",
+        "footprint_pad_uuids": [
+          "263fb1d4-e5de-4b92-9a96-6f095e16dfa4"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 2.058008746337095,
+        "length_mm": 2.1744801071190807,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.18
+        ],
+        "traces": [
+          "fd271256-aa2b-4e2c-b026-86598147a0a3",
+          "d648cd86-8547-421d-a022-da5bc117e3c1",
+          "2fd80463-4814-4cbc-a0b6-9868113acaef"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "fpc-fixed",
+      "kind": "fixed_placement",
+      "component": "OLED1",
+      "priority": "required",
+      "source": "HANDOFF.md: preserve FPC position and cutout",
+      "component_ref": {
+        "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+        "designator": "OLED1"
+      },
+      "measurement": {
+        "position": {
+          "x": 155.5,
+          "y": -106.8
+        },
+        "rotation": 180.0,
+        "side": "bottom"
+      },
+      "status": "measured"
+    },
+    {
+      "id": "reference-preserved",
+      "kind": "reference_copper",
+      "priority": "required",
+      "source": "HANDOFF.md: compare USB and RF ground reference coverage",
+      "status": "not_checked",
+      "reason": "Requires rebuilt plane coverage and return-transition review; centerline graph cannot establish it."
+    },
+    {
+      "id": "R22.2-C27.1",
+      "kind": "trace_path",
+      "from": "R22.2",
+      "to": "C27.1",
+      "priority": "measurement",
+      "source": "OLED RESET review: compare local RC, discharge diode, VCC-feed and decoupling geometry; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "7eebb053-38df-44c0-bf91-7c821578dce6",
+        "designator": "R22",
+        "signal_uuid": "52cf08c6-caad-4d32-a732-6bb6151a2bef",
+        "signal_name": "2",
+        "address": "R22.2",
+        "footprint_pad_uuids": [
+          "6da4325e-14f4-4343-a1b1-ab4fdcd36874"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "fb9cd7b1-a43e-41c4-a864-415627ba3910",
+        "designator": "C27",
+        "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+        "signal_name": "1",
+        "address": "C27.1",
+        "footprint_pad_uuids": [
+          "a7c1d00e-a807-4c22-9032-06274c83ec24"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 1.0247255730194367,
+        "length_mm": 1.0247255730194367,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "3ce5a9bb-7255-41d3-953c-897700f67664"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "C27.1-D4.2",
+      "kind": "trace_path",
+      "from": "C27.1",
+      "to": "D4.2",
+      "priority": "measurement",
+      "source": "OLED RESET review: compare local RC, discharge diode, VCC-feed and decoupling geometry; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "fb9cd7b1-a43e-41c4-a864-415627ba3910",
+        "designator": "C27",
+        "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+        "signal_name": "1",
+        "address": "C27.1",
+        "footprint_pad_uuids": [
+          "a7c1d00e-a807-4c22-9032-06274c83ec24"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "c6fa87d8-14bc-48b2-8f8f-47d1754a5ce5",
+        "designator": "D4",
+        "signal_uuid": "feda23b4-ad83-4438-854c-a5f73078933b",
+        "signal_name": "A",
+        "address": "D4.2",
+        "footprint_pad_uuids": [
+          "b9295b2c-07f2-4169-b436-15f447fee30a"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 0.8173470804988491,
+        "length_mm": 0.8173470804988491,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "bbcf85ed-d0e9-4bb2-b93e-b413e91e5cd7"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "R22.1-D4.1",
+      "kind": "trace_path",
+      "from": "R22.1",
+      "to": "D4.1",
+      "priority": "measurement",
+      "source": "OLED RESET review: compare local RC, discharge diode, VCC-feed and decoupling geometry; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "7eebb053-38df-44c0-bf91-7c821578dce6",
+        "designator": "R22",
+        "signal_uuid": "8f4b0965-dbfd-4fa9-a47f-9321c9c803cb",
+        "signal_name": "1",
+        "address": "R22.1",
+        "footprint_pad_uuids": [
+          "6bf2af2c-a51b-41a2-9911-694929296466"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "c6fa87d8-14bc-48b2-8f8f-47d1754a5ce5",
+        "designator": "D4",
+        "signal_uuid": "fcbf65a0-3563-42b9-ac07-4f9f87775a2d",
+        "signal_name": "K",
+        "address": "D4.1",
+        "footprint_pad_uuids": [
+          "f17938e7-fc8f-484f-ac82-ed0b7595daf7"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 1.8889166868869627,
+        "length_mm": 4.2501243833142315,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.4
+        ],
+        "traces": [
+          "5cbbedfc-4c3a-4e13-9e9c-eb0c7b81fc7c",
+          "0ed63e88-efcb-4a52-9b7e-62e60801bb1f",
+          "4ec758d0-eb08-49f1-9759-ce28aef4f05a"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "OLED1.15-R22.1",
+      "kind": "trace_path",
+      "from": "OLED1.15",
+      "to": "R22.1",
+      "priority": "measurement",
+      "source": "OLED RESET review: compare local RC, discharge diode, VCC-feed and decoupling geometry; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+        "designator": "OLED1",
+        "signal_uuid": "7135f47e-80a0-47b8-ab9b-b461d599ce12",
+        "signal_name": "D/!C",
+        "address": "OLED1.15",
+        "footprint_pad_uuids": [
+          "c271862c-8e7e-4f93-88fd-d4bac137dfa1"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "7eebb053-38df-44c0-bf91-7c821578dce6",
+        "designator": "R22",
+        "signal_uuid": "8f4b0965-dbfd-4fa9-a47f-9321c9c803cb",
+        "signal_name": "1",
+        "address": "R22.1",
+        "footprint_pad_uuids": [
+          "6bf2af2c-a51b-41a2-9911-694929296466"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 4.00031326898282,
+        "length_mm": 6.584991132995217,
+        "layers": [
+          "bot_cu",
+          "top_cu"
+        ],
+        "via_count": 2,
+        "widths_mm": [
+          0.4
+        ],
+        "traces": [
+          "eccfc924-0c2f-45de-b5a8-3396ffe652ec",
+          "19ae0db1-ff6d-4645-a2fd-07c774b8d8ce",
+          "37361f86-801d-4fee-a878-4159c06e40ea",
+          "674e97e9-aca1-4a76-af9d-66fd91bd94f2",
+          "7907abb6-c0b1-439a-9572-6aaa43c8a65b",
+          "f0d87cd9-276f-4fd2-a94e-f6662de04b98",
+          "f82738af-e46f-4147-a72b-a61d0603299b",
+          "3a267f70-c14e-4395-b8d4-ce9930fae374"
+        ],
+        "layer_changes": 2
+      },
+      "status": "measured"
+    },
+    {
+      "id": "OLED1.15-C26.2",
+      "kind": "trace_path",
+      "from": "OLED1.15",
+      "to": "C26.2",
+      "priority": "measurement",
+      "source": "OLED RESET review: compare local RC, discharge diode, VCC-feed and decoupling geometry; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+        "designator": "OLED1",
+        "signal_uuid": "7135f47e-80a0-47b8-ab9b-b461d599ce12",
+        "signal_name": "D/!C",
+        "address": "OLED1.15",
+        "footprint_pad_uuids": [
+          "c271862c-8e7e-4f93-88fd-d4bac137dfa1"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "2526fefa-2a74-4ccc-a431-3e9ac1413853",
+        "designator": "C26",
+        "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+        "signal_name": "2",
+        "address": "C26.2",
+        "footprint_pad_uuids": [
+          "a12d8d94-7bfb-40b9-8499-0299bf7be78b"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 4.69952723686117,
+        "length_mm": 7.329838620036483,
+        "layers": [
+          "bot_cu",
+          "top_cu"
+        ],
+        "via_count": 2,
+        "widths_mm": [
+          0.4
+        ],
+        "traces": [
+          "eccfc924-0c2f-45de-b5a8-3396ffe652ec",
+          "19ae0db1-ff6d-4645-a2fd-07c774b8d8ce",
+          "37361f86-801d-4fee-a878-4159c06e40ea",
+          "674e97e9-aca1-4a76-af9d-66fd91bd94f2",
+          "42d6a14e-ee36-475e-b30c-3d9a6ee1c7d1",
+          "364ac97c-00f7-44d3-888a-92491f1ceb0e",
+          "cb179f3c-98f4-4542-b0a9-090a6def895a",
+          "eb985345-5b9f-479d-bc6e-a4bc0d15e3b1",
+          "3b4655dd-8e2f-422d-bb9d-f3d35b430741"
+        ],
+        "layer_changes": 2
+      },
+      "status": "measured"
+    },
+    {
+      "id": "OLED1.9-C26.2",
+      "kind": "trace_path",
+      "from": "OLED1.9",
+      "to": "C26.2",
+      "priority": "measurement",
+      "source": "OLED RESET review: compare local RC, discharge diode, VCC-feed and decoupling geometry; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+        "designator": "OLED1",
+        "signal_uuid": "25259bef-1982-437f-adca-db614756b8c9",
+        "signal_name": "VDD",
+        "address": "OLED1.9",
+        "footprint_pad_uuids": [
+          "1cb2c755-fea4-42ec-a146-b1c641b7aa87"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "2526fefa-2a74-4ccc-a431-3e9ac1413853",
+        "designator": "C26",
+        "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+        "signal_name": "2",
+        "address": "C26.2",
+        "footprint_pad_uuids": [
+          "a12d8d94-7bfb-40b9-8499-0299bf7be78b"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 2.868023056044005,
+        "length_mm": 3.1067640687119393,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.4
+        ],
+        "traces": [
+          "4d343d95-97b2-40b0-9914-b81a14f15fd4",
+          "9e507e32-7afc-40f7-8081-24e97e1f7048",
+          "a564848d-3be6-4433-a04c-147f09d59b07",
+          "3b4655dd-8e2f-422d-bb9d-f3d35b430741"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "OLED1.11-C26.2",
+      "kind": "trace_path",
+      "from": "OLED1.11",
+      "to": "C26.2",
+      "priority": "measurement",
+      "source": "OLED RESET review: compare local RC, discharge diode, VCC-feed and decoupling geometry; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+        "designator": "OLED1",
+        "signal_uuid": "0d3b340b-2c03-4edd-8429-6643b6d1564d",
+        "signal_name": "BS1",
+        "address": "OLED1.11",
+        "footprint_pad_uuids": [
+          "d4d07a64-18a3-4e99-9a60-06f56e630d25"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "2526fefa-2a74-4ccc-a431-3e9ac1413853",
+        "designator": "C26",
+        "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+        "signal_name": "2",
+        "address": "C26.2",
+        "footprint_pad_uuids": [
+          "a12d8d94-7bfb-40b9-8499-0299bf7be78b"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 2.9875669448566264,
+        "length_mm": 3.5578052836583582,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.4
+        ],
+        "traces": [
+          "484cf79b-67c1-45c7-ad57-29e69104a6ce",
+          "379da65f-26f2-4aeb-b21d-772b62841bb1",
+          "cb179f3c-98f4-4542-b0a9-090a6def895a",
+          "eb985345-5b9f-479d-bc6e-a4bc0d15e3b1",
+          "3b4655dd-8e2f-422d-bb9d-f3d35b430741"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U2.3-C29.2",
+      "kind": "trace_path",
+      "from": "U2.3",
+      "to": "C29.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md U2 decoupling review; domains verified by U2 pin mapping; INT comparison records the local routing tradeoff. No electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+        "designator": "U2",
+        "signal_uuid": "e504aa85-0ec4-47d3-9d64-babc4d94eef9",
+        "signal_name": "VDD",
+        "address": "U2.3",
+        "footprint_pad_uuids": [
+          "303f748f-dbe8-4850-ac29-60d5343e80f2"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "9718a5eb-e0bc-4705-8228-3aa65888d660",
+        "designator": "C29",
+        "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+        "signal_name": "2",
+        "address": "C29.2",
+        "footprint_pad_uuids": [
+          "98e397c1-a6e3-439f-b602-0920de9475b1"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 1.1763529444856249,
+        "length_mm": 1.1763529444856249,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.4
+        ],
+        "traces": [
+          "c3014493-641d-4c2e-ab11-931c4da4d662"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U2.4-C29.2",
+      "kind": "trace_path",
+      "from": "U2.4",
+      "to": "C29.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md U2 decoupling review; domains verified by U2 pin mapping; INT comparison records the local routing tradeoff. No electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+        "designator": "U2",
+        "signal_uuid": "e504aa85-0ec4-47d3-9d64-babc4d94eef9",
+        "signal_name": "VDD",
+        "address": "U2.4",
+        "footprint_pad_uuids": [
+          "a19f99e5-0524-40d2-b83c-ebea4082721f"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "9718a5eb-e0bc-4705-8228-3aa65888d660",
+        "designator": "C29",
+        "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+        "signal_name": "2",
+        "address": "C29.2",
+        "footprint_pad_uuids": [
+          "98e397c1-a6e3-439f-b602-0920de9475b1"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 1.2774217197151434,
+        "length_mm": 2.1477359711994186,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.4
+        ],
+        "traces": [
+          "d3d82af0-431e-49b8-a33c-a61dce400b8b",
+          "7ce56f60-6786-4e9d-b489-d3eef2a3922b",
+          "86a9f61f-3608-462e-a7b6-284d56896192",
+          "bc05137a-a0ab-4d8a-8947-a734ac4b199c",
+          "c3014493-641d-4c2e-ab11-931c4da4d662"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U2.12-C30.2",
+      "kind": "trace_path",
+      "from": "U2.12",
+      "to": "C30.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md U2 decoupling review; domains verified by U2 pin mapping; INT comparison records the local routing tradeoff. No electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+        "designator": "U2",
+        "signal_uuid": "4eaed949-8743-4328-a02f-541a390bc313",
+        "signal_name": "VCONN_1",
+        "address": "U2.12",
+        "footprint_pad_uuids": [
+          "9dda5b5d-6443-470c-b65c-7e741a1fe7f1"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "ce3452f5-493e-4d2f-8070-52f8df8e08eb",
+        "designator": "C30",
+        "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+        "signal_name": "2",
+        "address": "C30.2",
+        "footprint_pad_uuids": [
+          "265c3e7a-cf4c-4e37-88fe-53e70f43a85d"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 1.9581384654819474,
+        "length_mm": 2.681054253790751,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 1,
+        "widths_mm": [
+          0.4
+        ],
+        "traces": [
+          "afd74d55-08c6-47b3-b248-05f74bd7e66b",
+          "61834c70-1e23-4e05-9823-7586a2611281",
+          "b413b427-1a45-47d6-818a-fe5bbb5151ae",
+          "d8e51f38-b5c6-42f3-ac15-e3fec120b22a",
+          "e646f52a-c55f-4546-9766-dfdef362a09a",
+          "74285e1d-e6d1-4d2a-8f78-b0954a3c96a4"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U2.13-C30.2",
+      "kind": "trace_path",
+      "from": "U2.13",
+      "to": "C30.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md U2 decoupling review; domains verified by U2 pin mapping; INT comparison records the local routing tradeoff. No electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+        "designator": "U2",
+        "signal_uuid": "e7f86e96-f291-4008-a736-f977e29f7ecd",
+        "signal_name": "VCONN_2",
+        "address": "U2.13",
+        "footprint_pad_uuids": [
+          "176be25b-2962-4efa-8870-239e980cae4c"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "ce3452f5-493e-4d2f-8070-52f8df8e08eb",
+        "designator": "C30",
+        "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+        "signal_name": "2",
+        "address": "C30.2",
+        "footprint_pad_uuids": [
+          "265c3e7a-cf4c-4e37-88fe-53e70f43a85d"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 2.419567368353275,
+        "length_mm": 3.181054253790751,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 1,
+        "widths_mm": [
+          0.4
+        ],
+        "traces": [
+          "cc6cd8c1-60de-42a2-bdc4-e028f17fad4a",
+          "afd74d55-08c6-47b3-b248-05f74bd7e66b",
+          "61834c70-1e23-4e05-9823-7586a2611281",
+          "b413b427-1a45-47d6-818a-fe5bbb5151ae",
+          "d8e51f38-b5c6-42f3-ac15-e3fec120b22a",
+          "e646f52a-c55f-4546-9766-dfdef362a09a",
+          "74285e1d-e6d1-4d2a-8f78-b0954a3c96a4"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U2.15-C29.1",
+      "kind": "trace_path",
+      "from": "U2.15",
+      "to": "C29.1",
+      "priority": "measurement",
+      "source": "HANDOFF.md U2 decoupling review; domains verified by U2 pin mapping; INT comparison records the local routing tradeoff. No electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+        "designator": "U2",
+        "signal_uuid": "d403026b-28a3-4726-839e-660ffeb3272b",
+        "signal_name": "GND",
+        "address": "U2.15",
+        "footprint_pad_uuids": [
+          "b9840321-d4b0-4bf3-93f9-3fffcbd8d367"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "9718a5eb-e0bc-4705-8228-3aa65888d660",
+        "designator": "C29",
+        "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+        "signal_name": "1",
+        "address": "C29.1",
+        "footprint_pad_uuids": [
+          "e728909a-9a5d-412b-b8ac-4eda6d8c1379"
+        ]
+      },
+      "measurement": {
+        "status": "not_checked",
+        "direct_mm": 3.2924762717444205,
+        "reason": "No trace-only path. May connect through rebuilt copper planes; inspect plane coverage separately."
+      },
+      "status": "not_checked"
+    },
+    {
+      "id": "U2.15-C30.1",
+      "kind": "trace_path",
+      "from": "U2.15",
+      "to": "C30.1",
+      "priority": "measurement",
+      "source": "HANDOFF.md U2 decoupling review; domains verified by U2 pin mapping; INT comparison records the local routing tradeoff. No electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+        "designator": "U2",
+        "signal_uuid": "d403026b-28a3-4726-839e-660ffeb3272b",
+        "signal_name": "GND",
+        "address": "U2.15",
+        "footprint_pad_uuids": [
+          "b9840321-d4b0-4bf3-93f9-3fffcbd8d367"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "ce3452f5-493e-4d2f-8070-52f8df8e08eb",
+        "designator": "C30",
+        "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+        "signal_name": "1",
+        "address": "C30.1",
+        "footprint_pad_uuids": [
+          "12532ab5-93f7-4596-826f-471f6f1a1a7f"
+        ]
+      },
+      "measurement": {
+        "status": "not_checked",
+        "direct_mm": 3.645600087777045,
+        "reason": "No trace-only path. May connect through rebuilt copper planes; inspect plane coverage separately."
+      },
+      "status": "not_checked"
+    },
+    {
+      "id": "U2.5-U1.6",
+      "kind": "trace_path",
+      "from": "U2.5",
+      "to": "U1.6",
+      "priority": "measurement",
+      "source": "HANDOFF.md U2 decoupling review; domains verified by U2 pin mapping; INT comparison records the local routing tradeoff. No electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+        "designator": "U2",
+        "signal_uuid": "cd706065-a322-4d07-9573-9ce1514d7546",
+        "signal_name": "INT_N",
+        "address": "U2.5",
+        "footprint_pad_uuids": [
+          "5be4b203-b5e8-46b3-bfb4-f38ed4285883"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "23f6f6e2-e598-4832-b465-ab76521587c1",
+        "designator": "U1",
+        "signal_uuid": "19ab01c2-3392-4406-83db-984b83a5a055",
+        "signal_name": "GPIO2",
+        "address": "U1.6",
+        "footprint_pad_uuids": [
+          "f7b3a6e9-c4da-4b12-8c82-1599d17a4a6b"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 18.723051467375704,
+        "length_mm": 30.773368613106694,
+        "layers": [
+          "bot_cu",
+          "top_cu"
+        ],
+        "via_count": 2,
+        "widths_mm": [
+          0.18
+        ],
+        "traces": [
+          "568a6f16-6f45-45a0-98df-69c3486a1001",
+          "1a797732-be9b-4c11-a258-2dd5018ed72f",
+          "688095ca-c8c1-4105-9ce4-d9cd59da1b6c",
+          "d382b373-201b-46fe-9a5c-1ae960f6717f",
+          "0df46ceb-8501-4ffe-a414-3a7eebe60333",
+          "03229e4e-08c9-4dd3-8d38-90a7a32e35f6",
+          "c44ea631-a7dc-45d6-97f3-9d00088098e2",
+          "a5a60047-818b-41e3-b769-3ae5be43e4be",
+          "88691031-5bd0-4325-bf8f-d72c91d9edbb",
+          "0219bf5b-2d2b-4c5f-87d2-83e7b347232a",
+          "edb1b72c-b2d6-4824-bce6-b4644cc8b393",
+          "e64e6c74-d03d-4f34-a912-e7ceb4b4cad1",
+          "652e8844-80ca-40d4-a469-fcecaae4a8ab",
+          "6781df56-144a-4d1f-bdea-b4adea2669e4",
+          "8cfa956d-934f-43c5-bfd2-32560cc4797d",
+          "9c00c185-4710-4b16-9ca0-a4bcd2354466",
+          "f587b11e-dc25-4711-89da-140e547fc921",
+          "9c312a86-8f85-446c-9770-fb6049b47e86",
+          "375cfcb1-49b5-4619-a812-5f28ebea2524",
+          "23b1cd28-3a2d-4abd-b40e-c330df77124a",
+          "be65a19a-8812-4324-93a1-79495a4dfc87",
+          "59009434-a5b2-45c4-b33b-0e3ed1c2c179"
+        ],
+        "layer_changes": 2
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U6.6-C19.2",
+      "kind": "trace_path",
+      "from": "U6.6",
+      "to": "C19.2",
+      "priority": "measurement",
+      "source": "U6/R17 review: local decoupling comparison; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "e645663f-5fce-40b7-bc43-fc7faeaa81d6",
+        "designator": "U6",
+        "signal_uuid": "acde716e-3f1c-4e7e-a204-acb546660fd3",
+        "signal_name": "VS",
+        "address": "U6.6",
+        "footprint_pad_uuids": [
+          "551cd58a-4304-4a5c-b3af-fbc014c38a90"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "21d933d2-ba69-4ce7-8a0f-6715480d96b9",
+        "designator": "C19",
+        "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+        "signal_name": "2",
+        "address": "C19.2",
+        "footprint_pad_uuids": [
+          "99290c63-241b-48b2-b624-c6d537ead667"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 2.428662183178232,
+        "length_mm": 2.713351757553329,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.3
+        ],
+        "traces": [
+          "2999f505-e1d9-4fdb-b576-1a07eda9b7d5",
+          "35a33ec6-a2a2-4524-a00d-dfbe2fc8ad18",
+          "c7c9a63f-b95d-4723-acf8-ff6650d077df",
+          "e8fc6e58-07e0-45a9-b7e0-28bb4b64f2a5"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U6.7-C19.1",
+      "kind": "trace_path",
+      "from": "U6.7",
+      "to": "C19.1",
+      "priority": "measurement",
+      "source": "U6/R17 review: local decoupling comparison; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "e645663f-5fce-40b7-bc43-fc7faeaa81d6",
+        "designator": "U6",
+        "signal_uuid": "4139c371-061d-4243-b847-ca2b51107e2e",
+        "signal_name": "GND",
+        "address": "U6.7",
+        "footprint_pad_uuids": [
+          "9e4ebd8b-08a6-41e8-aa2f-0e4e6c7f5cf2"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "21d933d2-ba69-4ce7-8a0f-6715480d96b9",
+        "designator": "C19",
+        "signal_uuid": "14e25e69-f3cb-4130-9506-d6d614a10252",
+        "signal_name": "1",
+        "address": "C19.1",
+        "footprint_pad_uuids": [
+          "4ca856cf-5272-408f-ada3-d91cc63f7f95"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 2.3221541723150185,
+        "length_mm": 2.453033182845594,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "4d7c5aaf-88b5-45ce-bab4-8fdd9632d22d",
+          "c039d859-1ae0-4636-95df-ed4eae334513",
+          "84a799c9-1cde-4999-8cb7-0fbab0f946bc",
+          "0446a892-dd44-4918-83f5-419800a7478b"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U6.4-U2.7",
+      "kind": "trace_path",
+      "from": "U6.4",
+      "to": "U2.7",
+      "priority": "measurement",
+      "source": "U6/R17 review: I2C routing tradeoff; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "e645663f-5fce-40b7-bc43-fc7faeaa81d6",
+        "designator": "U6",
+        "signal_uuid": "7afcb6d0-c74b-4368-904b-923f07e2504f",
+        "signal_name": "SDA",
+        "address": "U6.4",
+        "footprint_pad_uuids": [
+          "6797fe42-49ab-4836-9603-0b74316657e0"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+        "designator": "U2",
+        "signal_uuid": "fd22917d-4843-4cf1-9a13-14e28b13807f",
+        "signal_name": "SDA",
+        "address": "U2.7",
+        "footprint_pad_uuids": [
+          "8654a923-6dff-4a7e-bc15-c9334482dc9f"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 9.278276038683059,
+        "length_mm": 12.63597346112598,
+        "layers": [
+          "bot_cu",
+          "top_cu"
+        ],
+        "via_count": 3,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "16d4e8b9-d163-4bd3-89d1-53ef24c96bda",
+          "368fc2e9-ca1a-4498-9f94-3ce2b9d682ba",
+          "6b0b0127-3d59-4488-a324-e742178bc841",
+          "9545faab-dd1a-4541-a52e-1e0e8982adc0",
+          "478d10df-f9ea-405d-acea-b9e02fda2d27",
+          "5b66255f-a54c-44d3-8732-008c43341926",
+          "b90676f6-5b5d-48a0-8bdc-3896066c3358",
+          "f3c42a84-ac97-41f2-aa21-a7bcac62d7da",
+          "f9afa4ea-910b-475a-badc-a6d557241e3a"
+        ],
+        "layer_changes": 2
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U6.5-U2.6",
+      "kind": "trace_path",
+      "from": "U6.5",
+      "to": "U2.6",
+      "priority": "measurement",
+      "source": "U6/R17 review: I2C routing tradeoff; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "e645663f-5fce-40b7-bc43-fc7faeaa81d6",
+        "designator": "U6",
+        "signal_uuid": "10e36025-12e7-455e-b217-d86f7a868b48",
+        "signal_name": "SCL",
+        "address": "U6.5",
+        "footprint_pad_uuids": [
+          "486beb44-af27-4e60-8ad5-1c05c41567c8"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+        "designator": "U2",
+        "signal_uuid": "9dae805c-d135-42ee-aae9-65adf19b9a7e",
+        "signal_name": "SCL",
+        "address": "U2.6",
+        "footprint_pad_uuids": [
+          "09ef2fe2-067c-4a6e-ad2e-ed94d031213c"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 9.862753482167149,
+        "length_mm": 13.703545100258454,
+        "layers": [
+          "bot_cu",
+          "in2_cu",
+          "top_cu"
+        ],
+        "via_count": 3,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "20e2312d-fa02-4322-9937-b36fe2eb1715",
+          "e3a9c606-56e8-48b0-a684-ca8d09aa10c8",
+          "e1acc7dd-d218-4f32-af7e-1cfc709129ac",
+          "2a930673-7e98-4a2b-99f1-8e660ff4f9e8",
+          "60ea0e31-b1d1-4f07-88f1-1c69b866a9da",
+          "fcd51cd1-8a91-4a1a-a222-a7f9e38c23a1",
+          "a6bda4c2-2011-44f2-951d-54cca1f267b5",
+          "77760d10-23da-4dea-943a-730a0277d566",
+          "e2bcd2d5-c029-4c6c-86f3-a45ef2e08fdb"
+        ],
+        "layer_changes": 3
+      },
+      "status": "measured"
+    },
+    {
+      "id": "R10.2-U1.8",
+      "kind": "trace_path",
+      "from": "R10.2",
+      "to": "U1.8",
+      "priority": "measurement",
+      "source": "ADC C4 alternatives and SW5 schematic-mode review; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "03bbc3bc-1962-4a4a-a273-16eae2f839dc",
+        "designator": "R10",
+        "signal_uuid": "e147cffd-7048-4b89-96a9-35cef8badf71",
+        "signal_name": "2",
+        "address": "R10.2",
+        "footprint_pad_uuids": [
+          "bc6b746d-4b33-4e7b-ba66-4c610dc6898d"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "23f6f6e2-e598-4832-b465-ab76521587c1",
+        "designator": "U1",
+        "signal_uuid": "a499b264-950f-4dbc-90a8-648e9caeb91b",
+        "signal_name": "GPIO3",
+        "address": "U1.8",
+        "footprint_pad_uuids": [
+          "9c2127e0-64c6-4696-a0eb-62bf55361613"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 13.608200652547708,
+        "length_mm": 28.84938547643682,
+        "layers": [
+          "bot_cu",
+          "in2_cu",
+          "top_cu"
+        ],
+        "via_count": 4,
+        "widths_mm": [
+          0.18,
+          0.2
+        ],
+        "traces": [
+          "05409599-66a3-4a25-a518-a8d630e27f32",
+          "18593f7f-a0a0-4ea7-be8a-2ffe7c01f171",
+          "012b79b9-df1a-430a-a220-885a1306f1d2",
+          "b5206cb3-6076-4b62-964a-73629cfaaa30",
+          "12d03b12-31e2-4488-8f26-837827bf0fbd",
+          "2421c8c6-9045-4d1b-a4d2-f358322aec0a",
+          "a756966d-2cce-475c-98d3-37bbd7d8d79a",
+          "8e25e63e-94e1-4848-980b-d25f40781684",
+          "6041411d-7576-49a3-948c-0fbd9c89defe",
+          "525897fc-401f-40e9-8d83-31a26df7eeca",
+          "163aee2e-9585-4bdc-b62f-ac937163bae8",
+          "b857997f-825b-4d41-b59c-18b64752f267",
+          "08ef5a34-4543-41fd-945e-80d3b59fc6f0",
+          "6e83174f-227a-4568-abbc-8f4b3ee19382",
+          "52a22ded-f91a-4617-b4ae-1dc8a1841e6b",
+          "3d96f637-64b4-4aaa-8408-d9af80595c2e",
+          "27dac47a-ba6c-4b6f-b5d1-a77513f41d64"
+        ],
+        "layer_changes": 4
+      },
+      "status": "measured"
+    },
+    {
+      "id": "R11.1-U1.8",
+      "kind": "trace_path",
+      "from": "R11.1",
+      "to": "U1.8",
+      "priority": "measurement",
+      "source": "ADC C4 alternatives and SW5 schematic-mode review; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "7bfb1db6-500b-4f4f-b045-00ae24062682",
+        "designator": "R11",
+        "signal_uuid": "86582aa8-a4e1-4e5d-92f9-639b4c6047fc",
+        "signal_name": "1",
+        "address": "R11.1",
+        "footprint_pad_uuids": [
+          "2af54b68-3ac0-4543-8ffa-d3eb8ec9daf2"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "23f6f6e2-e598-4832-b465-ab76521587c1",
+        "designator": "U1",
+        "signal_uuid": "a499b264-950f-4dbc-90a8-648e9caeb91b",
+        "signal_name": "GPIO3",
+        "address": "U1.8",
+        "footprint_pad_uuids": [
+          "9c2127e0-64c6-4696-a0eb-62bf55361613"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 14.315729111714841,
+        "length_mm": 27.642976900455565,
+        "layers": [
+          "bot_cu",
+          "in2_cu",
+          "top_cu"
+        ],
+        "via_count": 4,
+        "widths_mm": [
+          0.18,
+          0.2
+        ],
+        "traces": [
+          "257f0d37-159b-450e-b7f1-d05b401bbcdd",
+          "24e0d83c-03b1-4dbf-abf9-720b087d2693",
+          "012b79b9-df1a-430a-a220-885a1306f1d2",
+          "b5206cb3-6076-4b62-964a-73629cfaaa30",
+          "12d03b12-31e2-4488-8f26-837827bf0fbd",
+          "2421c8c6-9045-4d1b-a4d2-f358322aec0a",
+          "a756966d-2cce-475c-98d3-37bbd7d8d79a",
+          "8e25e63e-94e1-4848-980b-d25f40781684",
+          "6041411d-7576-49a3-948c-0fbd9c89defe",
+          "525897fc-401f-40e9-8d83-31a26df7eeca",
+          "163aee2e-9585-4bdc-b62f-ac937163bae8",
+          "b857997f-825b-4d41-b59c-18b64752f267",
+          "08ef5a34-4543-41fd-945e-80d3b59fc6f0",
+          "6e83174f-227a-4568-abbc-8f4b3ee19382",
+          "52a22ded-f91a-4617-b4ae-1dc8a1841e6b",
+          "3d96f637-64b4-4aaa-8408-d9af80595c2e",
+          "27dac47a-ba6c-4b6f-b5d1-a77513f41d64"
+        ],
+        "layer_changes": 4
+      },
+      "status": "measured"
+    },
+    {
+      "id": "R10.2-R11.1",
+      "kind": "trace_path",
+      "from": "R10.2",
+      "to": "R11.1",
+      "priority": "measurement",
+      "source": "ADC C4 alternatives and SW5 schematic-mode review; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "03bbc3bc-1962-4a4a-a273-16eae2f839dc",
+        "designator": "R10",
+        "signal_uuid": "e147cffd-7048-4b89-96a9-35cef8badf71",
+        "signal_name": "2",
+        "address": "R10.2",
+        "footprint_pad_uuids": [
+          "bc6b746d-4b33-4e7b-ba66-4c610dc6898d"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "7bfb1db6-500b-4f4f-b045-00ae24062682",
+        "designator": "R11",
+        "signal_uuid": "86582aa8-a4e1-4e5d-92f9-639b4c6047fc",
+        "signal_name": "1",
+        "address": "R11.1",
+        "footprint_pad_uuids": [
+          "2af54b68-3ac0-4543-8ffa-d3eb8ec9daf2"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 2.0838006142623064,
+        "length_mm": 2.121799628415246,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "05409599-66a3-4a25-a518-a8d630e27f32",
+          "18593f7f-a0a0-4ea7-be8a-2ffe7c01f171",
+          "24e0d83c-03b1-4dbf-abf9-720b087d2693",
+          "257f0d37-159b-450e-b7f1-d05b401bbcdd"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "R10.2-C4.2",
+      "kind": "trace_path",
+      "from": "R10.2",
+      "to": "C4.2",
+      "priority": "measurement",
+      "source": "ADC C4 alternatives and SW5 schematic-mode review; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "03bbc3bc-1962-4a4a-a273-16eae2f839dc",
+        "designator": "R10",
+        "signal_uuid": "e147cffd-7048-4b89-96a9-35cef8badf71",
+        "signal_name": "2",
+        "address": "R10.2",
+        "footprint_pad_uuids": [
+          "bc6b746d-4b33-4e7b-ba66-4c610dc6898d"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "26860204-3d88-4402-b703-2057c69b85fd",
+        "designator": "C4",
+        "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+        "signal_name": "2",
+        "address": "C4.2",
+        "footprint_pad_uuids": [
+          "263fb1d4-e5de-4b92-9a96-6f095e16dfa4"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 11.566288298326306,
+        "length_mm": 31.0238655835559,
+        "layers": [
+          "bot_cu",
+          "in2_cu",
+          "top_cu"
+        ],
+        "via_count": 4,
+        "widths_mm": [
+          0.18,
+          0.2
+        ],
+        "traces": [
+          "05409599-66a3-4a25-a518-a8d630e27f32",
+          "18593f7f-a0a0-4ea7-be8a-2ffe7c01f171",
+          "012b79b9-df1a-430a-a220-885a1306f1d2",
+          "b5206cb3-6076-4b62-964a-73629cfaaa30",
+          "12d03b12-31e2-4488-8f26-837827bf0fbd",
+          "2421c8c6-9045-4d1b-a4d2-f358322aec0a",
+          "a756966d-2cce-475c-98d3-37bbd7d8d79a",
+          "8e25e63e-94e1-4848-980b-d25f40781684",
+          "6041411d-7576-49a3-948c-0fbd9c89defe",
+          "525897fc-401f-40e9-8d83-31a26df7eeca",
+          "163aee2e-9585-4bdc-b62f-ac937163bae8",
+          "b857997f-825b-4d41-b59c-18b64752f267",
+          "08ef5a34-4543-41fd-945e-80d3b59fc6f0",
+          "6e83174f-227a-4568-abbc-8f4b3ee19382",
+          "52a22ded-f91a-4617-b4ae-1dc8a1841e6b",
+          "3d96f637-64b4-4aaa-8408-d9af80595c2e",
+          "27dac47a-ba6c-4b6f-b5d1-a77513f41d64",
+          "fd271256-aa2b-4e2c-b026-86598147a0a3",
+          "d648cd86-8547-421d-a022-da5bc117e3c1",
+          "2fd80463-4814-4cbc-a0b6-9868113acaef"
+        ],
+        "layer_changes": 4
+      },
+      "status": "measured"
+    },
+    {
+      "id": "R11.1-C4.2",
+      "kind": "trace_path",
+      "from": "R11.1",
+      "to": "C4.2",
+      "priority": "measurement",
+      "source": "ADC C4 alternatives and SW5 schematic-mode review; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "7bfb1db6-500b-4f4f-b045-00ae24062682",
+        "designator": "R11",
+        "signal_uuid": "86582aa8-a4e1-4e5d-92f9-639b4c6047fc",
+        "signal_name": "1",
+        "address": "R11.1",
+        "footprint_pad_uuids": [
+          "2af54b68-3ac0-4543-8ffa-d3eb8ec9daf2"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "26860204-3d88-4402-b703-2057c69b85fd",
+        "designator": "C4",
+        "signal_uuid": "96d13c54-e037-4064-bf51-c6714ae6e357",
+        "signal_name": "2",
+        "address": "C4.2",
+        "footprint_pad_uuids": [
+          "263fb1d4-e5de-4b92-9a96-6f095e16dfa4"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 12.335724542968682,
+        "length_mm": 29.817457007574646,
+        "layers": [
+          "bot_cu",
+          "in2_cu",
+          "top_cu"
+        ],
+        "via_count": 4,
+        "widths_mm": [
+          0.18,
+          0.2
+        ],
+        "traces": [
+          "257f0d37-159b-450e-b7f1-d05b401bbcdd",
+          "24e0d83c-03b1-4dbf-abf9-720b087d2693",
+          "012b79b9-df1a-430a-a220-885a1306f1d2",
+          "b5206cb3-6076-4b62-964a-73629cfaaa30",
+          "12d03b12-31e2-4488-8f26-837827bf0fbd",
+          "2421c8c6-9045-4d1b-a4d2-f358322aec0a",
+          "a756966d-2cce-475c-98d3-37bbd7d8d79a",
+          "8e25e63e-94e1-4848-980b-d25f40781684",
+          "6041411d-7576-49a3-948c-0fbd9c89defe",
+          "525897fc-401f-40e9-8d83-31a26df7eeca",
+          "163aee2e-9585-4bdc-b62f-ac937163bae8",
+          "b857997f-825b-4d41-b59c-18b64752f267",
+          "08ef5a34-4543-41fd-945e-80d3b59fc6f0",
+          "6e83174f-227a-4568-abbc-8f4b3ee19382",
+          "52a22ded-f91a-4617-b4ae-1dc8a1841e6b",
+          "3d96f637-64b4-4aaa-8408-d9af80595c2e",
+          "27dac47a-ba6c-4b6f-b5d1-a77513f41d64",
+          "fd271256-aa2b-4e2c-b026-86598147a0a3",
+          "d648cd86-8547-421d-a022-da5bc117e3c1",
+          "2fd80463-4814-4cbc-a0b6-9868113acaef"
+        ],
+        "layer_changes": 4
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U2.2-R10.1",
+      "kind": "trace_path",
+      "from": "U2.2",
+      "to": "R10.1",
+      "priority": "measurement",
+      "source": "ADC C4 alternatives and SW5 schematic-mode review; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+        "designator": "U2",
+        "signal_uuid": "43593e21-f749-47fc-9612-eeb629e9df9f",
+        "signal_name": "VBUS",
+        "address": "U2.2",
+        "footprint_pad_uuids": [
+          "7a372eef-af52-451d-a311-cb4ef5a25b77"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "03bbc3bc-1962-4a4a-a273-16eae2f839dc",
+        "designator": "R10",
+        "signal_uuid": "86582aa8-a4e1-4e5d-92f9-639b4c6047fc",
+        "signal_name": "1",
+        "address": "R10.1",
+        "footprint_pad_uuids": [
+          "7e82cd01-24c6-420e-9b47-0a11f2786768"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 2.7837979901566205,
+        "length_mm": 3.133950554565281,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "0708433d-0db1-41de-8653-9a19842438fb",
+          "c77038fc-26ba-4c9a-af4f-b4ae41663050",
+          "83004f36-a936-417e-9af4-191d8fe37db4",
+          "5437155b-ac59-4806-b355-197f9c5aec65",
+          "af879e92-fab1-418a-a09f-9dbe26f98f90",
+          "61ea8155-062a-4239-841b-0b13dcba4784",
+          "475719ca-c100-445b-ab6f-3358c4f78417"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "SW5.1-R10.1",
+      "kind": "trace_path",
+      "from": "SW5.1",
+      "to": "R10.1",
+      "priority": "measurement",
+      "source": "ADC C4 alternatives and SW5 schematic-mode review; no electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "fdc41404-a2bd-4dde-8ff9-a0bb1504f374",
+        "designator": "SW5",
+        "signal_uuid": "fafda348-e735-4428-9292-61bd3dc919ba",
+        "signal_name": "1",
+        "address": "SW5.1",
+        "footprint_pad_uuids": [
+          "84433c6e-4a31-4497-8363-b922758ea4d0"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "03bbc3bc-1962-4a4a-a273-16eae2f839dc",
+        "designator": "R10",
+        "signal_uuid": "86582aa8-a4e1-4e5d-92f9-639b4c6047fc",
+        "signal_name": "1",
+        "address": "R10.1",
+        "footprint_pad_uuids": [
+          "7e82cd01-24c6-420e-9b47-0a11f2786768"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 7.3963251010214455,
+        "length_mm": 11.495513088095915,
+        "layers": [
+          "bot_cu",
+          "in2_cu",
+          "top_cu"
+        ],
+        "via_count": 2,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "717decfe-c94a-4199-8b2c-3346bf6fd741",
+          "347c263b-2918-45e3-ab45-db857ea768f3",
+          "03a4ba5f-5ddb-458e-902d-cc664ec02e07",
+          "3d6b793e-bd33-4e5d-bd8d-6ac0f24c9083",
+          "ed563b0f-8fe7-4d1c-b1d2-cbec90cc77e5",
+          "0d3b0a86-4484-4472-a504-7b23c0352366",
+          "26ccd65c-226e-41c5-acc2-f5c3f032cf24",
+          "5437155b-ac59-4806-b355-197f9c5aec65",
+          "af879e92-fab1-418a-a09f-9dbe26f98f90",
+          "61ea8155-062a-4239-841b-0b13dcba4784",
+          "475719ca-c100-445b-ab6f-3358c4f78417"
+        ],
+        "layer_changes": 2
+      },
+      "status": "measured"
+    },
+    {
+      "id": "Q1.4-D2.1",
+      "kind": "trace_path",
+      "from": "Q1.4",
+      "to": "D2.1",
+      "priority": "measurement",
+      "source": "HANDOFF.md gate-clamp placement review; pad mapping confirms gate/source domains. No electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "4deb09af-ea4b-41e5-be29-dd2d03e0bff2",
+        "designator": "Q1",
+        "signal_uuid": "defa9c9b-b57e-43a7-b977-9818cca63b5e",
+        "signal_name": "G",
+        "address": "Q1.4",
+        "footprint_pad_uuids": [
+          "aaafd8db-cc0f-4a76-b35a-33e66a9457f1"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "f2af6cd7-acae-47a2-9c60-f156fbddde07",
+        "designator": "D2",
+        "signal_uuid": "bb2f7112-e60b-464a-9925-d69b788e053f",
+        "signal_name": "A",
+        "address": "D2.1",
+        "footprint_pad_uuids": [
+          "19e460af-4cbf-4724-9cc6-d7d2d2f8ef15"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 8.698366585169886,
+        "length_mm": 13.746415887131572,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "dbd3b2d3-f401-4ba2-8f24-ba7182a5a8d4",
+          "7280eb8f-c7aa-4e43-84f4-1fedd798fd47",
+          "cd45343f-ac3d-4d88-a1c6-e826a1dc8c71",
+          "86602014-f4bf-424b-9e91-8ba02f7c7f0a",
+          "3c47e694-a801-44eb-bf1d-d06896b6bd28",
+          "4d37dd7f-2faa-45bd-a2dc-ef0e40c3e313",
+          "854542cf-a937-42c7-9565-a380a4b44620",
+          "7dd90e0b-57c9-497c-92a5-5a85ff1d3bbb",
+          "b1882bec-065d-4bf7-89e5-2c28c87a6531",
+          "de299b66-396a-430a-bec1-c91eb1a7ce4b",
+          "a3b9620f-3c99-4d36-b6de-1c077e06d44e",
+          "04ed683d-756c-4b9c-92ac-b97dd3d2f4d8"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "Q1.4-R20.2",
+      "kind": "trace_path",
+      "from": "Q1.4",
+      "to": "R20.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md gate-clamp placement review; pad mapping confirms gate/source domains. No electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "4deb09af-ea4b-41e5-be29-dd2d03e0bff2",
+        "designator": "Q1",
+        "signal_uuid": "defa9c9b-b57e-43a7-b977-9818cca63b5e",
+        "signal_name": "G",
+        "address": "Q1.4",
+        "footprint_pad_uuids": [
+          "aaafd8db-cc0f-4a76-b35a-33e66a9457f1"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "326814df-e82c-4034-a39d-f8c6fb73f40e",
+        "designator": "R20",
+        "signal_uuid": "e147cffd-7048-4b89-96a9-35cef8badf71",
+        "signal_name": "2",
+        "address": "R20.2",
+        "footprint_pad_uuids": [
+          "4c1e4a2c-1a07-4f0c-89ef-ed49227ebaf7"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 8.467179282382082,
+        "length_mm": 15.822996053018732,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "dbd3b2d3-f401-4ba2-8f24-ba7182a5a8d4",
+          "7280eb8f-c7aa-4e43-84f4-1fedd798fd47",
+          "cd45343f-ac3d-4d88-a1c6-e826a1dc8c71",
+          "86602014-f4bf-424b-9e91-8ba02f7c7f0a",
+          "3c47e694-a801-44eb-bf1d-d06896b6bd28",
+          "4d37dd7f-2faa-45bd-a2dc-ef0e40c3e313",
+          "854542cf-a937-42c7-9565-a380a4b44620",
+          "7dd90e0b-57c9-497c-92a5-5a85ff1d3bbb",
+          "b1882bec-065d-4bf7-89e5-2c28c87a6531",
+          "de299b66-396a-430a-bec1-c91eb1a7ce4b",
+          "a3b9620f-3c99-4d36-b6de-1c077e06d44e",
+          "04ed683d-756c-4b9c-92ac-b97dd3d2f4d8",
+          "c3e6ae1b-3ff1-4839-be64-8f9d2b068e98",
+          "48b957f6-27ec-4436-983d-6057f3e69850",
+          "fc01ad73-d8d6-433f-8cf2-1126fec06f9e",
+          "0bd35039-e6f0-466d-86f8-4470c6c80e79"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "Q1.4-R27.1",
+      "kind": "trace_path",
+      "from": "Q1.4",
+      "to": "R27.1",
+      "priority": "measurement",
+      "source": "HANDOFF.md gate-clamp placement review; pad mapping confirms gate/source domains. No electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "4deb09af-ea4b-41e5-be29-dd2d03e0bff2",
+        "designator": "Q1",
+        "signal_uuid": "defa9c9b-b57e-43a7-b977-9818cca63b5e",
+        "signal_name": "G",
+        "address": "Q1.4",
+        "footprint_pad_uuids": [
+          "aaafd8db-cc0f-4a76-b35a-33e66a9457f1"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "05251d40-39a4-489f-950b-b8f8a03072de",
+        "designator": "R27",
+        "signal_uuid": "86582aa8-a4e1-4e5d-92f9-639b4c6047fc",
+        "signal_name": "1",
+        "address": "R27.1",
+        "footprint_pad_uuids": [
+          "1b431b20-ce92-4405-a6c9-cbacf4030ba8"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 7.899299019533314,
+        "length_mm": 8.557648327263049,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "dbd3b2d3-f401-4ba2-8f24-ba7182a5a8d4",
+          "7280eb8f-c7aa-4e43-84f4-1fedd798fd47",
+          "cd45343f-ac3d-4d88-a1c6-e826a1dc8c71",
+          "86602014-f4bf-424b-9e91-8ba02f7c7f0a",
+          "3c47e694-a801-44eb-bf1d-d06896b6bd28",
+          "4d37dd7f-2faa-45bd-a2dc-ef0e40c3e313"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "D2.1-R20.2",
+      "kind": "trace_path",
+      "from": "D2.1",
+      "to": "R20.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md gate-clamp placement review; pad mapping confirms gate/source domains. No electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "f2af6cd7-acae-47a2-9c60-f156fbddde07",
+        "designator": "D2",
+        "signal_uuid": "bb2f7112-e60b-464a-9925-d69b788e053f",
+        "signal_name": "A",
+        "address": "D2.1",
+        "footprint_pad_uuids": [
+          "19e460af-4cbf-4724-9cc6-d7d2d2f8ef15"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "326814df-e82c-4034-a39d-f8c6fb73f40e",
+        "designator": "R20",
+        "signal_uuid": "e147cffd-7048-4b89-96a9-35cef8badf71",
+        "signal_name": "2",
+        "address": "R20.2",
+        "footprint_pad_uuids": [
+          "4c1e4a2c-1a07-4f0c-89ef-ed49227ebaf7"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 1.9693923555249282,
+        "length_mm": 2.0765801658871617,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "c3e6ae1b-3ff1-4839-be64-8f9d2b068e98",
+          "48b957f6-27ec-4436-983d-6057f3e69850",
+          "fc01ad73-d8d6-433f-8cf2-1126fec06f9e",
+          "0bd35039-e6f0-466d-86f8-4470c6c80e79"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "D2.3-Q1.3",
+      "kind": "trace_path",
+      "from": "D2.3",
+      "to": "Q1.3",
+      "priority": "measurement",
+      "source": "HANDOFF.md gate-clamp placement review; pad mapping confirms gate/source domains. No electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "f2af6cd7-acae-47a2-9c60-f156fbddde07",
+        "designator": "D2",
+        "signal_uuid": "b965c877-deae-42a1-963c-6a46d2474e40",
+        "signal_name": "K",
+        "address": "D2.3",
+        "footprint_pad_uuids": [
+          "f653093b-d8e8-4276-9e6e-e0abb69e1803"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "4deb09af-ea4b-41e5-be29-dd2d03e0bff2",
+        "designator": "Q1",
+        "signal_uuid": "c5b80afb-bd98-42f7-ba30-fa3b6af079df",
+        "signal_name": "S",
+        "address": "Q1.3",
+        "footprint_pad_uuids": [
+          "4a301117-680f-4cbf-bbb2-c53eda8c2279"
+        ]
+      },
+      "measurement": {
+        "status": "not_checked",
+        "direct_mm": 6.513392453245852,
+        "reason": "No trace-only path. May connect through rebuilt copper planes; inspect plane coverage separately."
+      },
+      "status": "not_checked"
+    },
+    {
+      "id": "R20.1-Q1.3",
+      "kind": "trace_path",
+      "from": "R20.1",
+      "to": "Q1.3",
+      "priority": "measurement",
+      "source": "HANDOFF.md gate-clamp placement review; pad mapping confirms gate/source domains. No electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "326814df-e82c-4034-a39d-f8c6fb73f40e",
+        "designator": "R20",
+        "signal_uuid": "86582aa8-a4e1-4e5d-92f9-639b4c6047fc",
+        "signal_name": "1",
+        "address": "R20.1",
+        "footprint_pad_uuids": [
+          "5079361a-ffe5-41ef-a45a-a0fbdec1fe21"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "4deb09af-ea4b-41e5-be29-dd2d03e0bff2",
+        "designator": "Q1",
+        "signal_uuid": "c5b80afb-bd98-42f7-ba30-fa3b6af079df",
+        "signal_name": "S",
+        "address": "Q1.3",
+        "footprint_pad_uuids": [
+          "4a301117-680f-4cbf-bbb2-c53eda8c2279"
+        ]
+      },
+      "measurement": {
+        "status": "not_checked",
+        "direct_mm": 6.342596077317239,
+        "reason": "No trace-only path. May connect through rebuilt copper planes; inspect plane coverage separately."
+      },
+      "status": "not_checked"
+    },
+    {
+      "id": "R20.1-D2.3",
+      "kind": "trace_path",
+      "from": "R20.1",
+      "to": "D2.3",
+      "priority": "measurement",
+      "source": "HANDOFF.md gate-clamp placement review; pad mapping confirms gate/source domains. No electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "326814df-e82c-4034-a39d-f8c6fb73f40e",
+        "designator": "R20",
+        "signal_uuid": "86582aa8-a4e1-4e5d-92f9-639b4c6047fc",
+        "signal_name": "1",
+        "address": "R20.1",
+        "footprint_pad_uuids": [
+          "5079361a-ffe5-41ef-a45a-a0fbdec1fe21"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "f2af6cd7-acae-47a2-9c60-f156fbddde07",
+        "designator": "D2",
+        "signal_uuid": "b965c877-deae-42a1-963c-6a46d2474e40",
+        "signal_name": "K",
+        "address": "D2.3",
+        "footprint_pad_uuids": [
+          "f653093b-d8e8-4276-9e6e-e0abb69e1803"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 3.8043404487506236,
+        "length_mm": 3.985632992180817,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.4
+        ],
+        "traces": [
+          "f93f53df-cfb4-436f-87f4-80a6e225a00f",
+          "d978483d-e9bb-49e1-bed6-f56acec357f9",
+          "c870b066-06fb-4eb8-9130-3f1222e10a9c",
+          "b83715f0-3fc9-4f20-ba14-9c12444a4b60",
+          "bb5f4717-dc33-4083-8872-5309e665a4ed",
+          "8013c46d-8ee2-461d-8a07-e982b597a8c1",
+          "4662c03f-a2e5-4e66-9125-d0a1f1077a32"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "R27.2-Q2.3",
+      "kind": "trace_path",
+      "from": "R27.2",
+      "to": "Q2.3",
+      "priority": "measurement",
+      "source": "HANDOFF.md gate-clamp placement review; pad mapping confirms gate/source domains. No electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "05251d40-39a4-489f-950b-b8f8a03072de",
+        "designator": "R27",
+        "signal_uuid": "e147cffd-7048-4b89-96a9-35cef8badf71",
+        "signal_name": "2",
+        "address": "R27.2",
+        "footprint_pad_uuids": [
+          "e4e7d91e-a28f-44c1-be30-3afc5c035c3b"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "ce96b5bb-c857-4a78-8f07-fb99757e7f49",
+        "designator": "Q2",
+        "signal_uuid": "e82fa902-2582-4615-84aa-dce68887ab30",
+        "signal_name": "C",
+        "address": "Q2.3",
+        "footprint_pad_uuids": [
+          "b5a51dc6-30db-470b-a24c-d7c8f068104d"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 4.149097040320931,
+        "length_mm": 4.213805875721668,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "258193f8-d4c1-4163-a7c9-be427f988328",
+          "710b7ee6-4fc1-4284-a257-34613a11a8c6",
+          "c8c2c7fb-cd0a-4ed8-bb71-9a8e7c7eab09"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    },
+    {
+      "id": "U6.8-R20.1",
+      "kind": "trace_path",
+      "from": "U6.8",
+      "to": "R20.1",
+      "priority": "measurement",
+      "source": "HANDOFF.md gate-clamp placement review; pad mapping confirms gate/source domains. No electrical limit specified.",
+      "from_ref": {
+        "component_uuid": "e645663f-5fce-40b7-bc43-fc7faeaa81d6",
+        "designator": "U6",
+        "signal_uuid": "77327cbf-9466-4df4-a5b0-71d4b57409e9",
+        "signal_name": "Vbus",
+        "address": "U6.8",
+        "footprint_pad_uuids": [
+          "b6591283-f745-439b-b281-c230894355d4"
+        ]
+      },
+      "to_ref": {
+        "component_uuid": "326814df-e82c-4034-a39d-f8c6fb73f40e",
+        "designator": "R20",
+        "signal_uuid": "86582aa8-a4e1-4e5d-92f9-639b4c6047fc",
+        "signal_name": "1",
+        "address": "R20.1",
+        "footprint_pad_uuids": [
+          "5079361a-ffe5-41ef-a45a-a0fbdec1fe21"
+        ]
+      },
+      "measurement": {
+        "status": "measured",
+        "direct_mm": 4.541156240430402,
+        "length_mm": 6.246531877251739,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.25,
+          0.4
+        ],
+        "traces": [
+          "ef210538-d1bc-4145-915a-2a9de5d33354",
+          "f688d4a3-43a6-4378-afe9-6dfd523d3c6f",
+          "029792da-9483-4bf9-9e7a-53a7c2dba86e",
+          "e9fd05ac-d49a-42b5-8edd-90f84685cfb4",
+          "a5554312-5dbc-4e53-94da-01855f2caa23",
+          "4ee1b44b-dd4c-4611-9f5d-8a0bfb1cbc67",
+          "39f80aab-0660-4fe8-aa1b-bb74f755f004"
+        ],
+        "layer_changes": 0
+      },
+      "status": "measured"
+    }
+  ]
+}

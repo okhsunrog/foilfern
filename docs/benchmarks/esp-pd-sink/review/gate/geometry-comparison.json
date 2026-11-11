@@ -1,0 +1,104 @@
+{
+  "baseline": {
+    "trace_segments": 975,
+    "vias": 145,
+    "trace_length_mm": 1520.23900499879
+  },
+  "diode_only": {
+    "trace_segments": 972,
+    "vias": 145,
+    "trace_length_mm": 1525.9233720066093
+  },
+  "selected": {
+    "trace_segments": 964,
+    "vias": 145,
+    "trace_length_mm": 1522.489940656453
+  },
+  "traces": {
+    "removed": [
+      "04ed683d-756c-4b9c-92ac-b97dd3d2f4d8",
+      "0bd35039-e6f0-466d-86f8-4470c6c80e79",
+      "39f80aab-0660-4fe8-aa1b-bb74f755f004",
+      "4662c03f-a2e5-4e66-9125-d0a1f1077a32",
+      "48b957f6-27ec-4436-983d-6057f3e69850",
+      "7dd90e0b-57c9-497c-92a5-5a85ff1d3bbb",
+      "8013c46d-8ee2-461d-8a07-e982b597a8c1",
+      "854542cf-a937-42c7-9565-a380a4b44620",
+      "a3b9620f-3c99-4d36-b6de-1c077e06d44e",
+      "b1882bec-065d-4bf7-89e5-2c28c87a6531",
+      "b83715f0-3fc9-4f20-ba14-9c12444a4b60",
+      "bb5f4717-dc33-4083-8872-5309e665a4ed",
+      "c3e6ae1b-3ff1-4839-be64-8f9d2b068e98",
+      "c57c3877-0c0e-4a4d-8cda-24423b2f4581",
+      "c870b066-06fb-4eb8-9130-3f1222e10a9c",
+      "d978483d-e9bb-49e1-bed6-f56acec357f9",
+      "de299b66-396a-430a-bec1-c91eb1a7ce4b",
+      "f93f53df-cfb4-436f-87f4-80a6e225a00f",
+      "fc01ad73-d8d6-433f-8cf2-1126fec06f9e"
+    ],
+    "added": [
+      "1539c435-8ccf-43a1-a617-275d71c74782",
+      "281c9047-992f-412f-be59-f0ae40540a3c",
+      "2e7b012c-ab66-481f-8b7c-cf11948f227a",
+      "4817e11b-dc18-435f-8c3d-c21b251b9e29",
+      "77a9cd68-9b4c-4532-a529-372c98911353",
+      "9717c29c-24ff-468c-81e3-45efcd351541",
+      "c01f38ba-10f1-42aa-8457-cf467a2d0ac3",
+      "c3842b0b-dc19-4c62-b893-1de8a0ce8892"
+    ],
+    "retained_geometry_preserved": true
+  },
+  "vias": {
+    "removed": [],
+    "added": [],
+    "retained_geometry_preserved": true
+  },
+  "placements": [
+    {
+      "designator": "D2",
+      "before": {
+        "position": {
+          "x": 133.4,
+          "y": -133.2
+        },
+        "rotation": 0.0,
+        "side": "top"
+      },
+      "after": {
+        "position": {
+          "x": 130.7,
+          "y": -142.0
+        },
+        "rotation": 180.0,
+        "side": "top"
+      }
+    },
+    {
+      "designator": "R20",
+      "before": {
+        "position": {
+          "x": 130.6,
+          "y": -133.4
+        },
+        "rotation": 90.0,
+        "side": "top"
+      },
+      "after": {
+        "position": {
+          "x": 131.2,
+          "y": -144.3
+        },
+        "rotation": 0.0,
+        "side": "top"
+      }
+    }
+  ],
+  "mechanical_and_plane_settings_preserved": true,
+  "netlist_byte_identical": true,
+  "drc_messages_identical": true,
+  "power_copper_preserved": {
+    "VBUS_VMOS_retained_traces_and_vias": true,
+    "power_fragment_summaries_equal": true,
+    "unchanged_fabrication_layers_and_drills": true
+  }
+}

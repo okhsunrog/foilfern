@@ -1,5 +1,8 @@
 # ADC C4 alternatives and SW5-mode review
 
+Subsequent [Q1/D2/R20 gate-clamp work](../gate/REPORT.md) is completed and links
+the latest native project. Guarded routing-baseline reuse profiling is next.
+
 2026-11-11. Continues the [Kelvin board](../kelvin/REPORT.md) at `1cff7a1`.
 The selected variant moves C4 beside the MCU ADC input and connects it directly
 on Top. It has **0 unrouted connections, 0 ERC findings and 0 new DRC findings**.

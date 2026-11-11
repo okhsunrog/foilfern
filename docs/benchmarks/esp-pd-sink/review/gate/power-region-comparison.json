@@ -1,0 +1,26 @@
+[
+  {
+    "layer": "TOP",
+    "net": "VBUS",
+    "emitted_region_count": 3,
+    "canonical_emitted_regions_equal": true
+  },
+  {
+    "layer": "TOP",
+    "net": "VOUT",
+    "emitted_region_count": 1,
+    "canonical_emitted_regions_equal": true
+  },
+  {
+    "layer": "TOP",
+    "net": "VMOS",
+    "emitted_region_count": 1,
+    "canonical_emitted_regions_equal": true
+  },
+  {
+    "layer": "BOTTOM",
+    "net": "VOUT",
+    "emitted_region_count": 1,
+    "canonical_emitted_regions_equal": true
+  }
+]

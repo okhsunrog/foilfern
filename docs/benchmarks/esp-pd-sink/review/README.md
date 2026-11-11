@@ -45,6 +45,6 @@ The next batch completed [OLED RESET placement and routing](reset/REPORT.md).
 Use its compact native project for continued layout work.
 
 [U2 VDD/VCONN decoupling](u2/REPORT.md), [U6/R17 Kelvin routing](kelvin/REPORT.md)
-and [ADC C4 alternatives/SW5 review](adc/REPORT.md) are completed. The ADC report
-links the current selected native project. Q1/D2/R20 gate-clamp placement and
-the power corridor are next.
+and [ADC C4 alternatives/SW5 review](adc/REPORT.md) are completed.
+[Q1/D2/R20 gate-clamp placement](gate/REPORT.md) now links the current selected
+native project. Guarded routing-baseline reuse profiling is next.

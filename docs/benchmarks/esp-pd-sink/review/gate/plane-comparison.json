@@ -1,0 +1,3720 @@
+[
+  {
+    "uuid": "0e53fe96-8895-4f03-9f0a-ae0f9bbec798",
+    "net": "GND",
+    "layer": "in1_cu",
+    "fragment_summaries_equal": true,
+    "before": {
+      "base_revision": 2,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 1,
+      "fragments": [
+        {
+          "area_mm2": 3376.785136395888,
+          "bounds": {
+            "max": {
+              "x": 171.5,
+              "y": -100.5
+            },
+            "min": {
+              "x": 100.5,
+              "y": -151.5
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "in1_cu",
+      "net": "GND",
+      "next_offset": null,
+      "plane": "0e53fe96-8895-4f03-9f0a-ae0f9bbec798",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 3376.785136395888,
+          "count": 1
+        },
+        "island_discarded": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    },
+    "after": {
+      "base_revision": 16,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 1,
+      "fragments": [
+        {
+          "area_mm2": 3376.785136395888,
+          "bounds": {
+            "max": {
+              "x": 171.5,
+              "y": -100.5
+            },
+            "min": {
+              "x": 100.5,
+              "y": -151.5
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "in1_cu",
+      "net": "GND",
+      "next_offset": null,
+      "plane": "0e53fe96-8895-4f03-9f0a-ae0f9bbec798",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 3376.785136395888,
+          "count": 1
+        },
+        "island_discarded": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    }
+  },
+  {
+    "uuid": "309441bd-110f-4a7f-8b0d-8687614365f4",
+    "net": "VMOS",
+    "layer": "top_cu",
+    "fragment_summaries_equal": true,
+    "before": {
+      "base_revision": 2,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 1,
+      "fragments": [
+        {
+          "area_mm2": 132.596540951603,
+          "bounds": {
+            "max": {
+              "x": 164.4,
+              "y": -137.0
+            },
+            "min": {
+              "x": 135.9,
+              "y": -147.4
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "top_cu",
+      "net": "VMOS",
+      "next_offset": null,
+      "plane": "309441bd-110f-4a7f-8b0d-8687614365f4",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 132.596540951603,
+          "count": 1
+        },
+        "island_discarded": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    },
+    "after": {
+      "base_revision": 16,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 1,
+      "fragments": [
+        {
+          "area_mm2": 132.596540951603,
+          "bounds": {
+            "max": {
+              "x": 164.4,
+              "y": -137.0
+            },
+            "min": {
+              "x": 135.9,
+              "y": -147.4
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "top_cu",
+      "net": "VMOS",
+      "next_offset": null,
+      "plane": "309441bd-110f-4a7f-8b0d-8687614365f4",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 132.596540951603,
+          "count": 1
+        },
+        "island_discarded": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    }
+  },
+  {
+    "uuid": "467e0b5d-3a91-4928-b51f-4c3fd5f5b95d",
+    "net": "VOUT",
+    "layer": "top_cu",
+    "fragment_summaries_equal": true,
+    "before": {
+      "base_revision": 2,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 1,
+      "fragments": [
+        {
+          "area_mm2": 26.9358517479255,
+          "bounds": {
+            "max": {
+              "x": 133.75,
+              "y": -136.8
+            },
+            "min": {
+              "x": 125.7,
+              "y": -140.2
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "top_cu",
+      "net": "VOUT",
+      "next_offset": null,
+      "plane": "467e0b5d-3a91-4928-b51f-4c3fd5f5b95d",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 26.9358517479255,
+          "count": 1
+        },
+        "island_discarded": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    },
+    "after": {
+      "base_revision": 16,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 1,
+      "fragments": [
+        {
+          "area_mm2": 26.9358517479255,
+          "bounds": {
+            "max": {
+              "x": 133.75,
+              "y": -136.8
+            },
+            "min": {
+              "x": 125.7,
+              "y": -140.2
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "top_cu",
+      "net": "VOUT",
+      "next_offset": null,
+      "plane": "467e0b5d-3a91-4928-b51f-4c3fd5f5b95d",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 26.9358517479255,
+          "count": 1
+        },
+        "island_discarded": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    }
+  },
+  {
+    "uuid": "6b49ef5b-7d12-402b-95f8-fa883747ffe8",
+    "net": "Net-(D3-A)",
+    "layer": "top_cu",
+    "fragment_summaries_equal": true,
+    "before": {
+      "base_revision": 2,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 1,
+      "fragments": [
+        {
+          "area_mm2": 0.122365720344,
+          "bounds": {
+            "max": {
+              "x": 107.06,
+              "y": -122.28
+            },
+            "min": {
+              "x": 106.5,
+              "y": -122.52
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "top_cu",
+      "net": "Net-(D3-A)",
+      "next_offset": null,
+      "plane": "6b49ef5b-7d12-402b-95f8-fa883747ffe8",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 0.122365720344,
+          "count": 1
+        },
+        "island_discarded": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    },
+    "after": {
+      "base_revision": 16,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 1,
+      "fragments": [
+        {
+          "area_mm2": 0.122365720344,
+          "bounds": {
+            "max": {
+              "x": 107.06,
+              "y": -122.28
+            },
+            "min": {
+              "x": 106.5,
+              "y": -122.52
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "top_cu",
+      "net": "Net-(D3-A)",
+      "next_offset": null,
+      "plane": "6b49ef5b-7d12-402b-95f8-fa883747ffe8",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 0.122365720344,
+          "count": 1
+        },
+        "island_discarded": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    }
+  },
+  {
+    "uuid": "7c178637-9b72-41ab-b118-908665c9b58a",
+    "net": "Net-(D3-A)",
+    "layer": "top_cu",
+    "fragment_summaries_equal": true,
+    "before": {
+      "base_revision": 2,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 1,
+      "fragments": [
+        {
+          "area_mm2": 0.122365720344,
+          "bounds": {
+            "max": {
+              "x": 107.06,
+              "y": -117.48
+            },
+            "min": {
+              "x": 106.5,
+              "y": -117.72
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "top_cu",
+      "net": "Net-(D3-A)",
+      "next_offset": null,
+      "plane": "7c178637-9b72-41ab-b118-908665c9b58a",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 0.122365720344,
+          "count": 1
+        },
+        "island_discarded": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    },
+    "after": {
+      "base_revision": 16,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 1,
+      "fragments": [
+        {
+          "area_mm2": 0.122365720344,
+          "bounds": {
+            "max": {
+              "x": 107.06,
+              "y": -117.48
+            },
+            "min": {
+              "x": 106.5,
+              "y": -117.72
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "top_cu",
+      "net": "Net-(D3-A)",
+      "next_offset": null,
+      "plane": "7c178637-9b72-41ab-b118-908665c9b58a",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 0.122365720344,
+          "count": 1
+        },
+        "island_discarded": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    }
+  },
+  {
+    "uuid": "7eb53b30-f93a-42ac-9fff-e3f0d063aa60",
+    "net": "VOUT",
+    "layer": "bot_cu",
+    "fragment_summaries_equal": true,
+    "before": {
+      "base_revision": 2,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 1,
+      "fragments": [
+        {
+          "area_mm2": 184.8657618002725,
+          "bounds": {
+            "max": {
+              "x": 159.4,
+              "y": -137.0
+            },
+            "min": {
+              "x": 125.5,
+              "y": -148.2
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "bot_cu",
+      "net": "VOUT",
+      "next_offset": null,
+      "plane": "7eb53b30-f93a-42ac-9fff-e3f0d063aa60",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 184.8657618002725,
+          "count": 1
+        },
+        "island_discarded": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    },
+    "after": {
+      "base_revision": 16,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 1,
+      "fragments": [
+        {
+          "area_mm2": 184.8657618002725,
+          "bounds": {
+            "max": {
+              "x": 159.4,
+              "y": -137.0
+            },
+            "min": {
+              "x": 125.5,
+              "y": -148.2
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "bot_cu",
+      "net": "VOUT",
+      "next_offset": null,
+      "plane": "7eb53b30-f93a-42ac-9fff-e3f0d063aa60",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 184.8657618002725,
+          "count": 1
+        },
+        "island_discarded": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    }
+  },
+  {
+    "uuid": "81cdfa7c-01a4-4484-8d80-235ef7fc3bb3",
+    "net": "GND",
+    "layer": "top_cu",
+    "fragment_summaries_equal": false,
+    "before": {
+      "base_revision": 2,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 45,
+      "fragments": [
+        {
+          "area_mm2": 0.972039221433,
+          "bounds": {
+            "max": {
+              "x": 112.783397,
+              "y": -109.953694
+            },
+            "min": {
+              "x": 111.348692,
+              "y": -111.1
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.206801693355,
+          "bounds": {
+            "max": {
+              "x": 122.139828,
+              "y": -110.790317
+            },
+            "min": {
+              "x": 121.460172,
+              "y": -111.309683
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.325012164665,
+          "bounds": {
+            "max": {
+              "x": 128.667701,
+              "y": -115.803944
+            },
+            "min": {
+              "x": 127.812325,
+              "y": -116.4
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.3348858992535,
+          "bounds": {
+            "max": {
+              "x": 118.36,
+              "y": -117.941621
+            },
+            "min": {
+              "x": 117.588961,
+              "y": -118.579401
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.072007521092,
+          "bounds": {
+            "max": {
+              "x": 114.069684,
+              "y": -119.54
+            },
+            "min": {
+              "x": 113.733672,
+              "y": -119.830166
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.09036111475,
+          "bounds": {
+            "max": {
+              "x": 108.299122,
+              "y": -119.693705
+            },
+            "min": {
+              "x": 107.951077,
+              "y": -120.05
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.2770389267765,
+          "bounds": {
+            "max": {
+              "x": 164.467701,
+              "y": -127.490203
+            },
+            "min": {
+              "x": 163.762115,
+              "y": -128.2
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.287666634057,
+          "bounds": {
+            "max": {
+              "x": 109.404661,
+              "y": -127.815528
+            },
+            "min": {
+              "x": 108.54,
+              "y": -128.184472
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.22477250891,
+          "bounds": {
+            "max": {
+              "x": 110.122344,
+              "y": -128.741739
+            },
+            "min": {
+              "x": 109.679813,
+              "y": -129.47113
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.0826380153435,
+          "bounds": {
+            "max": {
+              "x": 171.5,
+              "y": -128.789736
+            },
+            "min": {
+              "x": 171.246634,
+              "y": -129.214205
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 1.3167656805435,
+          "bounds": {
+            "max": {
+              "x": 109.650124,
+              "y": -129.465528
+            },
+            "min": {
+              "x": 108.54,
+              "y": -131.267179
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.033880726114,
+          "bounds": {
+            "max": {
+              "x": 110.582733,
+              "y": -129.84061
+            },
+            "min": {
+              "x": 110.367696,
+              "y": -130.052806
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1537837458695,
+          "bounds": {
+            "max": {
+              "x": 110.15,
+              "y": -131.337569
+            },
+            "min": {
+              "x": 109.699651,
+              "y": -131.844377
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 2.977107504999,
+          "bounds": {
+            "max": {
+              "x": 122.837119,
+              "y": -133.287522
+            },
+            "min": {
+              "x": 119.85,
+              "y": -135.612764
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 10.4106281109425,
+          "bounds": {
+            "max": {
+              "x": 136.292131,
+              "y": -133.391386
+            },
+            "min": {
+              "x": 130.65,
+              "y": -136.52313
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.248383531303,
+          "bounds": {
+            "max": {
+              "x": 126.038411,
+              "y": -134.875
+            },
+            "min": {
+              "x": 125.047164,
+              "y": -135.15
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1678434329485,
+          "bounds": {
+            "max": {
+              "x": 127.924798,
+              "y": -135.35
+            },
+            "min": {
+              "x": 127.190878,
+              "y": -135.6
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 39.446796952487,
+          "bounds": {
+            "max": {
+              "x": 122.0,
+              "y": -140.373111
+            },
+            "min": {
+              "x": 112.30368,
+              "y": -149.109683
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.144324688342,
+          "bounds": {
+            "max": {
+              "x": 112.38773,
+              "y": -140.7
+            },
+            "min": {
+              "x": 111.938553,
+              "y": -141.108994
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.057822250759,
+          "bounds": {
+            "max": {
+              "x": 115.95,
+              "y": -144.75
+            },
+            "min": {
+              "x": 115.722224,
+              "y": -145.067976
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1023702315845,
+          "bounds": {
+            "max": {
+              "x": 111.227138,
+              "y": -151.190317
+            },
+            "min": {
+              "x": 110.769832,
+              "y": -151.5
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 5.6844630312875,
+          "bounds": {
+            "max": {
+              "x": 138.945444,
+              "y": -102.786724
+            },
+            "min": {
+              "x": 130.303943,
+              "y": -113.435469
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.511700893036,
+          "bounds": {
+            "max": {
+              "x": 126.296891,
+              "y": -103.55
+            },
+            "min": {
+              "x": 125.6,
+              "y": -104.679899
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 184.1376554288705,
+          "bounds": {
+            "max": {
+              "x": 160.959122,
+              "y": -106.85
+            },
+            "min": {
+              "x": 138.5,
+              "y": -127.55
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.081278318919,
+          "bounds": {
+            "max": {
+              "x": 115.905,
+              "y": -109.51869
+            },
+            "min": {
+              "x": 115.65,
+              "y": -109.9
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.3295177419585,
+          "bounds": {
+            "max": {
+              "x": 121.119828,
+              "y": -110.13
+            },
+            "min": {
+              "x": 119.96057,
+              "y": -111.193885
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 9.0151068957675,
+          "bounds": {
+            "max": {
+              "x": 140.208994,
+              "y": -133.25
+            },
+            "min": {
+              "x": 134.892522,
+              "y": -136.795
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.0391693431995,
+          "bounds": {
+            "max": {
+              "x": 105.531948,
+              "y": -116.390733
+            },
+            "min": {
+              "x": 105.3,
+              "y": -116.606562
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 13.156376294856,
+          "bounds": {
+            "max": {
+              "x": 118.838496,
+              "y": -111.161504
+            },
+            "min": {
+              "x": 115.161504,
+              "y": -114.838496
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 5.5494025045105,
+          "bounds": {
+            "max": {
+              "x": 122.66,
+              "y": -111.541267
+            },
+            "min": {
+              "x": 120.061504,
+              "y": -116.458152
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 3.295886907323,
+          "bounds": {
+            "max": {
+              "x": 114.875,
+              "y": -115.398608
+            },
+            "min": {
+              "x": 112.292698,
+              "y": -118.64
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 127.5842115493075,
+          "bounds": {
+            "max": {
+              "x": 130.06,
+              "y": -116.318068
+            },
+            "min": {
+              "x": 118.552551,
+              "y": -133.371832
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 1.229038923803,
+          "bounds": {
+            "max": {
+              "x": 112.571056,
+              "y": -118.124017
+            },
+            "min": {
+              "x": 109.881416,
+              "y": -119.535865
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 8.3067462097325,
+          "bounds": {
+            "max": {
+              "x": 112.422946,
+              "y": -123.43197
+            },
+            "min": {
+              "x": 108.79838,
+              "y": -129.188496
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 26.9574174598485,
+          "bounds": {
+            "max": {
+              "x": 118.75,
+              "y": -125.301848
+            },
+            "min": {
+              "x": 111.286504,
+              "y": -136.576208
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 2.5728513511385,
+          "bounds": {
+            "max": {
+              "x": 111.16,
+              "y": -131.658655
+            },
+            "min": {
+              "x": 107.94,
+              "y": -133.26
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 6.030136642631,
+          "bounds": {
+            "max": {
+              "x": 129.898453,
+              "y": -132.375
+            },
+            "min": {
+              "x": 126.80476,
+              "y": -136.400753
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 0.184702487346,
+          "bounds": {
+            "max": {
+              "x": 125.39524,
+              "y": -133.553201
+            },
+            "min": {
+              "x": 124.778233,
+              "y": -134.026204
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 31.4324214218855,
+          "bounds": {
+            "max": {
+              "x": 163.533857,
+              "y": -105.326724
+            },
+            "min": {
+              "x": 138.952551,
+              "y": -127.262885
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 1005.1895855593895,
+          "bounds": {
+            "max": {
+              "x": 171.5,
+              "y": -107.301848
+            },
+            "min": {
+              "x": 111.789832,
+              "y": -151.5
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 25.153151685867,
+          "bounds": {
+            "max": {
+              "x": 130.797449,
+              "y": -108.754102
+            },
+            "min": {
+              "x": 122.814436,
+              "y": -114.80377
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 675.5068943780665,
+          "bounds": {
+            "max": {
+              "x": 171.5,
+              "y": -100.5
+            },
+            "min": {
+              "x": 105.6,
+              "y": -128.114205
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 1.1559858093655,
+          "bounds": {
+            "max": {
+              "x": 107.682081,
+              "y": -115.832582
+            },
+            "min": {
+              "x": 105.95318,
+              "y": -117.088415
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 332.673615794692,
+          "bounds": {
+            "max": {
+              "x": 116.1,
+              "y": -103.714886
+            },
+            "min": {
+              "x": 100.5,
+              "y": -151.5
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 46.599940311363,
+          "bounds": {
+            "max": {
+              "x": 126.3,
+              "y": -115.14968
+            },
+            "min": {
+              "x": 112.95,
+              "y": -128.130068
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "top_cu",
+      "net": "GND",
+      "next_offset": null,
+      "plane": "81cdfa7c-01a4-4484-8d80-235ef7fc3bb3",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 2312.5783652911255,
+          "count": 17
+        },
+        "island_discarded": {
+          "area_mm2": 257.7318222085665,
+          "count": 28
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    },
+    "after": {
+      "base_revision": 16,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 48,
+      "fragments": [
+        {
+          "area_mm2": 0.972039221433,
+          "bounds": {
+            "max": {
+              "x": 112.783397,
+              "y": -109.953694
+            },
+            "min": {
+              "x": 111.348692,
+              "y": -111.1
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.206801693355,
+          "bounds": {
+            "max": {
+              "x": 122.139828,
+              "y": -110.790317
+            },
+            "min": {
+              "x": 121.460172,
+              "y": -111.309683
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.325012164665,
+          "bounds": {
+            "max": {
+              "x": 128.667701,
+              "y": -115.803944
+            },
+            "min": {
+              "x": 127.812325,
+              "y": -116.4
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.3348858992535,
+          "bounds": {
+            "max": {
+              "x": 118.36,
+              "y": -117.941621
+            },
+            "min": {
+              "x": 117.588961,
+              "y": -118.579401
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.072007521092,
+          "bounds": {
+            "max": {
+              "x": 114.069684,
+              "y": -119.54
+            },
+            "min": {
+              "x": 113.733672,
+              "y": -119.830166
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.09036111475,
+          "bounds": {
+            "max": {
+              "x": 108.299122,
+              "y": -119.693705
+            },
+            "min": {
+              "x": 107.951077,
+              "y": -120.05
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.2770389267765,
+          "bounds": {
+            "max": {
+              "x": 164.467701,
+              "y": -127.490203
+            },
+            "min": {
+              "x": 163.762115,
+              "y": -128.2
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.287666634057,
+          "bounds": {
+            "max": {
+              "x": 109.404661,
+              "y": -127.815528
+            },
+            "min": {
+              "x": 108.54,
+              "y": -128.184472
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.22477250891,
+          "bounds": {
+            "max": {
+              "x": 110.122344,
+              "y": -128.741739
+            },
+            "min": {
+              "x": 109.679813,
+              "y": -129.47113
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.0826380153435,
+          "bounds": {
+            "max": {
+              "x": 171.5,
+              "y": -128.789736
+            },
+            "min": {
+              "x": 171.246634,
+              "y": -129.214205
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 1.3167656805435,
+          "bounds": {
+            "max": {
+              "x": 109.650124,
+              "y": -129.465528
+            },
+            "min": {
+              "x": 108.54,
+              "y": -131.267179
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.033880726114,
+          "bounds": {
+            "max": {
+              "x": 110.582733,
+              "y": -129.84061
+            },
+            "min": {
+              "x": 110.367696,
+              "y": -130.052806
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1537837458695,
+          "bounds": {
+            "max": {
+              "x": 110.15,
+              "y": -131.337569
+            },
+            "min": {
+              "x": 109.699651,
+              "y": -131.844377
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 2.977107504999,
+          "bounds": {
+            "max": {
+              "x": 122.837119,
+              "y": -133.287522
+            },
+            "min": {
+              "x": 119.85,
+              "y": -135.612764
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.248383531303,
+          "bounds": {
+            "max": {
+              "x": 126.038411,
+              "y": -134.875
+            },
+            "min": {
+              "x": 125.047164,
+              "y": -135.15
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1678434329485,
+          "bounds": {
+            "max": {
+              "x": 127.924798,
+              "y": -135.35
+            },
+            "min": {
+              "x": 127.190878,
+              "y": -135.6
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 39.446796952487,
+          "bounds": {
+            "max": {
+              "x": 122.0,
+              "y": -140.373111
+            },
+            "min": {
+              "x": 112.30368,
+              "y": -149.109683
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.391867759306,
+          "bounds": {
+            "max": {
+              "x": 130.708994,
+              "y": -140.6
+            },
+            "min": {
+              "x": 130.2125,
+              "y": -141.525463
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.144324688342,
+          "bounds": {
+            "max": {
+              "x": 112.38773,
+              "y": -140.7
+            },
+            "min": {
+              "x": 111.938553,
+              "y": -141.108994
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 1.9998037573285,
+          "bounds": {
+            "max": {
+              "x": 132.98,
+              "y": -141.442011
+            },
+            "min": {
+              "x": 130.691006,
+              "y": -142.6
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.036121336206,
+          "bounds": {
+            "max": {
+              "x": 130.708586,
+              "y": -142.474129
+            },
+            "min": {
+              "x": 130.497903,
+              "y": -142.698318
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.13328591023,
+          "bounds": {
+            "max": {
+              "x": 131.33125,
+              "y": -143.494231
+            },
+            "min": {
+              "x": 130.905187,
+              "y": -143.909683
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.057822250759,
+          "bounds": {
+            "max": {
+              "x": 115.95,
+              "y": -144.75
+            },
+            "min": {
+              "x": 115.722224,
+              "y": -145.067976
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1023702315845,
+          "bounds": {
+            "max": {
+              "x": 111.227138,
+              "y": -151.190317
+            },
+            "min": {
+              "x": 110.769832,
+              "y": -151.5
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 5.6844630312875,
+          "bounds": {
+            "max": {
+              "x": 138.945444,
+              "y": -102.786724
+            },
+            "min": {
+              "x": 130.303943,
+              "y": -113.435469
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.511700893036,
+          "bounds": {
+            "max": {
+              "x": 126.296891,
+              "y": -103.55
+            },
+            "min": {
+              "x": 125.6,
+              "y": -104.679899
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 184.1376554288705,
+          "bounds": {
+            "max": {
+              "x": 160.959122,
+              "y": -106.85
+            },
+            "min": {
+              "x": 138.5,
+              "y": -127.55
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.081278318919,
+          "bounds": {
+            "max": {
+              "x": 115.905,
+              "y": -109.51869
+            },
+            "min": {
+              "x": 115.65,
+              "y": -109.9
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.3295177419585,
+          "bounds": {
+            "max": {
+              "x": 121.119828,
+              "y": -110.13
+            },
+            "min": {
+              "x": 119.96057,
+              "y": -111.193885
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 9.0151068957675,
+          "bounds": {
+            "max": {
+              "x": 140.208994,
+              "y": -133.25
+            },
+            "min": {
+              "x": 134.892522,
+              "y": -136.795
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.0391693431995,
+          "bounds": {
+            "max": {
+              "x": 105.531948,
+              "y": -116.390733
+            },
+            "min": {
+              "x": 105.3,
+              "y": -116.606562
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 13.156376294856,
+          "bounds": {
+            "max": {
+              "x": 118.838496,
+              "y": -111.161504
+            },
+            "min": {
+              "x": 115.161504,
+              "y": -114.838496
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 5.5494025045105,
+          "bounds": {
+            "max": {
+              "x": 122.66,
+              "y": -111.541267
+            },
+            "min": {
+              "x": 120.061504,
+              "y": -116.458152
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 3.295886907323,
+          "bounds": {
+            "max": {
+              "x": 114.875,
+              "y": -115.398608
+            },
+            "min": {
+              "x": 112.292698,
+              "y": -118.64
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 127.5842115493075,
+          "bounds": {
+            "max": {
+              "x": 130.06,
+              "y": -116.318068
+            },
+            "min": {
+              "x": 118.552551,
+              "y": -133.371832
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 1.229038923803,
+          "bounds": {
+            "max": {
+              "x": 112.571056,
+              "y": -118.124017
+            },
+            "min": {
+              "x": 109.881416,
+              "y": -119.535865
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 8.3067462097325,
+          "bounds": {
+            "max": {
+              "x": 112.422946,
+              "y": -123.43197
+            },
+            "min": {
+              "x": 108.79838,
+              "y": -129.188496
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 26.9574174598485,
+          "bounds": {
+            "max": {
+              "x": 118.75,
+              "y": -125.301848
+            },
+            "min": {
+              "x": 111.286504,
+              "y": -136.576208
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 2.5728513511385,
+          "bounds": {
+            "max": {
+              "x": 111.16,
+              "y": -131.658655
+            },
+            "min": {
+              "x": 107.94,
+              "y": -133.26
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 6.030136642631,
+          "bounds": {
+            "max": {
+              "x": 129.898453,
+              "y": -132.375
+            },
+            "min": {
+              "x": 126.80476,
+              "y": -136.400753
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 0.184702487346,
+          "bounds": {
+            "max": {
+              "x": 125.39524,
+              "y": -133.553201
+            },
+            "min": {
+              "x": 124.778233,
+              "y": -134.026204
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 31.4324214218855,
+          "bounds": {
+            "max": {
+              "x": 163.533857,
+              "y": -105.326724
+            },
+            "min": {
+              "x": 138.952551,
+              "y": -127.262885
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 1012.6787746712685,
+          "bounds": {
+            "max": {
+              "x": 171.5,
+              "y": -107.301848
+            },
+            "min": {
+              "x": 111.789832,
+              "y": -151.5
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 25.153151685867,
+          "bounds": {
+            "max": {
+              "x": 130.797449,
+              "y": -108.754102
+            },
+            "min": {
+              "x": 122.814436,
+              "y": -114.80377
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 675.5068943780665,
+          "bounds": {
+            "max": {
+              "x": 171.5,
+              "y": -100.5
+            },
+            "min": {
+              "x": 105.6,
+              "y": -128.114205
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 1.1559858093655,
+          "bounds": {
+            "max": {
+              "x": 107.682081,
+              "y": -115.832582
+            },
+            "min": {
+              "x": 105.95318,
+              "y": -117.088415
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 332.673615794692,
+          "bounds": {
+            "max": {
+              "x": 116.1,
+              "y": -103.714886
+            },
+            "min": {
+              "x": 100.5,
+              "y": -151.5
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 46.599940311363,
+          "bounds": {
+            "max": {
+              "x": 126.3,
+              "y": -115.14968
+            },
+            "min": {
+              "x": 112.95,
+              "y": -128.130068
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "top_cu",
+      "net": "GND",
+      "next_offset": null,
+      "plane": "81cdfa7c-01a4-4484-8d80-235ef7fc3bb3",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 2320.067554403004,
+          "count": 17
+        },
+        "island_discarded": {
+          "area_mm2": 249.8822728606945,
+          "count": 31
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    }
+  },
+  {
+    "uuid": "8a378be3-5124-4542-85b4-274b4abcd1d2",
+    "net": "GND",
+    "layer": "in2_cu",
+    "fragment_summaries_equal": true,
+    "before": {
+      "base_revision": 2,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 24,
+      "fragments": [
+        {
+          "area_mm2": 1.63084476906,
+          "bounds": {
+            "max": {
+              "x": 126.57086,
+              "y": -101.14
+            },
+            "min": {
+              "x": 124.966463,
+              "y": -103.0
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 1.63084476906,
+          "bounds": {
+            "max": {
+              "x": 129.11086,
+              "y": -101.14
+            },
+            "min": {
+              "x": 127.506463,
+              "y": -103.0
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.121800579172,
+          "bounds": {
+            "max": {
+              "x": 124.03086,
+              "y": -102.666356
+            },
+            "min": {
+              "x": 123.523379,
+              "y": -103.0
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 9.708234708976,
+          "bounds": {
+            "max": {
+              "x": 130.749519,
+              "y": -103.7
+            },
+            "min": {
+              "x": 127.64,
+              "y": -108.801383
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.7025222204475,
+          "bounds": {
+            "max": {
+              "x": 126.297561,
+              "y": -103.7
+            },
+            "min": {
+              "x": 125.246786,
+              "y": -104.723333
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.2899494077145,
+          "bounds": {
+            "max": {
+              "x": 131.153588,
+              "y": -103.985453
+            },
+            "min": {
+              "x": 130.50388,
+              "y": -104.870373
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 5.596570033321,
+          "bounds": {
+            "max": {
+              "x": 126.96,
+              "y": -105.351415
+            },
+            "min": {
+              "x": 126.24,
+              "y": -113.401382
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 3.3392535165805,
+          "bounds": {
+            "max": {
+              "x": 114.464187,
+              "y": -110.751423
+            },
+            "min": {
+              "x": 113.306464,
+              "y": -114.769185
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 5.615060748256,
+          "bounds": {
+            "max": {
+              "x": 121.887671,
+              "y": -113.285
+            },
+            "min": {
+              "x": 116.394931,
+              "y": -117.045089
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 1.420966019657,
+          "bounds": {
+            "max": {
+              "x": 120.102084,
+              "y": -117.106464
+            },
+            "min": {
+              "x": 118.130815,
+              "y": -118.16
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.063975186397,
+          "bounds": {
+            "max": {
+              "x": 106.15,
+              "y": -117.593732
+            },
+            "min": {
+              "x": 105.84973,
+              "y": -117.872879
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.122297938878,
+          "bounds": {
+            "max": {
+              "x": 117.633264,
+              "y": -118.398618
+            },
+            "min": {
+              "x": 117.159155,
+              "y": -118.76
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 9.584071594105,
+          "bounds": {
+            "max": {
+              "x": 110.5,
+              "y": -119.937521
+            },
+            "min": {
+              "x": 107.453608,
+              "y": -125.647448
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.208371133235,
+          "bounds": {
+            "max": {
+              "x": 106.6877,
+              "y": -123.051418
+            },
+            "min": {
+              "x": 106.018943,
+              "y": -123.52
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.05076794584,
+          "bounds": {
+            "max": {
+              "x": 111.322283,
+              "y": -126.282625
+            },
+            "min": {
+              "x": 111.051849,
+              "y": -126.547448
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 15.977231706879,
+          "bounds": {
+            "max": {
+              "x": 137.780845,
+              "y": -105.95
+            },
+            "min": {
+              "x": 131.34,
+              "y": -109.26
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.0297512767855,
+          "bounds": {
+            "max": {
+              "x": 135.509123,
+              "y": -105.200199
+            },
+            "min": {
+              "x": 135.314604,
+              "y": -105.4
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 41.5154136393895,
+          "bounds": {
+            "max": {
+              "x": 123.773975,
+              "y": -101.14
+            },
+            "min": {
+              "x": 113.24,
+              "y": -111.723264
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 57.710967727292,
+          "bounds": {
+            "max": {
+              "x": 127.445591,
+              "y": -103.7
+            },
+            "min": {
+              "x": 115.14,
+              "y": -116.323985
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 2.2478643301515,
+          "bounds": {
+            "max": {
+              "x": 121.817416,
+              "y": -110.475
+            },
+            "min": {
+              "x": 120.217167,
+              "y": -112.932861
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 21.0951924101825,
+          "bounds": {
+            "max": {
+              "x": 114.722933,
+              "y": -115.04
+            },
+            "min": {
+              "x": 107.9,
+              "y": -120.51803
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 3.287470140843,
+          "bounds": {
+            "max": {
+              "x": 107.65,
+              "y": -116.208894
+            },
+            "min": {
+              "x": 106.047076,
+              "y": -122.645434
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 1.7359648172075,
+          "bounds": {
+            "max": {
+              "x": 112.76,
+              "y": -120.661522
+            },
+            "min": {
+              "x": 111.2,
+              "y": -122.587119
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 2942.092679915914,
+          "bounds": {
+            "max": {
+              "x": 171.5,
+              "y": -100.5
+            },
+            "min": {
+              "x": 100.5,
+              "y": -151.5
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "in2_cu",
+      "net": "GND",
+      "next_offset": null,
+      "plane": "8a378be3-5124-4542-85b4-274b4abcd1d2",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 3069.68555298098,
+          "count": 7
+        },
+        "island_discarded": {
+          "area_mm2": 56.092513554364,
+          "count": 17
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    },
+    "after": {
+      "base_revision": 16,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 24,
+      "fragments": [
+        {
+          "area_mm2": 1.63084476906,
+          "bounds": {
+            "max": {
+              "x": 126.57086,
+              "y": -101.14
+            },
+            "min": {
+              "x": 124.966463,
+              "y": -103.0
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 1.63084476906,
+          "bounds": {
+            "max": {
+              "x": 129.11086,
+              "y": -101.14
+            },
+            "min": {
+              "x": 127.506463,
+              "y": -103.0
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.121800579172,
+          "bounds": {
+            "max": {
+              "x": 124.03086,
+              "y": -102.666356
+            },
+            "min": {
+              "x": 123.523379,
+              "y": -103.0
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 9.708234708976,
+          "bounds": {
+            "max": {
+              "x": 130.749519,
+              "y": -103.7
+            },
+            "min": {
+              "x": 127.64,
+              "y": -108.801383
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.7025222204475,
+          "bounds": {
+            "max": {
+              "x": 126.297561,
+              "y": -103.7
+            },
+            "min": {
+              "x": 125.246786,
+              "y": -104.723333
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.2899494077145,
+          "bounds": {
+            "max": {
+              "x": 131.153588,
+              "y": -103.985453
+            },
+            "min": {
+              "x": 130.50388,
+              "y": -104.870373
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 5.596570033321,
+          "bounds": {
+            "max": {
+              "x": 126.96,
+              "y": -105.351415
+            },
+            "min": {
+              "x": 126.24,
+              "y": -113.401382
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 3.3392535165805,
+          "bounds": {
+            "max": {
+              "x": 114.464187,
+              "y": -110.751423
+            },
+            "min": {
+              "x": 113.306464,
+              "y": -114.769185
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 5.615060748256,
+          "bounds": {
+            "max": {
+              "x": 121.887671,
+              "y": -113.285
+            },
+            "min": {
+              "x": 116.394931,
+              "y": -117.045089
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 1.420966019657,
+          "bounds": {
+            "max": {
+              "x": 120.102084,
+              "y": -117.106464
+            },
+            "min": {
+              "x": 118.130815,
+              "y": -118.16
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.063975186397,
+          "bounds": {
+            "max": {
+              "x": 106.15,
+              "y": -117.593732
+            },
+            "min": {
+              "x": 105.84973,
+              "y": -117.872879
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.122297938878,
+          "bounds": {
+            "max": {
+              "x": 117.633264,
+              "y": -118.398618
+            },
+            "min": {
+              "x": 117.159155,
+              "y": -118.76
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 9.584071594105,
+          "bounds": {
+            "max": {
+              "x": 110.5,
+              "y": -119.937521
+            },
+            "min": {
+              "x": 107.453608,
+              "y": -125.647448
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.208371133235,
+          "bounds": {
+            "max": {
+              "x": 106.6877,
+              "y": -123.051418
+            },
+            "min": {
+              "x": 106.018943,
+              "y": -123.52
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.05076794584,
+          "bounds": {
+            "max": {
+              "x": 111.322283,
+              "y": -126.282625
+            },
+            "min": {
+              "x": 111.051849,
+              "y": -126.547448
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 15.977231706879,
+          "bounds": {
+            "max": {
+              "x": 137.780845,
+              "y": -105.95
+            },
+            "min": {
+              "x": 131.34,
+              "y": -109.26
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.0297512767855,
+          "bounds": {
+            "max": {
+              "x": 135.509123,
+              "y": -105.200199
+            },
+            "min": {
+              "x": 135.314604,
+              "y": -105.4
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 41.5154136393895,
+          "bounds": {
+            "max": {
+              "x": 123.773975,
+              "y": -101.14
+            },
+            "min": {
+              "x": 113.24,
+              "y": -111.723264
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 57.710967727292,
+          "bounds": {
+            "max": {
+              "x": 127.445591,
+              "y": -103.7
+            },
+            "min": {
+              "x": 115.14,
+              "y": -116.323985
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 2.2478643301515,
+          "bounds": {
+            "max": {
+              "x": 121.817416,
+              "y": -110.475
+            },
+            "min": {
+              "x": 120.217167,
+              "y": -112.932861
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 21.0951924101825,
+          "bounds": {
+            "max": {
+              "x": 114.722933,
+              "y": -115.04
+            },
+            "min": {
+              "x": 107.9,
+              "y": -120.51803
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 3.287470140843,
+          "bounds": {
+            "max": {
+              "x": 107.65,
+              "y": -116.208894
+            },
+            "min": {
+              "x": 106.047076,
+              "y": -122.645434
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 1.7359648172075,
+          "bounds": {
+            "max": {
+              "x": 112.76,
+              "y": -120.661522
+            },
+            "min": {
+              "x": 111.2,
+              "y": -122.587119
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 2942.092679915914,
+          "bounds": {
+            "max": {
+              "x": 171.5,
+              "y": -100.5
+            },
+            "min": {
+              "x": 100.5,
+              "y": -151.5
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "in2_cu",
+      "net": "GND",
+      "next_offset": null,
+      "plane": "8a378be3-5124-4542-85b4-274b4abcd1d2",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 3069.68555298098,
+          "count": 7
+        },
+        "island_discarded": {
+          "area_mm2": 56.092513554364,
+          "count": 17
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    }
+  },
+  {
+    "uuid": "a582722c-38b4-4ccb-9bfc-e4c63df37075",
+    "net": "VBUS",
+    "layer": "top_cu",
+    "fragment_summaries_equal": true,
+    "before": {
+      "base_revision": 2,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 3,
+      "fragments": [
+        {
+          "area_mm2": 1.698537867821,
+          "bounds": {
+            "max": {
+              "x": 107.35,
+              "y": -134.8
+            },
+            "min": {
+              "x": 105.2,
+              "y": -135.85
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 35.440394431358,
+          "bounds": {
+            "max": {
+              "x": 118.123609,
+              "y": -135.194214
+            },
+            "min": {
+              "x": 105.2,
+              "y": -140.3
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 13.1810150607005,
+          "bounds": {
+            "max": {
+              "x": 122.4,
+              "y": -136.95
+            },
+            "min": {
+              "x": 117.15,
+              "y": -140.3
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "top_cu",
+      "net": "VBUS",
+      "next_offset": null,
+      "plane": "a582722c-38b4-4ccb-9bfc-e4c63df37075",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 50.31994735987951,
+          "count": 3
+        },
+        "island_discarded": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    },
+    "after": {
+      "base_revision": 16,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 3,
+      "fragments": [
+        {
+          "area_mm2": 1.698537867821,
+          "bounds": {
+            "max": {
+              "x": 107.35,
+              "y": -134.8
+            },
+            "min": {
+              "x": 105.2,
+              "y": -135.85
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 35.440394431358,
+          "bounds": {
+            "max": {
+              "x": 118.123609,
+              "y": -135.194214
+            },
+            "min": {
+              "x": 105.2,
+              "y": -140.3
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 13.1810150607005,
+          "bounds": {
+            "max": {
+              "x": 122.4,
+              "y": -136.95
+            },
+            "min": {
+              "x": 117.15,
+              "y": -140.3
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "top_cu",
+      "net": "VBUS",
+      "next_offset": null,
+      "plane": "a582722c-38b4-4ccb-9bfc-e4c63df37075",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 50.31994735987951,
+          "count": 3
+        },
+        "island_discarded": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    }
+  },
+  {
+    "uuid": "ab2a41ea-c9d8-44c7-952f-8c45847a938c",
+    "net": "GND",
+    "layer": "bot_cu",
+    "fragment_summaries_equal": true,
+    "before": {
+      "base_revision": 2,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 29,
+      "fragments": [
+        {
+          "area_mm2": 3.7676719820155,
+          "bounds": {
+            "max": {
+              "x": 131.856706,
+              "y": -106.027522
+            },
+            "min": {
+              "x": 123.532481,
+              "y": -114.944055
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.0619198475705,
+          "bounds": {
+            "max": {
+              "x": 163.15,
+              "y": -108.296987
+            },
+            "min": {
+              "x": 162.95,
+              "y": -108.659123
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1154934475705,
+          "bounds": {
+            "max": {
+              "x": 164.5,
+              "y": -108.390877
+            },
+            "min": {
+              "x": 164.3,
+              "y": -109.020881
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.7512936069845,
+          "bounds": {
+            "max": {
+              "x": 112.83662,
+              "y": -108.44
+            },
+            "min": {
+              "x": 111.298618,
+              "y": -109.06
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.177232717615,
+          "bounds": {
+            "max": {
+              "x": 157.05,
+              "y": -108.766186
+            },
+            "min": {
+              "x": 156.513625,
+              "y": -109.370912
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.62580830444,
+          "bounds": {
+            "max": {
+              "x": 120.436621,
+              "y": -115.74
+            },
+            "min": {
+              "x": 118.898618,
+              "y": -116.33009
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 2.39937739551,
+          "bounds": {
+            "max": {
+              "x": 123.23662,
+              "y": -116.14
+            },
+            "min": {
+              "x": 120.535475,
+              "y": -118.533955
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1108637756565,
+          "bounds": {
+            "max": {
+              "x": 105.531948,
+              "y": -116.317812
+            },
+            "min": {
+              "x": 105.14,
+              "y": -116.717708
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1686835926255,
+          "bounds": {
+            "max": {
+              "x": 105.60527,
+              "y": -117.497828
+            },
+            "min": {
+              "x": 105.14,
+              "y": -118.050151
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1468032115575,
+          "bounds": {
+            "max": {
+              "x": 109.478894,
+              "y": -118.26338
+            },
+            "min": {
+              "x": 109.04,
+              "y": -118.734041
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1394214882475,
+          "bounds": {
+            "max": {
+              "x": 112.45,
+              "y": -119.973902
+            },
+            "min": {
+              "x": 112.136464,
+              "y": -120.590157
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 1.2354196497725,
+          "bounds": {
+            "max": {
+              "x": 113.35,
+              "y": -121.269155
+            },
+            "min": {
+              "x": 113.118834,
+              "y": -127.472879
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.043539149745,
+          "bounds": {
+            "max": {
+              "x": 105.363517,
+              "y": -122.249293
+            },
+            "min": {
+              "x": 105.14,
+              "y": -122.497708
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.110863789773,
+          "bounds": {
+            "max": {
+              "x": 105.532307,
+              "y": -123.277828
+            },
+            "min": {
+              "x": 105.14,
+              "y": -123.67798
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.039006902025,
+          "bounds": {
+            "max": {
+              "x": 112.45,
+              "y": -126.892187
+            },
+            "min": {
+              "x": 112.23461,
+              "y": -127.131751
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.146612150271,
+          "bounds": {
+            "max": {
+              "x": 112.130793,
+              "y": -127.239298
+            },
+            "min": {
+              "x": 111.65,
+              "y": -127.709123
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.982674110631,
+          "bounds": {
+            "max": {
+              "x": 110.5,
+              "y": -128.512881
+            },
+            "min": {
+              "x": 109.54,
+              "y": -130.325462
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1256505784805,
+          "bounds": {
+            "max": {
+              "x": 113.57019,
+              "y": -128.645273
+            },
+            "min": {
+              "x": 113.13874,
+              "y": -129.071781
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.642977852927,
+          "bounds": {
+            "max": {
+              "x": 112.112478,
+              "y": -129.237521
+            },
+            "min": {
+              "x": 110.492205,
+              "y": -130.970188
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1088024611665,
+          "bounds": {
+            "max": {
+              "x": 110.121128,
+              "y": -131.337569
+            },
+            "min": {
+              "x": 109.734625,
+              "y": -131.727769
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 9.3093518198,
+          "bounds": {
+            "max": {
+              "x": 122.837119,
+              "y": -132.62748
+            },
+            "min": {
+              "x": 117.791956,
+              "y": -135.15
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 24.836495413465,
+          "bounds": {
+            "max": {
+              "x": 119.568742,
+              "y": -110.85
+            },
+            "min": {
+              "x": 110.113262,
+              "y": -120.527489
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 4.3460993184695,
+          "bounds": {
+            "max": {
+              "x": 112.45,
+              "y": -118.029626
+            },
+            "min": {
+              "x": 110.112559,
+              "y": -122.652836
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 12.1644256964415,
+          "bounds": {
+            "max": {
+              "x": 112.45,
+              "y": -120.855665
+            },
+            "min": {
+              "x": 109.54,
+              "y": -127.887675
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 1.372894374993,
+          "bounds": {
+            "max": {
+              "x": 113.197449,
+              "y": -129.95
+            },
+            "min": {
+              "x": 110.965517,
+              "y": -131.976687
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 0.323552564768,
+          "bounds": {
+            "max": {
+              "x": 129.321208,
+              "y": -142.878792
+            },
+            "min": {
+              "x": 128.678792,
+              "y": -143.521208
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 0.323552564768,
+          "bounds": {
+            "max": {
+              "x": 129.321208,
+              "y": -145.078792
+            },
+            "min": {
+              "x": 128.678792,
+              "y": -145.721208
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 46.5331623420885,
+          "bounds": {
+            "max": {
+              "x": 127.901383,
+              "y": -109.04
+            },
+            "min": {
+              "x": 111.469155,
+              "y": -115.06
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 2734.14221829407,
+          "bounds": {
+            "max": {
+              "x": 171.5,
+              "y": -100.5
+            },
+            "min": {
+              "x": 100.5,
+              "y": -151.5
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "bot_cu",
+      "net": "GND",
+      "next_offset": null,
+      "plane": "ab2a41ea-c9d8-44c7-952f-8c45847a938c",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 2824.0424005690634,
+          "count": 8
+        },
+        "island_discarded": {
+          "area_mm2": 21.209467834384498,
+          "count": 21
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    },
+    "after": {
+      "base_revision": 16,
+      "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+      "fragment_count": 29,
+      "fragments": [
+        {
+          "area_mm2": 3.7676719820155,
+          "bounds": {
+            "max": {
+              "x": 131.856706,
+              "y": -106.027522
+            },
+            "min": {
+              "x": 123.532481,
+              "y": -114.944055
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.0619198475705,
+          "bounds": {
+            "max": {
+              "x": 163.15,
+              "y": -108.296987
+            },
+            "min": {
+              "x": 162.95,
+              "y": -108.659123
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1154934475705,
+          "bounds": {
+            "max": {
+              "x": 164.5,
+              "y": -108.390877
+            },
+            "min": {
+              "x": 164.3,
+              "y": -109.020881
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.7512936069845,
+          "bounds": {
+            "max": {
+              "x": 112.83662,
+              "y": -108.44
+            },
+            "min": {
+              "x": 111.298618,
+              "y": -109.06
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.177232717615,
+          "bounds": {
+            "max": {
+              "x": 157.05,
+              "y": -108.766186
+            },
+            "min": {
+              "x": 156.513625,
+              "y": -109.370912
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.62580830444,
+          "bounds": {
+            "max": {
+              "x": 120.436621,
+              "y": -115.74
+            },
+            "min": {
+              "x": 118.898618,
+              "y": -116.33009
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 2.39937739551,
+          "bounds": {
+            "max": {
+              "x": 123.23662,
+              "y": -116.14
+            },
+            "min": {
+              "x": 120.535475,
+              "y": -118.533955
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1108637756565,
+          "bounds": {
+            "max": {
+              "x": 105.531948,
+              "y": -116.317812
+            },
+            "min": {
+              "x": 105.14,
+              "y": -116.717708
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1686835926255,
+          "bounds": {
+            "max": {
+              "x": 105.60527,
+              "y": -117.497828
+            },
+            "min": {
+              "x": 105.14,
+              "y": -118.050151
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1468032115575,
+          "bounds": {
+            "max": {
+              "x": 109.478894,
+              "y": -118.26338
+            },
+            "min": {
+              "x": 109.04,
+              "y": -118.734041
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1394214882475,
+          "bounds": {
+            "max": {
+              "x": 112.45,
+              "y": -119.973902
+            },
+            "min": {
+              "x": 112.136464,
+              "y": -120.590157
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 1.2354196497725,
+          "bounds": {
+            "max": {
+              "x": 113.35,
+              "y": -121.269155
+            },
+            "min": {
+              "x": 113.118834,
+              "y": -127.472879
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.043539149745,
+          "bounds": {
+            "max": {
+              "x": 105.363517,
+              "y": -122.249293
+            },
+            "min": {
+              "x": 105.14,
+              "y": -122.497708
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.110863789773,
+          "bounds": {
+            "max": {
+              "x": 105.532307,
+              "y": -123.277828
+            },
+            "min": {
+              "x": 105.14,
+              "y": -123.67798
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.039006902025,
+          "bounds": {
+            "max": {
+              "x": 112.45,
+              "y": -126.892187
+            },
+            "min": {
+              "x": 112.23461,
+              "y": -127.131751
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.146612150271,
+          "bounds": {
+            "max": {
+              "x": 112.130793,
+              "y": -127.239298
+            },
+            "min": {
+              "x": 111.65,
+              "y": -127.709123
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.982674110631,
+          "bounds": {
+            "max": {
+              "x": 110.5,
+              "y": -128.512881
+            },
+            "min": {
+              "x": 109.54,
+              "y": -130.325462
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1256505784805,
+          "bounds": {
+            "max": {
+              "x": 113.57019,
+              "y": -128.645273
+            },
+            "min": {
+              "x": 113.13874,
+              "y": -129.071781
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.642977852927,
+          "bounds": {
+            "max": {
+              "x": 112.112478,
+              "y": -129.237521
+            },
+            "min": {
+              "x": 110.492205,
+              "y": -130.970188
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 0.1088024611665,
+          "bounds": {
+            "max": {
+              "x": 110.121128,
+              "y": -131.337569
+            },
+            "min": {
+              "x": 109.734625,
+              "y": -131.727769
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 9.3093518198,
+          "bounds": {
+            "max": {
+              "x": 122.837119,
+              "y": -132.62748
+            },
+            "min": {
+              "x": 117.791956,
+              "y": -135.15
+            }
+          },
+          "status": "island_discarded"
+        },
+        {
+          "area_mm2": 24.836495413465,
+          "bounds": {
+            "max": {
+              "x": 119.568742,
+              "y": -110.85
+            },
+            "min": {
+              "x": 110.113262,
+              "y": -120.527489
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 4.3460993184695,
+          "bounds": {
+            "max": {
+              "x": 112.45,
+              "y": -118.029626
+            },
+            "min": {
+              "x": 110.112559,
+              "y": -122.652836
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 12.1644256964415,
+          "bounds": {
+            "max": {
+              "x": 112.45,
+              "y": -120.855665
+            },
+            "min": {
+              "x": 109.54,
+              "y": -127.887675
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 1.372894374993,
+          "bounds": {
+            "max": {
+              "x": 113.197449,
+              "y": -129.95
+            },
+            "min": {
+              "x": 110.965517,
+              "y": -131.976687
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 0.323552564768,
+          "bounds": {
+            "max": {
+              "x": 129.321208,
+              "y": -142.878792
+            },
+            "min": {
+              "x": 128.678792,
+              "y": -143.521208
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 0.323552564768,
+          "bounds": {
+            "max": {
+              "x": 129.321208,
+              "y": -145.078792
+            },
+            "min": {
+              "x": 128.678792,
+              "y": -145.721208
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 46.5331623420885,
+          "bounds": {
+            "max": {
+              "x": 127.901383,
+              "y": -109.04
+            },
+            "min": {
+              "x": 111.469155,
+              "y": -115.06
+            }
+          },
+          "status": "connected"
+        },
+        {
+          "area_mm2": 2734.14221829407,
+          "bounds": {
+            "max": {
+              "x": 171.5,
+              "y": -100.5
+            },
+            "min": {
+              "x": 100.5,
+              "y": -151.5
+            }
+          },
+          "status": "connected"
+        }
+      ],
+      "keep_islands": false,
+      "layer": "bot_cu",
+      "net": "GND",
+      "next_offset": null,
+      "plane": "ab2a41ea-c9d8-44c7-952f-8c45847a938c",
+      "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+      "totals": {
+        "connected": {
+          "area_mm2": 2824.0424005690634,
+          "count": 8
+        },
+        "island_discarded": {
+          "area_mm2": 21.209467834384498,
+          "count": 21
+        },
+        "island_kept": {
+          "area_mm2": 0.0,
+          "count": 0
+        },
+        "netless": {
+          "area_mm2": 0.0,
+          "count": 0
+        }
+      }
+    }
+  }
+]

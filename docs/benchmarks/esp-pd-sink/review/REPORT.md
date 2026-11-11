@@ -1,9 +1,9 @@
 # ESP-PD-Sink: first placement review batch
 
 Subsequent work: [OLED RESET](reset/REPORT.md), [U2 decoupling](u2/REPORT.md),
-[U6/R17 Kelvin routing](kelvin/REPORT.md) and [ADC/SW5 review](adc/REPORT.md)
-are completed. The ADC report links the latest native board; Q1/D2/R20
-gate-clamp placement and power-corridor review are next.
+[U6/R17 Kelvin routing](kelvin/REPORT.md), [ADC/SW5 review](adc/REPORT.md) and
+[gate-clamp placement](gate/REPORT.md) are completed. The gate-clamp report
+links the latest native board; guarded routing-baseline reuse profiling is next.
 
 2026-11-11. Source: `968d90a` (the handoff commit; PCB implementation unchanged
 from `c7df48a`). This batch completes the first OLED analog, U5 feedback and

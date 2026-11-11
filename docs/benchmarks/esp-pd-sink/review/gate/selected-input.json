@@ -1,0 +1,91 @@
+{
+  "placements": [
+    {
+      "component": "D2",
+      "position": {
+        "x": 130.7,
+        "y": -142
+      },
+      "rotation": 180
+    },
+    {
+      "component": "R20",
+      "position": {
+        "x": 131.2,
+        "y": -144.3
+      },
+      "rotation": 0
+    }
+  ],
+  "remove_traces": [
+    "04ed683d-756c-4b9c-92ac-b97dd3d2f4d8",
+    "0bd35039-e6f0-466d-86f8-4470c6c80e79",
+    "39f80aab-0660-4fe8-aa1b-bb74f755f004",
+    "4662c03f-a2e5-4e66-9125-d0a1f1077a32",
+    "48b957f6-27ec-4436-983d-6057f3e69850",
+    "7dd90e0b-57c9-497c-92a5-5a85ff1d3bbb",
+    "8013c46d-8ee2-461d-8a07-e982b597a8c1",
+    "854542cf-a937-42c7-9565-a380a4b44620",
+    "a3b9620f-3c99-4d36-b6de-1c077e06d44e",
+    "b1882bec-065d-4bf7-89e5-2c28c87a6531",
+    "b83715f0-3fc9-4f20-ba14-9c12444a4b60",
+    "bb5f4717-dc33-4083-8872-5309e665a4ed",
+    "c3e6ae1b-3ff1-4839-be64-8f9d2b068e98",
+    "c57c3877-0c0e-4a4d-8cda-24423b2f4581",
+    "c870b066-06fb-4eb8-9130-3f1222e10a9c",
+    "d978483d-e9bb-49e1-bed6-f56acec357f9",
+    "de299b66-396a-430a-bec1-c91eb1a7ce4b",
+    "f93f53df-cfb4-436f-87f4-80a6e225a00f",
+    "fc01ad73-d8d6-433f-8cf2-1126fec06f9e"
+  ],
+  "traces": [
+    {
+      "from": "D2.1",
+      "to": "Q1.4",
+      "layer": "top",
+      "width": 0.2,
+      "points": [
+        {
+          "x": 133.33,
+          "y": -142.95
+        }
+      ]
+    },
+    {
+      "from": "D2.3",
+      "to": "Q1.3",
+      "layer": "top",
+      "width": 0.4,
+      "points": [
+        {
+          "x": 129.7625,
+          "y": -139.635
+        }
+      ]
+    },
+    {
+      "from": "R20.2",
+      "to": "D2.1",
+      "layer": "top",
+      "width": 0.2
+    },
+    {
+      "from": "R20.1",
+      "to": "D2.3",
+      "layer": "top",
+      "width": 0.4
+    },
+    {
+      "from": "267434a2-cd83-4c5e-b352-f5fef78a4b9d",
+      "to": "7e60fd8b-cb2a-4d05-828b-3924646c21b4",
+      "layer": "top",
+      "width": 0.4,
+      "points": [
+        {
+          "x": 130.6,
+          "y": -133.91
+        }
+      ]
+    }
+  ]
+}

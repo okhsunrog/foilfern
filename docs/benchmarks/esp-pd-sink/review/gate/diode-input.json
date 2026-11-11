@@ -1,0 +1,61 @@
+{
+  "placements": [
+    {
+      "component": "D2",
+      "position": {
+        "x": 130.7,
+        "y": -142
+      },
+      "rotation": 180
+    }
+  ],
+  "remove_traces": [
+    "4662c03f-a2e5-4e66-9125-d0a1f1077a32",
+    "8013c46d-8ee2-461d-8a07-e982b597a8c1",
+    "bb5f4717-dc33-4083-8872-5309e665a4ed",
+    "b83715f0-3fc9-4f20-ba14-9c12444a4b60",
+    "c870b066-06fb-4eb8-9130-3f1222e10a9c",
+    "d978483d-e9bb-49e1-bed6-f56acec357f9",
+    "f93f53df-cfb4-436f-87f4-80a6e225a00f",
+    "04ed683d-756c-4b9c-92ac-b97dd3d2f4d8",
+    "c3e6ae1b-3ff1-4839-be64-8f9d2b068e98"
+  ],
+  "traces": [
+    {
+      "from": "D2.1",
+      "to": "Q1.4",
+      "layer": "top",
+      "width": 0.2,
+      "points": [
+        {
+          "x": 133.33,
+          "y": -142.95
+        }
+      ]
+    },
+    {
+      "from": "D2.3",
+      "to": "Q1.3",
+      "layer": "top",
+      "width": 0.4,
+      "points": [
+        {
+          "x": 129.7625,
+          "y": -139.635
+        }
+      ]
+    },
+    {
+      "from": "6aee5988-9201-474f-b415-803909dffdb1",
+      "to": "3e871c64-dbeb-4005-b778-cbfdf353c4c9",
+      "layer": "top",
+      "width": 0.2,
+      "points": [
+        {
+          "x": 132.4625,
+          "y": -132.25
+        }
+      ]
+    }
+  ]
+}
