@@ -500,3 +500,47 @@ fn drc_reports_failed_plane_calculation() {
         &before
     );
 }
+
+#[test]
+fn annular_ring_check_retains_via_errors_without_drilled_pads() {
+    use librepcb_core::project::board::drc::{DrcMessageKind, run_drc};
+    let mut project = open_project("DRC", "project.lpp");
+    let board = project
+        .boards()
+        .iter()
+        .find(|b| b.properties().name.to_string().contains("AnnularRing"))
+        .unwrap()
+        .id();
+    let mut data = project
+        .drc_job(board, None, false)
+        .unwrap()
+        .run()
+        .apply(&mut project)
+        .unwrap();
+    let mut via_count = 0;
+    for segment in data.segments.values_mut() {
+        for pad in segment.pads.values_mut() {
+            pad.holes.clear();
+        }
+        for via in segment.vias.values_mut() {
+            via.size = via.drill_diameter;
+            via_count += 1;
+        }
+    }
+    for device in data.devices.values_mut() {
+        for pad in device.pads.values_mut() {
+            pad.holes.clear();
+        }
+    }
+    assert!(via_count > 0);
+    let result = run_drc(&data, &no_progress);
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert_eq!(
+        result
+            .messages
+            .iter()
+            .filter(|m| m.kind() == DrcMessageKind::MinimumAnnularRingViolation)
+            .count(),
+        via_count
+    );
+}

@@ -1340,17 +1340,31 @@ impl Checker<'_> {
 
         self.status(&tr!(CTX, "Check PTH annular rings..."));
 
-        // Determine the areas where copper is available on *all* layers.
-        let tht_copper_areas: Vec<ClipperPaths> = data
-            .copper_layers
-            .iter()
-            .map(|&layer| calc.copper(layer))
-            .collect();
-        let tree = clipper_helpers::intersect_all_to_tree(&tht_copper_areas)?;
-        let tht_copper_area_paths = clipper_helpers::tree_to_paths(&tree);
+        // Only drilled pads need the intersection of all copper layers.
+        // Via annular rings are checked directly from their diameters below.
+        let has_pad_holes = data
+            .segments
+            .values()
+            .flat_map(|s| s.pads.values())
+            .chain(data.devices.values().flat_map(|d| d.pads.values()))
+            .any(|pad| !pad.holes.is_empty());
+        let tht_copper_area_paths = if has_pad_holes {
+            let areas: Vec<_> = data
+                .copper_layers
+                .iter()
+                .map(|&layer| calc.copper(layer))
+                .collect();
+            let tree = clipper_helpers::intersect_all_to_tree(&areas)?;
+            clipper_helpers::tree_to_paths(&tree)
+        } else {
+            ClipperPaths::new()
+        };
 
         // Helper.
         let check_pad = |pad: &DrcPad| -> Result<Vec<Path>> {
+            if pad.holes.is_empty() {
+                return Ok(Vec::new());
+            }
             // Determine hole areas including minimum annular ring.
             let transform = pad_transform(pad);
             let mut areas = ClipperPaths::new();
