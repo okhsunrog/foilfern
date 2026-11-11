@@ -1,5 +1,8 @@
 # ESP-PD-Sink: first placement review batch
 
+Subsequent work: [OLED RESET is completed](reset/REPORT.md). That report links
+the latest native board and identifies U2 decoupling as the next layout step.
+
 2026-11-11. Source: `968d90a` (the handoff commit; PCB implementation unchanged
 from `c7df48a`). This batch completes the first OLED analog, U5 feedback and
 100 nF input-capacitor experiments. It also establishes manual component groups,

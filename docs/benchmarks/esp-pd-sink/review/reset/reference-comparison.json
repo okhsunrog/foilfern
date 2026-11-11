@@ -1,0 +1,389 @@
+{
+  "unchanged": true,
+  "before": {
+    "connected_reference_fragments": 1,
+    "nets": [
+      {
+        "checked_mm": 6.793944954219688,
+        "checked_traces": 4,
+        "covered_fraction": 1.0,
+        "gaps": {
+          "count": 0,
+          "items": [],
+          "length_mm": 0.0,
+          "next_offset": null
+        },
+        "net": "ANT",
+        "net_uuid": "2180ebff-a657-4a57-951b-7bad72bf0a4b",
+        "unchecked_layers": []
+      },
+      {
+        "checked_mm": 25.562417162417233,
+        "checked_traces": 19,
+        "covered_fraction": 0.9111286041910494,
+        "gaps": {
+          "count": 6,
+          "items": [
+            {
+              "from": {
+                "x": 111.25756,
+                "y": -120.4
+              },
+              "layer": "top_cu",
+              "length_mm": 0.25244,
+              "to": {
+                "x": 111.51,
+                "y": -120.4
+              },
+              "trace": "23e8e780-55e9-4462-981b-9cd7683406fe"
+            },
+            {
+              "from": {
+                "x": 112.196,
+                "y": -120.62
+              },
+              "layer": "in2_cu",
+              "length_mm": 0.0951030336424659,
+              "to": {
+                "x": 112.263248,
+                "y": -120.552752
+              },
+              "trace": "3732faa7-d778-40ab-a6c7-d630de2ca444"
+            },
+            {
+              "from": {
+                "x": 122.450856,
+                "y": -110.4
+              },
+              "layer": "top_cu",
+              "length_mm": 0.549144,
+              "to": {
+                "x": 123.0,
+                "y": -110.4
+              },
+              "trace": "51248e13-cffa-476a-9d1b-ff5c42e28f5b"
+            },
+            {
+              "from": {
+                "x": 111.73,
+                "y": -120.68
+              },
+              "layer": "in2_cu",
+              "length_mm": 0.4698467835369313,
+              "to": {
+                "x": 112.196,
+                "y": -120.62
+              },
+              "trace": "5e3d7c6a-3d03-4a84-839b-e11d37f5c5d7"
+            },
+            {
+              "from": {
+                "x": 123.0,
+                "y": -110.949144
+              },
+              "layer": "in2_cu",
+              "length_mm": 0.549144,
+              "to": {
+                "x": 123.0,
+                "y": -110.4
+              },
+              "trace": "8aa8cdb6-e426-42e9-8db6-521fad378205"
+            },
+            {
+              "from": {
+                "x": 111.51,
+                "y": -120.4
+              },
+              "layer": "top_cu",
+              "length_mm": 0.35608987629529715,
+              "to": {
+                "x": 111.73,
+                "y": -120.68
+              },
+              "trace": "f08ee963-cfc4-4c70-a75b-ec0618552411"
+            }
+          ],
+          "length_mm": 2.271767693474694,
+          "next_offset": null
+        },
+        "net": "D+",
+        "net_uuid": "acfacb46-4704-4893-b6e8-3ce006db273a",
+        "unchecked_layers": []
+      },
+      {
+        "checked_mm": 25.987995647872516,
+        "checked_traces": 19,
+        "covered_fraction": 0.9155568538276811,
+        "gaps": {
+          "count": 4,
+          "items": [
+            {
+              "from": {
+                "x": 122.31,
+                "y": -112.56
+              },
+              "layer": "top_cu",
+              "length_mm": 0.549144,
+              "to": {
+                "x": 122.31,
+                "y": -112.010856
+              },
+              "trace": "5e889006-5ead-40aa-baaf-67db10490b5e"
+            },
+            {
+              "from": {
+                "x": 121.921696,
+                "y": -112.171696
+              },
+              "layer": "in2_cu",
+              "length_mm": 0.5491447831237223,
+              "to": {
+                "x": 122.31,
+                "y": -112.56
+              },
+              "trace": "ac4734cf-8d9f-494b-958d-543146ee6402"
+            },
+            {
+              "from": {
+                "x": 111.73,
+                "y": -119.88
+              },
+              "layer": "in2_cu",
+              "length_mm": 0.5479588790821808,
+              "to": {
+                "x": 112.277674,
+                "y": -119.897667
+              },
+              "trace": "d49027ae-b647-484c-8a1c-96d5cd853058"
+            },
+            {
+              "from": {
+                "x": 111.181937,
+                "y": -119.894713
+              },
+              "layer": "top_cu",
+              "length_mm": 0.5482604530129818,
+              "to": {
+                "x": 111.73,
+                "y": -119.88
+              },
+              "trace": "f9c0f7c1-a99d-4890-a1bd-9f4238e0ca59"
+            }
+          ],
+          "length_mm": 2.194508115218885,
+          "next_offset": null
+        },
+        "net": "D-",
+        "net_uuid": "f0d2dbb6-858a-4f35-88a2-9c5c651e626f",
+        "unchecked_layers": []
+      },
+      {
+        "checked_mm": 6.7194783489600205,
+        "checked_traces": 4,
+        "covered_fraction": 1.0,
+        "gaps": {
+          "count": 0,
+          "items": [],
+          "length_mm": 0.0,
+          "next_offset": null
+        },
+        "net": "Net-(AE1-FEED)",
+        "net_uuid": "f9920085-69d8-4807-9fa2-36470b768b45",
+        "unchecked_layers": []
+      }
+    ]
+  },
+  "after": {
+    "connected_reference_fragments": 1,
+    "nets": [
+      {
+        "checked_mm": 6.793944954219688,
+        "checked_traces": 4,
+        "covered_fraction": 1.0,
+        "gaps": {
+          "count": 0,
+          "items": [],
+          "length_mm": 0.0,
+          "next_offset": null
+        },
+        "net": "ANT",
+        "net_uuid": "2180ebff-a657-4a57-951b-7bad72bf0a4b",
+        "unchecked_layers": []
+      },
+      {
+        "checked_mm": 25.562417162417233,
+        "checked_traces": 19,
+        "covered_fraction": 0.9111286041910494,
+        "gaps": {
+          "count": 6,
+          "items": [
+            {
+              "from": {
+                "x": 111.25756,
+                "y": -120.4
+              },
+              "layer": "top_cu",
+              "length_mm": 0.25244,
+              "to": {
+                "x": 111.51,
+                "y": -120.4
+              },
+              "trace": "23e8e780-55e9-4462-981b-9cd7683406fe"
+            },
+            {
+              "from": {
+                "x": 112.196,
+                "y": -120.62
+              },
+              "layer": "in2_cu",
+              "length_mm": 0.0951030336424659,
+              "to": {
+                "x": 112.263248,
+                "y": -120.552752
+              },
+              "trace": "3732faa7-d778-40ab-a6c7-d630de2ca444"
+            },
+            {
+              "from": {
+                "x": 122.450856,
+                "y": -110.4
+              },
+              "layer": "top_cu",
+              "length_mm": 0.549144,
+              "to": {
+                "x": 123.0,
+                "y": -110.4
+              },
+              "trace": "51248e13-cffa-476a-9d1b-ff5c42e28f5b"
+            },
+            {
+              "from": {
+                "x": 111.73,
+                "y": -120.68
+              },
+              "layer": "in2_cu",
+              "length_mm": 0.4698467835369313,
+              "to": {
+                "x": 112.196,
+                "y": -120.62
+              },
+              "trace": "5e3d7c6a-3d03-4a84-839b-e11d37f5c5d7"
+            },
+            {
+              "from": {
+                "x": 123.0,
+                "y": -110.949144
+              },
+              "layer": "in2_cu",
+              "length_mm": 0.549144,
+              "to": {
+                "x": 123.0,
+                "y": -110.4
+              },
+              "trace": "8aa8cdb6-e426-42e9-8db6-521fad378205"
+            },
+            {
+              "from": {
+                "x": 111.51,
+                "y": -120.4
+              },
+              "layer": "top_cu",
+              "length_mm": 0.35608987629529715,
+              "to": {
+                "x": 111.73,
+                "y": -120.68
+              },
+              "trace": "f08ee963-cfc4-4c70-a75b-ec0618552411"
+            }
+          ],
+          "length_mm": 2.271767693474694,
+          "next_offset": null
+        },
+        "net": "D+",
+        "net_uuid": "acfacb46-4704-4893-b6e8-3ce006db273a",
+        "unchecked_layers": []
+      },
+      {
+        "checked_mm": 25.987995647872516,
+        "checked_traces": 19,
+        "covered_fraction": 0.9155568538276811,
+        "gaps": {
+          "count": 4,
+          "items": [
+            {
+              "from": {
+                "x": 122.31,
+                "y": -112.56
+              },
+              "layer": "top_cu",
+              "length_mm": 0.549144,
+              "to": {
+                "x": 122.31,
+                "y": -112.010856
+              },
+              "trace": "5e889006-5ead-40aa-baaf-67db10490b5e"
+            },
+            {
+              "from": {
+                "x": 121.921696,
+                "y": -112.171696
+              },
+              "layer": "in2_cu",
+              "length_mm": 0.5491447831237223,
+              "to": {
+                "x": 122.31,
+                "y": -112.56
+              },
+              "trace": "ac4734cf-8d9f-494b-958d-543146ee6402"
+            },
+            {
+              "from": {
+                "x": 111.73,
+                "y": -119.88
+              },
+              "layer": "in2_cu",
+              "length_mm": 0.5479588790821808,
+              "to": {
+                "x": 112.277674,
+                "y": -119.897667
+              },
+              "trace": "d49027ae-b647-484c-8a1c-96d5cd853058"
+            },
+            {
+              "from": {
+                "x": 111.181937,
+                "y": -119.894713
+              },
+              "layer": "top_cu",
+              "length_mm": 0.5482604530129818,
+              "to": {
+                "x": 111.73,
+                "y": -119.88
+              },
+              "trace": "f9c0f7c1-a99d-4890-a1bd-9f4238e0ca59"
+            }
+          ],
+          "length_mm": 2.194508115218885,
+          "next_offset": null
+        },
+        "net": "D-",
+        "net_uuid": "f0d2dbb6-858a-4f35-88a2-9c5c651e626f",
+        "unchecked_layers": []
+      },
+      {
+        "checked_mm": 6.7194783489600205,
+        "checked_traces": 4,
+        "covered_fraction": 1.0,
+        "gaps": {
+          "count": 0,
+          "items": [],
+          "length_mm": 0.0,
+          "next_offset": null
+        },
+        "net": "Net-(AE1-FEED)",
+        "net_uuid": "f9920085-69d8-4807-9fa2-36470b768b45",
+        "unchecked_layers": []
+      }
+    ]
+  }
+}

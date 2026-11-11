@@ -1,0 +1,116 @@
+{
+  "baseline": {
+    "segments": 994,
+    "vias": 143,
+    "length_mm": 1517.093074801722
+  },
+  "fixed": {
+    "segments": 992,
+    "vias": 142,
+    "length_mm": 1513.1117987017092
+  },
+  "compact": {
+    "segments": 980,
+    "vias": 142,
+    "length_mm": 1508.391055470537
+  },
+  "traces": {
+    "removed": [
+      "05781a4e-30ee-4e87-a731-606c31628adf",
+      "1293c2d9-92f7-4633-803a-67677f5dde29",
+      "22d561f6-326c-4e77-b278-13b9058bab4e",
+      "3c40faf6-1ba9-4a4d-ab6b-d8be454886db",
+      "3d7d60f9-e72f-437a-96f8-954ddecbd80c",
+      "4e34e4ea-3842-4a10-ba30-2afcefc31e42",
+      "5d9dabc8-0cad-4bfd-bd31-107e55772bf1",
+      "604f5bb2-73ea-4e6d-9279-5da4893624cd",
+      "711cc4a8-f435-4c5e-b79f-14439f10e34b",
+      "75b05f9a-2861-4f41-9378-e8cd71e5b5a4",
+      "7f181d7d-87f6-4f87-a77e-2534a056c72f",
+      "99224e94-ae9e-483b-beac-83c2b57458d4",
+      "a22a5c18-e300-4603-89b8-33eaa074effc",
+      "ae4cde7e-4e47-4c8e-9a4d-b64e71b0528c",
+      "bc710844-8ab2-4717-a03a-3b48c9197361",
+      "c0780a73-6b00-409e-9571-8b23ab97cf75",
+      "c3aade80-72dc-460a-a507-78ec59ec9234",
+      "ceb4207b-d57f-4a03-9486-a1b854565ea8",
+      "cef76d84-e34f-4ce0-b240-1288214a60f6",
+      "d7577fed-0fb5-4e1e-bb8a-b91329fcefdd",
+      "d816b95f-527e-44ff-aa1d-e0548d6f5f73",
+      "dabacf28-19b0-4376-88a3-7a734b050988",
+      "dc49bd29-55ce-464e-829c-ddc805803060",
+      "ebea5d7c-76f1-4875-a063-e1c8f0b6c4d5",
+      "fba6928a-09da-4cec-8197-d0a4278d24b0"
+    ],
+    "added": [
+      "3ce5a9bb-7255-41d3-953c-897700f67664",
+      "42d6a14e-ee36-475e-b30c-3d9a6ee1c7d1",
+      "4ec758d0-eb08-49f1-9759-ce28aef4f05a",
+      "674e97e9-aca1-4a76-af9d-66fd91bd94f2",
+      "7907abb6-c0b1-439a-9572-6aaa43c8a65b",
+      "7b1efc22-b836-454d-9b1a-5e8531d72b8c",
+      "bbcf85ed-d0e9-4bb2-b93e-b413e91e5cd7",
+      "d0825ecb-f2c1-4be6-a745-0129a62bfc26",
+      "efca97f0-f925-4f2c-91c5-3d649d28328e",
+      "f0d87cd9-276f-4fd2-a94e-f6662de04b98",
+      "f8e630af-6bd1-4b73-9394-63efa2b1b73a"
+    ],
+    "retained_geometry_preserved": true
+  },
+  "vias": {
+    "removed": [
+      "009014c1-4272-4c14-8011-51875dc0acfe",
+      "b234d3e9-f022-4e91-b3df-396fcacbba0f",
+      "b4dcb786-2cf7-4642-95b8-543731f0b5b0"
+    ],
+    "added": [
+      "90fe5fa6-9cae-467b-bd38-464454353e3e",
+      "e9ab8760-e60e-404e-86a5-5a72d901e1a6"
+    ],
+    "retained_geometry_preserved": true
+  },
+  "placements": [
+    {
+      "component": "c6fa87d8-14bc-48b2-8f8f-47d1754a5ce5",
+      "designator": "D4",
+      "before": {
+        "position": {
+          "x": 157.9,
+          "y": -113.0
+        },
+        "rotation": 0.0,
+        "side": "bottom"
+      },
+      "after": {
+        "position": {
+          "x": 155.0,
+          "y": -111.7
+        },
+        "rotation": 90.0,
+        "side": "bottom"
+      }
+    },
+    {
+      "component": "fb9cd7b1-a43e-41c4-a864-415627ba3910",
+      "designator": "C27",
+      "before": {
+        "position": {
+          "x": 156.0,
+          "y": -113.2
+        },
+        "rotation": 90.0,
+        "side": "bottom"
+      },
+      "after": {
+        "position": {
+          "x": 154.6,
+          "y": -110.2
+        },
+        "rotation": 180.0,
+        "side": "bottom"
+      }
+    }
+  ],
+  "netlist_byte_identical": true,
+  "mechanical_and_plane_settings_preserved": true
+}

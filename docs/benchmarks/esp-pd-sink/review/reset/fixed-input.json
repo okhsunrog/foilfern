@@ -1,0 +1,77 @@
+{
+  "remove_traces": [
+    "22d561f6-326c-4e77-b278-13b9058bab4e",
+    "a22a5c18-e300-4603-89b8-33eaa074effc",
+    "ae4cde7e-4e47-4c8e-9a4d-b64e71b0528c",
+    "c3aade80-72dc-460a-a507-78ec59ec9234",
+    "ceb4207b-d57f-4a03-9486-a1b854565ea8",
+    "5d9dabc8-0cad-4bfd-bd31-107e55772bf1",
+    "711cc4a8-f435-4c5e-b79f-14439f10e34b",
+    "7f181d7d-87f6-4f87-a77e-2534a056c72f",
+    "dc49bd29-55ce-464e-829c-ddc805803060"
+  ],
+  "remove_vias": [
+    "009014c1-4272-4c14-8011-51875dc0acfe",
+    "b4dcb786-2cf7-4642-95b8-543731f0b5b0"
+  ],
+  "vias": [
+    {
+      "label": "oled-vcc-bridge",
+      "net": "VCC",
+      "position": {
+        "x": 157.5,
+        "y": -108.6
+      },
+      "drill": 0.3,
+      "size": 0.6
+    }
+  ],
+  "traces": [
+    {
+      "from": "OLED1.14",
+      "to": "R22.2",
+      "layer": "bottom",
+      "width": 0.2,
+      "points": [
+        {
+          "x": 156.55,
+          "y": -108.6
+        },
+        {
+          "x": 156.0,
+          "y": -109.15
+        }
+      ]
+    },
+    {
+      "from": "adcfce4e-6655-4ab5-acbc-ede17e7cdb31",
+      "to": {
+        "via": "oled-vcc-bridge"
+      },
+      "layer": "top",
+      "width": 0.4
+    },
+    {
+      "from": "f041c55b-4486-4978-8947-e1dd81b4f747",
+      "to": {
+        "via": "oled-vcc-bridge"
+      },
+      "layer": "bottom",
+      "width": 0.4
+    },
+    {
+      "from": "69f5a4e7-228e-4cca-9e99-1644a9f67cab",
+      "to": {
+        "via": "oled-vcc-bridge"
+      },
+      "layer": "bottom",
+      "width": 0.4,
+      "points": [
+        {
+          "x": 157.5,
+          "y": -109.2
+        }
+      ]
+    }
+  ]
+}

@@ -40,3 +40,6 @@ only after the measured board experiments establish the needed semantics.
 
 The completed first batch, accepted candidate arguments, native project archive,
 renders and performance evidence are described in [REPORT.md](REPORT.md).
+
+The next batch completed [OLED RESET placement and routing](reset/REPORT.md).
+Use its compact native project for continued layout work.

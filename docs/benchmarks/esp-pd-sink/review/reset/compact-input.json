@@ -1,0 +1,148 @@
+{
+  "remove_traces": [
+    "22d561f6-326c-4e77-b278-13b9058bab4e",
+    "a22a5c18-e300-4603-89b8-33eaa074effc",
+    "ae4cde7e-4e47-4c8e-9a4d-b64e71b0528c",
+    "c3aade80-72dc-460a-a507-78ec59ec9234",
+    "ceb4207b-d57f-4a03-9486-a1b854565ea8",
+    "5d9dabc8-0cad-4bfd-bd31-107e55772bf1",
+    "711cc4a8-f435-4c5e-b79f-14439f10e34b",
+    "7f181d7d-87f6-4f87-a77e-2534a056c72f",
+    "dc49bd29-55ce-464e-829c-ddc805803060",
+    "05781a4e-30ee-4e87-a731-606c31628adf",
+    "1293c2d9-92f7-4633-803a-67677f5dde29",
+    "3c40faf6-1ba9-4a4d-ab6b-d8be454886db",
+    "3d7d60f9-e72f-437a-96f8-954ddecbd80c",
+    "604f5bb2-73ea-4e6d-9279-5da4893624cd",
+    "75b05f9a-2861-4f41-9378-e8cd71e5b5a4",
+    "99224e94-ae9e-483b-beac-83c2b57458d4",
+    "bc710844-8ab2-4717-a03a-3b48c9197361",
+    "c0780a73-6b00-409e-9571-8b23ab97cf75",
+    "cef76d84-e34f-4ce0-b240-1288214a60f6",
+    "d7577fed-0fb5-4e1e-bb8a-b91329fcefdd",
+    "d816b95f-527e-44ff-aa1d-e0548d6f5f73",
+    "dabacf28-19b0-4376-88a3-7a734b050988",
+    "ebea5d7c-76f1-4875-a063-e1c8f0b6c4d5",
+    "4e34e4ea-3842-4a10-ba30-2afcefc31e42",
+    "fba6928a-09da-4cec-8197-d0a4278d24b0"
+  ],
+  "remove_vias": [
+    "009014c1-4272-4c14-8011-51875dc0acfe",
+    "b4dcb786-2cf7-4642-95b8-543731f0b5b0",
+    "b234d3e9-f022-4e91-b3df-396fcacbba0f"
+  ],
+  "vias": [
+    {
+      "label": "oled-vcc-bridge",
+      "net": "VCC",
+      "position": {
+        "x": 157.5,
+        "y": -108.6
+      },
+      "drill": 0.3,
+      "size": 0.6
+    },
+    {
+      "label": "c27-ground",
+      "net": "GND",
+      "position": {
+        "x": 153.9,
+        "y": -110.8
+      },
+      "drill": 0.3,
+      "size": 0.6
+    }
+  ],
+  "traces": [
+    {
+      "from": "OLED1.14",
+      "to": "R22.2",
+      "layer": "bottom",
+      "width": 0.2,
+      "points": [
+        {
+          "x": 156.55,
+          "y": -108.6
+        },
+        {
+          "x": 156.0,
+          "y": -109.15
+        }
+      ]
+    },
+    {
+      "from": "adcfce4e-6655-4ab5-acbc-ede17e7cdb31",
+      "to": {
+        "via": "oled-vcc-bridge"
+      },
+      "layer": "top",
+      "width": 0.4
+    },
+    {
+      "from": "f041c55b-4486-4978-8947-e1dd81b4f747",
+      "to": {
+        "via": "oled-vcc-bridge"
+      },
+      "layer": "bottom",
+      "width": 0.4
+    },
+    {
+      "from": "69f5a4e7-228e-4cca-9e99-1644a9f67cab",
+      "to": {
+        "via": "oled-vcc-bridge"
+      },
+      "layer": "bottom",
+      "width": 0.4,
+      "points": [
+        {
+          "x": 157.5,
+          "y": -109.2
+        }
+      ]
+    },
+    {
+      "from": "R22.2",
+      "to": "C27.1",
+      "layer": "bottom",
+      "width": 0.2
+    },
+    {
+      "from": "C27.1",
+      "to": "D4.2",
+      "layer": "bottom",
+      "width": 0.2
+    },
+    {
+      "from": "C27.2",
+      "to": {
+        "via": "c27-ground"
+      },
+      "layer": "bottom",
+      "width": 0.2
+    },
+    {
+      "from": "D4.1",
+      "to": "35f59c10-017e-493a-8062-56ffd6895278",
+      "layer": "bottom",
+      "width": 0.4
+    }
+  ],
+  "placements": [
+    {
+      "component": "C27",
+      "position": {
+        "x": 154.6,
+        "y": -110.2
+      },
+      "rotation": 180
+    },
+    {
+      "component": "D4",
+      "position": {
+        "x": 155.0,
+        "y": -111.7
+      },
+      "rotation": 90
+    }
+  ]
+}
