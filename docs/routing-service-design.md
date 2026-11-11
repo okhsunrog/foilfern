@@ -278,6 +278,13 @@ one layer and width with new waypoints. Both endpoints stay attached,
 including any branches at those endpoints. Only the selected traces
 and their unbranched internal junctions are replaced.
 
+An optional builtin trial routes named nets after the edit on the
+same snapshot. It rebuilds planes before routing and captures the two
+patches in order. Preview reports the trial result and apply commits the
+combined, checked geometry in one undo step.
+The [STM32 replay](mcp-routing-reliability.md#reviewed-trace-replacement)
+closed the last missing connection using this workflow.
+
 Builtin now preserves failed original requests alongside rebuilt air wires.
 The last strict and rip-up attempts are reported separately. They distinguish
 missing access, a drained search frontier, a search budget cutoff, exact

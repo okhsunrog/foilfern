@@ -895,6 +895,71 @@ fn reviewed_replacement_preserves_connections_and_rejects_branches_and_drc_error
 }
 
 #[test]
+fn edit_and_route_freezes_both_patches_and_applies_them_together() {
+    use librepcb_mcp::tools::layout::board_get;
+
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let trace = board_edit::trace_add(
+        &mut session,
+        args(json!({"from":"R1.1","to":"R2.1","width":0.2})),
+    )
+    .unwrap()
+    .result["traces"][0]
+        .clone();
+    let before = board_get(&session, Default::default()).unwrap().result;
+    let y_a = trace["from"]["y"].as_f64().unwrap();
+    let y_b = before["air_wires"][0]["from"]["position"]["y"]
+        .as_f64()
+        .unwrap();
+    let revision = session.project().unwrap().project().revision();
+    let history = session.project().unwrap().editor.undo_stack().index();
+    let job = routing::prepare_edit_job(
+        &session,
+        args(json!({
+            "expected_revision":revision,
+            "replacements":[{"traces":[trace["uuid"]],"points":[{"x":10,"y":y_a+(y_a-y_b).signum()}]}],
+            "route":{"nets":["B"],"layers":["top"],"trace_width":0.2}
+        })),
+    ).unwrap();
+    let prepared = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
+        .unwrap()
+        .result;
+    assert_eq!(prepared["validation"]["acceptable"], true, "{prepared:#}");
+    assert_eq!(prepared["validation"]["before"]["unrouted"], 1);
+    assert_eq!(prepared["validation"]["after"]["unrouted"], 0);
+    assert_eq!(prepared["route"]["routing"]["routed"], 1);
+    let candidate = prepared["candidate"].clone();
+    let preview = routing::routing_preview(&session, args(json!({"candidate":candidate})))
+        .unwrap()
+        .result;
+    assert!(preview["mutation_count"].as_u64().unwrap() > 2);
+    assert_eq!(session.project().unwrap().project().revision(), revision);
+    assert_eq!(
+        board_get(&session, Default::default()).unwrap().result,
+        before
+    );
+
+    let applied =
+        routing::routing_apply(&mut session, args(json!({"candidate":candidate}))).unwrap();
+    assert_eq!(applied.result["validation"]["after"]["unrouted"], 0);
+    let after = board_get(&session, Default::default()).unwrap().result;
+    let traces = after["traces"].as_array().unwrap();
+    assert!(traces.iter().any(|t| t["net"] == "B"));
+    assert_eq!(traces.iter().filter(|t| t["net"] == "A").count(), 2);
+    assert!(traces.iter().all(|t| t["uuid"] != trace["uuid"]));
+    assert_eq!(
+        session.project().unwrap().editor.undo_stack().index(),
+        history + 1
+    );
+    write::undo_redo(&mut session, Default::default(), false).unwrap();
+    assert_eq!(
+        board_get(&session, Default::default()).unwrap().result,
+        before
+    );
+}
+
+#[test]
 fn reviewed_edit_rejects_losing_a_plane_connection() {
     use librepcb_mcp::tools::layout::board_get;
 

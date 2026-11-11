@@ -114,6 +114,29 @@ Preview exposes the exact new trace and junction UUIDs and the elements
 to remove. Apply requires completed DRC, no new errors and no increased
 air-wire count on any net. Undo restores the original path in one step.
 
+Add `"route":{"nets":["V3V3"]}` to try the builtin router after the
+edit. The route object accepts the same layer, grid, width and via
+overrides as `routing_prepare`. The trial uses the edited snapshot with
+rebuilt planes. `route.routing` reports the attempted nets and failures.
+The combined candidate's validation compares the original board with
+the final copper. Prepare and preview leave the live board available for
+another trial. Apply replays both patches as one undo step.
+
+On the saved STM32 retry board, the builtin baseline still returned
+`no_path` for `V3V3` at 0.1 mm grid pitch, 0.2 mm trace width and
+0.3/0.6 mm via drill/diameter. Four reviewed trace replacement trials
+on `GPIO_J4_1` and `GND` left one connection open. One of the four also
+introduced a clearance violation. All four were discarded.
+
+Moving `GPIO_J4_3` via `1b087d22-cc3e-4b15-a23a-e54fd3ca9c0d` from
+(26.5, 19.4) to (27.0, 19.6) mm and routing only `V3V3` at the same
+settings closed the connection in a 15-mutation candidate. The router
+added 13 trace segments. The applied result preserved the netlist,
+had zero new copper errors and reduced the board's missing connections
+from one to zero. Stdio MCP save and reopen retained zero air wires.
+Upstream LibrePCB 2.1.1 reported only the two existing silkscreen
+clearance warnings.
+
 ## Current routing stage and next work
 
 The [unified routing service design](routing-service-design.md) is the detailed

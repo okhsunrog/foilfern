@@ -65,7 +65,16 @@ pub enum RoutingCandidateDetails {
     },
     Edit {
         edit: EditRoutingGeometry,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        route: Option<Box<RoutingEditTrial>>,
     },
+}
+
+/// Result of routing selected nets on the edited snapshot.
+#[derive(Debug, Clone, Serialize)]
+pub struct RoutingEditTrial {
+    pub request: Autoroute,
+    pub routing: AutorouteResult,
 }
 
 impl RoutingCandidateDetails {
@@ -81,7 +90,10 @@ impl RoutingCandidateDetails {
 #[derive(Debug)]
 enum RoutingWork {
     Builtin(Autoroute),
-    Edit(EditRoutingGeometry),
+    Edit {
+        edit: EditRoutingGeometry,
+        route: Option<Autoroute>,
+    },
 }
 
 /// Date and path placeholders affect physical board text without necessarily
@@ -142,7 +154,7 @@ impl RoutingJob {
     pub fn run(mut self) -> Result<RoutingCandidate, RoutingError> {
         let requested = match &self.work {
             RoutingWork::Builtin(request) => request.board,
-            RoutingWork::Edit(edit) => Some(edit.board),
+            RoutingWork::Edit { edit, .. } => Some(edit.board),
         };
         let board = crate::commands::resolve_board(self.sandbox.project(), requested)?.id();
         let before = capture_routing_state(&mut self.sandbox, board)?;
@@ -156,22 +168,38 @@ impl RoutingJob {
                     routing: Box::new(routing),
                 }
             }
-            RoutingWork::Edit(edit) => {
+            RoutingWork::Edit { edit, route } => {
                 self.sandbox.execute(edit.clone())?;
-                RoutingCandidateDetails::Edit { edit }
+                let route = if let Some(mut request) = route {
+                    request.board = Some(board);
+                    self.sandbox
+                        .update_derived_data(|project| project.rebuild_planes(board, None))?
+                        .map_err(crate::Error::from_export)?;
+                    let routing = self.sandbox.execute(request.clone())?;
+                    Some(Box::new(RoutingEditTrial { request, routing }))
+                } else {
+                    None
+                };
+                RoutingCandidateDetails::Edit { edit, route }
             }
         };
         let after = capture_routing_state(&mut self.sandbox, board)?;
         let validation = details.validate(before.clone(), after);
-        // Undo runs only on the private sandbox. The redo entry then contains
-        // exact forward mutations, rather than a second nondeterministic route.
-        self.sandbox.undo()?;
-        let mutations = self.sandbox.undo_stack().redo_mutations()?;
-        if mutations.len() > MAX_CANDIDATE_MUTATIONS {
+        // Undo on the private sandbox exposes exact forward mutations.
+        // An edit followed by routing can produce two entries.
+        let mut groups = Vec::new();
+        let mut count = 0;
+        while self.sandbox.undo()? {
+            let group = self.sandbox.undo_stack().redo_mutations()?;
+            count += group.len();
+            groups.push(group);
+        }
+        if count > MAX_CANDIDATE_MUTATIONS {
             return Err(RoutingError::Refused(
                 "Candidate mutation limit exceeded.".into(),
             ));
         }
+        let mutations: Vec<_> = groups.into_iter().rev().flatten().collect();
         Ok(RoutingCandidate {
             owner: self.owner,
             source_context: self.source_context,
@@ -228,7 +256,29 @@ impl RoutingService {
         editor: &ProjectEditor,
         edit: EditRoutingGeometry,
     ) -> Result<RoutingJob, RoutingError> {
-        self.prepare_work(editor, RoutingWork::Edit(edit))
+        self.prepare_work(editor, RoutingWork::Edit { edit, route: None })
+    }
+
+    /// Captures a connected edit and a builtin trial on the edited board.
+    pub fn prepare_edit_and_route(
+        &self,
+        editor: &ProjectEditor,
+        edit: EditRoutingGeometry,
+        route: Autoroute,
+    ) -> Result<RoutingJob, RoutingError> {
+        if route.nets.as_ref().is_none_or(Vec::is_empty) {
+            return Err(crate::Error::InvalidArgument(
+                "An edit-and-route trial requires at least one target net.".into(),
+            )
+            .into());
+        }
+        self.prepare_work(
+            editor,
+            RoutingWork::Edit {
+                edit,
+                route: Some(route),
+            },
+        )
     }
 
     fn prepare_work(

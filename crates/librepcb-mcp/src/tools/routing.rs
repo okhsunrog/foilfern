@@ -449,6 +449,25 @@ pub struct RoutingTraceReplacementArgs {
     pub points: Vec<crate::units::PointMm>,
 }
 
+/// Optional builtin trial on the edited board.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RoutingEditRouteArgs {
+    /// At least one target net name or UUID.
+    pub nets: Vec<String>,
+    /// Allowed copper layers. Empty means all.
+    #[serde(default)]
+    pub layers: Vec<String>,
+    /// Trace width override in mm.
+    pub trace_width: Option<f64>,
+    /// Via drill override in mm.
+    pub via_drill: Option<f64>,
+    /// Via outer diameter override in mm.
+    pub via_size: Option<f64>,
+    /// Grid pitch override in mm.
+    pub grid_pitch: Option<f64>,
+}
+
 /// Prepare one atomic connected edit for preview and validation.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -460,6 +479,8 @@ pub struct RoutingEditArgs {
     pub moves: Vec<RoutingMoveArgs>,
     #[serde(default)]
     pub replacements: Vec<RoutingTraceReplacementArgs>,
+    /// Try routing these nets after the edit, in the same reviewed candidate.
+    pub route: Option<RoutingEditRouteArgs>,
     pub expected_revision: Option<u64>,
 }
 
@@ -516,15 +537,30 @@ pub fn prepare_edit_job(session: &Session, args: RoutingEditArgs) -> ToolResult<
             })
         })
         .collect::<ToolResult<_>>()?;
-    open.routing
-        .prepare_edit(
-            &open.editor,
-            EditRoutingGeometry {
-                board,
-                vias,
-                moves,
-                replacements,
+    let edit = EditRoutingGeometry {
+        board,
+        vias,
+        moves,
+        replacements,
+    };
+    let job = if let Some(route) = args.route {
+        let command = board_edit::builtin_command(
+            open.project(),
+            board,
+            &board_edit::AutorouteArgs {
+                nets: route.nets,
+                layers: route.layers,
+                trace_width: route.trace_width,
+                via_drill: route.via_drill,
+                via_size: route.via_size,
+                grid_pitch: route.grid_pitch,
+                ..Default::default()
             },
-        )
-        .map_err(routing_error)
+        )?;
+        open.routing
+            .prepare_edit_and_route(&open.editor, edit, command)
+    } else {
+        open.routing.prepare_edit(&open.editor, edit)
+    };
+    job.map_err(routing_error)
 }
