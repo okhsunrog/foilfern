@@ -35,6 +35,21 @@ the oracle for behavior that tests can compare against: file format
 migrations, library checks, exports. Tests take it from `LIBREPCB_CLI` or the
 `PATH` and skip the comparison if it is missing.
 
+## Builds for board work and timing
+
+Use a release build of Foilfern for real-board routing, DRC runs and
+performance measurements. Build the binary the workflow uses, for example:
+
+```sh
+cargo build --locked --release -p librepcb-mcp --bin librepcb-mcp
+```
+
+Run `target/release/librepcb-mcp` (under the configured target directory
+if overridden), and restart the MCP process after rebuilding it. Use
+ordinary dev builds for focused correctness tests and debugging. Record
+the commit, binary path and Cargo profile in performance reports. Compare
+code changes using the same build profile, board snapshot and request.
+
 ## Layout
 
 - `crates/librepcb-core`: domain model (port of `libs/librepcb/core`), one
