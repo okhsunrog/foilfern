@@ -124,6 +124,12 @@ with a newer revision. Preparation therefore cannot be implemented as temporary
 edits to the live project. Runtime revision numbers are scoped to an open model,
 not durable cross-session version identifiers.
 
+Planned [roadmap P1a](roadmap.md#p1a--atomic-failure-rollback-without-published-changes)
+will buffer events inside explicit atomic transactions so successful rollback
+of a failed transaction leaves the public revision unchanged. This is not implemented yet.
+Published undo/redo and cancellation of visible interactive changes will continue
+to advance the revision; previews will continue to use detached snapshots.
+
 Boards maintain dirty net/layer sets and derived air wires/plane fragments.
 Mutations invalidate these directly; correctness does not depend on a UI consumer
 reading the journal. Plane and air-wire rebuilds are synchronous core operations

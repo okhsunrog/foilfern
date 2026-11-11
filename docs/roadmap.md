@@ -1,6 +1,7 @@
 # Foilfern roadmap
 
-Updated 2026-11-11 against `f3c3fda` (including the merged `work` branch).
+Updated 2026-11-12. Capability baseline reviewed against `f3c3fda` (including
+the merged `work` branch); the P1a transaction decision was added after that review.
 This is the delivery order for new work. [Status](status.md) describes what
 exists; [routing service design](routing-service-design.md) owns the routing
 contract; [COMPAT.md](../COMPAT.md) records upstream differences and gaps.
@@ -30,7 +31,7 @@ because its tools exist or one board has zero air wires.
 | Stage | Result | Dependencies | State |
 | --- | --- | --- | --- |
 | P0 | Identifiable builds, concise responses and measured operation costs | Existing API | Planned; Nix environment and baseline reuse already implemented |
-| P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions | Planned |
+| P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation first | Planned |
 | P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | Planned; external review prototypes only |
 | P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | Planned; router callback only |
 | P4 | Diagnosed local repair with bounded placement alternatives | P2, P3 | Planned; explicit repair primitives already implemented |
@@ -72,6 +73,7 @@ Scope: a versioned structured document for components, selected library identiti
 values, named pin connections and optional placements in mm. Resolve it through
 existing editor commands, preview the semantic diff and apply one transaction.
 Choose the wire/schema representation before adding convenience YAML syntax.
+Implement P1a below before relying on invisible failure rollback in reconciliation.
 
 Done when:
 
@@ -88,12 +90,48 @@ Done when:
   removed. Unrelated objects are not recreated.
 - Preview changes no live state. Stale apply refuses; apply/undo/redo include
   library additions and assets as well as model mutations. A failing batch
-  restores model and file contents without committing an undo entry.
+  restores model and file contents without committing an undo entry or changing
+  the public revision, subject to the P1a atomic transaction boundary.
 - Native save/reopen and an upstream CLI check pass on the created/updated
   example, with inherited and unverified findings listed separately.
 
 The native project stays authoritative. Reconciliation is a domain service,
 not a second PCB model or a sequence of unrelated MCP writes.
+
+### P1a — atomic failure rollback without published changes
+
+Decision, 2026-11-12: retain a monotonic public revision for published changes.
+For an explicit atomic transaction whose intermediate state is not externally
+observable, buffer change events until commit. Successful rollback discards the
+buffer and leaves the public revision unchanged; do not rewind or reuse published
+journal sequence numbers. This is planned, not the current rollback behavior.
+
+Ordinary undo/redo and cancellation of already-visible interactive edits publish
+new events and advance the revision. An interactive undo group is not automatically
+an isolated transaction. Detached snapshots remain the preview mechanism, allowing
+long work without changing or locking the live project for the whole operation.
+
+Done when:
+
+- The atomic boundary covers model mutations, project-library additions/removals,
+  asset writes and nested commands. Intermediate state cannot reach scene/MCP
+  consumers or candidate/cache capture. Nested success remains unpublished until
+  the outer commit; nested failure discards only its own pending changes.
+- A successfully rolled-back failure restores data, transactional files, dirty
+  state and undo/redo history, with no public journal/revision change. Derived
+  data is restored or safely invalidated. Rollback failure is reported explicitly
+  and cannot be presented as an unchanged, successful rollback.
+- Commit publishes the accumulated events with fresh increasing sequence numbers.
+  Failed transactions cannot evict previously published journal entries. Tests
+  cover nested failures and batches larger than the journal capacity.
+- Existing routing candidates and reusable baselines remain valid after an
+  invisible failed transaction when all source context is restored. A published
+  edit, its undo, and a different subsequent edit never reuse a revision or admit
+  a candidate from the wrong state. Save/path/session guards remain effective.
+- Scene consumers observe undo/redo and cancellation of visible interactive edits
+  correctly. Tests exercise these paths alongside atomic command failures and
+  retained redo history. `UndoStack::state_id()` is not substituted for the public
+  revision or treated as a complete candidate/cache identity.
 
 ## P2 — persisted requirements and evidence
 
