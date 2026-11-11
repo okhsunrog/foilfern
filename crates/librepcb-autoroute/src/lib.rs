@@ -72,7 +72,8 @@ pub use problem::{
     RoutingRules, Shape, Terminal, TerminalId,
 };
 pub use result::{
-    Endpoint, Progress, Route, RoutingResult, RoutingStats, Segment, Unrouted, UnroutedReason, Via,
+    Endpoint, FrontierBlocker, FrontierSample, Progress, Route, RoutingResult, RoutingStats,
+    Segment, Unrouted, UnroutedReason, Via,
 };
 
 static_assertions::assert_impl_all!(RoutingProblem: Send, Sync);

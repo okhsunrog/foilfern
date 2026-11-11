@@ -285,6 +285,16 @@ while the board still had no placed devices.
 
 ## Builtin search evidence
 
+Set `search_evidence: true` in `routing_prepare` or an edit's nested
+`route` to collect rejected grid steps for failed strict searches.
+Each original failed request can include up to 32 samples in
+`search_evidence`, selected near its target. A sample identifies the
+layer, move coordinates in nanometers, and whether generated copper
+blocked the grid step. The exact geometry check can report a board
+object UUID, the board edge, or a generated route's request index and
+net UUID. A null blocker means the sampled step had no exact hit.
+The samples describe the attempted search and can guide a local trial.
+
 `routing_prepare` and `routing_preview` expose `routing.failed_requests` and
 `routing.remaining_air_wires`. Immediate builtin `autoroute` returns
 `failed_requests` alongside the existing `remaining` list. Failed requests

@@ -41,6 +41,9 @@ pub struct RoutingPrepareArgs {
     #[serde(default)]
     /// Routing grid pitch in mm; omitted selects the builtin default.
     pub grid_pitch: Option<f64>,
+    /// Include samples of rejected grid steps for failed requests.
+    #[serde(default)]
+    pub search_evidence: bool,
     #[serde(default)]
     /// Reject if the current live revision differs.
     pub expected_revision: Option<u64>,
@@ -106,7 +109,8 @@ pub fn prepare_job(session: &Session, args: RoutingPrepareArgs) -> ToolResult<Ro
         grid_pitch: args.grid_pitch,
         ..Default::default()
     };
-    let command = board_edit::builtin_command(open.project(), board, &options)?;
+    let mut command = board_edit::builtin_command(open.project(), board, &options)?;
+    command.search_evidence = args.search_evidence;
     open.routing
         .prepare(&open.editor, command)
         .map_err(routing_error)
@@ -466,6 +470,9 @@ pub struct RoutingEditRouteArgs {
     pub via_size: Option<f64>,
     /// Grid pitch override in mm.
     pub grid_pitch: Option<f64>,
+    /// Include samples of rejected grid steps for failed requests.
+    #[serde(default)]
+    pub search_evidence: bool,
 }
 
 /// Prepare one atomic connected edit for preview and validation.
@@ -544,7 +551,7 @@ pub fn prepare_edit_job(session: &Session, args: RoutingEditArgs) -> ToolResult<
         replacements,
     };
     let job = if let Some(route) = args.route {
-        let command = board_edit::builtin_command(
+        let mut command = board_edit::builtin_command(
             open.project(),
             board,
             &board_edit::AutorouteArgs {
@@ -557,6 +564,7 @@ pub fn prepare_edit_job(session: &Session, args: RoutingEditArgs) -> ToolResult<
                 ..Default::default()
             },
         )?;
+        command.search_evidence = route.search_evidence;
         open.routing
             .prepare_edit_and_route(&open.editor, edit, command)
     } else {

@@ -340,6 +340,7 @@ impl<'a> Inputs<'a> {
             via_cost: self.options.via_cost.unwrap_or(default.via_cost),
             allowed_layers: self.options.layers.clone(),
             grid_pitch: self.options.grid_pitch,
+            search_evidence: self.options.search_evidence,
             ..default
         }
     }

@@ -198,6 +198,8 @@ pub struct RoutingRules {
     /// How often a single connection may be ripped up to make room for
     /// another one (rip-up and reroute).
     pub max_rip_ups: u32,
+    /// Collect bounded rejected-move samples for failed strict searches.
+    pub search_evidence: bool,
 }
 
 impl Default for RoutingRules {
@@ -217,6 +219,7 @@ impl Default for RoutingRules {
             preferred_directions: BTreeMap::new(),
             grid_pitch: None,
             max_rip_ups: 3,
+            search_evidence: false,
         }
     }
 }

@@ -15,7 +15,8 @@ use crate::problem::{
     Connection, LayerScope, NetId, PreferredDirection, RoutingProblem, Shape, TerminalId,
 };
 use crate::result::{
-    Endpoint, Progress, Route, RoutingResult, RoutingStats, Segment, Unrouted, UnroutedReason, Via,
+    Endpoint, FrontierBlocker, FrontierSample, Progress, Route, RoutingResult, RoutingStats,
+    Segment, Unrouted, UnroutedReason, Via,
 };
 use crate::search::{DirFactors, NEUTRAL, Query, STEP, Search, SearchFailure};
 
@@ -69,10 +70,11 @@ struct RouteState {
     items: Vec<usize>,
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone)]
 struct AttemptFailures {
     strict: Option<UnroutedReason>,
     soft: Option<UnroutedReason>,
+    frontier: Vec<FrontierSample>,
 }
 
 /// Numeric rules in nanometers.
@@ -735,7 +737,15 @@ impl<'p> Router<'p> {
 
     /// Tries to route a wire. Returns the wires of ripped routes (soft mode)
     /// along with the outcome.
-    fn try_route(&mut self, w: usize, soft: bool) -> (Result<(), UnroutedReason>, Vec<usize>) {
+    fn try_route(
+        &mut self,
+        w: usize,
+        soft: bool,
+        frontier: &mut Vec<FrontierSample>,
+    ) -> (Result<(), UnroutedReason>, Vec<usize>) {
+        if !soft {
+            frontier.clear();
+        }
         let wire = self.wires[w];
         let width = self.width_of(wire.net);
         let h = width.to_nm() / 2;
@@ -765,9 +775,13 @@ impl<'p> Router<'p> {
             targets: &target_costs,
         };
         self.stats.searches += 1;
-        let found = match self.search.run(&query) {
+        let collect = self.problem.rules.search_evidence && !soft;
+        let found = match self.search.run(&query, collect) {
             Ok(path) => path,
             Err(failure) => {
+                if collect {
+                    self.collect_frontier(wire.net, h, frontier);
+                }
                 let reason = match failure {
                     SearchFailure::Exhausted => UnroutedReason::NoPath,
                     SearchFailure::Budget => UnroutedReason::SearchBudget,
@@ -919,6 +933,49 @@ impl<'p> Router<'p> {
 
         self.commit(w, width, h, runs, vias, start, end);
         (Ok(()), ripped)
+    }
+
+    fn collect_frontier(&self, net: u32, half_width: i64, out: &mut Vec<FrontierSample>) {
+        let cells = self.grid.cells();
+        for step in self.search.frontier() {
+            let from = self.grid.point(step.from % cells);
+            let to = self.grid.point(step.to % cells);
+            let copper = self.routing[step.to / cells];
+            let hit = if step.via && step.from == step.to {
+                self.items.check_via(to, net, None, &mut |_| false)
+            } else {
+                self.items.check_segment(
+                    (from, to),
+                    copper,
+                    net,
+                    half_width as f64,
+                    None,
+                    &mut |_| false,
+                )
+            };
+            let blocker = match hit {
+                Ok(()) => None,
+                Err(Violation::Static(index)) => Some(FrontierBlocker::Existing(
+                    index.map_or(crate::AccessBlocker::BoardEdge, |i| self.blocker(i)),
+                )),
+                Err(Violation::Route(id)) => {
+                    self.routes[id]
+                        .as_ref()
+                        .map(|route| FrontierBlocker::Generated {
+                            request: self.wires[route.wire].request,
+                            net: self.nets[route.net as usize],
+                        })
+                }
+            };
+            out.push(FrontierSample {
+                layer: self.problem.copper_layers[copper],
+                from: from.to_point(),
+                to: to.to_point(),
+                via: step.via,
+                generated: step.generated,
+                blocker,
+            });
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1110,7 +1167,7 @@ impl<'p> Router<'p> {
             if self.wire_route[w].is_some() || self.is_connected(w) {
                 continue;
             }
-            match self.try_route(w, false).0 {
+            match self.try_route(w, false, &mut failures[w].frontier).0 {
                 Ok(()) => {
                     failures[w] = AttemptFailures::default();
                     continue;
@@ -1124,7 +1181,7 @@ impl<'p> Router<'p> {
             }
             if soft_tries[w] < max {
                 soft_tries[w] += 1;
-                let (outcome, ripped) = self.try_route(w, true);
+                let (outcome, ripped) = self.try_route(w, true, &mut failures[w].frontier);
                 queue.extend(ripped);
                 match outcome {
                     Ok(()) => {
@@ -1144,7 +1201,7 @@ impl<'p> Router<'p> {
                     break;
                 }
                 if self.wire_route[w].is_none() && !self.is_connected(w) {
-                    match self.try_route(w, false).0 {
+                    match self.try_route(w, false, &mut failures[w].frontier).0 {
                         Ok(()) => failures[w] = AttemptFailures::default(),
                         Err(reason) => failures[w].strict = Some(reason),
                     }
@@ -1236,6 +1293,7 @@ impl<'p> Router<'p> {
                     None => UnroutedReason::NotRouted,
                 },
                 soft_reason: failures[i].soft,
+                frontier: failures[i].frontier.clone(),
             })
             .collect();
         RoutingResult {

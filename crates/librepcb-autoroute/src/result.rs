@@ -97,6 +97,26 @@ pub enum UnroutedReason {
     Cancelled,
 }
 
+/// Object confirmed by checking the rejected move against exact geometry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FrontierBlocker {
+    Existing(crate::AccessBlocker),
+    Generated { request: usize, net: NetId },
+}
+
+/// Bounded evidence from a strict search that found no path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FrontierSample {
+    pub layer: Layer,
+    pub from: Point,
+    pub to: Point,
+    pub via: bool,
+    /// Which occupancy map rejected the move.
+    pub generated: bool,
+    /// None when the conservative grid rejection has no exact hit.
+    pub blocker: Option<FrontierBlocker>,
+}
+
 /// A connection which could not be routed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Unrouted {
@@ -110,6 +130,8 @@ pub struct Unrouted {
     pub reason: UnroutedReason,
     /// Last attempt allowing rip-up since the connection was last routed.
     pub soft_reason: Option<UnroutedReason>,
+    /// Sampled moves rejected by the last strict grid search.
+    pub frontier: Vec<FrontierSample>,
 }
 
 /// Statistics of a routing run.

@@ -1187,6 +1187,7 @@ pub(crate) fn builtin_command(
             .map(|v| positive(v, "grid_pitch"))
             .transpose()?,
         via_cost: None,
+        search_evidence: false,
     })
 }
 

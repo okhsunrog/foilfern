@@ -106,6 +106,38 @@ pub(crate) enum SearchFailure {
     Budget,
 }
 
+/// A rejected grid step, indexed in the same coordinates as the query maps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct BlockedStep {
+    pub from: usize,
+    pub to: usize,
+    pub via: bool,
+    pub generated: bool,
+}
+
+const FRONTIER_SAMPLES_PER_KIND: usize = 8;
+
+#[derive(Debug, Default)]
+struct Frontier {
+    samples: [Vec<(u32, BlockedStep)>; 4],
+}
+
+impl Frontier {
+    fn record(&mut self, score: u32, step: BlockedStep) {
+        let kind = 2 * usize::from(step.via) + usize::from(step.generated);
+        let samples = &mut self.samples[kind];
+        if samples.len() == FRONTIER_SAMPLES_PER_KIND && score >= samples.last().unwrap().0 {
+            return;
+        }
+        if samples.iter().any(|(_, seen)| seen.to == step.to) {
+            return;
+        }
+        let index = samples.partition_point(|(value, _)| *value <= score);
+        samples.insert(index, (score, step));
+        samples.truncate(FRONTIER_SAMPLES_PER_KIND);
+    }
+}
+
 /// Reusable search buffers.
 #[derive(Debug, Default)]
 pub(crate) struct Search {
@@ -116,14 +148,31 @@ pub(crate) struct Search {
     node_g: Vec<u32>,
     node_stamp: Vec<u32>,
     generation: u32,
+    frontier: Frontier,
 }
 
 impl Search {
-    pub fn run(&mut self, q: &Query<'_>) -> Result<Found, SearchFailure> {
-        self.run_with_limit(q, MAX_EXPANSIONS)
+    pub fn run(&mut self, q: &Query<'_>, collect_evidence: bool) -> Result<Found, SearchFailure> {
+        self.run_with_limit(q, MAX_EXPANSIONS, collect_evidence)
     }
 
-    fn run_with_limit(&mut self, q: &Query<'_>, limit: usize) -> Result<Found, SearchFailure> {
+    pub fn frontier(&self) -> impl Iterator<Item = BlockedStep> + '_ {
+        self.frontier
+            .samples
+            .iter()
+            .flatten()
+            .map(|(_, step)| *step)
+    }
+
+    fn run_with_limit(
+        &mut self,
+        q: &Query<'_>,
+        limit: usize,
+        collect_evidence: bool,
+    ) -> Result<Found, SearchFailure> {
+        for samples in &mut self.frontier.samples {
+            samples.clear();
+        }
         let cells = q.grid.cells();
         let nodes = cells * q.layers;
         let states = nodes * STATES_PER_NODE;
@@ -223,6 +272,19 @@ impl Search {
             let layer = node / cells;
             let c = node % cells;
             let (x, y) = ((c % nx) as i64, (c / nx) as i64);
+            let mut record_block = |to, target_cell, via, generated| {
+                if collect_evidence {
+                    self.frontier.record(
+                        heuristic(target_cell),
+                        BlockedStep {
+                            from: node,
+                            to,
+                            via,
+                            generated,
+                        },
+                    );
+                }
+            };
 
             let mut relax = |heap: &mut BinaryHeap<_>, ns: usize, ng: u32, nc: usize| {
                 let nn = ns / STATES_PER_NODE;
@@ -256,11 +318,13 @@ impl Search {
                 let nc = ny_ as usize * nx + nx_ as usize;
                 let idx = layer * cells + nc;
                 if !usable(q.trace_fixed[idx], q.owner) {
+                    record_block(idx, nc, false, false);
                     continue;
                 }
                 let mut cost = if k % 2 == 0 { STEP } else { DIAG } * q.factors[layer][k] / 100;
                 if !usable(q.trace_routes[idx], q.owner) {
                     if !q.soft {
+                        record_block(idx, nc, false, true);
                         continue;
                     }
                     cost += CONFLICT;
@@ -270,21 +334,27 @@ impl Search {
             }
 
             // Layer changes.
-            if q.layers > 1 && usable(q.via_fixed[c], q.owner) {
+            if q.layers > 1 && !usable(q.via_fixed[c], q.owner) {
+                record_block(node, c, true, false);
+            } else if q.layers > 1 {
                 let mut cost = q.via_cost;
                 let via_free = usable(q.via_routes[c], q.owner);
-                if via_free || q.soft {
+                if !via_free && !q.soft {
+                    record_block(node, c, true, true);
+                } else {
                     if !via_free {
                         cost += CONFLICT;
                     }
                     for l in (0..q.layers).filter(|&l| l != layer) {
                         let idx = l * cells + c;
                         if !usable(q.trace_fixed[idx], q.owner) {
+                            record_block(idx, c, true, false);
                             continue;
                         }
                         let mut extra = 0;
                         if !usable(q.trace_routes[idx], q.owner) {
                             if !q.soft {
+                                record_block(idx, c, true, true);
                                 continue;
                             }
                             extra = CONFLICT;
@@ -346,14 +416,21 @@ mod tests {
         };
         let mut search = Search::default();
         assert_eq!(
-            search.run_with_limit(&query, 1).unwrap_err(),
+            search.run_with_limit(&query, 1, false).unwrap_err(),
             SearchFailure::Budget
         );
-        assert_eq!(search.run(&query).unwrap().nodes, vec![0, 1, 2]);
+        assert_eq!(search.run(&query, false).unwrap().nodes, vec![0, 1, 2]);
         query.trace_fixed = &[FREE, BLOCKED, FREE];
         assert_eq!(
-            search.run_with_limit(&query, 1).unwrap_err(),
+            search.run_with_limit(&query, 1, true).unwrap_err(),
             SearchFailure::Exhausted
+        );
+        assert_eq!(
+            search
+                .frontier()
+                .map(|sample| sample.to)
+                .collect::<Vec<_>>(),
+            [1]
         );
     }
 }

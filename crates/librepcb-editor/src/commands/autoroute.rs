@@ -31,8 +31,8 @@ pub use librepcb_autoroute::{
     TerminalId as RoutingTerminalId, diagnose_access,
 };
 use librepcb_autoroute::{
-    Hole, LayerScope, NetId, Obstacle, RoutingProblem, RoutingResult, Shape, Terminal, TerminalId,
-    UnroutedReason,
+    FrontierBlocker, FrontierSample, Hole, LayerScope, NetId, Obstacle, RoutingProblem,
+    RoutingResult, Shape, Terminal, TerminalId, UnroutedReason,
 };
 use librepcb_core::geometry::{
     NonEmptyPath, PadGeometry, Path, TraceAnchor, Via, ZoneLayers, ZoneRules,
@@ -98,6 +98,9 @@ pub struct Autoroute {
     /// Cost of a via as trace length (default: 2 mm).
     #[serde(default)]
     pub via_cost: Option<Length>,
+    /// Collect rejected grid steps for failed strict searches.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub search_evidence: bool,
 }
 
 /// An air wire which was not routed.
@@ -120,6 +123,9 @@ pub struct UnroutedAirWire {
     /// Last failure from an attempt allowing rip-up, when available.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub soft_reason: Option<String>,
+    /// Bounded samples from the failed search on the original request.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub search_evidence: Vec<RoutingSearchSample>,
 }
 
 impl UnroutedAirWire {
@@ -133,6 +139,7 @@ impl UnroutedAirWire {
             p2_position: wire.p2_position(),
             reason: reason.to_owned(),
             soft_reason: None,
+            search_evidence: Vec::new(),
         }
     }
 }
@@ -192,6 +199,11 @@ impl Command for Autoroute {
                 let wire = &extracted.request_wires[u.request];
                 let mut failure = UnroutedAirWire::new(p, wire, reason_name(u.reason));
                 failure.soft_reason = u.soft_reason.map(|reason| reason_name(reason).to_owned());
+                failure.search_evidence = u
+                    .frontier
+                    .iter()
+                    .map(|sample| extracted.search_sample(sample))
+                    .collect();
                 failure
             })
             .chain(
@@ -253,7 +265,7 @@ fn reason_name(reason: UnroutedReason) -> &'static str {
 }
 
 /// Type of the board object that contributed routing geometry.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RoutingObjectKind {
     Trace,
@@ -268,7 +280,7 @@ pub enum RoutingObjectKind {
 }
 
 /// Identity of routing geometry in the board or its placed footprint.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RoutingObject {
     pub kind: RoutingObjectKind,
     pub uuid: Uuid,
@@ -276,6 +288,28 @@ pub struct RoutingObject {
     pub device_uuid: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pad_uuid: Option<Uuid>,
+}
+
+/// Geometry confirmed by exact checking of a rejected grid step.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum RoutingSearchBlocker {
+    BoardEdge,
+    Existing { object: RoutingObject },
+    Generated { request: usize, net: NetSignalId },
+}
+
+/// Search evidence on the same nanometer coordinates as the failed request.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct RoutingSearchSample {
+    pub layer: Layer,
+    pub from: Point,
+    pub to: Point,
+    /// True for a via transition or its landing clearance.
+    pub via: bool,
+    /// True when the occupancy was from a route generated in this run.
+    pub generated: bool,
+    pub blocker: Option<RoutingSearchBlocker>,
 }
 
 impl RoutingObject {
@@ -324,6 +358,35 @@ pub struct ExtractedProblem {
 }
 
 impl ExtractedProblem {
+    fn search_sample(&self, sample: &FrontierSample) -> RoutingSearchSample {
+        let blocker = sample.blocker.map(|blocker| match blocker {
+            FrontierBlocker::Existing(AccessBlocker::BoardEdge) => RoutingSearchBlocker::BoardEdge,
+            FrontierBlocker::Existing(blocker) => {
+                let object = match blocker {
+                    AccessBlocker::Obstacle(i) => self.obstacle_objects[i],
+                    AccessBlocker::Hole(i) => self.hole_objects[i],
+                    AccessBlocker::Terminal(id) => {
+                        RoutingObject::from_anchor(self.terminal_anchors[id.0])
+                    }
+                    AccessBlocker::BoardEdge => return RoutingSearchBlocker::BoardEdge,
+                };
+                RoutingSearchBlocker::Existing { object }
+            }
+            FrontierBlocker::Generated { request, net } => RoutingSearchBlocker::Generated {
+                request,
+                net: NetSignalId(net),
+            },
+        });
+        RoutingSearchSample {
+            layer: sample.layer,
+            from: sample.from,
+            to: sample.to,
+            via: sample.via,
+            generated: sample.generated,
+            blocker,
+        }
+    }
+
     /// Explains the effective builtin rules for one net using the same board
     /// snapshot and options used to extract this problem.
     pub fn rule_report(

@@ -459,7 +459,10 @@ fn blocked_path_is_reported_as_unrouted() {
     let mut p = RoutingProblem::new(
         rect_outline(30.0, 20.0),
         two_layers(),
-        RoutingRules::default(),
+        RoutingRules {
+            search_evidence: true,
+            ..RoutingRules::default()
+        },
     );
     p.add_obstacle(Obstacle::keepout(
         Shape::rect(pt(15.0, 10.0), mm(1.0), mm(22.0)),
@@ -478,6 +481,12 @@ fn blocked_path_is_reported_as_unrouted() {
     assert_eq!(r.unrouted[0].terminals, (a1, a2));
     assert_eq!(r.unrouted[0].reason, UnroutedReason::NoPath);
     assert_eq!(r.unrouted[0].soft_reason, Some(UnroutedReason::NoPath));
+    assert!(r.unrouted[0].frontier.iter().any(|step| {
+        step.blocker
+            == Some(librepcb_autoroute::FrontierBlocker::Existing(
+                librepcb_autoroute::AccessBlocker::Obstacle(0),
+            ))
+    }));
     assert_eq!(r.routes.len(), 1);
     assert_eq!(r.routes[0].net, b);
     assert_clean(&p, &r);

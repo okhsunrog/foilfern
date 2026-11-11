@@ -292,11 +292,12 @@ geometry rejection, and rip-up limits. Unattempted work can report cancellation.
 See [builtin search evidence](mcp-routing-reliability.md#builtin-search-evidence)
 for the field contract.
 
-Remaining R2 work includes locating specific blockers along the search
-and separating pre-existing copper from routes that can be changed.
-Report suggested remedies as hypotheses until a trial
-verifies them. A drained heuristic frontier only describes the attempted grid
-search.
+`routing_prepare` can collect bounded samples of rejected moves in the
+last strict search for a failed request. Samples identify whether the
+grid rejected the move against existing geometry or a generated route.
+Exact clearance checks can identify the board object or the generated
+route request. Some conservative grid rejections have no exact hit.
+Suggested remedies still need a trial on the board.
 
 Acceptance: an agent can inspect a remaining connection, identify a concrete
 blocker, make a bounded edit and verify progress without hand-editing files or
