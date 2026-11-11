@@ -89,5 +89,5 @@ python3 benchmark.py /path/to/after-mcp oled-after /tmp/input/foilfern /path/to/
 [oled-evidence.tar.gz](oled-evidence.tar.gz) contains exact JSON-RPC requests and
 responses, per-call wall time and DRC-log byte ranges, complete logs, native-file
 manifests and both release build logs. Generated project copies and binaries are
-not committed. Next is the bounded builtin experiment from the handoff; this
-explicit-copper case makes no claim about search or rip-up performance.
+not committed. The subsequent [bounded builtin experiment](BUILTIN.md) exercises
+two competing nets and real rip-up; this OLED case measures explicit copper.
