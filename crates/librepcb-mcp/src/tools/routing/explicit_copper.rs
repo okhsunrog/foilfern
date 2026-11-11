@@ -24,6 +24,9 @@ pub struct RoutingCopperArgs {
     /// Explicit same-layer paths, with optional corners in board mm.
     #[serde(default)]
     pub traces: Vec<PlannedTraceArg>,
+    /// UUIDs of existing traces to replace in the same checked candidate.
+    #[serde(default)]
+    pub remove_traces: Vec<String>,
     pub expected_revision: Option<u64>,
 }
 
@@ -68,6 +71,7 @@ pub struct PlannedTraceArg {
 pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolResult<RoutingJob> {
     let total = args.vias.len()
         + args.traces.len()
+        + args.remove_traces.len()
         + args
             .traces
             .iter()
@@ -75,13 +79,18 @@ pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolRes
             .sum::<usize>();
     if !(1..=512).contains(&total) {
         return Err(ToolError::invalid(
-            "Supply between 1 and 512 vias, traces and intermediate points combined.",
+            "Supply between 1 and 512 vias, traces, removals and intermediate points combined.",
         ));
     }
     let open = session.project()?;
     let project = open.project();
     write::check_revision(project, args.expected_revision)?;
     let board = board_edit::board_id(project, args.board.as_deref())?;
+    let remove_traces = args
+        .remove_traces
+        .iter()
+        .map(|id| resolve::required_uuid(id, "trace"))
+        .collect::<ToolResult<_>>()?;
     let net = |name: &str| resolve::net(project, name).map(|(id, _)| NetRef::Id(id));
     let mut labels = BTreeMap::new();
     let mut vias = Vec::with_capacity(args.vias.len());
@@ -149,6 +158,7 @@ pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolRes
             &open.editor,
             CopperPlan {
                 board,
+                remove_traces,
                 vias,
                 traces,
             },

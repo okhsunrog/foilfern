@@ -97,6 +97,7 @@ pub enum RoutingCandidateDetails {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CopperAddition {
+    pub removed_traces: usize,
     pub vias: usize,
     pub trace_segments: usize,
 }
@@ -255,9 +256,11 @@ impl RoutingJob {
                 }
             }
             RoutingWork::Copper(plan) => {
+                let removed_traces = plan.remove_traces.len();
                 let (vias, trace_segments) = plan.run(sandbox)?;
                 RoutingCandidateDetails::Copper {
                     copper: CopperAddition {
+                        removed_traces,
                         vias,
                         trace_segments,
                     },

@@ -116,9 +116,9 @@ pub(super) fn ensure_preserved_copper(
     Ok(())
 }
 
-struct RipUp {
-    board: BoardId,
-    selection: BoardSelection,
+pub(super) struct RipUp {
+    pub(super) board: BoardId,
+    pub(super) selection: BoardSelection,
 }
 
 impl Command for RipUp {

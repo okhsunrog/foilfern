@@ -1,10 +1,14 @@
 //! Explicit copper prepared and validated on a detached routing board.
 
+use std::collections::BTreeSet;
+
 use librepcb_core::project::BoardId;
 use librepcb_core::types::{Layer, Point, PositiveLength, Uuid};
 
-use crate::commands::{AddTrace, AddVia, NetRef, TraceEndpoint};
+use crate::commands::{AddTrace, AddVia, BoardSelection, NetRef, TraceEndpoint, resolve_board};
 use crate::{Error, ProjectEditor, Result};
+
+use super::{RoutingError, region};
 
 #[derive(Debug)]
 pub enum CopperEndpoint {
@@ -39,12 +43,37 @@ pub struct PlannedTrace {
 #[derive(Debug)]
 pub struct CopperPlan {
     pub board: BoardId,
+    pub remove_traces: BTreeSet<Uuid>,
     pub vias: Vec<AddVia>,
     pub traces: Vec<PlannedTrace>,
 }
 
 impl CopperPlan {
-    pub(super) fn run(self, sandbox: &mut ProjectEditor) -> Result<(usize, usize)> {
+    pub(super) fn run(
+        self,
+        sandbox: &mut ProjectEditor,
+    ) -> std::result::Result<(usize, usize), RoutingError> {
+        let removal_baseline = if self.remove_traces.is_empty() {
+            None
+        } else {
+            let project = sandbox.project();
+            let board = resolve_board(project, Some(self.board))?;
+            let mut selection = BoardSelection::default();
+            for &uuid in &self.remove_traces {
+                let (segment, _) = board
+                    .net_segments()
+                    .iter()
+                    .find(|(_, segment)| segment.traces().contains_key(&uuid))
+                    .ok_or_else(|| Error::not_found("Trace", uuid))?;
+                selection.traces.push((*segment, uuid));
+            }
+            let before = region::copper(project, board)?;
+            sandbox.execute(region::RipUp {
+                board: self.board,
+                selection,
+            })?;
+            Some(before)
+        };
         let mut vias = Vec::with_capacity(self.vias.len());
         for mut via in self.vias {
             via.board = Some(self.board);
@@ -62,6 +91,11 @@ impl CopperPlan {
                 net: trace.net,
             })?;
             segments += added.traces.len();
+        }
+        if let Some(before) = removal_baseline {
+            let project = sandbox.project();
+            let after = region::copper(project, resolve_board(project, Some(self.board))?)?;
+            region::ensure_preserved_copper(&before, &after, &self.remove_traces)?;
         }
         Ok((vias.len(), segments))
     }

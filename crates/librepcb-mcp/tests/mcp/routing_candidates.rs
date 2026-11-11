@@ -69,10 +69,18 @@ fn board_value(session: &Session) -> Value {
 fn explicit_copper_resolves_via_labels_and_applies_as_one_step() {
     let temp = tempfile::tempdir().unwrap();
     let mut session = board_session(temp.path());
+    let original = board_edit::trace_add(
+        &mut session,
+        args(json!({"from":"R1.1","to":"R2.1","width":0.2})),
+    )
+    .unwrap()
+    .result["traces"][0]["uuid"]
+        .clone();
     let before = board_value(&session);
     let revision = session.project().unwrap().project().revision();
     let plan = json!({
         "expected_revision": revision,
+        "remove_traces":[original],
         "vias":[
             {"label":"entry","net":"A","position":{"x":7,"y":9.025},"size":0.75,"drill":0.3},
             {"label":"exit","net":"A","position":{"x":13,"y":9.025},"size":0.75,"drill":0.3}
@@ -90,9 +98,12 @@ fn explicit_copper_resolves_via_labels_and_applies_as_one_step() {
     let candidate = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
         .unwrap()
         .result;
-    assert_eq!(candidate["copper"], json!({"vias":2,"trace_segments":3}));
+    assert_eq!(
+        candidate["copper"],
+        json!({"vias":2,"trace_segments":3,"removed_traces":1})
+    );
     assert_eq!(candidate["validation"]["acceptable"], true, "{candidate}");
-    assert_eq!(candidate["validation"]["before"]["unrouted"], 2);
+    assert_eq!(candidate["validation"]["before"]["unrouted"], 1);
     assert_eq!(candidate["validation"]["after"]["unrouted"], 1);
     assert_eq!(session.project().unwrap().project().revision(), revision);
     assert_eq!(board_value(&session), before);

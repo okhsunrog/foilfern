@@ -369,7 +369,8 @@ contacts. The sample covers up to 20 nets and eight air wires per net.
 Give each new via a label and use `{"via":"label"}` as a trace endpoint;
 pad names, existing anchor UUIDs and coordinates also work. The whole batch
 is checked against the board as one candidate and applies in one undo step.
-It supports up to 512 vias, paths and intermediate points combined.
+Use `remove_traces` to replace selected existing traces by UUID in the
+same candidate. It supports up to 512 vias, paths, points and removals combined.
 
 `routing_compare` uses one detached baseline and a fresh copy of it for
 each of two or three distinct builtin initial orders. Pass common
