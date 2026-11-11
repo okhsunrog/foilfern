@@ -610,6 +610,17 @@ impl LibrePcbMcp {
     }
 
     #[tool(
+        description = "Move a symbol name, value or other schematic symbol text independently of pins and wires. Position and height are in mm."
+    )]
+    async fn symbol_text_move(
+        &self,
+        Parameters(args): Parameters<schematic_edit::SymbolTextMoveArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| schematic_edit::symbol_text_move(s, args))
+            .await
+    }
+
+    #[tool(
         description = "Connect pins to a net (created or merged as needed) and draw the \
                        schematic: nearby pins are wired, distant pins get a stub wire with a \
                        net label placed clear of other items. Pins: \"R1.1\" (pad), \"U1.VCC\" \
@@ -741,6 +752,17 @@ impl LibrePcbMcp {
         Parameters(args): Parameters<BoardSetOutlineArgs>,
     ) -> Result<CallToolResult, McpError> {
         self.run(move |s| board_edit::board_set_outline(s, args))
+            .await
+    }
+
+    #[tool(
+        description = "Add a closed polygon to a board layer with vertices in mm, optional fill and stroke width. Use plane_add for copper connected to a net."
+    )]
+    async fn board_polygon_add(
+        &self,
+        Parameters(args): Parameters<board_edit::BoardPolygonAddArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| board_edit::board_polygon_add(s, args))
             .await
     }
 

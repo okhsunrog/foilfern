@@ -66,6 +66,42 @@ fn board_value(session: &Session) -> Value {
 }
 
 #[test]
+fn add_graphic_polygon_closes_path_and_supports_undo() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let revision = session.project().unwrap().project().revision();
+    let before = board_value(&session);
+    let request = json!({
+        "layer":"top_legend", "expected_revision":revision,
+        "vertices":[{"x":2,"y":2},{"x":4,"y":2},{"x":4,"y":4},{"x":2,"y":2}],
+    });
+    let result = board_edit::board_polygon_add(&mut session, args(request.clone()))
+        .unwrap()
+        .result;
+    assert_eq!(result["line_width"], 0.2);
+    assert_eq!(result["path"].as_array().unwrap().len(), 4);
+    assert_eq!(result["path"][0], result["path"][3]);
+    let board = librepcb_mcp::tools::layout::board_get(&session, Default::default())
+        .unwrap()
+        .result;
+    assert!(
+        board["polygons"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|poly| poly["uuid"] == result["uuid"])
+    );
+    assert_eq!(
+        board_edit::board_polygon_add(&mut session, args(request))
+            .unwrap_err()
+            .kind,
+        ErrorKind::StaleRevision
+    );
+    write::undo_redo(&mut session, Default::default(), false).unwrap();
+    assert_eq!(board_value(&session), before);
+}
+
+#[test]
 fn preparation_and_paginated_preview_leave_live_state_and_redo_untouched() {
     let temp = tempfile::tempdir().unwrap();
     let mut session = board_session(temp.path());

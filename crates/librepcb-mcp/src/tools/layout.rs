@@ -1,7 +1,7 @@
 //! Schematic and board read tools: `schematic_list`, `schematic_get`,
 //! `board_get`.
 
-use librepcb_core::geometry::{NetLineAnchor, TraceAnchor};
+use librepcb_core::geometry::{NetLineAnchor, Text, TraceAnchor};
 use librepcb_core::project::board::{Board, BoardAirWiresBuilder};
 use librepcb_core::project::schematic::Schematic;
 use librepcb_core::project::{ComponentInstanceId, NetSegmentId, Project, SymbolId};
@@ -121,6 +121,7 @@ pub fn schematic_get(session: &Session, args: SchematicGetArgs) -> ToolResult<To
             "rotation": deg(sym.rotation()),
             "mirrored": sym.mirrored(),
             "pins": pins,
+            "texts": sym.texts().values().map(symbol_text_json).collect::<Vec<_>>(),
         }));
     }
     let mut segments = Vec::new();
@@ -189,6 +190,17 @@ pub fn schematic_get(session: &Session, args: SchematicGetArgs) -> ToolResult<To
     )
 }
 
+pub(crate) fn symbol_text_json(text: &Text) -> Value {
+    json!({
+        "uuid": text.uuid(),
+        "layer": text.layer().id(),
+        "text": text.text(),
+        "position": views::point(text.position()),
+        "rotation": deg(text.rotation()),
+        "height": mm(text.height()),
+    })
+}
+
 pub(crate) fn trace_anchor(
     p: &Project,
     board: &Board,
@@ -241,7 +253,7 @@ pub fn board_get(session: &Session, args: BoardGetArgs) -> ToolResult<ToolOutput
     let settings = b.settings();
 
     let mut outlines = Vec::new();
-    let mut other_polygons = 0;
+    let mut polygons = Vec::new();
     for poly in b.polygons().values() {
         if poly.layer().is_board_edge() {
             outlines.push(json!({
@@ -250,7 +262,13 @@ pub fn board_get(session: &Session, args: BoardGetArgs) -> ToolResult<ToolOutput
                 "path": views::path(poly.path()),
             }));
         } else {
-            other_polygons += 1;
+            polygons.push(json!({
+                "uuid": poly.uuid(),
+                "layer": poly.layer().id(),
+                "path": views::path(poly.path()),
+                "line_width": mm(poly.line_width()),
+                "filled": poly.is_filled(),
+            }));
         }
     }
 
@@ -338,7 +356,8 @@ pub fn board_get(session: &Session, args: BoardGetArgs) -> ToolResult<ToolOutput
             "copper_layers": settings.inner_layer_count + 2,
             "thickness": mm(settings.pcb_thickness),
             "outlines": outlines,
-            "other_polygons": other_polygons,
+            "other_polygons": polygons.len(),
+            "polygons": polygons,
             "devices": devices,
             "traces": traces,
             "vias": vias,

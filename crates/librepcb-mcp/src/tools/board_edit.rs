@@ -1,4 +1,4 @@
-//! Board tools: `board_add`, `board_set_outline`, `device_place`,
+//! Board tools: `board_add`, `board_set_outline`, `board_polygon_add`, `device_place`,
 //! `device_auto_place`, `trace_add`, `trace_update`, `via_add`, `trace_remove`,
 //! `plane_add`, `design_rules_set`, `autoroute` (write tools, one undo
 //! group each, see [`write`]), `specctra_import`, `planes_rebuild`
@@ -14,9 +14,9 @@ use librepcb_core::types::{
     Angle, ElementName, Layer, Length, Point, PositiveLength, UnsignedLength,
 };
 use librepcb_editor::commands::{
-    AddBoard, AddDevice, AddPlane, AddTrace, AddVia, AutoPlaceDevices, Autoroute, BoardSelection,
-    EditBoardSettings, EditTraceWidths, ImportSpecctraSession, MessageLevel, MoveDevice, NetRef,
-    PadRef, PlaneSettings, RemoveBoardItems, ReplaceDevice, SetBoardOutline,
+    AddBoard, AddBoardPolygon, AddDevice, AddPlane, AddTrace, AddVia, AutoPlaceDevices, Autoroute,
+    BoardSelection, EditBoardSettings, EditTraceWidths, ImportSpecctraSession, MessageLevel,
+    MoveDevice, NetRef, PadRef, PlaneSettings, RemoveBoardItems, ReplaceDevice, SetBoardOutline,
     SpecctraExportManifest, TraceEndpoint, closed_path, export_specctra_dsn,
 };
 use librepcb_editor::routing_validation::{
@@ -229,6 +229,90 @@ pub fn board_set_outline(
     let open = session.project()?;
     let result = board_overview(open.project(), board)?;
     done.output(open, "Board outline set.", result)
+}
+
+/// Arguments of `board_polygon_add`.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BoardPolygonAddArgs {
+    /// Board name, index or UUID (default: first board).
+    pub board: Option<String>,
+    /// LibrePCB board layer ID, e.g. top_legend, top_documentation, or brd_cutouts.
+    /// Copper polygons have no net; use plane_add for a net-connected pour.
+    pub layer: String,
+    /// At least three distinct vertices in board millimeters. Closed automatically.
+    pub vertices: Vec<PointMm>,
+    /// Stroke width in mm. Default: 0.2 for a stroked graphic, zero for fills or cuts.
+    pub line_width: Option<f64>,
+    /// Fill the polygon (default false).
+    #[serde(default)]
+    pub filled: bool,
+    /// Fail with stale_revision if the project revision differs.
+    pub expected_revision: Option<u64>,
+}
+
+pub fn board_polygon_add(
+    session: &mut Session,
+    args: BoardPolygonAddArgs,
+) -> ToolResult<ToolOutput> {
+    let (_, board, model) = resolve::board(session.project()?.project(), args.board.as_deref())?;
+    let layer = Layer::from_id(args.layer.trim())
+        .filter(|layer| layer.is_board())
+        .ok_or_else(|| {
+            ToolError::invalid("Use a board layer ID, e.g. top_legend or brd_cutouts.")
+        })?;
+    if layer.is_copper() && !model.copper_layers().contains(&layer) {
+        return Err(ToolError::invalid(
+            "The selected copper layer is not present on this board.",
+        ));
+    }
+    let mut points = args
+        .vertices
+        .iter()
+        .copied()
+        .map(PointMm::to_point)
+        .collect::<ToolResult<Vec<_>>>()?;
+    if points.len() > 1 && points.first() == points.last() {
+        points.pop();
+    }
+    if points.len() < 3 || points.iter().collect::<BTreeSet<_>>().len() != points.len() {
+        return Err(ToolError::invalid(
+            "A polygon needs at least three distinct vertices.",
+        ));
+    }
+    let path = closed_path(&points);
+    let line_width = unsigned(
+        args.line_width
+            .unwrap_or(if layer.is_board_edge() || args.filled {
+                0.0
+            } else {
+                0.2
+            }),
+        "line_width",
+    )?;
+    let done = write(
+        session,
+        "board_polygon_add",
+        args.expected_revision,
+        |editor| {
+            Ok(editor.execute(AddBoardPolygon {
+                board: Some(board),
+                layer,
+                path: path.clone(),
+                line_width: Some(line_width),
+                filled: args.filled,
+                grab_area: false,
+            })?)
+        },
+    )?;
+    done.output(
+        session.project()?,
+        "Added a closed polygon to the board.",
+        json!({
+            "uuid":done.value, "board":board, "layer":layer.id(), "path":views::path(&path),
+            "line_width":mm(line_width), "filled":args.filled,
+        }),
+    )
 }
 
 /// Board side of a device.

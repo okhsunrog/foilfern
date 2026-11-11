@@ -1,5 +1,5 @@
 //! Circuit and schematic write tools: `component_add`, `component_remove`,
-//! `component_update`, `symbol_move`, `connect`, `disconnect`,
+//! `component_update`, `symbol_move`, `symbol_text_move`, `connect`, `disconnect`,
 //! `net_rename`, `net_class_set`, `schematic_add`, `schematic_tidy`.
 //!
 //! Every tool is one undo group of the editor (see [`write`]) built from
@@ -9,15 +9,18 @@ use std::collections::BTreeMap;
 
 use librepcb_core::attribute::{Attribute, AttributeKey, AttributeType};
 use librepcb_core::library::LibraryBaseElement;
-use librepcb_core::project::{ComponentInstanceId, ComponentSignalRef, SchematicId, SymbolId};
+use librepcb_core::project::{
+    ComponentInstanceId, ComponentSignalRef, Mutation, SchematicId, SchematicMutation, SymbolId,
+    SymbolRef,
+};
 use librepcb_core::types::{
-    Angle, CircuitIdentifier, ElementName, Point, PositiveLength, UnsignedLength, Uuid,
+    Angle, CircuitIdentifier, ElementName, Layer, Point, PositiveLength, UnsignedLength, Uuid,
 };
 use librepcb_core::workspace::{ElementKind, SearchQuery};
 use librepcb_editor::commands::{
-    AddComponent, AddNetClass, AddSchematic, AutoPlaceSymbols, ConnectNet, DisconnectSignals,
-    EditComponent, EditNet, EditNetClass, MoveSymbol, NetRef, RemoveComponent, SymbolPlacement,
-    TidySchematic,
+    AddComponent, AddNetClass, AddSchematic, ApplyMutations, AutoPlaceSymbols, ConnectNet,
+    DisconnectSignals, EditComponent, EditNet, EditNetClass, MoveSymbol, NetRef, RemoveComponent,
+    SymbolPlacement, TidySchematic,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -748,6 +751,81 @@ pub fn symbol_move(session: &mut Session, args: SymbolMoveArgs) -> ToolResult<To
     let open = session.project()?;
     let (summary, detail) = component_detail(open.project(), component)?;
     done.output(open, format!("Moved symbol of {summary}"), detail)
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SymbolTextMoveArgs {
+    /// Designator, component UUID or schematic symbol UUID.
+    pub component: String,
+    /// Gate suffix, index or UUID if the component has multiple placed gates.
+    pub gate: Option<String>,
+    /// "name", "value", or a text UUID from schematic_get.
+    pub text: String,
+    /// Absolute schematic position in millimeters.
+    pub position: PointMm,
+    /// New text height in millimeters.
+    pub height: Option<f64>,
+    /// New rotation in degrees.
+    pub rotation: Option<f64>,
+    /// Fail with stale_revision if the project revision differs.
+    pub expected_revision: Option<u64>,
+}
+
+pub fn symbol_text_move(session: &mut Session, args: SymbolTextMoveArgs) -> ToolResult<ToolOutput> {
+    let (_, id) = resolve_symbol(session, &args.component, args.gate.as_deref())?;
+    let project = session.project()?.project();
+    let (schematic, symbol) = project
+        .schematics()
+        .iter()
+        .find_map(|page| page.symbols().get(&id).map(|symbol| (page.id(), symbol)))
+        .ok_or_else(|| ToolError::not_found("Placed symbol not found."))?;
+    let layer = match args.text.as_str() {
+        "name" => Some(Layer::SYMBOL_NAMES),
+        "value" => Some(Layer::SYMBOL_VALUES),
+        _ => None,
+    };
+    let mut text = if let Some(layer) = layer {
+        let mut matches = symbol.texts().values().filter(|text| text.layer() == layer);
+        let first = matches.next();
+        if matches.next().is_some() {
+            return Err(ToolError::invalid(
+                "Multiple texts match; pass a text UUID from schematic_get.",
+            ));
+        }
+        first
+    } else {
+        let uuid = resolve::required_uuid(&args.text, "symbol text")?;
+        symbol.texts().get(&uuid)
+    }
+    .cloned()
+    .ok_or_else(|| ToolError::not_found("Symbol text not found."))?;
+    text.set_position(args.position.to_point()?);
+    if let Some(height) = args.height {
+        text.set_height(positive(height, "height")?);
+    }
+    if let Some(rotation) = args.rotation {
+        text.set_rotation(angle(rotation)?);
+    }
+    let result = crate::tools::layout::symbol_text_json(&text);
+    let done = write(
+        session,
+        "symbol_text_move",
+        args.expected_revision,
+        |editor| {
+            Ok(editor.execute(ApplyMutations {
+                text: None,
+                mutations: vec![Mutation::Schematic(SchematicMutation::UpdateSymbolText {
+                    symbol: SymbolRef {
+                        schematic,
+                        symbol: id,
+                    },
+                    text,
+                })],
+            })?)
+        },
+    )?;
+    done.output(session.project()?, "Moved schematic symbol text.", result)
 }
 
 /// Resolves pin references to component signals.

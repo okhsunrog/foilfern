@@ -51,6 +51,9 @@ matching a library name is not evidence that the part fits the circuit.
 6. Use `netlist` and `component_get` to verify actual connectivity, then
    `schematic_tidy` per page and `render` for each schematic page. Inspect
    the images for readability, label collisions and circuit grouping.
+   Use `symbol_text_move` with `text: "name"`, `text: "value"`, or a text
+   UUID from `schematic_get` to adjust an annotation without moving the
+   symbol or its pins.
 7. Run `erc_run` and resolve the reported messages. ERC checks structural
    electrical rules; it does not establish that a circuit meets its ratings,
    timing or analog requirements.
@@ -61,6 +64,13 @@ Set `board_set_outline` and `design_rules_set` before routing. `inner_layers`
 counts inner copper layers: `0` means two total layers, `2` means four.
 Set clearances, widths and drill sizes from the fabrication requirements.
 `net_class_set` assigns routing dimensions to selected nets.
+
+Use `board_polygon_add` for graphics or cutouts: pass a LibrePCB board layer
+ID such as `top_legend` or `brd_cutouts` and at least three vertices in
+millimeters. The path closes automatically. `board_get` reports the geometry
+and IDs of non-edge polygons under `polygons` and board edges under
+`outlines`. To connect a copper polygon to a net, use `plane_add` with a
+custom `outline`, then rebuild planes.
 
 Use `device_place` to anchor connectors and mechanically constrained parts;
 then `device_auto_place` for the remaining components. Inspect `board_get`

@@ -50,6 +50,12 @@ diffing outputs against the official `librepcb-cli`.
 - Use the [reproductions and acceptance contract](mcp-routing-reliability.md)
   as correctness gates. Additional routing engines, durable intent storage,
   circuit templates, calculators and 3D work do not precede the routing path.
+- Turn friction observed on actual designs into small reproducible cases.
+  The STM32 buck replay surfaced missing MCP controls for board polygons and
+  schematic name/value placement; both now have direct tools. Its remaining
+  routing gap needed an explicit via site. Use that geometry to test local
+  via-site guidance, and improve inspection and correction of imported
+  footprint silkscreen against the board's rules.
 
 ## M2 — viewer
 
