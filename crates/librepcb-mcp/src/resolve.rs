@@ -6,24 +6,28 @@
 //! Pin references are `<designator>.<pin>` where `<pin>` is the name of a
 //! component signal (`U1.VCC`), or the name of a package pad of the
 //! component's device (`R1.1`, resolved through the device's pad-signal
-//! map). Designators and signal names are circuit identifiers, which
+//! map). Before placement this uses the default assembly device. Designators
+//! and signal names are circuit identifiers, which
 //! cannot contain `.`, so the reference is split at the first dot. A
 //! designator alone (`GND1`) addresses the only signal of a single-pin
 //! component such as a supply symbol.
 
+use std::collections::BTreeSet;
 use std::str::FromStr;
 
 use librepcb_core::library::LibraryBaseElement;
 use librepcb_core::library::cmp::Component;
-use librepcb_core::project::board::{Board, BoardDevice};
+use librepcb_core::project::board::Board;
 use librepcb_core::project::circuit::{ComponentInstance, NetSignal};
 use librepcb_core::project::schematic::Schematic;
 use librepcb_core::project::{
     BoardId, ComponentInstanceId, ComponentSignalRef, NetSignalId, Project, SchematicId,
 };
 use librepcb_core::types::Uuid;
+use librepcb_core::workspace::Workspace;
 
 use crate::error::{ToolError, ToolResult};
+use crate::tools::library::ElementSource;
 
 /// Parses `s` as UUID, if it is one.
 pub fn parse_uuid(s: &str) -> Option<Uuid> {
@@ -201,6 +205,16 @@ pub fn split_pin_ref(pin: &str) -> ToolResult<(&str, &str)> {
 /// A designator alone (`"GND1"`) addresses the only signal of a
 /// single-pin component (e.g. a supply symbol).
 pub fn pin(project: &Project, reference: &str) -> ToolResult<ResolvedPin> {
+    pin_with_workspace(project, None, reference)
+}
+
+/// Resolves a pin with the workspace available for devices and packages
+/// that have been selected for a component but are not yet in the project.
+pub(crate) fn pin_with_workspace(
+    project: &Project,
+    workspace: Option<&Workspace>,
+    reference: &str,
+) -> ToolResult<ResolvedPin> {
     if !reference.contains('.')
         && let Ok((id, component)) = self::component(project, reference.trim())
     {
@@ -252,32 +266,33 @@ pub fn pin(project: &Project, reference: &str) -> ToolResult<ResolvedPin> {
             label: label(sig.name().as_str()),
         });
     }
-    // 3. Pad name of the device (on any board), mapped to its signal.
-    let mut signals = Vec::new();
-    for board in project.boards() {
-        if let Some(device) = board.device(id) {
-            signals.extend(pad_signals(project, device, pin));
+    // 3. Physical pad name. Board devices take precedence; before placement
+    // use the same assembly option as default board placement.
+    let mut devices: BTreeSet<_> = project
+        .boards()
+        .iter()
+        .filter_map(|board| board.device(id).map(|device| device.lib_device()))
+        .collect();
+    if devices.is_empty() {
+        if let Some(device) = component.default_device() {
+            devices.insert(device);
+        } else if let [device] = project
+            .library()
+            .devices_of_component(&component.lib_component())
+            .as_slice()
+        {
+            devices.insert(device.metadata().uuid());
         }
     }
-    // Without a device: pad names of the only library device of the
-    // component in the project library.
-    if signals.is_empty() {
-        let devices = project
-            .library()
-            .devices_of_component(&lib.metadata().uuid());
-        if let [dev] = devices.as_slice()
-            && let Some(pkg) = project.library().package(&dev.package_uuid())
-        {
-            for pad in pkg.pads().iter().filter(|p| p.name().as_str() == pin) {
-                if let Some(sig) = dev
-                    .pad_signal_map()
-                    .by_uuid(&pad.uuid())
-                    .and_then(|m| m.signal_uuid())
-                {
-                    signals.push(sig);
-                }
-            }
-        }
+    let source = ElementSource::for_project(project.library(), workspace);
+    let mut signals = Vec::new();
+    for device in devices {
+        signals.extend(pad_signals(
+            &source,
+            component.lib_component(),
+            device,
+            pin,
+        )?);
     }
     signals.sort();
     signals.dedup();
@@ -286,14 +301,19 @@ pub fn pin(project: &Project, reference: &str) -> ToolResult<ResolvedPin> {
             let name = lib
                 .signals()
                 .by_uuid(signal)
-                .map(|s| s.name().as_str().to_owned())
-                .unwrap_or_else(|| signal.to_string());
+                .ok_or_else(|| {
+                    ToolError::invalid(format!(
+                        "Pad \"{pin}\" of {designator} refers to unknown component signal {signal}."
+                    ))
+                })?
+                .name()
+                .as_str();
             Ok(ResolvedPin {
                 signal: ComponentSignalRef {
                     component: id,
                     signal: *signal,
                 },
-                label: label(&name),
+                label: label(name),
             })
         }
         [] => {
@@ -311,20 +331,34 @@ pub fn pin(project: &Project, reference: &str) -> ToolResult<ResolvedPin> {
 }
 
 /// Returns the signals connected to the pads named `pad` of a device.
-fn pad_signals(project: &Project, device: &BoardDevice, pad: &str) -> Vec<Uuid> {
-    let lib = project.library();
-    let (Some(dev), Some(pkg)) = (
-        lib.device(&device.lib_device()),
-        lib.device(&device.lib_device())
-            .and_then(|d| lib.package(&d.package_uuid())),
-    ) else {
-        return Vec::new();
+fn pad_signals(
+    source: &ElementSource<'_>,
+    component: Uuid,
+    device: Uuid,
+    pad: &str,
+) -> ToolResult<Vec<Uuid>> {
+    let Some((dev, _)) = source.device(device)? else {
+        return Err(ToolError::not_found(format!(
+            "Device {device} is unavailable for pad lookup. Open a workspace containing that device or use a signal name."
+        )));
     };
-    pkg.pads()
+    if dev.component_uuid() != component {
+        return Err(ToolError::invalid(format!(
+            "Device {device} does not implement component {component}."
+        )));
+    }
+    let package = dev.package_uuid();
+    let Some((pkg, _)) = source.package(package)? else {
+        return Err(ToolError::not_found(format!(
+            "Package {package} of device {device} is unavailable for pad lookup. Open a workspace containing that package or use a signal name."
+        )));
+    };
+    Ok(pkg
+        .pads()
         .iter()
         .filter(|p| p.name().as_str() == pad)
         .filter_map(|p| dev.pad_signal_map().by_uuid(&p.uuid())?.signal_uuid())
-        .collect()
+        .collect())
 }
 
 /// Returns the display form `<designator>.<signal>` of a component signal.

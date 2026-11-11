@@ -217,10 +217,12 @@ Gerber export — and the official `librepcb-cli` reports ERC 0, DRC 0.
 1. MCP reliability: applied-result DRC and actual connectivity reporting
    now cover both routers and SES import; automatic/explicit via dimensions
    are fixed. Grouped trace-width edits preserve identities and report DRC
-   changes. Next are via/geometry editing, revision-bound previews,
-   physical pin resolution before placement and effective routing rules
-   ([details and reproductions](mcp-routing-reliability.md)). Templates,
-   design-intent storage and a separate Freerouting MCP mode come later.
+   changes. Revision-bound previews, connected via and junction edits,
+   physical pin resolution before placement, and reports of effective
+   routing rules are available. Next are local topology edits and more
+   detailed search blockers ([details and reproductions](mcp-routing-reliability.md)).
+   Templates, design-intent storage and a separate Freerouting MCP mode
+   come later.
 2. M3c/M4c polish (see COMPAT.md "app"): scene highlight colors and the
    library editors from the color schemes, recording key presses in the
    shortcut editor, remembering wizard paths, the example projects

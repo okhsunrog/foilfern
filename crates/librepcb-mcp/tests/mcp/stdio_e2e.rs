@@ -41,6 +41,94 @@ async fn call_ok(
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn stdio_connects_selected_device_pads_before_placement() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    let created = call_ok(&client, "project_create", json!({"name":"Selected Device"})).await;
+    let path = &created["path"];
+
+    // Cache a different device of the same component by placing it first.
+    call_ok(
+        &client,
+        "component_add",
+        json!({"part":"PSMN5R8","designator":"Q1"}),
+    )
+    .await;
+    call_ok(
+        &client,
+        "device_place",
+        json!({"component":"Q1","position":{"x":10,"y":10}}),
+    )
+    .await;
+    let added = call_ok(
+        &client,
+        "component_add",
+        json!({"part":"PSMN022-30PL","designator":"Q2"}),
+    )
+    .await;
+    let selected = &added["selected_device"];
+    assert_eq!(added["devices"], json!([]));
+    let detail = call_ok(
+        &client,
+        "library_element",
+        json!({"kind":"device","uuid":selected}),
+    )
+    .await;
+    assert_eq!(detail["source"], "workspace");
+    assert!(
+        detail["pads"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|pad| { pad["pad_name"] == "1" && pad["signal_name"] == "G" })
+    );
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    call_ok(&client, "project_open", json!({"path":path})).await;
+    let reopened = call_ok(&client, "component_get", json!({"component":"Q2"})).await;
+    assert_eq!(reopened["selected_device"], *selected);
+    assert_eq!(reopened["devices"], json!([]));
+
+    let invalid = call(&client, "connect", json!({"net":"WRONG","pins":["Q2.S@1"]})).await;
+    assert_eq!(invalid.is_error, Some(true));
+    assert_eq!(
+        invalid.structured_content.unwrap()["error"]["kind"],
+        "not_found"
+    );
+
+    let wiring = json!({"net":"GATE","pins":["Q2.1","Q1.G"]});
+    let connected = call_ok(&client, "connect", wiring.clone()).await;
+    assert_eq!(connected["pins"], json!(["Q1.G", "Q2.G"]));
+    let disconnected = call_ok(&client, "disconnect", json!({"pins":["Q2.1"]})).await;
+    assert_eq!(disconnected["disconnected"], 1);
+    let net = call_ok(&client, "net_list", json!({"net":"GATE"})).await;
+    assert_eq!(net["nets"][0]["pins"], json!(["Q1.G"]));
+    call_ok(&client, "connect", wiring).await;
+    let placed = call_ok(
+        &client,
+        "device_place",
+        json!({"component":"Q2","position":{"x":20,"y":10}}),
+    )
+    .await;
+    assert_eq!(placed["device"]["uuid"], *selected);
+    assert!(
+        placed["pads"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|pad| { pad["name"] == "1" && pad["signal"] == "G" && pad["net"] == "GATE" })
+    );
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn stdio_symbol_variants_and_multisheet_four_layer_board() {
     let tmp = tempfile::tempdir().unwrap();
     let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));

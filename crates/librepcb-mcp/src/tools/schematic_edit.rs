@@ -757,7 +757,7 @@ fn resolve_pins(session: &Session, pins: &[String]) -> ToolResult<Vec<ComponentS
         return Err(ToolError::invalid("No pins given."));
     }
     pins.iter()
-        .map(|pin| Ok(resolve::pin(p, pin)?.signal))
+        .map(|pin| Ok(resolve::pin_with_workspace(p, session.workspace.as_deref(), pin)?.signal))
         .collect()
 }
 

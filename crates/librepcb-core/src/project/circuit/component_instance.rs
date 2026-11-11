@@ -94,6 +94,14 @@ impl ComponentInstance {
         copy lock_assembly: bool, set_lock_assembly
     );
 
+    /// Device used for default board placement, from the first assembly option.
+    pub fn default_device(&self) -> Option<Uuid> {
+        self.assembly_options
+            .iter()
+            .next()
+            .map(|option| option.device())
+    }
+
     /// Returns the UUID of the library component.
     pub fn lib_component(&self) -> Uuid {
         self.lib_component

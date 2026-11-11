@@ -262,6 +262,11 @@ The same diagnostic reports effective builtin rules and their inputs for
 the selected net, including DRC clamps, the conservative copper clearance,
 and via dimensions. See the [rule report](mcp-routing-reliability.md#effective-builtin-rules).
 
+Schematic `connect` and `disconnect` can resolve a package pad before
+placement through the component's selected device. The workspace can
+provide the device and package before either is in the project library.
+See [pre-placement pin resolution](mcp-routing-reliability.md#pre-placement-pin-resolution).
+
 Implemented `routing_edit_prepare` for explicit via dimensions and moves of
 existing vias and junctions, including both in one candidate. Connected traces
 follow the anchor with unchanged IDs and connectivity. Prepare runs full model
@@ -279,7 +284,7 @@ Remaining R2 work includes locating specific blockers along the search,
 separating pre-existing copper from routes that can be changed, and adding
 local topology changes. Report suggested remedies as hypotheses until a trial
 verifies them. A drained heuristic frontier only describes the attempted grid
-search. Fix selected-device pin resolution before placement.
+search.
 
 Acceptance: an agent can inspect a remaining connection, identify a concrete
 blocker, make a bounded edit and verify progress without hand-editing files or

@@ -195,13 +195,21 @@ symbol variant UUID from `library_element`, schematic page, position,
 rotation, mirror; places every gate, stacked
 automatically if no position), `component_remove`, `component_update`
 (designator, value, attributes, assembly options), `component_list`,
-`component_get` (signals with nets, symbols and pin positions, device),
+`component_get` (signals with nets, symbols and pin positions, placed
+devices and the `selected_device` UUID used for default placement),
 `symbol_move`, `connect` (net name + list of pins; creates/merges nets,
 draws wires or net labels on the schematic), `disconnect` (pins),
 `net_rename`, `net_list` (nets with pins and pads), `netlist`,
 `schematic_add`, `schematic_list`, `schematic_get` (all items with
 coordinates), `net_class_set`, `schematic_tidy` (re-arrange a page by
 connectivity and redraw its nets).
+
+`connect` and `disconnect` accept component signal names or UUIDs and
+physical package pad names such as `U1.21`. Signal references take
+precedence. Before board placement, physical lookup uses the first
+assembly option, matching default `device_place`. The selected device
+and package are read from the project library or the open workspace.
+Use `library_element` with the `selected_device` UUID to see its pad map.
 
 Board:
 `board_add`, `board_get` (outline, devices with pads and positions,

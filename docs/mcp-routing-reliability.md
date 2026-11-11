@@ -141,7 +141,7 @@ After R1:
 
 1. Extend grouped trace-width editing with via-size and connected geometry
    edits using the shared evidence, and add focused diagnostics/images.
-2. Fix selected-device pin resolution before PCB placement and expose effective
+2. Done. Resolve selected-device pins before PCB placement and report effective
    routing rules and their sources.
 3. Improve LQFP pad access, local grid refinement, route ordering and regional
    rip-up/reroute against fixed examples without losing DRC correctness.
@@ -223,6 +223,28 @@ On the saved STM32 retry board, stdio diagnostics for `V3V3` reported
 plus margin), and 0.3/0.7 mm via dimensions with automatic storage.
 An explicit 0.3/0.6 mm request met the board minimum and switched the
 reported storage to explicit. Both calls left the project revision intact.
+
+## Pre-placement pin resolution
+
+`component_add` and `component_get` expose the default assembly device
+as `selected_device`. Physical pin names in `connect` and `disconnect`
+use placed devices when present, then the default assembly device for
+an unplaced component. A component with neither still supports the
+previous lookup through its single device in the project library.
+Conflicting placed-device mappings require an explicit signal name.
+
+The resolver reads the device and package from the project library first
+and then from the open workspace. If an unplaced device exists only in
+the workspace, a session without that workspace can still use logical
+signal references. No PCB placement is needed for schematic wiring.
+
+A stdio regression places one MOSFET variant, saves and reopens a project
+with a second variant still unplaced, and checks that connecting and
+disconnecting its package pad 1 uses signal `G`. A pad name found only on
+the cached alternative is rejected. Default placement then confirms the
+connected physical pad. A separate stdio run with the experiment's
+STM32G474CBTx library mapped `U1.21` to `U1.VDDA` and assigned `V3V3`
+while the board still had no placed devices.
 
 ## Builtin search evidence
 

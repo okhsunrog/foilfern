@@ -792,7 +792,7 @@ impl Command for AddDevice {
                 .project()
                 .circuit()
                 .component_instance(component)
-                .and_then(|c| c.assembly_options().iter().next().map(|o| o.device()))
+                .and_then(ComponentInstance::default_device)
                 .ok_or_else(|| {
                     Error::InvalidArgument(format!(
                         "No device specified and the component \"{}\" has no assembly options.",

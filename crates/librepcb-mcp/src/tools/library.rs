@@ -16,6 +16,7 @@ use librepcb_core::library::cmp::Component;
 use librepcb_core::library::dev::Device;
 use librepcb_core::library::pkg::Package;
 use librepcb_core::library::sym::Symbol;
+use librepcb_core::project::ProjectLibrary;
 use librepcb_core::types::Uuid;
 use librepcb_core::workspace::{ElementKind, LibraryDb, ScanOutcome, SearchQuery, Workspace};
 use schemars::JsonSchema;
@@ -433,7 +434,7 @@ fn element_ref(db: &LibraryDb, kind: ElementKind, uuid: Uuid, ws: &Workspace) ->
 }
 
 /// A library element loaded from the workspace or the project library.
-enum Loaded<'a, T> {
+pub(crate) enum Loaded<'a, T> {
     Owned(T),
     Borrowed(&'a T),
 }
@@ -451,17 +452,34 @@ impl<T> std::ops::Deref for Loaded<'_, T> {
 /// Element lookup in the workspace library database and the project
 /// library.
 pub struct ElementSource<'a> {
-    session: &'a Session,
+    project: Option<&'a ProjectLibrary>,
+    workspace: Option<&'a Workspace>,
 }
 
 impl<'a> ElementSource<'a> {
     /// Creates a lookup over the session's workspace and project.
     pub fn new(session: &'a Session) -> Self {
-        Self { session }
+        Self {
+            project: session
+                .project
+                .as_ref()
+                .map(|open| open.project().library()),
+            workspace: session.workspace.as_deref(),
+        }
+    }
+
+    pub(crate) fn for_project(
+        project: &'a ProjectLibrary,
+        workspace: Option<&'a Workspace>,
+    ) -> Self {
+        Self {
+            project: Some(project),
+            workspace,
+        }
     }
 
     fn workspace_dir(&self, kind: ElementKind, uuid: Uuid) -> ToolResult<Option<FilePath>> {
-        match &self.session.workspace {
+        match self.workspace {
             Some(ws) => Ok(ws.library_db().element_dir(kind, uuid)?),
             None => Ok(None),
         }
@@ -476,15 +494,23 @@ impl<'a> ElementSource<'a> {
         &self,
         kind: ElementKind,
         uuid: Uuid,
-        project: impl Fn(&'a librepcb_core::project::ProjectLibrary) -> Option<&'a E>,
+        project: impl Fn(&'a ProjectLibrary) -> Option<&'a E>,
     ) -> ToolResult<Option<(Loaded<'a, E>, &'static str)>> {
-        if let Some(open) = &self.session.project
-            && let Some(e) = project(open.project().library())
-        {
+        if let Some(e) = self.project.and_then(project) {
             return Ok(Some((Loaded::Borrowed(e), "project")));
         }
         match self.workspace_dir(kind, uuid)? {
-            Some(dir) => Ok(Some((Loaded::Owned(Self::open(&dir)?), "workspace"))),
+            Some(dir) => {
+                let element: E = Self::open(&dir)?;
+                if element.metadata().uuid() != uuid {
+                    return Err(ToolError::invalid(format!(
+                        "The library element in {} has UUID {} instead of {uuid}.",
+                        dir.to_native(),
+                        element.metadata().uuid()
+                    )));
+                }
+                Ok(Some((Loaded::Owned(element), "workspace")))
+            }
             None => Ok(None),
         }
     }
@@ -492,10 +518,16 @@ impl<'a> ElementSource<'a> {
     fn component(&self, uuid: Uuid) -> ToolResult<Option<(Loaded<'a, Component>, &'static str)>> {
         self.load(ElementKind::Component, uuid, move |l| l.component(&uuid))
     }
-    fn device(&self, uuid: Uuid) -> ToolResult<Option<(Loaded<'a, Device>, &'static str)>> {
+    pub(crate) fn device(
+        &self,
+        uuid: Uuid,
+    ) -> ToolResult<Option<(Loaded<'a, Device>, &'static str)>> {
         self.load(ElementKind::Device, uuid, move |l| l.device(&uuid))
     }
-    fn package(&self, uuid: Uuid) -> ToolResult<Option<(Loaded<'a, Package>, &'static str)>> {
+    pub(crate) fn package(
+        &self,
+        uuid: Uuid,
+    ) -> ToolResult<Option<(Loaded<'a, Package>, &'static str)>> {
         self.load(ElementKind::Package, uuid, move |l| l.package(&uuid))
     }
     fn symbol(&self, uuid: Uuid) -> ToolResult<Option<(Loaded<'a, Symbol>, &'static str)>> {
@@ -504,8 +536,7 @@ impl<'a> ElementSource<'a> {
 
     /// Name of an element (for references), if it can be found.
     fn name(&self, kind: ElementKind, uuid: Uuid) -> Option<String> {
-        if let Some(open) = &self.session.project {
-            let lib = open.project().library();
+        if let Some(lib) = self.project {
             let name = match kind {
                 ElementKind::Component => lib
                     .component(&uuid)
@@ -525,7 +556,7 @@ impl<'a> ElementSource<'a> {
                 return name;
             }
         }
-        let ws = self.session.workspace.as_ref()?;
+        let ws = self.workspace?;
         ws.library_db()
             .element_summary(kind, uuid, &locale_order(ws))
             .ok()
@@ -749,17 +780,13 @@ fn component_detail(src: &ElementSource<'_>, c: &Component, source: &str) -> Too
     // Devices implementing this component.
     let mut devices = Vec::new();
     let mut seen = BTreeSet::new();
-    if let Some(open) = &src.session.project {
-        for d in open
-            .project()
-            .library()
-            .devices_of_component(&c.metadata().uuid())
-        {
+    if let Some(lib) = src.project {
+        for d in lib.devices_of_component(&c.metadata().uuid()) {
             seen.insert(d.metadata().uuid());
             devices.push(json!({ "uuid": d.metadata().uuid(), "name": d.metadata().name().as_str(), "source": "project" }));
         }
     }
-    if let Some(ws) = &src.session.workspace {
+    if let Some(ws) = src.workspace {
         for uuid in ws.library_db().component_devices(c.metadata().uuid())? {
             if seen.insert(uuid) {
                 devices.push(json!({

@@ -115,6 +115,7 @@ pub fn component_detail(p: &Project, id: ComponentInstanceId) -> ToolResult<(Str
     })?;
     let lib = resolve::lib_component(p, c)?;
     let mut v = component_summary(p, id, c);
+    v["selected_device"] = json!(c.default_device());
     v["attributes"] = views::attributes(c.attributes());
     v["symbol_variant"] = json!({
         "uuid": c.lib_variant(),
