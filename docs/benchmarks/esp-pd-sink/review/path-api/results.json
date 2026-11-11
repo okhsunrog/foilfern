@@ -1,0 +1,2447 @@
+{
+  "binary": "/workspace/foilfern/target/release/librepcb-mcp",
+  "binary_sha256": "a12d3d4de20cad53eac044f5e1464162a18312da3abfafedbc6c490972e9d899",
+  "profile": "release",
+  "comparisons": [
+    {
+      "from": "OLED1.27",
+      "to": "C22.1",
+      "prototype": {
+        "status": "measured",
+        "direct_mm": 4.0575308070303056,
+        "length_mm": 9.373741023123365,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "5e9d9886-be29-489e-8cc2-af14af79259d",
+          "3d4b53f0-200a-402f-a57c-6e362ee948a1",
+          "0f3f9256-f9ff-4d8c-8fbb-0895a783f2b4",
+          "be2453a6-b25f-4855-96dd-7f404efd49ba",
+          "e3041d18-283c-4ccd-8650-4accd1774331",
+          "58bf59bb-4fed-498c-bd77-ef8ecf371ee8",
+          "dc21ba7b-f535-446f-84f5-06c502d0206d",
+          "a1dcb035-51cb-4296-b7cf-b4b04d1411a1",
+          "bdedd4fb-e1f9-4337-a827-6279c0cfe97b",
+          "ec17ed4c-705c-418a-8b51-ecabfc495709"
+        ]
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 4.0575308070303056,
+        "from": {
+          "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "label": "OLED1.27",
+          "pad": "b6ae1d86-6f20-47ef-87ce-607eb4f44cc3",
+          "position_mm": {
+            "x": 147.45,
+            "y": -106.8
+          },
+          "signal": {
+            "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+            "signal": "7d008a4f-15ba-4cde-acb1-88c56bf0474b"
+          }
+        },
+        "layers": [
+          "bot_cu"
+        ],
+        "length_mm": 9.373741023123365,
+        "net": {
+          "name": "Net-(OLED1-VCOMH)",
+          "uuid": "0c9190c3-1ccb-4bb9-a68f-b850295e0b8b"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "same_net_plane_present": false,
+        "status": "measured",
+        "to": {
+          "component": "90b44ab4-5503-4893-b19d-d2dd2174465b",
+          "label": "C22.1",
+          "pad": "43214e6d-68b6-4638-b535-7bea06a4fa65",
+          "position_mm": {
+            "x": 146.6,
+            "y": -110.7675
+          },
+          "signal": {
+            "component": "90b44ab4-5503-4893-b19d-d2dd2174465b",
+            "signal": "14e25e69-f3cb-4130-9506-d6d614a10252"
+          }
+        },
+        "trace_path_only": true,
+        "traces": [
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.2093386622447826,
+            "segment": "87f2cc66-957e-4b66-a3ef-b2b2f415f72f",
+            "uuid": "5e9d9886-be29-489e-8cc2-af14af79259d",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.15,
+            "segment": "87f2cc66-957e-4b66-a3ef-b2b2f415f72f",
+            "uuid": "3d4b53f0-200a-402f-a57c-6e362ee948a1",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.4242640687119285,
+            "segment": "87f2cc66-957e-4b66-a3ef-b2b2f415f72f",
+            "uuid": "0f3f9256-f9ff-4d8c-8fbb-0895a783f2b4",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.8,
+            "segment": "87f2cc66-957e-4b66-a3ef-b2b2f415f72f",
+            "uuid": "be2453a6-b25f-4855-96dd-7f404efd49ba",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.2727922061357855,
+            "segment": "87f2cc66-957e-4b66-a3ef-b2b2f415f72f",
+            "uuid": "e3041d18-283c-4ccd-8650-4accd1774331",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.8,
+            "segment": "87f2cc66-957e-4b66-a3ef-b2b2f415f72f",
+            "uuid": "58bf59bb-4fed-498c-bd77-ef8ecf371ee8",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.4242640687119285,
+            "segment": "87f2cc66-957e-4b66-a3ef-b2b2f415f72f",
+            "uuid": "dc21ba7b-f535-446f-84f5-06c502d0206d",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.35,
+            "segment": "87f2cc66-957e-4b66-a3ef-b2b2f415f72f",
+            "uuid": "a1dcb035-51cb-4296-b7cf-b4b04d1411a1",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.6363961030678927,
+            "segment": "87f2cc66-957e-4b66-a3ef-b2b2f415f72f",
+            "uuid": "bdedd4fb-e1f9-4337-a827-6279c0cfe97b",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.3066859142510461,
+            "segment": "87f2cc66-957e-4b66-a3ef-b2b2f415f72f",
+            "uuid": "ec17ed4c-705c-418a-8b51-ecabfc495709",
+            "width_mm": 0.2
+          }
+        ],
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false,
+        "via_count": 0,
+        "vias": []
+      },
+      "seconds": 0.0008564850031689275
+    },
+    {
+      "from": "OLED1.28",
+      "to": "C21.1",
+      "prototype": {
+        "status": "measured",
+        "direct_mm": 4.336306752295092,
+        "length_mm": 10.081973210208055,
+        "layers": [
+          "bot_cu",
+          "in2_cu"
+        ],
+        "via_count": 2,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "ae570753-a166-4f60-9153-15a95bbe811f",
+          "f7d1bada-daad-437a-b61f-7d9f4384b21d",
+          "b6c658bf-2e54-47a5-9b66-4be7716e6c5e",
+          "759e0df8-f598-4f30-b5f7-fe21d192c846",
+          "156c5199-5370-4e96-99c8-b9ccdc2ab31a",
+          "ecce7f25-1e68-4e09-bc26-8033797dcea2",
+          "0f838b2f-e474-4dac-a8df-6adfa9cf7d0e",
+          "08361653-2595-4db5-ba11-5bd62e44e405",
+          "0c486048-252c-45ab-8db0-507520793809",
+          "2ac55047-c828-47ec-b15e-4cf4cc4b4ee1"
+        ]
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 4.336306752295091,
+        "from": {
+          "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "label": "OLED1.28",
+          "pad": "e3a46b4a-cfb9-4bc5-9ef8-b4d0bfaf0079",
+          "position_mm": {
+            "x": 146.75,
+            "y": -106.8
+          },
+          "signal": {
+            "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+            "signal": "37049889-4387-4674-95ab-7568ddefc5b0"
+          }
+        },
+        "layers": [
+          "bot_cu",
+          "in2_cu"
+        ],
+        "length_mm": 10.081973210208048,
+        "net": {
+          "name": "Net-(OLED1-VCC)",
+          "uuid": "ec54f610-e1e7-40d9-9a8d-93cd73d9b0ce"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "same_net_plane_present": false,
+        "status": "measured",
+        "to": {
+          "component": "47636e52-8e93-463f-aaf9-4bf0a48f15bf",
+          "label": "C21.1",
+          "pad": "46af46a6-d163-43dc-8b9e-6d16873d7122",
+          "position_mm": {
+            "x": 145.0,
+            "y": -110.7675
+          },
+          "signal": {
+            "component": "47636e52-8e93-463f-aaf9-4bf0a48f15bf",
+            "signal": "14e25e69-f3cb-4130-9506-d6d614a10252"
+          }
+        },
+        "trace_path_only": true,
+        "traces": [
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.2010412149464313,
+            "segment": "68c6caf6-d4a6-42e7-a654-c82e99eb6be4",
+            "uuid": "ae570753-a166-4f60-9153-15a95bbe811f",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.6363961030678927,
+            "segment": "68c6caf6-d4a6-42e7-a654-c82e99eb6be4",
+            "uuid": "f7d1bada-daad-437a-b61f-7d9f4384b21d",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.2,
+            "segment": "68c6caf6-d4a6-42e7-a654-c82e99eb6be4",
+            "uuid": "b6c658bf-2e54-47a5-9b66-4be7716e6c5e",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.4242640687119285,
+            "segment": "68c6caf6-d4a6-42e7-a654-c82e99eb6be4",
+            "uuid": "759e0df8-f598-4f30-b5f7-fe21d192c846",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.9,
+            "segment": "68c6caf6-d4a6-42e7-a654-c82e99eb6be4",
+            "uuid": "156c5199-5370-4e96-99c8-b9ccdc2ab31a",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.21213203435596426,
+            "segment": "68c6caf6-d4a6-42e7-a654-c82e99eb6be4",
+            "uuid": "ecce7f25-1e68-4e09-bc26-8033797dcea2",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "in2_cu",
+            "length_mm": 3.0,
+            "segment": "68c6caf6-d4a6-42e7-a654-c82e99eb6be4",
+            "uuid": "0f838b2f-e474-4dac-a8df-6adfa9cf7d0e",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "in2_cu",
+            "length_mm": 1.697056274847714,
+            "segment": "68c6caf6-d4a6-42e7-a654-c82e99eb6be4",
+            "uuid": "08361653-2595-4db5-ba11-5bd62e44e405",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.6,
+            "segment": "68c6caf6-d4a6-42e7-a654-c82e99eb6be4",
+            "uuid": "0c486048-252c-45ab-8db0-507520793809",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.21108351427811695,
+            "segment": "68c6caf6-d4a6-42e7-a654-c82e99eb6be4",
+            "uuid": "2ac55047-c828-47ec-b15e-4cf4cc4b4ee1",
+            "width_mm": 0.2
+          }
+        ],
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false,
+        "via_count": 2,
+        "vias": [
+          {
+            "segment": "68c6caf6-d4a6-42e7-a654-c82e99eb6be4",
+            "uuid": "527780fe-7d3d-47c8-a5a5-551613ae05b0"
+          },
+          {
+            "segment": "68c6caf6-d4a6-42e7-a654-c82e99eb6be4",
+            "uuid": "e14dd126-a41a-4109-b2a4-1e97d6762a8c"
+          }
+        ]
+      },
+      "seconds": 0.006656183999439236
+    },
+    {
+      "from": "OLED1.2",
+      "to": "C23.2",
+      "prototype": {
+        "status": "measured",
+        "direct_mm": 2.8540420897386873,
+        "length_mm": 2.9313944642081715,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "4ef751a1-aa5b-47b6-9d0e-80fde62b0b45",
+          "c600982a-8067-487b-8d60-e4c53e998c3f",
+          "8375eea0-759d-4f36-be3d-76b67e037cd6"
+        ]
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 2.8540420897386922,
+        "from": {
+          "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "label": "OLED1.2",
+          "pad": "f6c5b553-2ec8-4fa9-9cad-20feca88640b",
+          "position_mm": {
+            "x": 164.95,
+            "y": -106.8
+          },
+          "signal": {
+            "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+            "signal": "4913a7c9-8cb3-4fed-95c3-a12ab3988d7a"
+          }
+        },
+        "layers": [
+          "bot_cu"
+        ],
+        "length_mm": 2.9313944642081755,
+        "net": {
+          "name": "Net-(OLED1-C2P)",
+          "uuid": "36e8ff5a-dde9-473d-8b52-afbb1cc38a32"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "same_net_plane_present": false,
+        "status": "measured",
+        "to": {
+          "component": "8bc1eef6-a643-4eb5-9610-c03405fd6f8b",
+          "label": "C23.2",
+          "pad": "eb92f41c-86aa-4c4d-8016-8eba56271e88",
+          "position_mm": {
+            "x": 164.6,
+            "y": -109.6325
+          },
+          "signal": {
+            "component": "8bc1eef6-a643-4eb5-9610-c03405fd6f8b",
+            "signal": "96d13c54-e037-4064-bf51-c6714ae6e357"
+          }
+        },
+        "trace_path_only": true,
+        "traces": [
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.2041594578792294,
+            "segment": "47650b80-f405-48c3-8444-2bc4afb34a8f",
+            "uuid": "4ef751a1-aa5b-47b6-9d0e-80fde62b0b45",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.35,
+            "segment": "47650b80-f405-48c3-8444-2bc4afb34a8f",
+            "uuid": "c600982a-8067-487b-8d60-e4c53e998c3f",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.3772350063289461,
+            "segment": "47650b80-f405-48c3-8444-2bc4afb34a8f",
+            "uuid": "8375eea0-759d-4f36-be3d-76b67e037cd6",
+            "width_mm": 0.2
+          }
+        ],
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false,
+        "via_count": 0,
+        "vias": []
+      },
+      "seconds": 0.0008132059992931318
+    },
+    {
+      "from": "OLED1.3",
+      "to": "C23.1",
+      "prototype": {
+        "status": "measured",
+        "direct_mm": 3.9829080142529034,
+        "length_mm": 4.3810399387333785,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "1f7a2eb1-3aea-4f64-8993-8cccc279dbf4",
+          "a9950d4c-1215-4dcd-8c11-23d1906b0dde",
+          "3a9aa7f9-7410-43fb-8da2-870683aa2a70",
+          "167f400d-87c5-43bd-b768-83bde4afe5aa",
+          "5d130e7c-880f-4a69-b889-ec5a8c5e4437",
+          "45060027-6e74-4799-9a96-50b5e26273c7",
+          "c197956f-3110-41ac-b94a-15b1f77d3f55",
+          "d974ab68-7894-4d11-9ace-e13b99b6770e"
+        ]
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 3.9829080142529025,
+        "from": {
+          "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "label": "OLED1.3",
+          "pad": "3a3f9774-fc34-427e-8c72-27140ed995c5",
+          "position_mm": {
+            "x": 164.25,
+            "y": -106.8
+          },
+          "signal": {
+            "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+            "signal": "67433240-1833-46cf-9bef-349faceba430"
+          }
+        },
+        "layers": [
+          "bot_cu"
+        ],
+        "length_mm": 4.381039938733357,
+        "net": {
+          "name": "Net-(OLED1-C2N)",
+          "uuid": "d260cafd-55aa-458b-bce6-9fb368e55652"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "same_net_plane_present": false,
+        "status": "measured",
+        "to": {
+          "component": "8bc1eef6-a643-4eb5-9610-c03405fd6f8b",
+          "label": "C23.1",
+          "pad": "c3344437-f2ee-457e-9a9a-e33cb5b88abd",
+          "position_mm": {
+            "x": 164.6,
+            "y": -110.7675
+          },
+          "signal": {
+            "component": "8bc1eef6-a643-4eb5-9610-c03405fd6f8b",
+            "signal": "14e25e69-f3cb-4130-9506-d6d614a10252"
+          }
+        },
+        "trace_path_only": true,
+        "traces": [
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.2093386622447826,
+            "segment": "52c6baa4-43c7-4285-8b7e-e803b1de3c43",
+            "uuid": "1f7a2eb1-3aea-4f64-8993-8cccc279dbf4",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.15,
+            "segment": "52c6baa4-43c7-4285-8b7e-e803b1de3c43",
+            "uuid": "a9950d4c-1215-4dcd-8c11-23d1906b0dde",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.21213203435596426,
+            "segment": "52c6baa4-43c7-4285-8b7e-e803b1de3c43",
+            "uuid": "3a9aa7f9-7410-43fb-8da2-870683aa2a70",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.8,
+            "segment": "52c6baa4-43c7-4285-8b7e-e803b1de3c43",
+            "uuid": "167f400d-87c5-43bd-b768-83bde4afe5aa",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.21213203435596426,
+            "segment": "52c6baa4-43c7-4285-8b7e-e803b1de3c43",
+            "uuid": "5d130e7c-880f-4a69-b889-ec5a8c5e4437",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.15,
+            "segment": "52c6baa4-43c7-4285-8b7e-e803b1de3c43",
+            "uuid": "45060027-6e74-4799-9a96-50b5e26273c7",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.4242640687119285,
+            "segment": "52c6baa4-43c7-4285-8b7e-e803b1de3c43",
+            "uuid": "c197956f-3110-41ac-b94a-15b1f77d3f55",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.22317313906471808,
+            "segment": "52c6baa4-43c7-4285-8b7e-e803b1de3c43",
+            "uuid": "d974ab68-7894-4d11-9ace-e13b99b6770e",
+            "width_mm": 0.2
+          }
+        ],
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false,
+        "via_count": 0,
+        "vias": []
+      },
+      "seconds": 0.0007060989992169198
+    },
+    {
+      "from": "OLED1.4",
+      "to": "C24.2",
+      "prototype": {
+        "status": "measured",
+        "direct_mm": 2.854042089738691,
+        "length_mm": 2.9578052836583653,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "df2d8959-f42a-49f7-8a3b-31b464dcc210",
+          "c924f65e-544d-491a-8096-1f708628a426",
+          "5106e432-e469-41c1-82aa-743a5dbcd1af",
+          "aec3646d-5f2a-4729-873d-98688eb802e0"
+        ]
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 2.8540420897386922,
+        "from": {
+          "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "label": "OLED1.4",
+          "pad": "4c6b7e51-8684-4a42-b520-d444f18ce293",
+          "position_mm": {
+            "x": 163.55,
+            "y": -106.8
+          },
+          "signal": {
+            "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+            "signal": "0aa110d4-ff29-4c55-9978-8ed4accacba1"
+          }
+        },
+        "layers": [
+          "bot_cu"
+        ],
+        "length_mm": 2.95780528365836,
+        "net": {
+          "name": "Net-(OLED1-C1P)",
+          "uuid": "1a51d204-cb1d-4eb5-afb0-422c03b14123"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "same_net_plane_present": false,
+        "status": "measured",
+        "to": {
+          "component": "396c4be1-0cc7-4b07-8eb2-6b8fd53e7a72",
+          "label": "C24.2",
+          "pad": "0b13479b-c667-4cd9-883a-e80782c6cd7d",
+          "position_mm": {
+            "x": 163.2,
+            "y": -109.6325
+          },
+          "signal": {
+            "component": "396c4be1-0cc7-4b07-8eb2-6b8fd53e7a72",
+            "signal": "96d13c54-e037-4064-bf51-c6714ae6e357"
+          }
+        },
+        "trace_path_only": true,
+        "traces": [
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.2010412149464313,
+            "segment": "86dfc8ba-7dc4-408f-bb06-0ca7bdae16fc",
+            "uuid": "df2d8959-f42a-49f7-8a3b-31b464dcc210",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.75,
+            "segment": "86dfc8ba-7dc4-408f-bb06-0ca7bdae16fc",
+            "uuid": "c924f65e-544d-491a-8096-1f708628a426",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.4242640687119285,
+            "segment": "86dfc8ba-7dc4-408f-bb06-0ca7bdae16fc",
+            "uuid": "5106e432-e469-41c1-82aa-743a5dbcd1af",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.5825,
+            "segment": "86dfc8ba-7dc4-408f-bb06-0ca7bdae16fc",
+            "uuid": "aec3646d-5f2a-4729-873d-98688eb802e0",
+            "width_mm": 0.2
+          }
+        ],
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false,
+        "via_count": 0,
+        "vias": []
+      },
+      "seconds": 0.0008081769992713816
+    },
+    {
+      "from": "OLED1.5",
+      "to": "C24.1",
+      "prototype": {
+        "status": "measured",
+        "direct_mm": 3.9829080142529034,
+        "length_mm": 4.282319629659047,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "27d920eb-ce80-46ef-83f4-1e25ccaa8f63",
+          "78cdaa92-d18d-4881-a698-83385bde43ff",
+          "3828740a-00f7-4077-88de-1be877299184",
+          "2b569cbf-b5ab-49d3-bfa5-cfd7760e00f4",
+          "0460de5e-4578-4485-a4dd-ec5b4cdbdd23",
+          "3c07c270-9478-49f8-948d-9c800294002a"
+        ]
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 3.9829080142529025,
+        "from": {
+          "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "label": "OLED1.5",
+          "pad": "96a6753c-5f6d-49fd-9b57-418a30021a2d",
+          "position_mm": {
+            "x": 162.85,
+            "y": -106.8
+          },
+          "signal": {
+            "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+            "signal": "84a491e4-4af2-4659-a699-e815fa2c69bf"
+          }
+        },
+        "layers": [
+          "bot_cu"
+        ],
+        "length_mm": 4.28231962965905,
+        "net": {
+          "name": "Net-(OLED1-C1N)",
+          "uuid": "7c83b6b9-a05a-4957-8476-614110346085"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "same_net_plane_present": false,
+        "status": "measured",
+        "to": {
+          "component": "396c4be1-0cc7-4b07-8eb2-6b8fd53e7a72",
+          "label": "C24.1",
+          "pad": "0254ac88-551b-459e-88e9-d50395d67def",
+          "position_mm": {
+            "x": 163.2,
+            "y": -110.7675
+          },
+          "signal": {
+            "component": "396c4be1-0cc7-4b07-8eb2-6b8fd53e7a72",
+            "signal": "14e25e69-f3cb-4130-9506-d6d614a10252"
+          }
+        },
+        "trace_path_only": true,
+        "traces": [
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.2041594578792294,
+            "segment": "b551aa75-96c3-4f9d-b0e7-565492ff94e9",
+            "uuid": "27d920eb-ce80-46ef-83f4-1e25ccaa8f63",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.21213203435596426,
+            "segment": "b551aa75-96c3-4f9d-b0e7-565492ff94e9",
+            "uuid": "78cdaa92-d18d-4881-a698-83385bde43ff",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.95,
+            "segment": "b551aa75-96c3-4f9d-b0e7-565492ff94e9",
+            "uuid": "3828740a-00f7-4077-88de-1be877299184",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.4242640687119285,
+            "segment": "b551aa75-96c3-4f9d-b0e7-565492ff94e9",
+            "uuid": "2b569cbf-b5ab-49d3-bfa5-cfd7760e00f4",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.0675,
+            "segment": "b551aa75-96c3-4f9d-b0e7-565492ff94e9",
+            "uuid": "0460de5e-4578-4485-a4dd-ec5b4cdbdd23",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.4242640687119285,
+            "segment": "b551aa75-96c3-4f9d-b0e7-565492ff94e9",
+            "uuid": "3c07c270-9478-49f8-948d-9c800294002a",
+            "width_mm": 0.2
+          }
+        ],
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false,
+        "via_count": 0,
+        "vias": []
+      },
+      "seconds": 0.0011194769977009855
+    },
+    {
+      "from": "OLED1.14",
+      "to": "R22.2",
+      "prototype": {
+        "status": "measured",
+        "direct_mm": 2.8559597773778367,
+        "length_mm": 7.889563283320915,
+        "layers": [
+          "bot_cu",
+          "top_cu"
+        ],
+        "via_count": 2,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "22d561f6-326c-4e77-b278-13b9058bab4e",
+          "a22a5c18-e300-4603-89b8-33eaa074effc",
+          "ae4cde7e-4e47-4c8e-9a4d-b64e71b0528c",
+          "c3aade80-72dc-460a-a507-78ec59ec9234",
+          "ceb4207b-d57f-4a03-9486-a1b854565ea8",
+          "3d7d60f9-e72f-437a-96f8-954ddecbd80c",
+          "d7577fed-0fb5-4e1e-bb8a-b91329fcefdd"
+        ]
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 2.8559597773778256,
+        "from": {
+          "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "label": "OLED1.14",
+          "pad": "48f07743-50df-4682-b4c4-4c292e020664",
+          "position_mm": {
+            "x": 156.55,
+            "y": -106.8
+          },
+          "signal": {
+            "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+            "signal": "c4b87ca1-2d24-411b-a260-989a27256371"
+          }
+        },
+        "layers": [
+          "bot_cu",
+          "top_cu"
+        ],
+        "length_mm": 7.8895632833209355,
+        "net": {
+          "name": "Net-(D4-A)",
+          "uuid": "a60def5a-5246-4940-aa68-bc3a2eae2022"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "same_net_plane_present": false,
+        "status": "measured",
+        "to": {
+          "component": "7eebb053-38df-44c0-bf91-7c821578dce6",
+          "label": "R22.2",
+          "pad": "6da4325e-14f4-4343-a1b1-ab4fdcd36874",
+          "position_mm": {
+            "x": 156.0,
+            "y": -109.6025
+          },
+          "signal": {
+            "component": "7eebb053-38df-44c0-bf91-7c821578dce6",
+            "signal": "52cf08c6-caad-4d32-a732-6bb6151a2bef"
+          }
+        },
+        "trace_path_only": true,
+        "traces": [
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.2041594578792294,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "22d561f6-326c-4e77-b278-13b9058bab4e",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.6,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "a22a5c18-e300-4603-89b8-33eaa074effc",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 1.8,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "ae4cde7e-4e47-4c8e-9a4d-b64e71b0528c",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 2.545584412271571,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "c3aade80-72dc-460a-a507-78ec59ec9234",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.2727922061357855,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "ceb4207b-d57f-4a03-9486-a1b854565ea8",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.15,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "3d7d60f9-e72f-437a-96f8-954ddecbd80c",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.31702720703434906,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "d7577fed-0fb5-4e1e-bb8a-b91329fcefdd",
+            "width_mm": 0.2
+          }
+        ],
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false,
+        "via_count": 2,
+        "vias": [
+          {
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "009014c1-4272-4c14-8011-51875dc0acfe"
+          },
+          {
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "b4dcb786-2cf7-4642-95b8-543731f0b5b0"
+          }
+        ]
+      },
+      "seconds": 0.0009188520016323309
+    },
+    {
+      "from": "OLED1.14",
+      "to": "C27.1",
+      "prototype": {
+        "status": "measured",
+        "direct_mm": 6.9891742180317715,
+        "length_mm": 12.12496031677833,
+        "layers": [
+          "bot_cu",
+          "top_cu"
+        ],
+        "via_count": 2,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "22d561f6-326c-4e77-b278-13b9058bab4e",
+          "a22a5c18-e300-4603-89b8-33eaa074effc",
+          "ae4cde7e-4e47-4c8e-9a4d-b64e71b0528c",
+          "c3aade80-72dc-460a-a507-78ec59ec9234",
+          "ceb4207b-d57f-4a03-9486-a1b854565ea8",
+          "75b05f9a-2861-4f41-9378-e8cd71e5b5a4",
+          "99224e94-ae9e-483b-beac-83c2b57458d4",
+          "dabacf28-19b0-4376-88a3-7a734b050988",
+          "cef76d84-e34f-4ce0-b240-1288214a60f6",
+          "604f5bb2-73ea-4e6d-9279-5da4893624cd",
+          "d816b95f-527e-44ff-aa1d-e0548d6f5f73",
+          "bc710844-8ab2-4717-a03a-3b48c9197361"
+        ]
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 6.98917421803177,
+        "from": {
+          "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "label": "OLED1.14",
+          "pad": "48f07743-50df-4682-b4c4-4c292e020664",
+          "position_mm": {
+            "x": 156.55,
+            "y": -106.8
+          },
+          "signal": {
+            "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+            "signal": "c4b87ca1-2d24-411b-a260-989a27256371"
+          }
+        },
+        "layers": [
+          "bot_cu",
+          "top_cu"
+        ],
+        "length_mm": 12.124960316778335,
+        "net": {
+          "name": "Net-(D4-A)",
+          "uuid": "a60def5a-5246-4940-aa68-bc3a2eae2022"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "same_net_plane_present": false,
+        "status": "measured",
+        "to": {
+          "component": "fb9cd7b1-a43e-41c4-a864-415627ba3910",
+          "label": "C27.1",
+          "pad": "a7c1d00e-a807-4c22-9032-06274c83ec24",
+          "position_mm": {
+            "x": 156.0,
+            "y": -113.7675
+          },
+          "signal": {
+            "component": "fb9cd7b1-a43e-41c4-a864-415627ba3910",
+            "signal": "14e25e69-f3cb-4130-9506-d6d614a10252"
+          }
+        },
+        "trace_path_only": true,
+        "traces": [
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.2041594578792294,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "22d561f6-326c-4e77-b278-13b9058bab4e",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.6,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "a22a5c18-e300-4603-89b8-33eaa074effc",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 1.8,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "ae4cde7e-4e47-4c8e-9a4d-b64e71b0528c",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 2.545584412271571,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "c3aade80-72dc-460a-a507-78ec59ec9234",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.2727922061357855,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "ceb4207b-d57f-4a03-9486-a1b854565ea8",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.4242640687119285,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "75b05f9a-2861-4f41-9378-e8cd71e5b5a4",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 2.55,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "99224e94-ae9e-483b-beac-83c2b57458d4",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.21213203435596426,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "dabacf28-19b0-4376-88a3-7a734b050988",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.6,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "cef76d84-e34f-4ce0-b240-1288214a60f6",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.4242640687119285,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "604f5bb2-73ea-4e6d-9279-5da4893624cd",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.0675,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "d816b95f-527e-44ff-aa1d-e0548d6f5f73",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.4242640687119285,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "bc710844-8ab2-4717-a03a-3b48c9197361",
+            "width_mm": 0.2
+          }
+        ],
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false,
+        "via_count": 2,
+        "vias": [
+          {
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "009014c1-4272-4c14-8011-51875dc0acfe"
+          },
+          {
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "b4dcb786-2cf7-4642-95b8-543731f0b5b0"
+          }
+        ]
+      },
+      "seconds": 0.0007538889985880814
+    },
+    {
+      "from": "OLED1.14",
+      "to": "D4.2",
+      "prototype": {
+        "status": "measured",
+        "direct_mm": 6.5301225103362315,
+        "length_mm": 15.0638311666768,
+        "layers": [
+          "bot_cu",
+          "top_cu"
+        ],
+        "via_count": 2,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "22d561f6-326c-4e77-b278-13b9058bab4e",
+          "a22a5c18-e300-4603-89b8-33eaa074effc",
+          "ae4cde7e-4e47-4c8e-9a4d-b64e71b0528c",
+          "c3aade80-72dc-460a-a507-78ec59ec9234",
+          "ceb4207b-d57f-4a03-9486-a1b854565ea8",
+          "75b05f9a-2861-4f41-9378-e8cd71e5b5a4",
+          "99224e94-ae9e-483b-beac-83c2b57458d4",
+          "dabacf28-19b0-4376-88a3-7a734b050988",
+          "cef76d84-e34f-4ce0-b240-1288214a60f6",
+          "604f5bb2-73ea-4e6d-9279-5da4893624cd",
+          "d816b95f-527e-44ff-aa1d-e0548d6f5f73",
+          "bc710844-8ab2-4717-a03a-3b48c9197361",
+          "ebea5d7c-76f1-4875-a063-e1c8f0b6c4d5",
+          "3c40faf6-1ba9-4a4d-ab6b-d8be454886db",
+          "c0780a73-6b00-409e-9571-8b23ab97cf75",
+          "05781a4e-30ee-4e87-a731-606c31628adf",
+          "1293c2d9-92f7-4633-803a-67677f5dde29"
+        ]
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 6.530122510336234,
+        "from": {
+          "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+          "label": "OLED1.14",
+          "pad": "48f07743-50df-4682-b4c4-4c292e020664",
+          "position_mm": {
+            "x": 156.55,
+            "y": -106.8
+          },
+          "signal": {
+            "component": "d80dd87a-f4ce-4267-954a-f5fcf459123f",
+            "signal": "c4b87ca1-2d24-411b-a260-989a27256371"
+          }
+        },
+        "layers": [
+          "bot_cu",
+          "top_cu"
+        ],
+        "length_mm": 15.06383116667681,
+        "net": {
+          "name": "Net-(D4-A)",
+          "uuid": "a60def5a-5246-4940-aa68-bc3a2eae2022"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "same_net_plane_present": false,
+        "status": "measured",
+        "to": {
+          "component": "c6fa87d8-14bc-48b2-8f8f-47d1754a5ce5",
+          "label": "D4.2",
+          "pad": "b9295b2c-07f2-4169-b436-15f447fee30a",
+          "position_mm": {
+            "x": 158.6,
+            "y": -113.0
+          },
+          "signal": {
+            "component": "c6fa87d8-14bc-48b2-8f8f-47d1754a5ce5",
+            "signal": "feda23b4-ad83-4438-854c-a5f73078933b"
+          }
+        },
+        "trace_path_only": true,
+        "traces": [
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.2041594578792294,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "22d561f6-326c-4e77-b278-13b9058bab4e",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.6,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "a22a5c18-e300-4603-89b8-33eaa074effc",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 1.8,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "ae4cde7e-4e47-4c8e-9a4d-b64e71b0528c",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 2.545584412271571,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "c3aade80-72dc-460a-a507-78ec59ec9234",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.2727922061357855,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "ceb4207b-d57f-4a03-9486-a1b854565ea8",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.4242640687119285,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "75b05f9a-2861-4f41-9378-e8cd71e5b5a4",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 2.55,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "99224e94-ae9e-483b-beac-83c2b57458d4",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.21213203435596426,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "dabacf28-19b0-4376-88a3-7a734b050988",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.6,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "cef76d84-e34f-4ce0-b240-1288214a60f6",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.4242640687119285,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "604f5bb2-73ea-4e6d-9279-5da4893624cd",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.0675,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "d816b95f-527e-44ff-aa1d-e0548d6f5f73",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.4242640687119285,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "bc710844-8ab2-4717-a03a-3b48c9197361",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.3075,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "ebea5d7c-76f1-4875-a063-e1c8f0b6c4d5",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.2,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "3c40faf6-1ba9-4a4d-ab6b-d8be454886db",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.0606601717798214,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "c0780a73-6b00-409e-9571-8b23ab97cf75",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.3,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "05781a4e-30ee-4e87-a731-606c31628adf",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.07071067811865477,
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "1293c2d9-92f7-4633-803a-67677f5dde29",
+            "width_mm": 0.2
+          }
+        ],
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false,
+        "via_count": 2,
+        "vias": [
+          {
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "009014c1-4272-4c14-8011-51875dc0acfe"
+          },
+          {
+            "segment": "32941f30-a20d-4b13-90ee-cafdf2adb018",
+            "uuid": "b4dcb786-2cf7-4642-95b8-543731f0b5b0"
+          }
+        ]
+      },
+      "seconds": 0.0009082409997063223
+    },
+    {
+      "from": "U5.3",
+      "to": "C15.2",
+      "prototype": {
+        "status": "measured",
+        "direct_mm": 5.718979366984985,
+        "length_mm": 6.174726547895305,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.55,
+          1.0
+        ],
+        "traces": [
+          "9d5cccf2-3ad8-4907-8528-1b16a2021a74",
+          "3f0ff8a3-099b-489b-a673-c540ff0b3b2f",
+          "8e20e810-8aa6-4641-b5c7-ba9cca334830",
+          "5a8ea98e-58e8-4ca8-a779-7ee1089d203e"
+        ]
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 5.718979366984986,
+        "from": {
+          "component": "29b1e527-e498-4400-9588-1c71503dd368",
+          "label": "U5.3",
+          "pad": "8786dec7-e261-4cbd-af80-5a44a4ecc638",
+          "position_mm": {
+            "x": 107.625,
+            "y": -146.635
+          },
+          "signal": {
+            "component": "29b1e527-e498-4400-9588-1c71503dd368",
+            "signal": "38b703ec-e452-4464-bf1b-1b3a7dc42ce2"
+          }
+        },
+        "layers": [
+          "top_cu"
+        ],
+        "length_mm": 6.174726547895302,
+        "net": {
+          "name": "VBUS",
+          "uuid": "3a56cbec-be61-4e19-a063-04125d6d3a02"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "same_net_plane_present": true,
+        "status": "measured",
+        "to": {
+          "component": "490da570-da03-4777-a171-22361bf334b9",
+          "label": "C15.2",
+          "pad": "b31a00af-65ef-4607-a7d6-d6a429dfd4ef",
+          "position_mm": {
+            "x": 102.2,
+            "y": -144.825
+          },
+          "signal": {
+            "component": "490da570-da03-4777-a171-22361bf334b9",
+            "signal": "96d13c54-e037-4064-bf51-c6714ae6e357"
+          }
+        },
+        "trace_path_only": true,
+        "traces": [
+          {
+            "layer": "top_cu",
+            "length_mm": 1.915,
+            "segment": "b2ed398e-12a3-4c42-92ee-cfdc9d5bf99f",
+            "uuid": "9d5cccf2-3ad8-4907-8528-1b16a2021a74",
+            "width_mm": 0.55
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 1.5697770542341354,
+            "segment": "b2ed398e-12a3-4c42-92ee-cfdc9d5bf99f",
+            "uuid": "3f0ff8a3-099b-489b-a673-c540ff0b3b2f",
+            "width_mm": 0.55
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.9899494936611665,
+            "segment": "b2ed398e-12a3-4c42-92ee-cfdc9d5bf99f",
+            "uuid": "8e20e810-8aa6-4641-b5c7-ba9cca334830",
+            "width_mm": 1.0
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 1.7,
+            "segment": "b2ed398e-12a3-4c42-92ee-cfdc9d5bf99f",
+            "uuid": "5a8ea98e-58e8-4ca8-a779-7ee1089d203e",
+            "width_mm": 1.0
+          }
+        ],
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false,
+        "via_count": 0,
+        "vias": []
+      },
+      "seconds": 0.0010701280007197056
+    },
+    {
+      "from": "U5.3",
+      "to": "C16.2",
+      "prototype": {
+        "status": "measured",
+        "direct_mm": 3.2222236111108122,
+        "length_mm": 3.484777054234131,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.55
+        ],
+        "traces": [
+          "9d5cccf2-3ad8-4907-8528-1b16a2021a74",
+          "3f0ff8a3-099b-489b-a673-c540ff0b3b2f"
+        ]
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 3.222223611110812,
+        "from": {
+          "component": "29b1e527-e498-4400-9588-1c71503dd368",
+          "label": "U5.3",
+          "pad": "8786dec7-e261-4cbd-af80-5a44a4ecc638",
+          "position_mm": {
+            "x": 107.625,
+            "y": -146.635
+          },
+          "signal": {
+            "component": "29b1e527-e498-4400-9588-1c71503dd368",
+            "signal": "38b703ec-e452-4464-bf1b-1b3a7dc42ce2"
+          }
+        },
+        "layers": [
+          "top_cu"
+        ],
+        "length_mm": 3.4847770542341356,
+        "net": {
+          "name": "VBUS",
+          "uuid": "3a56cbec-be61-4e19-a063-04125d6d3a02"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "same_net_plane_present": true,
+        "status": "measured",
+        "to": {
+          "component": "65a898a8-e877-4b6e-9022-54c334fa1628",
+          "label": "C16.2",
+          "pad": "ab1c3a2e-269e-44e8-abbd-46a421128aa1",
+          "position_mm": {
+            "x": 104.6,
+            "y": -145.525
+          },
+          "signal": {
+            "component": "65a898a8-e877-4b6e-9022-54c334fa1628",
+            "signal": "96d13c54-e037-4064-bf51-c6714ae6e357"
+          }
+        },
+        "trace_path_only": true,
+        "traces": [
+          {
+            "layer": "top_cu",
+            "length_mm": 1.915,
+            "segment": "b2ed398e-12a3-4c42-92ee-cfdc9d5bf99f",
+            "uuid": "9d5cccf2-3ad8-4907-8528-1b16a2021a74",
+            "width_mm": 0.55
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 1.5697770542341354,
+            "segment": "b2ed398e-12a3-4c42-92ee-cfdc9d5bf99f",
+            "uuid": "3f0ff8a3-099b-489b-a673-c540ff0b3b2f",
+            "width_mm": 0.55
+          }
+        ],
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false,
+        "via_count": 0,
+        "vias": []
+      },
+      "seconds": 0.0011229579977225512
+    },
+    {
+      "from": "U5.1",
+      "to": "C16.1",
+      "prototype": {
+        "status": "not_checked",
+        "direct_mm": 4.246295444266681,
+        "reason": "No trace-only path. May connect through rebuilt copper planes; inspect plane coverage separately."
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 4.246295444266685,
+        "from": {
+          "component": "29b1e527-e498-4400-9588-1c71503dd368",
+          "label": "U5.1",
+          "pad": "3bdd2b12-3a4a-44ba-a891-f0c2248611e2",
+          "position_mm": {
+            "x": 107.625,
+            "y": -144.095
+          },
+          "signal": {
+            "component": "29b1e527-e498-4400-9588-1c71503dd368",
+            "signal": "4dff160b-7053-42ca-85d5-20ed7d355310"
+          }
+        },
+        "length_mm": null,
+        "net": {
+          "name": "GND",
+          "uuid": "c187951c-00a7-4374-8ea1-3b40c68838db"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "reason": "No explicit anchored trace path. A plane or unanchored copper contact may connect these pads; that length is not measured. This is not a connectivity verdict.",
+        "same_net_plane_present": true,
+        "status": "not_measured",
+        "to": {
+          "component": "65a898a8-e877-4b6e-9022-54c334fa1628",
+          "label": "C16.1",
+          "pad": "8866c790-9e58-4396-a3ce-07caac6ac5f2",
+          "position_mm": {
+            "x": 104.6,
+            "y": -147.075
+          },
+          "signal": {
+            "component": "65a898a8-e877-4b6e-9022-54c334fa1628",
+            "signal": "14e25e69-f3cb-4130-9506-d6d614a10252"
+          }
+        },
+        "trace_path_only": true,
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false
+      },
+      "seconds": 0.0007059449999360368
+    },
+    {
+      "from": "U5.5",
+      "to": "R14.1",
+      "prototype": {
+        "status": "measured",
+        "direct_mm": 3.8599546629461856,
+        "length_mm": 4.61289370361477,
+        "layers": [
+          "in2_cu",
+          "top_cu"
+        ],
+        "via_count": 2,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "abcb06ce-3ea1-4a9b-93ae-7f97bd08ebd1",
+          "6179e321-1b2a-4999-a88e-107e9d86924b",
+          "f669de29-d762-4f28-86e1-c047979a8773",
+          "6e9665a0-6d04-4722-b387-f5626352a601",
+          "475808f4-2f29-41ca-a4d2-36493889f19e",
+          "cea53251-50ea-4fc0-aff4-95cb54aca880"
+        ]
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 3.8599546629461856,
+        "from": {
+          "component": "29b1e527-e498-4400-9588-1c71503dd368",
+          "label": "U5.5",
+          "pad": "45603ef0-86d4-4438-bda8-aa5cfe7f84dd",
+          "position_mm": {
+            "x": 113.375,
+            "y": -147.905
+          },
+          "signal": {
+            "component": "29b1e527-e498-4400-9588-1c71503dd368",
+            "signal": "97f14271-2f3f-48ff-9bea-516cfdce483e"
+          }
+        },
+        "layers": [
+          "in2_cu",
+          "top_cu"
+        ],
+        "length_mm": 4.612893703614776,
+        "net": {
+          "name": "Net-(U5-FB)",
+          "uuid": "1f6e538f-ac64-4a55-90db-b3372e76a630"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "same_net_plane_present": false,
+        "status": "measured",
+        "to": {
+          "component": "c1f3e0f8-5b79-4059-aa4b-efd1598958b7",
+          "label": "R14.1",
+          "pad": "86781952-9aa8-4a98-95f2-fdbcb63cc4fe",
+          "position_mm": {
+            "x": 116.89,
+            "y": -149.5
+          },
+          "signal": {
+            "component": "c1f3e0f8-5b79-4059-aa4b-efd1598958b7",
+            "signal": "86582aa8-a4e1-4e5d-92f9-639b4c6047fc"
+          }
+        },
+        "trace_path_only": true,
+        "traces": [
+          {
+            "layer": "top_cu",
+            "length_mm": 0.22726636354727026,
+            "segment": "6eff52e2-91f0-4e6a-9924-a6dfbf204833",
+            "uuid": "abcb06ce-3ea1-4a9b-93ae-7f97bd08ebd1",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.6,
+            "segment": "6eff52e2-91f0-4e6a-9924-a6dfbf204833",
+            "uuid": "6179e321-1b2a-4999-a88e-107e9d86924b",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "in2_cu",
+            "length_mm": 1.8,
+            "segment": "6eff52e2-91f0-4e6a-9924-a6dfbf204833",
+            "uuid": "f669de29-d762-4f28-86e1-c047979a8773",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.848528137423857,
+            "segment": "6eff52e2-91f0-4e6a-9924-a6dfbf204833",
+            "uuid": "6e9665a0-6d04-4722-b387-f5626352a601",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.2570992026436488,
+            "segment": "6eff52e2-91f0-4e6a-9924-a6dfbf204833",
+            "uuid": "475808f4-2f29-41ca-a4d2-36493889f19e",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.88,
+            "segment": "6eff52e2-91f0-4e6a-9924-a6dfbf204833",
+            "uuid": "cea53251-50ea-4fc0-aff4-95cb54aca880",
+            "width_mm": 0.2
+          }
+        ],
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false,
+        "via_count": 2,
+        "vias": [
+          {
+            "segment": "6eff52e2-91f0-4e6a-9924-a6dfbf204833",
+            "uuid": "1bd76dd3-bb83-4548-a910-bfe5338f7649"
+          },
+          {
+            "segment": "6eff52e2-91f0-4e6a-9924-a6dfbf204833",
+            "uuid": "b4793ac1-9c71-49c5-a389-ef40316d26f0"
+          }
+        ]
+      },
+      "seconds": 0.0013836439975420944
+    },
+    {
+      "from": "U5.5",
+      "to": "R16.2",
+      "prototype": {
+        "status": "measured",
+        "direct_mm": 3.0801379839221528,
+        "length_mm": 3.7328937036147742,
+        "layers": [
+          "in2_cu",
+          "top_cu"
+        ],
+        "via_count": 2,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "abcb06ce-3ea1-4a9b-93ae-7f97bd08ebd1",
+          "6179e321-1b2a-4999-a88e-107e9d86924b",
+          "f669de29-d762-4f28-86e1-c047979a8773",
+          "6e9665a0-6d04-4722-b387-f5626352a601",
+          "475808f4-2f29-41ca-a4d2-36493889f19e"
+        ]
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 3.080137983922149,
+        "from": {
+          "component": "29b1e527-e498-4400-9588-1c71503dd368",
+          "label": "U5.5",
+          "pad": "45603ef0-86d4-4438-bda8-aa5cfe7f84dd",
+          "position_mm": {
+            "x": 113.375,
+            "y": -147.905
+          },
+          "signal": {
+            "component": "29b1e527-e498-4400-9588-1c71503dd368",
+            "signal": "97f14271-2f3f-48ff-9bea-516cfdce483e"
+          }
+        },
+        "layers": [
+          "in2_cu",
+          "top_cu"
+        ],
+        "length_mm": 3.732893703614776,
+        "net": {
+          "name": "Net-(U5-FB)",
+          "uuid": "1f6e538f-ac64-4a55-90db-b3372e76a630"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "same_net_plane_present": false,
+        "status": "measured",
+        "to": {
+          "component": "3116319d-dada-43ab-b48c-8043a69c246f",
+          "label": "R16.2",
+          "pad": "2e8a69dd-e7aa-45f2-90aa-f011a26e88da",
+          "position_mm": {
+            "x": 116.01,
+            "y": -149.5
+          },
+          "signal": {
+            "component": "3116319d-dada-43ab-b48c-8043a69c246f",
+            "signal": "e147cffd-7048-4b89-96a9-35cef8badf71"
+          }
+        },
+        "trace_path_only": true,
+        "traces": [
+          {
+            "layer": "top_cu",
+            "length_mm": 0.22726636354727026,
+            "segment": "6eff52e2-91f0-4e6a-9924-a6dfbf204833",
+            "uuid": "abcb06ce-3ea1-4a9b-93ae-7f97bd08ebd1",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.6,
+            "segment": "6eff52e2-91f0-4e6a-9924-a6dfbf204833",
+            "uuid": "6179e321-1b2a-4999-a88e-107e9d86924b",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "in2_cu",
+            "length_mm": 1.8,
+            "segment": "6eff52e2-91f0-4e6a-9924-a6dfbf204833",
+            "uuid": "f669de29-d762-4f28-86e1-c047979a8773",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.848528137423857,
+            "segment": "6eff52e2-91f0-4e6a-9924-a6dfbf204833",
+            "uuid": "6e9665a0-6d04-4722-b387-f5626352a601",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.2570992026436488,
+            "segment": "6eff52e2-91f0-4e6a-9924-a6dfbf204833",
+            "uuid": "475808f4-2f29-41ca-a4d2-36493889f19e",
+            "width_mm": 0.2
+          }
+        ],
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false,
+        "via_count": 2,
+        "vias": [
+          {
+            "segment": "6eff52e2-91f0-4e6a-9924-a6dfbf204833",
+            "uuid": "1bd76dd3-bb83-4548-a910-bfe5338f7649"
+          },
+          {
+            "segment": "6eff52e2-91f0-4e6a-9924-a6dfbf204833",
+            "uuid": "b4793ac1-9c71-49c5-a389-ef40316d26f0"
+          }
+        ]
+      },
+      "seconds": 0.0005606510021607392
+    },
+    {
+      "from": "U5.4",
+      "to": "R30.2",
+      "prototype": {
+        "status": "measured",
+        "direct_mm": 1.9435148571595695,
+        "length_mm": 2.0321191879147364,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "640b7762-ae03-4061-972a-a0447a9b4f7d",
+          "86a5f78c-93ad-4380-bd9d-38a533f42a14",
+          "41d9fc71-6738-471b-aff9-9854d5671960",
+          "e6f6aef4-cb88-450a-9abd-2cd8cce4c08e"
+        ]
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 1.9435148571595744,
+        "from": {
+          "component": "29b1e527-e498-4400-9588-1c71503dd368",
+          "label": "U5.4",
+          "pad": "2fb98582-8ce5-430d-adce-5d85754a3c40",
+          "position_mm": {
+            "x": 107.625,
+            "y": -147.905
+          },
+          "signal": {
+            "component": "29b1e527-e498-4400-9588-1c71503dd368",
+            "signal": "97c21407-776f-46ab-814d-36e14ae623a2"
+          }
+        },
+        "layers": [
+          "top_cu"
+        ],
+        "length_mm": 2.0321191879147475,
+        "net": {
+          "name": "Net-(U5-RTslashSYNC)",
+          "uuid": "d6a363b5-51bb-4266-821d-ed9e22f53d94"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "same_net_plane_present": false,
+        "status": "measured",
+        "to": {
+          "component": "578345c1-6ed1-4781-a171-9f1273f6f326",
+          "label": "R30.2",
+          "pad": "14e22dfe-2a4b-498c-a1f6-d26d08fb018b",
+          "position_mm": {
+            "x": 105.81,
+            "y": -148.6
+          },
+          "signal": {
+            "component": "578345c1-6ed1-4781-a171-9f1273f6f326",
+            "signal": "e147cffd-7048-4b89-96a9-35cef8badf71"
+          }
+        },
+        "trace_path_only": true,
+        "traces": [
+          {
+            "layer": "top_cu",
+            "length_mm": 0.9857230848468549,
+            "segment": "842ba7f8-c1a9-413e-a177-3cddfbc5427b",
+            "uuid": "640b7762-ae03-4061-972a-a0447a9b4f7d",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.6363961030678927,
+            "segment": "842ba7f8-c1a9-413e-a177-3cddfbc5427b",
+            "uuid": "86a5f78c-93ad-4380-bd9d-38a533f42a14",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.15,
+            "segment": "842ba7f8-c1a9-413e-a177-3cddfbc5427b",
+            "uuid": "41d9fc71-6738-471b-aff9-9854d5671960",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.26,
+            "segment": "842ba7f8-c1a9-413e-a177-3cddfbc5427b",
+            "uuid": "e6f6aef4-cb88-450a-9abd-2cd8cce4c08e",
+            "width_mm": 0.2
+          }
+        ],
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false,
+        "via_count": 0,
+        "vias": []
+      },
+      "seconds": 0.0007393739979306702
+    },
+    {
+      "from": "U6.9",
+      "to": "R17.2",
+      "prototype": {
+        "status": "measured",
+        "direct_mm": 4.9134305734384744,
+        "length_mm": 7.565299718464558,
+        "layers": [
+          "top_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "1c073fb8-feab-4bf7-b71a-49d8dd206909",
+          "258ecec3-47e9-47a4-8aa5-96c6cbec960b",
+          "a72c9318-5aec-45de-9dfe-64ba3399eba5",
+          "7e4785a1-3b1c-4a42-9f12-8b619f6c1fa5",
+          "f2125720-fc01-426e-a374-64d56c8eabfa",
+          "032aa49e-7317-48fc-9fea-b0b502391ed5",
+          "9636252a-51c4-4a8f-ae42-f04a009e1e39",
+          "572fea18-ae65-40ba-940d-10ac9ec2e3ba"
+        ]
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 4.9134305734384816,
+        "from": {
+          "component": "e645663f-5fce-40b7-bc43-fc7faeaa81d6",
+          "label": "U6.9",
+          "pad": "19bad1c8-3df9-4786-9583-7f8ad30d711f",
+          "position_mm": {
+            "x": 126.1,
+            "y": -131.5
+          },
+          "signal": {
+            "component": "e645663f-5fce-40b7-bc43-fc7faeaa81d6",
+            "signal": "8381e4c1-405b-4034-9ea8-84bc324b837a"
+          }
+        },
+        "layers": [
+          "top_cu"
+        ],
+        "length_mm": 7.565299718464556,
+        "net": {
+          "name": "Net-(U6-Vin-)",
+          "uuid": "70a3f6c7-7db0-43e8-8142-135d6e9b3038"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "same_net_plane_present": false,
+        "status": "measured",
+        "to": {
+          "component": "eb6a091d-40e8-4718-a623-2c1ee9b66598",
+          "label": "R17.2",
+          "pad": "c17869ab-8134-4548-89a2-b914c47dcb41",
+          "position_mm": {
+            "x": 127.43,
+            "y": -136.23
+          },
+          "signal": {
+            "component": "eb6a091d-40e8-4718-a623-2c1ee9b66598",
+            "signal": "63f76f75-a112-4bc5-a7b7-4ec73d40643b"
+          }
+        },
+        "trace_path_only": true,
+        "traces": [
+          {
+            "layer": "top_cu",
+            "length_mm": 0.07071067811865477,
+            "segment": "8b08584b-681e-43a0-b726-0b4d8427a361",
+            "uuid": "1c073fb8-feab-4bf7-b71a-49d8dd206909",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.8,
+            "segment": "8b08584b-681e-43a0-b726-0b4d8427a361",
+            "uuid": "258ecec3-47e9-47a4-8aa5-96c6cbec960b",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.4242640687119285,
+            "segment": "8b08584b-681e-43a0-b726-0b4d8427a361",
+            "uuid": "a72c9318-5aec-45de-9dfe-64ba3399eba5",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.3,
+            "segment": "8b08584b-681e-43a0-b726-0b4d8427a361",
+            "uuid": "7e4785a1-3b1c-4a42-9f12-8b619f6c1fa5",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 1.0606601717798214,
+            "segment": "8b08584b-681e-43a0-b726-0b4d8427a361",
+            "uuid": "f2125720-fc01-426e-a374-64d56c8eabfa",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.6,
+            "segment": "8b08584b-681e-43a0-b726-0b4d8427a361",
+            "uuid": "032aa49e-7317-48fc-9fea-b0b502391ed5",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 3.6062445840513924,
+            "segment": "8b08584b-681e-43a0-b726-0b4d8427a361",
+            "uuid": "9636252a-51c4-4a8f-ae42-f04a009e1e39",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.7034202158027589,
+            "segment": "8b08584b-681e-43a0-b726-0b4d8427a361",
+            "uuid": "572fea18-ae65-40ba-940d-10ac9ec2e3ba",
+            "width_mm": 0.2
+          }
+        ],
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false,
+        "via_count": 0,
+        "vias": []
+      },
+      "seconds": 0.0008893939993868116
+    },
+    {
+      "from": "U6.10",
+      "to": "R17.3",
+      "prototype": {
+        "status": "measured",
+        "direct_mm": 7.611425622050044,
+        "length_mm": 8.575016587651634,
+        "layers": [
+          "in2_cu",
+          "top_cu"
+        ],
+        "via_count": 2,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "387f0b06-87b5-409c-83ba-f0e67456d21e",
+          "ad6fa70a-01f9-4924-b2ee-f8d80d7d28ed",
+          "32f2cee8-f9ef-498c-a780-d8ddde431230",
+          "c3602b48-87af-4424-aecb-fe3b2bc08cd3",
+          "89e13dcf-4828-4997-a3f7-2199bdbbd554",
+          "a03fa999-9902-4dc2-a250-66c579b3c30f",
+          "26986c14-e60f-4451-964a-6b52f170ab69",
+          "c47586c3-6f61-4c82-beee-970b0c3b1105"
+        ]
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 7.61142562205005,
+        "from": {
+          "component": "e645663f-5fce-40b7-bc43-fc7faeaa81d6",
+          "label": "U6.10",
+          "pad": "4fdfa785-0c28-417d-ace7-234c77b23169",
+          "position_mm": {
+            "x": 126.1,
+            "y": -131.0
+          },
+          "signal": {
+            "component": "e645663f-5fce-40b7-bc43-fc7faeaa81d6",
+            "signal": "bc5363eb-fe6b-4ad9-a465-16a5f32c9eed"
+          }
+        },
+        "layers": [
+          "in2_cu",
+          "top_cu"
+        ],
+        "length_mm": 8.575016587651644,
+        "net": {
+          "name": "Net-(U6-Vin+)",
+          "uuid": "badc9706-c651-4084-8697-932c9806faf1"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "same_net_plane_present": false,
+        "status": "measured",
+        "to": {
+          "component": "eb6a091d-40e8-4718-a623-2c1ee9b66598",
+          "label": "R17.3",
+          "pad": "0458d2c1-b923-422f-8a5a-3b6068c79240",
+          "position_mm": {
+            "x": 120.57,
+            "y": -136.23
+          },
+          "signal": {
+            "component": "eb6a091d-40e8-4718-a623-2c1ee9b66598",
+            "signal": "6860f156-ec12-4880-9103-0bb1d2259e1b"
+          }
+        },
+        "trace_path_only": true,
+        "traces": [
+          {
+            "layer": "top_cu",
+            "length_mm": 0.9,
+            "segment": "4ed7b612-a72e-4eb3-bc72-cde4164a9d00",
+            "uuid": "387f0b06-87b5-409c-83ba-f0e67456d21e",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 2.0506096654409878,
+            "segment": "4ed7b612-a72e-4eb3-bc72-cde4164a9d00",
+            "uuid": "ad6fa70a-01f9-4924-b2ee-f8d80d7d28ed",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.9,
+            "segment": "4ed7b612-a72e-4eb3-bc72-cde4164a9d00",
+            "uuid": "32f2cee8-f9ef-498c-a780-d8ddde431230",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 1.9091883092036783,
+            "segment": "4ed7b612-a72e-4eb3-bc72-cde4164a9d00",
+            "uuid": "c3602b48-87af-4424-aecb-fe3b2bc08cd3",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "in2_cu",
+            "length_mm": 0.848528137423857,
+            "segment": "4ed7b612-a72e-4eb3-bc72-cde4164a9d00",
+            "uuid": "89e13dcf-4828-4997-a3f7-2199bdbbd554",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "in2_cu",
+            "length_mm": 0.9,
+            "segment": "4ed7b612-a72e-4eb3-bc72-cde4164a9d00",
+            "uuid": "a03fa999-9902-4dc2-a250-66c579b3c30f",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.6,
+            "segment": "4ed7b612-a72e-4eb3-bc72-cde4164a9d00",
+            "uuid": "26986c14-e60f-4451-964a-6b52f170ab69",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.4666904755831214,
+            "segment": "4ed7b612-a72e-4eb3-bc72-cde4164a9d00",
+            "uuid": "c47586c3-6f61-4c82-beee-970b0c3b1105",
+            "width_mm": 0.2
+          }
+        ],
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false,
+        "via_count": 2,
+        "vias": [
+          {
+            "segment": "4ed7b612-a72e-4eb3-bc72-cde4164a9d00",
+            "uuid": "207bbb10-819d-4b19-bde1-8752fefeb4e0"
+          },
+          {
+            "segment": "4ed7b612-a72e-4eb3-bc72-cde4164a9d00",
+            "uuid": "abce3668-fa03-4b04-963a-aedbd619b54c"
+          }
+        ]
+      },
+      "seconds": 0.0008171730005415156
+    },
+    {
+      "from": "U1.8",
+      "to": "C4.2",
+      "prototype": {
+        "status": "measured",
+        "direct_mm": 13.062748562228391,
+        "length_mm": 32.484513913629826,
+        "layers": [
+          "bot_cu",
+          "in2_cu",
+          "top_cu"
+        ],
+        "via_count": 4,
+        "widths_mm": [
+          0.18,
+          0.2
+        ],
+        "traces": [
+          "27dac47a-ba6c-4b6f-b5d1-a77513f41d64",
+          "3d96f637-64b4-4aaa-8408-d9af80595c2e",
+          "52a22ded-f91a-4617-b4ae-1dc8a1841e6b",
+          "6e83174f-227a-4568-abbc-8f4b3ee19382",
+          "08ef5a34-4543-41fd-945e-80d3b59fc6f0",
+          "b857997f-825b-4d41-b59c-18b64752f267",
+          "163aee2e-9585-4bdc-b62f-ac937163bae8",
+          "525897fc-401f-40e9-8d83-31a26df7eeca",
+          "6041411d-7576-49a3-948c-0fbd9c89defe",
+          "8e25e63e-94e1-4848-980b-d25f40781684",
+          "a756966d-2cce-475c-98d3-37bbd7d8d79a",
+          "2421c8c6-9045-4d1b-a4d2-f358322aec0a",
+          "12d03b12-31e2-4488-8f26-837827bf0fbd",
+          "b5206cb3-6076-4b62-964a-73629cfaaa30",
+          "012b79b9-df1a-430a-a220-885a1306f1d2",
+          "24e0d83c-03b1-4dbf-abf9-720b087d2693",
+          "257f0d37-159b-450e-b7f1-d05b401bbcdd",
+          "82b09d9a-0a47-43e6-a5af-d9eca9653e09",
+          "087d926b-aa1d-4579-9f78-906cb4528d28",
+          "c6bf5532-203e-4429-959b-0c946aeddcdb",
+          "89af15b1-5908-4c69-868e-4cfc484aeaf2",
+          "0520f6a1-7dcd-4791-ba5d-d6534583548d",
+          "bdb46979-f10d-4e7f-bd3c-6b6e4671ab23",
+          "6d52bab4-5d85-4136-a403-af7177c93c6e"
+        ]
+      },
+      "mcp": {
+        "base_revision": 0,
+        "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272",
+        "direct_mm": 13.062748562228395,
+        "from": {
+          "component": "23f6f6e2-e598-4832-b465-ab76521587c1",
+          "label": "U1.8",
+          "pad": "9c2127e0-64c6-4696-a0eb-62bf55361613",
+          "position_mm": {
+            "x": 114.55,
+            "y": -114.75
+          },
+          "signal": {
+            "component": "23f6f6e2-e598-4832-b465-ab76521587c1",
+            "signal": "a499b264-950f-4dbc-90a8-648e9caeb91b"
+          }
+        },
+        "layers": [
+          "bot_cu",
+          "in2_cu",
+          "top_cu"
+        ],
+        "length_mm": 32.48451391362983,
+        "net": {
+          "name": "ADC_VBUS",
+          "uuid": "1efcfb3f-78a0-490b-b4e6-62c987e20a40"
+        },
+        "plane_copper_measured": false,
+        "project": "fa55f951-14b5-4a23-a7a8-66b064b8ef7a",
+        "same_net_plane_present": false,
+        "status": "measured",
+        "to": {
+          "component": "26860204-3d88-4402-b703-2057c69b85fd",
+          "label": "C4.2",
+          "pad": "263fb1d4-e5de-4b92-9a96-6f095e16dfa4",
+          "position_mm": {
+            "x": 111.8,
+            "y": -127.52
+          },
+          "signal": {
+            "component": "26860204-3d88-4402-b703-2057c69b85fd",
+            "signal": "96d13c54-e037-4064-bf51-c6714ae6e357"
+          }
+        },
+        "trace_path_only": true,
+        "traces": [
+          {
+            "layer": "top_cu",
+            "length_mm": 0.5,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "27dac47a-ba6c-4b6f-b5d1-a77513f41d64",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.35355339059327373,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "3d96f637-64b4-4aaa-8408-d9af80595c2e",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "in2_cu",
+            "length_mm": 0.1,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "52a22ded-f91a-4617-b4ae-1dc8a1841e6b",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "in2_cu",
+            "length_mm": 0.848528137423857,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "6e83174f-227a-4568-abbc-8f4b3ee19382",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "in2_cu",
+            "length_mm": 0.6,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "08ef5a34-4543-41fd-945e-80d3b59fc6f0",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "in2_cu",
+            "length_mm": 1.414213562373095,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "b857997f-825b-4d41-b59c-18b64752f267",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "in2_cu",
+            "length_mm": 6.2,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "163aee2e-9585-4bdc-b62f-ac937163bae8",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.848528137423857,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "525897fc-401f-40e9-8d83-31a26df7eeca",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 9.4,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "6041411d-7576-49a3-948c-0fbd9c89defe",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.5656854249492381,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "8e25e63e-94e1-4848-980b-d25f40781684",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 1.6,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "a756966d-2cce-475c-98d3-37bbd7d8d79a",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "bot_cu",
+            "length_mm": 0.28284271247461906,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "2421c8c6-9045-4d1b-a4d2-f358322aec0a",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "in2_cu",
+            "length_mm": 4.1012193308819755,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "12d03b12-31e2-4488-8f26-837827bf0fbd",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.3,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "b5206cb3-6076-4b62-964a-73629cfaaa30",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.07071067811865477,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "012b79b9-df1a-430a-a220-885a1306f1d2",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.09,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "24e0d83c-03b1-4dbf-abf9-720b087d2693",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.3676955262170047,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "257f0d37-159b-450e-b7f1-d05b401bbcdd",
+            "width_mm": 0.2
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.29,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "82b09d9a-0a47-43e6-a5af-d9eca9653e09",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 1.2727922061357855,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "087d926b-aa1d-4579-9f78-906cb4528d28",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.5,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "c6bf5532-203e-4429-959b-0c946aeddcdb",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.4242640687119285,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "89af15b1-5908-4c69-868e-4cfc484aeaf2",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.9,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "0520f6a1-7dcd-4791-ba5d-d6534583548d",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 1.1313708498984762,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "bdb46979-f10d-4e7f-bd3c-6b6e4671ab23",
+            "width_mm": 0.18
+          },
+          {
+            "layer": "top_cu",
+            "length_mm": 0.32310988842807026,
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "6d52bab4-5d85-4136-a403-af7177c93c6e",
+            "width_mm": 0.18
+          }
+        ],
+        "unanchored_copper_contacts_measured": false,
+        "via_barrel_length_measured": false,
+        "via_count": 4,
+        "vias": [
+          {
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "0c23577c-5171-400c-8ac7-4358454e8daf"
+          },
+          {
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "908038d4-4557-4de1-9253-1344bbb2e973"
+          },
+          {
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "c9cd9a38-c06f-4f8a-859b-7076e35b8554"
+          },
+          {
+            "segment": "19bcb90c-60ca-4665-8bef-5406ab5b6176",
+            "uuid": "f8d06b44-80d3-4e23-834a-755fe35926c7"
+          }
+        ]
+      },
+      "seconds": 0.0009478479987592436
+    }
+  ],
+  "uuid_query_identical": true,
+  "stale_revision_refused": true,
+  "different_nets_refused": true,
+  "missing_pad_refused": true,
+  "board_unchanged": true,
+  "history_unchanged": true,
+  "native_unchanged": true,
+  "revision": 0,
+  "board": "4a16dd24-f4cb-42b9-bd1d-9bfc5daae272"
+}

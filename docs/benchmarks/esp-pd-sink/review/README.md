@@ -52,4 +52,5 @@ native project. [Guarded routing-baseline reuse](performance/REPORT.md) is now
 implemented in Rust. [Release validation on the original fixture](performance/release/REPORT.md)
 confirms faster repeated preparation with equivalent DRC, connectivity and geometry.
 Bounded builtin profiling is recorded beside it; the read-only path API is
-implemented in core/MCP. Connected-footprint side changes remain later work.
+implemented in core/MCP, with [all 18 saved pairs replayed in release](path-api/REPORT.md).
+Connected-footprint side changes remain later work.
