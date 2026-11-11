@@ -44,6 +44,7 @@ pub struct PlannedTrace {
 pub struct CopperPlan {
     pub board: BoardId,
     pub remove_traces: BTreeSet<Uuid>,
+    pub remove_vias: BTreeSet<Uuid>,
     pub vias: Vec<AddVia>,
     pub traces: Vec<PlannedTrace>,
 }
@@ -53,21 +54,32 @@ impl CopperPlan {
         self,
         sandbox: &mut ProjectEditor,
     ) -> std::result::Result<(usize, usize), RoutingError> {
-        let removal_baseline = if self.remove_traces.is_empty() {
+        let removed = self
+            .remove_traces
+            .union(&self.remove_vias)
+            .copied()
+            .collect();
+        let removal_baseline = if self.remove_traces.is_empty() && self.remove_vias.is_empty() {
             None
         } else {
             let project = sandbox.project();
             let board = resolve_board(project, Some(self.board))?;
             let mut selection = BoardSelection::default();
-            for &uuid in &self.remove_traces {
-                let (segment, _) = board
-                    .net_segments()
-                    .iter()
-                    .find(|(_, segment)| segment.traces().contains_key(&uuid))
-                    .ok_or_else(|| Error::not_found("Trace", uuid))?;
-                selection.traces.push((*segment, uuid));
-            }
             let before = region::copper(project, board)?;
+            for &uuid in &self.remove_traces {
+                let trace = before
+                    .get(&uuid)
+                    .filter(|item| !item.is_via())
+                    .ok_or_else(|| Error::not_found("Trace", uuid))?;
+                trace.select_trace(uuid, &mut selection);
+            }
+            for &uuid in &self.remove_vias {
+                let via = before
+                    .get(&uuid)
+                    .filter(|item| item.is_via())
+                    .ok_or_else(|| Error::not_found("Via", uuid))?;
+                via.select_via(uuid, board, &self.remove_traces, &mut selection)?;
+            }
             sandbox.execute(region::RipUp {
                 board: self.board,
                 selection,
@@ -95,7 +107,7 @@ impl CopperPlan {
         if let Some(before) = removal_baseline {
             let project = sandbox.project();
             let after = region::copper(project, resolve_board(project, Some(self.board))?)?;
-            region::ensure_preserved_copper(&before, &after, &self.remove_traces)?;
+            region::ensure_preserved_copper(&before, &after, &removed)?;
         }
         Ok((vias.len(), segments))
     }

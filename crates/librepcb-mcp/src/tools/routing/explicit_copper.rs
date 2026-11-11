@@ -30,6 +30,9 @@ pub struct RoutingCopperArgs {
     /// UUIDs of existing traces to replace in the same checked candidate.
     #[serde(default)]
     pub remove_traces: Vec<String>,
+    /// UUIDs of existing vias to replace. List all their traces in remove_traces.
+    #[serde(default)]
+    pub remove_vias: Vec<String>,
     pub expected_revision: Option<u64>,
 }
 
@@ -75,6 +78,7 @@ pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolRes
     let total = args.vias.len()
         + args.traces.len()
         + args.remove_traces.len()
+        + args.remove_vias.len()
         + args
             .traces
             .iter()
@@ -98,6 +102,11 @@ pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolRes
         .remove_traces
         .iter()
         .map(|id| resolve::required_uuid(id, "trace"))
+        .collect::<ToolResult<_>>()?;
+    let remove_vias = args
+        .remove_vias
+        .iter()
+        .map(|id| resolve::required_uuid(id, "via"))
         .collect::<ToolResult<_>>()?;
     let net = |name: &str| resolve::net(project, name).map(|(id, _)| NetRef::Id(id));
     let mut labels = BTreeMap::new();
@@ -167,6 +176,7 @@ pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolRes
             CopperPlan {
                 board,
                 remove_traces,
+                remove_vias,
                 vias,
                 traces,
             },

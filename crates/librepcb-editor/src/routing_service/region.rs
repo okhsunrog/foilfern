@@ -47,6 +47,38 @@ pub(super) struct Copper {
     geometry: Geometry,
 }
 
+impl Copper {
+    pub(super) fn select_via(
+        &self,
+        uuid: Uuid,
+        board: &Board,
+        selected_traces: &BTreeSet<Uuid>,
+        selection: &mut BoardSelection,
+    ) -> Result<()> {
+        let segment = board
+            .net_segment(self.segment)
+            .ok_or_else(|| Error::not_found("Net segment", self.segment))?;
+        if segment
+            .traces_at(TraceAnchor::Via(uuid))
+            .any(|trace| !selected_traces.contains(&trace.uuid()))
+        {
+            return Err(Error::InvalidArgument(format!(
+                "Via {uuid} has an attached trace outside the rip-up list."
+            )));
+        }
+        selection.vias.push((self.segment, uuid));
+        Ok(())
+    }
+
+    pub(super) fn select_trace(&self, uuid: Uuid, selection: &mut BoardSelection) {
+        selection.traces.push((self.segment, uuid));
+    }
+
+    pub(super) fn is_via(&self) -> bool {
+        matches!(self.geometry, Geometry::Via { .. })
+    }
+}
+
 pub(super) fn copper(project: &Project, board: &Board) -> Result<BTreeMap<Uuid, Copper>> {
     let mut items = BTreeMap::new();
     for (id, segment) in board.net_segments() {
@@ -173,23 +205,10 @@ impl RegionalRoutingRequest {
                 ))
                 .into());
             }
-            match &item.geometry {
-                Geometry::Trace { .. } => selection.traces.push((item.segment, *uuid)),
-                Geometry::Via { .. } => {
-                    let segment = board
-                        .net_segment(item.segment)
-                        .ok_or_else(|| Error::not_found("Net segment", item.segment))?;
-                    if segment
-                        .traces_at(TraceAnchor::Via(*uuid))
-                        .any(|trace| !selected.contains(&trace.uuid()))
-                    {
-                        return Err(Error::InvalidArgument(format!(
-                            "Via {uuid} has an attached trace outside the rip-up list."
-                        ))
-                        .into());
-                    }
-                    selection.vias.push((item.segment, *uuid));
-                }
+            if item.is_via() {
+                item.select_via(*uuid, board, &selected, &mut selection)?;
+            } else {
+                item.select_trace(*uuid, &mut selection);
             }
         }
         if !selected.is_empty() {

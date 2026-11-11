@@ -66,6 +66,73 @@ fn board_value(session: &Session) -> Value {
 }
 
 #[test]
+fn board_get_reports_effective_dimensions_for_automatic_vias() {
+    use librepcb_mcp::tools::layout::board_get;
+
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    board_edit::design_rules_set(&mut session, args(json!({"default_via_drill":0.4}))).unwrap();
+    board_edit::via_add(
+        &mut session,
+        args(json!({"net":"A","position":{"x":10,"y":10}})),
+    )
+    .unwrap();
+    let board = board_get(&session, Default::default()).unwrap().result;
+    let via = &board["vias"][0];
+    assert!(via["drill"].is_null());
+    assert!(via["size"].is_null());
+    assert_eq!(via["effective_drill"], 0.4);
+    assert_eq!(via["effective_size"], 0.8);
+}
+
+#[test]
+fn explicit_copper_requires_authorization_for_via_attachments() {
+    use librepcb_mcp::tools::layout::board_get;
+
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let via = board_edit::via_add(
+        &mut session,
+        args(json!({"net":"A","position":{"x":8,"y":9.025}})),
+    )
+    .unwrap()
+    .result["uuid"]
+        .clone();
+    let trace = board_edit::trace_add(
+        &mut session,
+        args(json!({"from":"R1.1","to":via,"layer":"top","width":0.2})),
+    )
+    .unwrap()
+    .result["traces"][0]["uuid"]
+        .clone();
+    let before = board_value(&session);
+    let mut plan = json!({
+        "remove_vias":[via],
+        "traces":[{"from":"R1.1","to":"R2.1","layer":"top","width":0.2}]
+    });
+    let job = routing::prepare_copper_job(&session, args(plan.clone())).unwrap();
+    let error = routing::run_job(job).unwrap_err();
+    assert!(error.to_string().contains("attached trace"), "{error}");
+    plan["remove_traces"] = json!([trace]);
+    let job = routing::prepare_copper_job(&session, args(plan)).unwrap();
+    let trial = routing::run_job(job).unwrap();
+    assert!(trial.info().validation.acceptable);
+    assert_eq!(trial.info().validation.after.unrouted, 1);
+    assert_eq!(board_value(&session), before);
+    let candidate = routing::finish_prepare(&mut session, trial).unwrap().result;
+    assert_eq!(candidate["copper"]["removed_vias"], 1);
+    routing::routing_apply(
+        &mut session,
+        args(json!({"candidate":candidate["candidate"]})),
+    )
+    .unwrap();
+    assert_eq!(
+        board_get(&session, Default::default()).unwrap().result["vias"],
+        json!([])
+    );
+}
+
+#[test]
 fn explicit_copper_resolves_via_labels_and_applies_as_one_step() {
     let temp = tempfile::tempdir().unwrap();
     let mut session = board_session(temp.path());

@@ -100,6 +100,8 @@ pub struct CopperAddition {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub base_candidate: Option<Uuid>,
     pub removed_traces: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub removed_vias: Option<usize>,
     pub vias: usize,
     pub trace_segments: usize,
 }
@@ -269,11 +271,13 @@ impl RoutingJob {
                     None => None,
                 };
                 let removed_traces = plan.remove_traces.len();
+                let removed_vias = (!plan.remove_vias.is_empty()).then_some(plan.remove_vias.len());
                 let (vias, trace_segments) = plan.run(sandbox)?;
                 RoutingCandidateDetails::Copper {
                     copper: CopperAddition {
                         base_candidate,
                         removed_traces,
+                        removed_vias,
                         vias,
                         trace_segments,
                     },

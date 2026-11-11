@@ -323,6 +323,7 @@ pub fn board_get(session: &Session, args: BoardGetArgs) -> ToolResult<ToolOutput
             }));
         }
         for v in seg.vias().values() {
+            let properties = b.via_properties(v, seg.net(), p.circuit());
             vias.push(json!({
                 "uuid": v.uuid(),
                 "segment": seg.uuid(),
@@ -330,6 +331,8 @@ pub fn board_get(session: &Session, args: BoardGetArgs) -> ToolResult<ToolOutput
                 "position": views::point(v.position()),
                 "drill": v.drill_diameter().map(mm),
                 "size": v.size().map(mm),
+                "effective_drill": mm(properties.drill_diameter),
+                "effective_size": mm(properties.size),
                 "start_layer": v.start_layer().id(),
                 "end_layer": v.end_layer().id(),
             }));

@@ -370,7 +370,9 @@ Give each new via a label and use `{"via":"label"}` as a trace endpoint;
 pad names, existing anchor UUIDs and coordinates also work. The whole batch
 is checked against the board as one candidate and applies in one undo step.
 Use `remove_traces` to replace selected existing traces by UUID in the
-same candidate. It supports up to 512 vias, paths, points and removals combined.
+same candidate. Use `remove_vias` to replace selected vias by UUID and list
+all their attached traces in `remove_traces`. The other copper keeps its
+geometry and UUIDs. It supports up to 512 vias, paths, points and removals combined.
 Use `base_candidate` to add the explicit geometry to an earlier candidate,
 including a rejected route with a plane split. The combined patch is checked
 against the unchanged live board and remains independently previewable.

@@ -267,3 +267,7 @@ follow the anchor and retain their UUIDs. Review the candidate with
 `routing_preview` and commit it with `routing_apply` after checking
 `validation.acceptable`. An edit that increases the rebuilt air-wire count
 on any net is refused.
+
+In `board_get`, each via includes `effective_drill` and `effective_size`
+in mm, using the same net-class and board rules as DRC. The `drill` and
+`size` fields show explicit overrides and are null in automatic mode.
