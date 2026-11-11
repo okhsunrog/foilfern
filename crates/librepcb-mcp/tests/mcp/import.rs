@@ -179,6 +179,7 @@ fn eagle_project_import() {
             eagle_schematic: Some(data("eagleimport/testproject/testproject.sch")),
             eagle_board: Some(data("eagleimport/testproject/testproject.brd")),
             kicad_schematic: None,
+            kicad_board: None,
         },
     )
     .unwrap();
@@ -235,4 +236,68 @@ fn kicad_project_import_preserves_numbered_unnamed_pins_and_direct_labels() {
         .result;
     assert_eq!(erc["warnings"], 0, "{erc}");
     assert_eq!(erc["errors"], 0, "{erc}");
+
+    let board_path = temp.path().join("bench.kicad_pcb");
+    std::fs::write(
+        &board_path,
+        r#"
+(kicad_pcb (version 20260206)
+  (general (thickness 1.6))
+  (layers (0 "F.Cu" signal) (4 "In1.Cu" power) (6 "In2.Cu" signal) (2 "B.Cu" signal))
+  (gr_line (start 0 0) (end 50 0) (layer "Edge.Cuts"))
+  (gr_line (start 50 0) (end 50 40) (layer "Edge.Cuts"))
+  (gr_line (start 50 40) (end 0 40) (layer "Edge.Cuts"))
+  (gr_line (start 0 40) (end 0 0) (layer "Edge.Cuts"))
+  (footprint "Fixture:Part" (layer "F.Cu") (at 20 20) (attr smd)
+    (property "Reference" "U1" (at 0 2 0) (layer "F.SilkS") (effects (font (size 1 1))))
+    (pad "1" smd rect (at -1 0) (size 0.6 0.8) (layers "F.Cu" "F.Mask"))
+    (pad "2" smd rect (at 1 0) (size 0.6 0.8) (layers "F.Cu" "F.Mask") (net "LINK")))
+  (footprint "Fixture:Part" (layer "B.Cu") (at 30 20 90) (attr smd)
+    (property "Reference" "U2" (at 0 2 90) (layer "B.SilkS") (effects (font (size 1 1))))
+    (pad "1" smd rect (at -1 0 90) (size 0.6 0.8) (layers "B.Cu" "B.Mask") (net "LINK"))
+    (pad "2" smd rect (at 1 0 90) (size 0.6 0.8) (layers "B.Cu" "B.Mask")))
+  (segment (start 21 20) (end 30 21) (width 0.5) (layer "F.Cu") (net "LINK")))
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        temp.path().join("bench.kicad_pro"),
+        r#"{
+        "net_settings": {
+          "classes":[{"name":"Default","track_width":0.2},{"name":"Power","track_width":0.5}],
+          "netclass_patterns":[{"pattern":"LINK","netclass":"Power"}]
+        }
+    }"#,
+    )
+    .unwrap();
+    let mut session = Session::new();
+    let request = serde_json::from_value(json!({
+        "name":"KiCad routing setup", "directory":temp.path().join("native-board"),
+        "kicad_schematic":schematic, "kicad_board":board_path
+    }))
+    .unwrap();
+    project::project_create(&mut session, request).unwrap();
+    let out = librepcb_mcp::tools::layout::board_get(&session, Default::default())
+        .unwrap()
+        .result;
+    let device = out["devices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["designator"] == "U2")
+        .unwrap();
+    let pad = device["pads"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["name"] == "1")
+        .unwrap();
+    assert_eq!(device["side"], "bottom");
+    assert_eq!(pad["position"], json!({"x":30.0, "y":-21.0}));
+    assert_eq!(pad["net"], "LINK");
+    assert_eq!(out["traces"], json!([]));
+    let p = session.project().unwrap().project();
+    let class = p.circuit().net_class_by_name("Power").unwrap().1;
+    assert_eq!(class.default_trace_width().unwrap().to_nm(), 500_000);
+    assert_eq!(p.boards()[0].copper_layers().len(), 4);
 }

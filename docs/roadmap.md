@@ -91,6 +91,8 @@ updates from project edits are wired to the Slint board tab. GPU frames are
 currently read back into Slint images; shared GPU textures remain an optimization.
 
 Remaining: package-editor 3D previews, broader STEP representation coverage,
-Eagle/KiCad project import, PCB ordering API and printing. Mechanical STEP jobs
+full KiCad routed-board and hierarchical schematic import, PCB ordering API
+and printing. Flat KiCad schematics and the board setup for rerouting can be
+imported through MCP. Mechanical STEP jobs
 and standalone STEP/minification tools are already available through the
 pure-Rust backend.

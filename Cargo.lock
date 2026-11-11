@@ -5175,6 +5175,7 @@ dependencies = [
  "log",
  "roxmltree 0.21.1",
  "serde",
+ "serde_json",
  "static_assertions",
  "tempfile",
  "thiserror 2.0.21",

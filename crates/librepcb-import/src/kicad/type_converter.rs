@@ -1007,11 +1007,10 @@ impl KiCadTypeConverter {
 
             // Determine solder paste config.
             let mut has_solder_paste = false;
-            if !holes.is_empty() && (has(Layer::TOP_SOLDER_PASTE) || has(Layer::BOT_SOLDER_PASTE)) {
-                has_solder_paste = true;
-                if !has(Layer::TOP_SOLDER_PASTE) || !has(Layer::BOT_SOLDER_PASTE) {
-                    log.warning("THT pad with solder paste only on one side is not supported.");
-                }
+            let one_sided_tht_paste =
+                !holes.is_empty() && (has(Layer::TOP_SOLDER_PASTE) != has(Layer::BOT_SOLDER_PASTE));
+            if !holes.is_empty() {
+                has_solder_paste = has(Layer::TOP_SOLDER_PASTE) && has(Layer::BOT_SOLDER_PASTE);
             } else if (cmp_side == ComponentSide::Top) && has(Layer::TOP_SOLDER_PASTE) {
                 has_solder_paste = true;
                 if has(Layer::BOT_SOLDER_PASTE) {
@@ -1033,6 +1032,42 @@ impl KiCadTypeConverter {
             } else {
                 fpt_solder_paste_ratio
             };
+            if one_sided_tht_paste {
+                // A native THT pad generates paste on both sides. Preserve the
+                // single-sided aperture as an explicit paste polygon instead.
+                let layer = if has(Layer::TOP_SOLDER_PASTE) {
+                    Layer::TOP_SOLDER_PASTE
+                } else {
+                    Layer::BOT_SOLDER_PASTE
+                };
+                let outline = actual_shape_outline.translated(
+                    Self::convert_footprint_point(p.offset)?.rotated(rotation, Point::ORIGIN),
+                );
+                let expansion = mm(solder_paste_margin)? + min_size.scaled(solder_paste_ratio);
+                let outlines = if expansion == Length::ZERO {
+                    vec![outline]
+                } else {
+                    let tolerance = max_arc_tolerance();
+                    let mut paths = vec![clipper_helpers::path_to_clipper(&outline, tolerance)];
+                    clipper_helpers::offset(
+                        &mut paths,
+                        expansion,
+                        tolerance,
+                        clipper::JoinType::Round,
+                    )?;
+                    clipper_helpers::paths_from_clipper(&paths)
+                };
+                result.polygons.extend(outlines.into_iter().map(|outline| {
+                    Polygon::new(
+                        self.uuid(),
+                        layer,
+                        UnsignedLength::ZERO,
+                        true,
+                        false,
+                        outline,
+                    )
+                }));
+            }
             let solder_paste_config = if !has_solder_paste {
                 MaskConfig::Off
             } else if (solder_paste_margin != 0.0) || (solder_paste_ratio != 0.0) {

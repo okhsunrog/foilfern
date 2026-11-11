@@ -12,8 +12,8 @@ use librepcb_core::library::LibraryBaseElement;
 use librepcb_core::project::circuit::{ComponentInstance, NetClass, NetSignal};
 use librepcb_core::project::schematic::{Schematic, SchematicNetSegment, SchematicSymbol};
 use librepcb_core::project::{
-    ComponentInstanceId, ComponentSignalRef, Mutation, NetSignalId, Project, SchematicId,
-    SchematicMutation,
+    ComponentInstanceId, ComponentSignalRef, Mutation, NetClassId, NetSignalId, Project,
+    SchematicId, SchematicMutation,
 };
 use librepcb_core::serialization::{FromSExpression, Mode, SExpression};
 use librepcb_core::types::{
@@ -24,10 +24,11 @@ use librepcb_core::utils::message_logger::MessageLogger;
 use librepcb_core::utils::transform::Transform;
 
 use super::merge_symbol_gates;
+use super::project_board::{BoardSource, PadNets};
 use super::types::{KiCadProperty, KiCadSymbol, KiCadSymbolGate};
 use super::{Error, KiCadLibraryConverter, KiCadTypeConverter, NoImportedElements, Result};
 
-fn invalid(message: impl Into<String>) -> Error {
+pub(super) fn invalid(message: impl Into<String>) -> Error {
     Error::ProjectImport(message.into())
 }
 
@@ -59,7 +60,7 @@ pub(super) fn property<'a>(node: &'a SExpression, key: &str) -> Option<&'a str> 
     })
 }
 
-fn angle(node: &SExpression, path: &str) -> Result<Angle> {
+pub(super) fn angle(node: &SExpression, path: &str) -> Result<Angle> {
     Ok(Angle::from_deg(
         node.child(path)
             .map(|n| n.value())
@@ -74,6 +75,7 @@ fn angle(node: &SExpression, path: &str) -> Result<Angle> {
 pub struct KiCadProjectImport {
     path: FilePath,
     schematic: SExpression,
+    board: Option<BoardSource>,
 }
 
 impl KiCadProjectImport {
@@ -89,13 +91,24 @@ impl KiCadProjectImport {
         Ok(Self {
             path: schematic,
             schematic: root,
+            board: None,
         })
+    }
+
+    /// Also import the board setup for a fresh routing run.
+    pub fn with_board(mut self, path: FilePath) -> Result<Self> {
+        self.board = Some(BoardSource::open(path)?);
+        Ok(self)
+    }
+
+    pub fn has_board(&self) -> bool {
+        self.board.is_some()
     }
 
     /// Imports the schematic, including its embedded symbols, as one sheet.
     pub fn import(&self, project: &mut Project, log: &MessageLogger<'_>) -> Result<()> {
         let mut converter = KiCadLibraryConverter::new(&NoImportedElements, Default::default());
-        let name = ElementName::new(ElementName::clean(&self.path.basename()))?;
+        let name = ElementName::new(ElementName::clean(self.path.basename()))?;
         let sheet =
             project.add_schematic(Schematic::new(Uuid::new_random(), name, "main"), None)?;
         let mut library = BTreeMap::new();
@@ -130,6 +143,8 @@ impl KiCadProjectImport {
                 uuid: component.metadata().uuid(),
                 power: node.child("power").is_some() && original != "power:PWR_FLAG",
                 gates: gates.into_iter().zip(lib_symbols).collect(),
+                definition: symbol,
+                key,
             };
             project.add_library_component(component)?;
             library.insert(original, imported);
@@ -144,7 +159,11 @@ impl KiCadProjectImport {
             import_instance(project, sheet, node, lib, &mut instances, &mut graph, log)?;
         }
         graph.read_wires(&self.schematic)?;
-        graph.import(project, sheet)?;
+        let (pad_nets, net_classes) = match &self.board {
+            Some(board) => (board.pad_nets()?, board.net_classes(project, log)?),
+            None => (BTreeMap::new(), BTreeMap::new()),
+        };
+        graph.import(project, sheet, &pad_nets, &net_classes)?;
         for node in self.schematic.children_named("rectangle") {
             let width = node
                 .child("stroke/width/@0")
@@ -190,6 +209,9 @@ impl KiCadProjectImport {
                 text,
             }))?;
         }
+        if let Some(board) = &self.board {
+            board.import(project, &mut converter, &library, &instances, log)?;
+        }
         Ok(())
     }
 }
@@ -232,10 +254,18 @@ fn import_image(project: &Project, node: &SExpression, index: usize) -> Result<I
     Ok(Image::new(uuid, file, pos, rotation, width, height, None))
 }
 
-struct ImportedSymbol {
+pub(super) struct ImportedSymbol {
     uuid: Uuid,
     power: bool,
-    gates: Vec<(KiCadSymbolGate, Uuid)>,
+    pub gates: Vec<(KiCadSymbolGate, Uuid)>,
+    pub definition: KiCadSymbol,
+    pub key: String,
+}
+
+pub(super) struct Instance {
+    pub id: ComponentInstanceId,
+    pub library_id: String,
+    pub populate: bool,
 }
 
 fn import_instance(
@@ -243,7 +273,7 @@ fn import_instance(
     sheet: SchematicId,
     node: &SExpression,
     lib: &ImportedSymbol,
-    instances: &mut BTreeMap<String, ComponentInstanceId>,
+    instances: &mut BTreeMap<String, Instance>,
     graph: &mut WireGraph,
     log: &MessageLogger<'_>,
 ) -> Result<()> {
@@ -279,8 +309,8 @@ fn import_instance(
         .get(index)
         .ok_or(Error::Logic("imported symbol unit missing"))?;
     let item_uuid = item.uuid();
-    let component_id = if let Some(id) = instances.get(reference) {
-        *id
+    let component_id = if let Some(instance) = instances.get(reference) {
+        instance.id
     } else {
         let name = CircuitIdentifier::new(CircuitIdentifier::clean(reference))?;
         let mut instance =
@@ -288,7 +318,16 @@ fn import_instance(
         instance.set_value(value.to_owned());
         let id = instance.id();
         project.apply(Mutation::AddComponentInstance(instance))?;
-        instances.insert(reference.to_owned(), id);
+        instances.insert(
+            reference.to_owned(),
+            Instance {
+                id,
+                library_id: node.required_child("lib_id/@0")?.value()?.to_owned(),
+                populate: !node
+                    .child("dnp/@0")
+                    .is_some_and(|value| value.value() == Ok("yes")),
+            },
+        );
         id
     };
     let pos = point(node, "at")?;
@@ -455,23 +494,28 @@ impl WireGraph {
         Ok(())
     }
 
-    fn import(&self, project: &mut Project, sheet: SchematicId) -> Result<()> {
-        let default = project
+    fn import(
+        &self,
+        project: &mut Project,
+        sheet: SchematicId,
+        pad_nets: &PadNets,
+        net_classes: &BTreeMap<String, NetClassId>,
+    ) -> Result<()> {
+        let existing_default = project
             .circuit()
             .net_class_by_name("default")
             .or_else(|| project.circuit().net_class_by_name("Default"))
-            .map(|(id, _)| id)
-            .map_or_else(
-                || {
-                    project.add_net_class(NetClass::new(
-                        Uuid::new_random(),
-                        ElementName::new("Default")?,
-                    ))
-                },
-                Ok,
-            )?;
+            .map(|(id, _)| id);
+        let default = match existing_default {
+            Some(id) => id,
+            None => project.add_net_class(NetClass::new(
+                Uuid::new_random(),
+                ElementName::new("Default")?,
+            ))?,
+        };
         let mut visited = BTreeSet::new();
         let mut names = BTreeMap::new();
+        let mut unnamed_board_nets = BTreeSet::new();
         for start in self
             .edges
             .keys()
@@ -509,7 +553,36 @@ impl WireGraph {
                     "KiCad wire group contains conflicting names {labels:?} at {start:?}."
                 )));
             }
-            let name = if let Some(name) = labels.first() {
+            let board_names: BTreeSet<_> = pins
+                .iter()
+                .flat_map(|pin| {
+                    pin.numbers
+                        .iter()
+                        .filter_map(|number| pad_nets.get(&(pin.reference.clone(), number.clone())))
+                })
+                .collect();
+            if board_names.len() > 1 {
+                return Err(invalid(format!(
+                    "KiCad schematic and board disagree on nets {board_names:?} at {start:?}."
+                )));
+            }
+            let name = if let Some(name) = board_names.first() {
+                if labels.is_empty() && names.contains_key(*name)
+                    || unnamed_board_nets.contains(*name)
+                {
+                    return Err(invalid(format!(
+                        "KiCad board net '{name}' joins disconnected unnamed schematic wires."
+                    )));
+                }
+                if labels.is_empty() {
+                    unnamed_board_nets.insert((*name).clone());
+                } else if !labels.contains(name) {
+                    return Err(invalid(format!(
+                        "KiCad board net '{name}' differs from schematic label {labels:?}."
+                    )));
+                }
+                (*name).clone()
+            } else if let Some(name) = labels.first() {
                 (*name).clone()
             } else if let Some(pin) = pins.first() {
                 format!("Net-({}-{})", pin.reference, pin.numbers.join(","))
@@ -529,9 +602,10 @@ impl WireGraph {
                         "KiCad net '{name}' collides with '{native_name}'."
                     )));
                 }
+                let class = net_classes.get(&name).copied().unwrap_or(default);
                 let net = project.add_net_signal(NetSignal::new(
                     Uuid::new_random(),
-                    default,
+                    class,
                     native_name,
                     labels.is_empty(),
                 ))?;

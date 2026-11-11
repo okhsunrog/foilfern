@@ -35,6 +35,14 @@ unnamed nets receive LibrePCB names. Set `create_board: false` to import
 just the schematic. Hierarchical sheets, buses and alternate symbol body
 styles are rejected. Check the imported netlist and run ERC.
 
+Add `kicad_board` with the matching `.kicad_pcb` to start a new routing run
+from its original placement. This imports embedded footprints on both
+sides, the outline, copper layer count and total board thickness, plane
+outlines and keepouts. A sibling `.kicad_pro` supplies supported board
+rules and exact net-class assignments. Existing traces and vias stay in
+the KiCad source. The import checks the numbered pad net assignments
+against the schematic and reports conversions that need review.
+
 1. Use `library_list`, then `library_install` for missing official libraries
    (for example `{"libraries":["LibrePCB Base"]}`), or `library_rescan`
    after installing local libraries.

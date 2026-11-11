@@ -71,6 +71,9 @@ pub struct ProjectCreateArgs {
     pub eagle_board: Option<String>,
     /// Import a KiCad schematic (`*.kicad_sch`) and its embedded symbols.
     pub kicad_schematic: Option<String>,
+    /// With `kicad_schematic`, import PCB placement, outline, zones and
+    /// supported rules for a fresh routing run.
+    pub kicad_board: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -247,8 +250,8 @@ type CreatedProject = (Project, Arc<TransactionalFileSystem>, Vec<String>);
 /// Opens the EAGLE project of `project_create` (if any), before anything
 /// is created.
 enum ProjectImport {
-    Eagle(EagleProjectImport),
-    KiCad(KiCadProjectImport),
+    Eagle(Box<EagleProjectImport>),
+    KiCad(Box<KiCadProjectImport>),
 }
 
 fn open_project_import(
@@ -258,8 +261,16 @@ fn open_project_import(
         if args.eagle_schematic.is_some() || args.eagle_board.is_some() {
             return Err(ToolError::invalid("Select one project import format."));
         }
-        let import = KiCadProjectImport::open(absolute_path(schematic)?)?;
-        return Ok((Some(ProjectImport::KiCad(import)), Vec::new()));
+        let mut import = KiCadProjectImport::open(absolute_path(schematic)?)?;
+        if let Some(board) = &args.kicad_board {
+            import = import.with_board(absolute_path(board)?)?;
+        }
+        return Ok((Some(ProjectImport::KiCad(Box::new(import))), Vec::new()));
+    }
+    if args.kicad_board.is_some() {
+        return Err(ToolError::invalid(
+            "kicad_board needs kicad_schematic as well.",
+        ));
     }
     let Some(sch) = &args.eagle_schematic else {
         if args.eagle_board.is_some() {
@@ -273,7 +284,7 @@ fn open_project_import(
     let brd = args.eagle_board.as_deref().map(absolute_path).transpose()?;
     let mut import = EagleProjectImport::default();
     let parse_warnings = import.open(&sch, brd.as_ref())?;
-    Ok((Some(ProjectImport::Eagle(import)), parse_warnings))
+    Ok((Some(ProjectImport::Eagle(Box::new(import))), parse_warnings))
 }
 
 fn create_project_files(
@@ -354,7 +365,12 @@ fn create_project_files(
         }
         project.add_schematic(Schematic::new(Uuid::new_random(), name, dir), None)?;
     }
-    if !matches!(import, Some(ProjectImport::Eagle(_))) && args.create_board {
+    let has_imported_board = match import {
+        Some(ProjectImport::Eagle(_)) => true,
+        Some(ProjectImport::KiCad(import)) => import.has_board(),
+        None => false,
+    };
+    if !has_imported_board && args.create_board {
         let name = ElementName::new(args.board_name.as_deref().unwrap_or("default").trim())?;
         let dir = dir_name(name.as_str());
         if dir.is_empty() {

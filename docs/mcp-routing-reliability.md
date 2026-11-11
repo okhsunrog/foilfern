@@ -113,6 +113,20 @@ KiCad CLI netlist when compared by reference and pin number. LibrePCB-RS
 ERC reported zero errors and warnings. KiCad's generated names for
 unnamed nets can differ in the schematic-only import.
 
+Importing the PCB setup restored all 86 placements (75 top, 11 bottom),
+339 numbered pad centers, eight plane outlines, the antenna keepout, and
+the four-layer board outline. The 12 unnumbered KiCad entries were
+paste and mask apertures and non-plated holes. The initial LibrePCB-RS board had
+169 open connections after fill. Its remaining DRC errors included two
+copper-to-hole findings and a keepout finding on the antenna pad. The
+KiCad keepout allows pads, while the native copper keepout covers pads
+as well as tracks and vias. THT-only zone thermal relief maps to solid
+connections. The routing setup retains the layer count and total
+thickness. Dielectric stack details and 3D assets remain in the source.
+
+The J1 and J2 THT pads use paste on one side. Import represents those
+apertures as explicit polygons on the correct paste layer.
+
 Compare new routing from the imported placement and rules using native
 DRC and connectivity, power-path widths, ground coverage, total length,
 via count and manual interventions. Report the original layout metrics

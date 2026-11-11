@@ -342,7 +342,9 @@ impl LibrePcbMcp {
                        assembly variant and net class, stroke fonts, optional first schematic \
                        page \"Main\" and board \"default\" with a 100x80 mm outline), save it \
                        and open it. With eagle_schematic (and eagle_board), an EAGLE project \
-                       is imported instead (pages, board, nets, library elements). +                       With kicad_schematic, import a KiCad schematic with embedded symbols."
+                       is imported instead (pages, board, nets, library elements). \
+                       With kicad_schematic, import a KiCad schematic with embedded symbols. \
+                       Add kicad_board to import its PCB setup for rerouting."
     )]
     async fn project_create(
         &self,
@@ -357,6 +359,7 @@ impl LibrePcbMcp {
             eagle_schematic: args.eagle_schematic.clone(),
             eagle_board: args.eagle_board.clone(),
             kicad_schematic: args.kicad_schematic.clone(),
+            kicad_board: args.kicad_board.clone(),
         };
         match self.ask_host(move |h| h.create_project(&request)).await {
             Ok(HostDecision::Allow) => self.run(move |s| project::project_create(s, args)).await,
@@ -875,7 +878,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Diagnose the actual fill of a copper plane on a read-only snapshot. +                       Locate discarded islands by area and bounds, or probe a board point."
+        description = "Diagnose the actual fill of a copper plane on a read-only snapshot. Locate discarded islands by area and bounds, or probe a board point."
     )]
     async fn plane_diagnose(
         &self,
@@ -890,7 +893,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Prepare a checked through-via and lead from an existing same-net anchor +                       to a discarded plane island. Verify the fill at the via center on a +                       snapshot, then use routing_preview and routing_apply."
+        description = "Prepare a checked through-via and lead from an existing same-net anchor to a discarded plane island. Verify the fill at the via center on a snapshot, then use routing_preview and routing_apply."
     )]
     async fn plane_stitch_prepare(
         &self,
@@ -964,7 +967,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Measure selected signal trace centerlines over the freshly rebuilt reference +                       pour on an adjacent copper layer. Returns gaps and lengths without editing."
+        description = "Measure selected signal trace centerlines over the freshly rebuilt reference pour on an adjacent copper layer. Returns gaps and lengths without editing."
     )]
     async fn reference_coverage(
         &self,
@@ -1041,7 +1044,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Preview exact frozen routing mutations and validation, without changing the +                       board. Supply reference to compare ground coverage before and after. +                       Paginated: offset and limit (1..200). Reports stale candidates."
+        description = "Preview exact frozen routing mutations and validation, without changing the board. Supply reference to compare ground coverage before and after. Paginated: offset and limit (1..200). Reports stale candidates."
     )]
     async fn routing_preview(
         &self,

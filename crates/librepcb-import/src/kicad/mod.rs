@@ -11,6 +11,7 @@
 mod error;
 mod library_converter;
 mod library_import;
+mod project_board;
 mod project_import;
 mod type_converter;
 pub mod types;

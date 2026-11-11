@@ -62,6 +62,8 @@ pub struct ProjectCreateRequest {
     pub eagle_board: Option<String>,
     /// KiCad schematic to import with its embedded symbols.
     pub kicad_schematic: Option<String>,
+    /// KiCad board setup to import for rerouting.
+    pub kicad_board: Option<String>,
 }
 
 /// The host application embedding the MCP server. All methods have

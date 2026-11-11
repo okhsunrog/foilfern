@@ -453,7 +453,7 @@ impl KiCadProperty {
         let mut obj = Self {
             key: raw_value(node, 0)?.to_owned(),
             value: raw_value(node, 1)?.to_owned(),
-            position: point(node.required_child("at")?)?,
+            position: node.child("at").map(point).transpose()?.unwrap_or_default(),
             rotation: 0.0,
             layer: String::new(),
             font_size: SizeF::default(),
@@ -1333,7 +1333,7 @@ impl KiCadFootprintPad {
                         }
                     }
                 }
-                "uuid" | "tstamp" => {} // Ignored for now.
+                "uuid" | "tstamp" | "net" | "pinfunction" | "pintype" => {}
                 other => log.warning(&tr!(CTX, "Unsupported pad child: '{0}'", other)),
             }
         }
@@ -1592,6 +1592,9 @@ impl KiCadFootprint {
                 "zone" => obj.zones.push(KiCadZone::parse(child, log)?),
                 "pad" => obj.pads.push(KiCadFootprintPad::parse(child, log)?),
                 "group" => {}
+                "uuid" | "tstamp" | "at" | "path" | "sheetname" | "sheetfile" | "units"
+                | "locked" => {}
+                "duplicate_pad_numbers_are_jumpers" if opt_value(child, "@0")? == Some("no") => {}
                 "embedded_fonts" => {} // New in KiCad v9, ignoring for now.
                 "model" => {
                     let offset = match child.child("at/xyz") {
