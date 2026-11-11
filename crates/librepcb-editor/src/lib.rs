@@ -47,6 +47,7 @@ pub mod fsm;
 pub mod library_editor;
 mod library_source;
 mod open_project;
+pub mod routing_validation;
 mod undo_stack;
 
 pub use editor::{Command, ProjectEditor, Transaction, create_project};

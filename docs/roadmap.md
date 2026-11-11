@@ -27,6 +27,10 @@ diffing outputs against the official `librepcb-cli`.
   place real parts.
 - Routing: Specctra DSN export and SES import, for autorouting with
   FreeRouting.
+- Current priority: routing correctness and practical board edits before
+  more integration surfaces. Use full applied-model DRC and connectivity
+  evidence, then grouped trace/via editing and revision-bound previews
+  ([reproductions and acceptance contract](mcp-routing-reliability.md)).
 
 ## M2 — viewer
 

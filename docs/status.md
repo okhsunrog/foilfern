@@ -214,20 +214,20 @@ install, part search, schematic with `connect`/`schematic_tidy`, board
 outline, connectivity-based placement, Freerouting, GND plane, ERC/DRC,
 Gerber export — and the official `librepcb-cli` reports ERC 0, DRC 0.
 
-1. M3c/M4c polish (see COMPAT.md "app"): scene highlight colors and the
+1. MCP reliability: applied-result DRC and actual connectivity reporting
+   now cover both routers and SES import; automatic/explicit via dimensions
+   are fixed. Next are grouped trace/via editing, revision-bound previews,
+   physical pin resolution before placement and effective routing rules
+   ([details and reproductions](mcp-routing-reliability.md)). Templates,
+   design-intent storage and a separate Freerouting MCP mode come later.
+2. M3c/M4c polish (see COMPAT.md "app"): scene highlight colors and the
    library editors from the color schemes, recording key presses in the
    shortcut editor, remembering wizard paths, the example projects
    download.
-2. M2 viewer: finish M2b (library info on the home panel, grid/unit and
+3. M2 viewer: finish M2b (library info on the home panel, grid/unit and
    layer visibility persisted in the user settings, keyboard handling) and
    the rest of M2d (rule check location markers and autofixes, print and
    image export); M2c is done.
-3. MCP: stdio MCP mode for Freerouting, subcircuit templates, design
-   intent file (see `mcp-research-konnect.md`), and larger real-library
-   designs with multi-gate ICs and routed inner copper layers. The stdio
-   suite now covers explicit symbol-variant selection, individual gate
-   movement/undo, cross-page connections and four-layer fabrication output
-   using upstream fixtures; upstream CLI validation runs when available.
 4. Extend the 3D viewer to package editors, replace GPU readback with shared
    Slint/Bevy textures, and broaden STEP representation support. Mechanical
    STEP is already implemented by `librepcb-step` (Monstertruck, no C++ FFI).

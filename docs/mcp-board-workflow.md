@@ -76,6 +76,13 @@ Use `trace_add`, `via_add` and `trace_remove` for targeted routing changes.
 Check `unrouted` after routing; a completed tool call does not establish
 that every connection was routed.
 
+Routing and SES import return `validation` from full before/after DRC on
+the applied project. Inspect actual `unrouted_after`, `new_error_count`,
+`new_errors`, `netlist_preserved` and `drc_clean`. New errors or incomplete
+checks make the result `partial`, even when no air wires remain. Existing
+errors stay visible; `complete` can still have `drc_clean: false`. Inspect
+the candidate or undo the whole operation before trying another approach.
+
 Add copper planes with `plane_add`, rebuild with `planes_rebuild`, and run
 `drc_run`. Inspect both board sides with `render`. Resolve errors and review
 warnings; a zero error count alone does not validate the physical design.

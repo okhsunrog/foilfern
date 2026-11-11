@@ -175,6 +175,31 @@ fn test_autoroute_explicit_via_size_with_default_drill() {
     check_cli_without_errors(&dir, &["--drc"]);
 }
 
+#[test]
+fn test_routing_validation_does_not_pass_failed_checks_or_netlist_changes() {
+    use librepcb_editor::routing_validation::{RoutingValidation, capture_routing_state};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let mut editor = create_editor(&tmp.path().join("project"));
+    let board = build_unrouted(&mut editor);
+    let before = capture_routing_state(&mut editor, board).unwrap();
+    let failed = capture_routing_state(&mut editor, BoardId(Uuid::new_random())).unwrap();
+    let validation = RoutingValidation::compare(before.clone(), failed);
+    assert!(!validation.after.ran && !validation.after.complete);
+    assert!(!validation.after.check_failures.is_empty());
+    assert!(!validation.acceptable && !validation.drc_clean);
+    assert!(validation.summary().contains("INCOMPLETE"));
+
+    editor
+        .execute(RemoveComponent {
+            component: "R1".into(),
+        })
+        .unwrap();
+    let after = capture_routing_state(&mut editor, board).unwrap();
+    let validation = RoutingValidation::compare(before, after);
+    assert!(!validation.netlist_preserved && !validation.acceptable);
+}
+
 /// Returns the number of air wires of a board (computed from the model).
 pub fn air_wire_count(p: &Project, board: BoardId) -> usize {
     let b = p.board(board).unwrap();

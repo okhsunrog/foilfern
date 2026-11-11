@@ -17,6 +17,9 @@ use librepcb_editor::commands::{
     PlaneSettings, RemoveBoardItems, ReplaceDevice, SetBoardOutline, SpecctraExportManifest,
     TraceEndpoint, closed_path, export_specctra_dsn,
 };
+use librepcb_editor::routing_validation::{
+    RoutingSnapshot, RoutingValidation, capture_routing_state,
+};
 use librepcb_editor::{
     FreeroutingError, FreeroutingOutput, FreeroutingRouter, RoutingStats, dsn_for_freerouting,
     routing_stats,
@@ -1031,6 +1034,8 @@ pub struct FreeroutingJob {
     pub manifest: SpecctraExportManifest,
     /// Unrouted connections before routing.
     pub before: RoutingStats,
+    /// Full validation of the model exported to Freerouting.
+    pub validation_before: RoutingSnapshot,
     /// The arguments (for the fallback to the builtin router).
     pub args: AutorouteArgs,
 }
@@ -1086,7 +1091,7 @@ fn builtin_command(p: &Project, board: BoardId, args: &AutorouteArgs) -> ToolRes
 
 /// Decides the backend of `autoroute` and prepares it: validates the
 /// arguments and the revision, detects Freerouting and exports the DSN.
-pub fn autoroute_prepare(session: &Session, args: AutorouteArgs) -> ToolResult<AutoroutePlan> {
+pub fn autoroute_prepare(session: &mut Session, args: AutorouteArgs) -> ToolResult<AutoroutePlan> {
     let p = session.project()?.project();
     crate::tools::write::check_revision(p, args.expected_revision)?;
     let board = board_id(p, args.board.as_deref())?;
@@ -1132,11 +1137,15 @@ pub fn autoroute_prepare(session: &Session, args: AutorouteArgs) -> ToolResult<A
             if args.max_passes.is_some() {
                 config.max_passes = args.max_passes;
             }
+            let validation_before =
+                capture_routing_state(&mut session.project_mut()?.editor, board)?;
+            let p = session.project()?.project();
             let export = export_specctra_dsn(p, Some(board))?;
             Ok(AutoroutePlan::Freerouting(Box::new(FreeroutingJob {
                 router: FreeroutingRouter::new(config),
                 dsn: dsn_for_freerouting(&export.dsn),
                 before: routing_stats(p, board),
+                validation_before,
                 manifest: export.manifest,
                 args,
             })))
@@ -1154,9 +1163,18 @@ pub fn autoroute_builtin(
     let board = command
         .board
         .ok_or_else(|| ToolError::internal("no board"))?;
-    let done = write(session, "autoroute", expected_revision, |editor| {
+    crate::tools::write::check_revision(session.project()?.project(), expected_revision)?;
+    let before = capture_routing_state(&mut session.project_mut()?.editor, board)?;
+    // Full DRC can publish derived-data changes. Check the caller's revision
+    // before it, then use the current revision while holding the same lock.
+    let revision = session.project()?.project().revision();
+    let done = write(session, "autoroute", Some(revision), |editor| {
         Ok(editor.execute(command)?)
     })?;
+    let validation = RoutingValidation::compare(
+        before,
+        capture_routing_state(&mut session.project_mut()?.editor, board)?,
+    );
     let open = session.project()?;
     let p = open.project();
     let r = &done.value;
@@ -1199,7 +1217,7 @@ pub fn autoroute_builtin(
             result,
         )?
         .warnings(notes);
-    Ok(if remaining.is_empty() {
+    let out = if remaining.is_empty() {
         out
     } else {
         out.partial().warn(
@@ -1207,7 +1225,8 @@ pub fn autoroute_builtin(
              route them manually (trace_add, via_add) or retry with other layers or a finer \
              grid_pitch.",
         )
-    })
+    };
+    Ok(with_routing_validation(out, validation))
 }
 
 /// Imports the result of Freerouting (one undo group, strict: fails with
@@ -1248,6 +1267,10 @@ pub fn autoroute_freerouting_finish(
             manifest: Some(manifest),
         })?)
     })?;
+    let validation = RoutingValidation::compare(
+        job.validation_before,
+        capture_routing_state(&mut session.project_mut()?.editor, board)?,
+    );
     let open = session.project()?;
     let p = open.project();
     let after = routing_stats(p, board);
@@ -1276,14 +1299,39 @@ pub fn autoroute_freerouting_finish(
             result,
         )?
         .warnings(warnings);
-    Ok(if after.air_wires == 0 {
+    let out = if after.air_wires == 0 {
         out
     } else {
         out.partial().warn(
             "Some connections are still unrouted (see unrouted): route them with trace_add, \
              or retry with backend \"builtin\".",
         )
-    })
+    };
+    Ok(with_routing_validation(out, validation))
+}
+
+fn with_routing_validation(mut out: ToolOutput, validation: RoutingValidation) -> ToolOutput {
+    out.summary.push('\n');
+    out.summary.push_str(&validation.summary());
+    out.result["unrouted_before"] = json!(validation.before.unrouted);
+    out.result["unrouted_after"] = json!(validation.after.unrouted);
+    if !validation.acceptable {
+        out = out.partial();
+    }
+    if !validation.before.complete || !validation.after.complete {
+        out = out.warn("Full before/after DRC did not complete; the applied routing has not been validated (see validation.before.check_failures and validation.after.check_failures).");
+    }
+    if !validation.netlist_preserved {
+        out = out.warn("Routing changed the circuit netlist. Inspect the result or undo the routing operation.");
+    }
+    if validation.new_error_count > 0 {
+        out = out.warn(format!("Routing introduced {} unapproved DRC error(s), including {} copper error(s). The result is kept as one undo step; inspect validation.new_errors or undo it.",
+            validation.new_error_count, validation.new_copper_error_count));
+    } else if !validation.drc_clean {
+        out = out.warn("The applied board is not DRC clean; see validation.after and run drc_run for all messages.");
+    }
+    out.result["validation"] = json!(validation);
+    out
 }
 
 /// `autoroute` in one call (the session stays locked while Freerouting
@@ -1378,18 +1426,20 @@ pub fn specctra_import(session: &mut Session, args: SpecctraImportArgs) -> ToolR
         .map_err(|e| ToolError::new(ErrorKind::Io, format!("{}: {e}", path.to_native())))?;
     let content = String::from_utf8(content)
         .map_err(|_| ToolError::invalid("The session file is not valid UTF-8."))?;
-    let done = write(
-        session,
-        "specctra_import",
-        args.expected_revision,
-        |editor| {
-            Ok(editor.execute(ImportSpecctraSession {
-                board: Some(board),
-                session: content,
-                manifest: None,
-            })?)
-        },
-    )?;
+    crate::tools::write::check_revision(session.project()?.project(), args.expected_revision)?;
+    let before = capture_routing_state(&mut session.project_mut()?.editor, board)?;
+    let revision = session.project()?.project().revision();
+    let done = write(session, "specctra_import", Some(revision), |editor| {
+        Ok(editor.execute(ImportSpecctraSession {
+            board: Some(board),
+            session: content,
+            manifest: None,
+        })?)
+    })?;
+    let validation = RoutingValidation::compare(
+        before,
+        capture_routing_state(&mut session.project_mut()?.editor, board)?,
+    );
     let open = session.project()?;
     let mut result = board_overview(open.project(), board)?;
     result["updated_components"] = json!(done.value.updated_components);
@@ -1401,9 +1451,10 @@ pub fn specctra_import(session: &mut Session, args: SpecctraImportArgs) -> ToolR
         .filter(|m| m.level == MessageLevel::Warning)
         .map(|m| m.message.clone())
         .collect();
-    Ok(done
+    let out = done
         .output(open, "Imported the Specctra session.", result)?
-        .warnings(warnings))
+        .warnings(warnings);
+    Ok(with_routing_validation(out, validation))
 }
 
 /// Arguments of `planes_rebuild` and `unrouted`.

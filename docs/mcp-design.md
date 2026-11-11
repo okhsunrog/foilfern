@@ -317,6 +317,13 @@ outer diameter must not turn into the invalid combination of automatic
 drill and explicit size. A forced layer transition exercises application,
 undo/redo, full DRC and upstream CLI acceptance.
 
+Routing tools and SES import share an editor-level before/after assessment
+of the applied model: full DRC, actual air wires and circuit signal
+assignments. The response includes bounded new-error evidence and never
+calls a regressing or unchecked result complete just because air wires
+reached zero. See [routing reliability](mcp-routing-reliability.md) for
+the contract, reproducible cases and current priorities.
+
 The stroke fonts new projects get (`resources/fontobene/*.bene`, like
 upstream's `Project::create()` copies them from `share/librepcb`) and the
 default font for rendering come from `librepcb_scene::resources`: a
