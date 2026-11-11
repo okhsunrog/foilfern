@@ -27,6 +27,14 @@ matching a library name is not evidence that the part fits the circuit.
 
 ## Discover parts and build the schematic
 
+For a flat KiCad schematic, call `project_create` with
+`kicad_schematic` pointing to the `.kicad_sch` file. The new project uses
+the schematic's embedded symbols, placements, wires, labels, texts,
+rectangles and images. Power symbols connect matching named nets. Local
+unnamed nets receive LibrePCB names. Set `create_board: false` to import
+just the schematic. Hierarchical sheets, buses and alternate symbol body
+styles are rejected. Check the imported netlist and run ERC.
+
 1. Use `library_list`, then `library_install` for missing official libraries
    (for example `{"libraries":["LibrePCB Base"]}`), or `library_rescan`
    after installing local libraries.

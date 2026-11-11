@@ -371,7 +371,7 @@ impl KiCadTypeConverter {
         let names: Vec<String> = merged
             .iter()
             .map(|pin| {
-                if pin.name.is_empty() {
+                if pin.name.is_empty() && pin.numbers.is_empty() {
                     String::new()
                 } else {
                     let name = Self::convert_symbol_pin_name(&pin.name, &pin.numbers).into_string();

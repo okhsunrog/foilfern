@@ -178,6 +178,7 @@ fn eagle_project_import() {
             board_name: None,
             eagle_schematic: Some(data("eagleimport/testproject/testproject.sch")),
             eagle_board: Some(data("eagleimport/testproject/testproject.brd")),
+            kicad_schematic: None,
         },
     )
     .unwrap();
@@ -186,4 +187,52 @@ fn eagle_project_import() {
     assert_eq!(1, open.project().boards().len());
     assert_eq!(4, open.project().circuit().buses().len());
     assert!(!open.has_unsaved_changes());
+}
+
+#[test]
+fn kicad_project_import_preserves_numbered_unnamed_pins_and_direct_labels() {
+    use librepcb_mcp::tools::{circuit, output};
+    use serde_json::json;
+
+    let temp = tempfile::tempdir().unwrap();
+    let schematic = temp.path().join("bench.kicad_sch");
+    std::fs::write(
+        &schematic,
+        r#"
+(kicad_sch (version 20260306) (generator "eeschema")
+  (lib_symbols
+    (symbol "Fixture:Part"
+      (property "Reference" "U" (at 0 0 0) (effects (font (size 1 1))))
+      (symbol "Part_1_1"
+        (pin passive line (at 0 2 270) (length 1)
+          (name "" (effects (font (size 1 1)))) (number "1" (effects (font (size 1 1)))))
+        (pin passive line (at 0 -2 90) (length 1)
+          (name "" (effects (font (size 1 1)))) (number "2" (effects (font (size 1 1))))))))
+  (symbol (lib_id "Fixture:Part") (at 20 20 270) (mirror x) (unit 1)
+    (property "Reference" "U1" (at 20 20 0) (effects (font (size 1 1)))))
+  (symbol (lib_id "Fixture:Part") (at 40 20 0) (unit 1)
+    (property "Reference" "U2" (at 40 20 0) (effects (font (size 1 1)))))
+  (global_label "LINK" (shape input) (at 18 20 0) (effects (font (size 1 1))))
+  (global_label "LINK" (shape input) (at 40 18 0) (effects (font (size 1 1))))
+  (no_connect (at 22 20))
+  (no_connect (at 40 22)))
+"#,
+    )
+    .unwrap();
+    let mut session = Session::new();
+    let request = serde_json::from_value(json!({
+        "name":"KiCad test", "directory":temp.path().join("native"),
+        "kicad_schematic":schematic, "create_board":false
+    }))
+    .unwrap();
+    let created = project::project_create(&mut session, request).unwrap();
+    assert!(created.warnings.is_empty(), "{:?}", created.warnings);
+    let netlist = circuit::netlist(&session).unwrap().result;
+    assert_eq!(netlist["nets"], json!({"LINK":["U1.2","U2.1"]}));
+    assert_eq!(netlist["unconnected_pins"], json!(["U1.1", "U2.2"]));
+    let erc = output::erc_run(&mut session, Default::default())
+        .unwrap()
+        .result;
+    assert_eq!(erc["warnings"], 0, "{erc}");
+    assert_eq!(erc["errors"], 0, "{erc}");
 }

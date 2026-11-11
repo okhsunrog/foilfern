@@ -313,3 +313,15 @@ impl From<librepcb_import::eagle::Error> for ToolError {
         Self::new(kind, e.to_string())
     }
 }
+
+impl From<librepcb_import::kicad::Error> for ToolError {
+    fn from(error: librepcb_import::kicad::Error) -> Self {
+        use librepcb_import::kicad::Error;
+        let kind = match &error {
+            Error::FileIo(error) => file_io_kind(error),
+            Error::Project(error) => project_kind(error),
+            _ => ErrorKind::InvalidArgument,
+        };
+        Self::new(kind, error.to_string())
+    }
+}

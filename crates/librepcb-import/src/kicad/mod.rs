@@ -11,6 +11,7 @@
 mod error;
 mod library_converter;
 mod library_import;
+mod project_import;
 mod type_converter;
 pub mod types;
 
@@ -25,6 +26,7 @@ pub use library_import::{
     ImportState, ImportSymbol, KiCadLibraryImport, NAME_PREFIX, Package3dLibrary, ScanResult,
     SymbolLibrary, merge_symbol_gates,
 };
+pub use project_import::KiCadProjectImport;
 pub use type_converter::{KiCadTypeConverter, Line, LineGroup, PadReplacements};
 
 /// Lookup of elements imported before, identified by their "generated_by"

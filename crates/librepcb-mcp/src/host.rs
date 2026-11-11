@@ -60,6 +60,8 @@ pub struct ProjectCreateRequest {
     pub eagle_schematic: Option<String>,
     /// EAGLE board to import with the schematic.
     pub eagle_board: Option<String>,
+    /// KiCad schematic to import with its embedded symbols.
+    pub kicad_schematic: Option<String>,
 }
 
 /// The host application embedding the MCP server. All methods have

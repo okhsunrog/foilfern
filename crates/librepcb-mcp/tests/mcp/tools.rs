@@ -174,6 +174,7 @@ fn workspace_library_tools() {
             board_name: None,
             eagle_schematic: None,
             eagle_board: None,
+            kicad_schematic: None,
         },
     )
     .unwrap();
@@ -217,6 +218,7 @@ fn workspace_library_tools() {
             board_name: None,
             eagle_schematic: None,
             eagle_board: None,
+            kicad_schematic: None,
         },
     )
     .unwrap_err();

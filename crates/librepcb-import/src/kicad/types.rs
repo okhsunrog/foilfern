@@ -486,8 +486,13 @@ impl KiCadProperty {
         if let Some(v) = opt_value(node, "unlocked/@0")? {
             obj.unlocked = v == "yes";
         }
-        if let Some(child) = node.child("effects/hide/@0") {
+        if let Some(child) = node
+            .child("hide/@0")
+            .or_else(|| node.child("effects/hide/@0"))
+        {
             obj.hide = deserialize_bool(child)?;
+        } else if let Some(effects) = node.child("effects") {
+            obj.hide = has_token(effects, "hide");
         }
         Ok(obj)
     }
@@ -938,12 +943,16 @@ impl KiCadSymbol {
             match name_of(child) {
                 "extends" => obj.extends = value(child, "@0")?.to_owned(),
                 "pin_names" => {
-                    obj.hide_pin_names = has_token(child, "hide");
+                    obj.hide_pin_names = opt_value(child, "hide/@0")?
+                        .map_or_else(|| has_token(child, "hide"), |value| value == "yes");
                     if let Some(offset) = opt_f64(child, "offset/@0")? {
                         obj.pin_names_offset = offset;
                     }
                 }
-                "pin_numbers" => obj.hide_pin_numbers = has_token(child, "hide"),
+                "pin_numbers" => {
+                    obj.hide_pin_numbers = opt_value(child, "hide/@0")?
+                        .map_or_else(|| has_token(child, "hide"), |value| value == "yes");
+                }
                 "exclude_from_sim" => {
                     obj.exclude_from_sim = deserialize_bool(child.required_child("@0")?)?;
                 }
@@ -952,6 +961,10 @@ impl KiCadSymbol {
                 "property" => obj.properties.push(KiCadProperty::parse(child, log)?),
                 "symbol" => obj.gates.push(KiCadSymbolGate::parse(child, log)?),
                 "embedded_fonts" => {} // New in KiCad v9, ignoring for now.
+                // Power is applied in project import. Position-file settings
+                // belong to the source project rather than the library element.
+                "power" | "in_pos_files" => {}
+                "duplicate_pin_numbers_are_jumpers" if opt_value(child, "@0")? == Some("no") => {}
                 other => log.warning(&tr!(
                     "KiCadSymbol",
                     "Unsupported symbol child: '{0}'",

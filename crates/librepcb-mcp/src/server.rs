@@ -342,7 +342,7 @@ impl LibrePcbMcp {
                        assembly variant and net class, stroke fonts, optional first schematic \
                        page \"Main\" and board \"default\" with a 100x80 mm outline), save it \
                        and open it. With eagle_schematic (and eagle_board), an EAGLE project \
-                       is imported instead (pages, board, nets, library elements)."
+                       is imported instead (pages, board, nets, library elements). +                       With kicad_schematic, import a KiCad schematic with embedded symbols."
     )]
     async fn project_create(
         &self,
@@ -356,6 +356,7 @@ impl LibrePcbMcp {
             directory: args.directory.clone(),
             eagle_schematic: args.eagle_schematic.clone(),
             eagle_board: args.eagle_board.clone(),
+            kicad_schematic: args.kicad_schematic.clone(),
         };
         match self.ask_host(move |h| h.create_project(&request)).await {
             Ok(HostDecision::Allow) => self.run(move |s| project::project_create(s, args)).await,

@@ -5,6 +5,12 @@
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// A KiCad project construct cannot be imported without losing meaning.
+    #[error("{0}")]
+    ProjectImport(String),
+    /// A native project mutation or library attachment failed.
+    #[error(transparent)]
+    Project(#[from] Box<librepcb_core::project::Error>),
     /// Invalid S-expression content (e.g. a missing child).
     #[error(transparent)]
     Parse(#[from] librepcb_core::serialization::Error),
@@ -85,6 +91,12 @@ pub enum Error {
     /// A workspace library database error.
     #[error(transparent)]
     Workspace(#[from] librepcb_core::workspace::Error),
+}
+
+impl From<librepcb_core::project::Error> for Error {
+    fn from(error: librepcb_core::project::Error) -> Self {
+        Self::Project(Box::new(error))
+    }
 }
 
 /// Result type of the [`kicad`](super) module.

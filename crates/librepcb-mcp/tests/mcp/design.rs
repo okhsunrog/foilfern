@@ -129,6 +129,7 @@ fn design_rc_circuit_with_populated_library() {
             board_name: None,
             eagle_schematic: None,
             eagle_board: None,
+            kicad_schematic: None,
         },
     )
     .unwrap();

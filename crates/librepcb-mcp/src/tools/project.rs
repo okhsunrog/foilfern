@@ -15,6 +15,7 @@ use librepcb_core::project::{Mutation, Project};
 use librepcb_core::types::{ElementName, Layer, Length, Point, UnsignedLength, Uuid};
 use librepcb_core::utils::message_logger::{LogLevel, MessageLogger};
 use librepcb_import::eagle::EagleProjectImport;
+use librepcb_import::kicad::KiCadProjectImport;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::json;
@@ -68,6 +69,8 @@ pub struct ProjectCreateArgs {
     /// With `eagle_schematic`: the EAGLE board (`*.brd`) to import too.
     #[serde(default)]
     pub eagle_board: Option<String>,
+    /// Import a KiCad schematic (`*.kicad_sch`) and its embedded symbols.
+    pub kicad_schematic: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -215,9 +218,9 @@ pub fn project_create(session: &mut Session, args: ProjectCreateArgs) -> ToolRes
             ),
         ));
     }
-    let (eagle, parse_warnings) = open_eagle_project(&args)?;
+    let (import, parse_warnings) = open_project_import(&args)?;
     let dir_existed = dir.is_existing_dir();
-    let result = create_project_files(session, &args, &name, &dir, &file_name, eagle.as_ref());
+    let result = create_project_files(session, &args, &name, &dir, &file_name, import.as_ref());
     if result.is_err() && !dir_existed {
         // Like upstream's wizard: remove the directory again on failure.
         let _ = std::fs::remove_dir_all(dir.as_path());
@@ -243,9 +246,21 @@ type CreatedProject = (Project, Arc<TransactionalFileSystem>, Vec<String>);
 
 /// Opens the EAGLE project of `project_create` (if any), before anything
 /// is created.
-fn open_eagle_project(
+enum ProjectImport {
+    Eagle(EagleProjectImport),
+    KiCad(KiCadProjectImport),
+}
+
+fn open_project_import(
     args: &ProjectCreateArgs,
-) -> ToolResult<(Option<EagleProjectImport>, Vec<String>)> {
+) -> ToolResult<(Option<ProjectImport>, Vec<String>)> {
+    if let Some(schematic) = &args.kicad_schematic {
+        if args.eagle_schematic.is_some() || args.eagle_board.is_some() {
+            return Err(ToolError::invalid("Select one project import format."));
+        }
+        let import = KiCadProjectImport::open(absolute_path(schematic)?)?;
+        return Ok((Some(ProjectImport::KiCad(import)), Vec::new()));
+    }
     let Some(sch) = &args.eagle_schematic else {
         if args.eagle_board.is_some() {
             return Err(ToolError::invalid(
@@ -258,7 +273,7 @@ fn open_eagle_project(
     let brd = args.eagle_board.as_deref().map(absolute_path).transpose()?;
     let mut import = EagleProjectImport::default();
     let parse_warnings = import.open(&sch, brd.as_ref())?;
-    Ok((Some(import), parse_warnings))
+    Ok((Some(ProjectImport::Eagle(import)), parse_warnings))
 }
 
 fn create_project_files(
@@ -267,7 +282,7 @@ fn create_project_files(
     name: &ElementName,
     dir: &FilePath,
     file_name: &str,
-    eagle: Option<&EagleProjectImport>,
+    import: Option<&ProjectImport>,
 ) -> ToolResult<CreatedProject> {
     let mut warnings = Vec::new();
     let mut handler = |_: &FilePath, _: librepcb_core::fileio::LockStatus, _: &str| Ok(false);
@@ -316,11 +331,14 @@ fn create_project_files(
             120,
         )
     };
-    if let Some(import) = eagle {
+    if let Some(import) = import {
         // Upstream `NewProjectWizard::createProject()` with EAGLE import:
         // no initial schematic and board.
         let log = MessageLogger::new();
-        let result = import.import(&mut project, &log);
+        let result: ToolResult<()> = match import {
+            ProjectImport::Eagle(import) => import.import(&mut project, &log).map_err(Into::into),
+            ProjectImport::KiCad(import) => import.import(&mut project, &log).map_err(Into::into),
+        };
         warnings.extend(
             log.messages()
                 .into_iter()
@@ -336,7 +354,7 @@ fn create_project_files(
         }
         project.add_schematic(Schematic::new(Uuid::new_random(), name, dir), None)?;
     }
-    if eagle.is_none() && args.create_board {
+    if !matches!(import, Some(ProjectImport::Eagle(_))) && args.create_board {
         let name = ElementName::new(args.board_name.as_deref().unwrap_or("default").trim())?;
         let dir = dir_name(name.as_str());
         if dir.is_empty() {

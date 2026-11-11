@@ -99,6 +99,25 @@ replacement detoured the top trace around the gap. The preview reported
 undo/redo and save/reopen reproduced the measured states. DRC found no
 new errors. This replay measures geometric centerline coverage.
 
+## ESP32-C3 USB-PD sink benchmark
+
+Use the KiCad source at commit `5b96caf` on `epr-48v` for the next real
+board replay. The four-layer board has 86 footprints, 1,442 trace
+segments and 285 vias. The original routing is a comparison baseline.
+KiCad 10.0.7 DRC on the original reports four copper-to-hole errors at
+J2, three open connections between J1 shield pads, and 211 warnings.
+
+The flat schematic import produced 148 placed symbols including power
+symbols, and matched all 60 groups of connected physical pins in the
+KiCad CLI netlist when compared by reference and pin number. LibrePCB-RS
+ERC reported zero errors and warnings. KiCad's generated names for
+unnamed nets can differ in the schematic-only import.
+
+Compare new routing from the imported placement and rules using native
+DRC and connectivity, power-path widths, ground coverage, total length,
+via count and manual interventions. Report the original layout metrics
+alongside the new ones.
+
 ## Applied-result contract
 
 `autoroute` (both backends) and `specctra_import` return `result.validation`:

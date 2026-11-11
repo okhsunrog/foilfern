@@ -5166,6 +5166,7 @@ dependencies = [
 name = "librepcb-import"
 version = "0.1.0"
 dependencies = [
+ "base64 0.23.1",
  "chrono",
  "clipper",
  "html-escape",
