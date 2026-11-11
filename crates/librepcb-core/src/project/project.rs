@@ -68,6 +68,9 @@ pub struct ProjectSettings {
 pub struct Project {
     pub(crate) directory: TransactionalDirectory,
     pub(crate) file_name: String,
+    /// Logical source path for attribute expansion in detached snapshots only.
+    /// Filesystem access always uses the separate transactional directory.
+    attribute_source_paths: Option<(FilePath, FilePath)>,
     pub(crate) uuid: Uuid,
     pub(crate) metadata: ProjectMetadata,
     pub(crate) settings: ProjectSettings,
@@ -128,6 +131,7 @@ impl Project {
         Ok(Self {
             directory,
             file_name,
+            attribute_source_paths: None,
             uuid,
             metadata: ProjectMetadata {
                 name: ElementName::new("Unnamed")?,
@@ -186,6 +190,24 @@ impl Project {
     /// on disk.
     pub fn file_path(&self) -> Option<FilePath> {
         self.directory.abs_path(&self.file_name)
+    }
+
+    /// Resolves path-dependent text attributes using the original project
+    /// location in a snapshot, without redirecting any filesystem operations.
+    pub(crate) fn attribute_file_path(&self) -> Option<FilePath> {
+        self.attribute_source_paths
+            .as_ref()
+            .map(|(file, _)| file.clone())
+            .or_else(|| self.file_path())
+    }
+
+    /// Directory counterpart of attribute_file_path; normal projects retain
+    /// their existing root-directory semantics even for nested file names.
+    pub(crate) fn attribute_directory_path(&self) -> Option<FilePath> {
+        self.attribute_source_paths
+            .as_ref()
+            .map(|(_, directory)| directory.clone())
+            .or_else(|| self.path())
     }
 
     /// Returns the absolute path of the project directory, if on disk.
@@ -387,7 +409,44 @@ impl Project {
     /// [`TransactionalFileSystem::save()`](crate::fileio::TransactionalFileSystem::save)
     /// afterwards to commit them to disk.
     pub fn save(&mut self) -> Result<()> {
-        let dir = &mut self.directory;
+        let mut directory = TransactionalDirectory::new(
+            std::sync::Arc::clone(self.directory.file_system()),
+            self.directory.path(),
+        );
+        self.write_to(&mut directory)?;
+        self.date_time = Utc::now();
+        Ok(())
+    }
+
+    /// Copies the current, including unsaved, project into an independent
+    /// in-memory file system. Embedded libraries and assets are copied from
+    /// the transactional directory, then the current model is serialized
+    /// using the native save format and loaded into a fresh project.
+    ///
+    /// The source's files, revision, journal and last-save time are untouched.
+    /// The returned project's journal starts at revision zero; derived data
+    /// such as plane fragments and air wires is rebuilt by its consumer.
+    /// No directory or lock is created on disk, and saving the snapshot only
+    /// stages files in its own read-only transactional file system.
+    pub fn snapshot(&self) -> Result<Self> {
+        let mut directory = TransactionalDirectory::new_temporary()?;
+        self.directory.copy_to(&mut directory)?;
+        self.write_to(&mut directory)?;
+        let mut snapshot = super::loader::ProjectLoader::new().open(directory, &self.file_name)?;
+        // Board text can expand DATE/TIME and absolute project paths. Reloading
+        // must not change that geometry merely because the storage is detached.
+        snapshot.date_time = self.date_time;
+        snapshot.attribute_source_paths = self
+            .attribute_file_path()
+            .zip(self.attribute_directory_path());
+        Ok(snapshot)
+    }
+
+    /// Writes the current native model into an explicitly selected directory
+    /// without changing this project or its save bookkeeping. Library files
+    /// and assets are maintained in the transactional directory by their
+    /// editing operations and must already exist in the destination.
+    fn write_to(&self, dir: &mut TransactionalDirectory) -> Result<()> {
         dir.write(
             ".librepcb-project",
             &VersionFile::new(application::file_format_version()).to_bytes(),
@@ -492,7 +551,6 @@ impl Project {
             root.ensure_line_break();
             dir.write("boards/boards.lp", &to_bytes(root)?)?;
         }
-        self.date_time = Utc::now();
         Ok(())
     }
 

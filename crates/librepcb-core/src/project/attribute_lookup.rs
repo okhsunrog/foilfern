@@ -337,18 +337,18 @@ impl<'a> ProjectAttributeLookup<'a> {
             "PROJECT" => metadata.name.to_string(),
             "PROJECT_DIRPATH" => self
                 .project
-                .path()
+                .attribute_directory_path()
                 .map(|p| p.to_native())
                 .unwrap_or_default(),
             "PROJECT_BASENAME" => self
                 .project
-                .file_path()
+                .attribute_file_path()
                 .map(|p| p.basename().to_owned())
                 .unwrap_or_default(),
             "PROJECT_FILENAME" => self.project.file_name().to_owned(),
             "PROJECT_FILEPATH" => self
                 .project
-                .file_path()
+                .attribute_file_path()
                 .map(|p| p.to_native())
                 .unwrap_or_default(),
             "CREATED_DATE" => metadata

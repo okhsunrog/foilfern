@@ -6,5 +6,6 @@ mod design;
 mod embedded;
 mod import;
 mod routing;
+mod routing_candidates;
 mod stdio_e2e;
 mod tools;

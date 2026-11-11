@@ -12,3 +12,5 @@ pub mod output;
 pub mod project;
 pub mod schematic_edit;
 pub mod write;
+
+pub mod routing;

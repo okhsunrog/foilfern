@@ -27,10 +27,29 @@ diffing outputs against the official `librepcb-cli`.
   place real parts.
 - Routing: Specctra DSN export and SES import, for autorouting with
   FreeRouting.
-- Current priority: routing correctness and practical board edits before
-  more integration surfaces. Use full applied-model DRC and connectivity
-  evidence, then grouped trace/via editing and revision-bound previews
-  ([reproductions and acceptance contract](mcp-routing-reliability.md)).
+- Current priority: one routing service shared by GUI and MCP, using the
+  built-in router first. Prepare a candidate on isolated model state, inspect
+  its exact geometry and applied-model checks, then apply against the original
+  project/revision as one undo operation. Preparation does not edit the live
+  project or its history.
+- Routing correctness groundwork is implemented: explicit/automatic via
+  dimensions, before/after full DRC and connectivity validation, and grouped
+  identity-preserving trace-width edits. The remaining STM32 `U1.21` access
+  case is preserved for diagnosis, not claimed solved.
+- The detailed [routing service design and R0–R6 delivery plan](routing-service-design.md)
+  specifies candidate lifecycle and acceptance, diagnostics and connected edits,
+  pad escape/local reroute, shared interactive routing, agent planning and
+  electrical specialization. R1 candidates/preview/apply are implemented for
+  builtin through `routing_prepare`, paginated
+  `routing_preview`, `routing_apply` and `routing_discard`. Candidates use a
+  detached model, preserve the exact mutations and are limited to eight retained
+  proposals; full capacity refuses instead of evicting. Preview is data only,
+  not a new GUI overlay. Candidate lifecycle and actual MCP save/reopen tests
+  cover this stage; later stages remain planned. See the design for evidence
+  and current operational limits.
+- Use the [reproductions and acceptance contract](mcp-routing-reliability.md)
+  as correctness gates. Additional routing engines, durable intent storage,
+  circuit templates, calculators and 3D work do not precede the routing path.
 
 ## M2 — viewer
 

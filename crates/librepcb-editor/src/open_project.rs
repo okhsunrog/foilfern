@@ -39,6 +39,8 @@ pub fn override_stale_locks(
 pub struct OpenProject {
     /// The project editor (project, undo stack, library element source).
     pub editor: ProjectEditor,
+    /// Session-local reviewed routing candidates; never serialized.
+    pub routing: crate::routing_service::RoutingService,
     /// The file system of the project directory; while it exists, the
     /// directory is locked (upstream compatible `.lock` file).
     pub file_system: Arc<TransactionalFileSystem>,
@@ -65,6 +67,7 @@ impl OpenProject {
         Self {
             saved_revision: project.revision(),
             editor: ProjectEditor::with_source(project, source),
+            routing: Default::default(),
             file_system,
             upgraded,
             migration_log: None,

@@ -743,6 +743,10 @@ Rendering only; no file is affected.
   shapes), but builds the combined segment in one step: split traces are
   replaced by two traces to the via (upstream first adds a split junction,
   then replaces it), the element UUIDs of the combined segments are kept.
+- **Reviewed builtin routing** (`routing_service`): original session-local
+  candidate service with detached native snapshots, exact mutation previews,
+  revision-bound single-undo apply and full applied-model validation. Candidate
+  state is never serialized; project/library file formats remain unchanged.
 - **Autorouter** (`Autoroute`): no upstream counterpart (upstream only
   exports Specctra DSN); see the `commands::autoroute` module docs.
 - **`create_project()`** copies the stroke fonts from a given directory

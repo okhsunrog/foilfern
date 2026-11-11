@@ -60,3 +60,6 @@ pub use freerouting::{
 pub use library_source::{DirectoryLibrarySource, LibraryElementSource, NoLibrarySource};
 pub use open_project::{OpenProject, SharedProject, override_stale_locks};
 pub use undo_stack::{HistoryEntry, LibraryElement, Operation, UndoStack};
+
+/// Reviewed builtin routing on detached project snapshots.
+pub mod routing_service;

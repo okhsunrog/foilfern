@@ -794,3 +794,92 @@ async fn stdio_unknown_arguments_are_rejected() {
 
     client.cancel().await.unwrap();
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn stdio_reviewed_builtin_routing_save_reopen() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let tools = client.list_all_tools().await.unwrap();
+    for name in [
+        "routing_prepare",
+        "routing_preview",
+        "routing_apply",
+        "routing_discard",
+    ] {
+        assert!(tools.iter().any(|t| t.name == name), "missing {name}");
+    }
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    let created = call_ok(&client, "project_create", json!({"name":"Reviewed"})).await;
+    for (name, x) in [("R1", 5), ("R2", 15)] {
+        call_ok(
+            &client,
+            "component_add",
+            json!({"part":"R-0805","designator":name}),
+        )
+        .await;
+        call_ok(
+            &client,
+            "device_place",
+            json!({"component":name,"position":{"x":x,"y":10},"rotation":90}),
+        )
+        .await;
+    }
+    for (net, pins) in [("A", ["R1.1", "R2.1"]), ("B", ["R1.2", "R2.2"])] {
+        call_ok(&client, "connect", json!({"net":net,"pins":pins})).await;
+    }
+    call_ok(
+        &client,
+        "board_set_outline",
+        json!({"width":30,"height":20}),
+    )
+    .await;
+    let before = call(&client, "board_get", json!({}))
+        .await
+        .structured_content
+        .unwrap();
+    let prepared = call_ok(
+        &client,
+        "routing_prepare",
+        json!({"expected_revision":before["revision"]}),
+    )
+    .await;
+    assert_eq!(prepared["validation"]["acceptable"], true);
+    assert_eq!(prepared["validation"]["after"]["unrouted"], 0);
+    let candidate = &prepared["candidate"];
+    let preview = call_ok(&client, "routing_preview", json!({"candidate":candidate})).await;
+    assert!(!preview["mutations"].as_array().unwrap().is_empty());
+    let unchanged = call(&client, "board_get", json!({}))
+        .await
+        .structured_content
+        .unwrap();
+    assert_eq!(unchanged, before);
+    let applied = call_ok(
+        &client,
+        "routing_apply",
+        json!({"candidate":candidate,"expected_revision":before["revision"]}),
+    )
+    .await;
+    assert_eq!(applied["applied"], true);
+    assert_eq!(applied["consumed"], true);
+    assert_eq!(applied["validation"]["after"]["unrouted"], 0);
+    let consumed = call(&client, "routing_apply", json!({"candidate":candidate})).await;
+    assert_eq!(
+        consumed.structured_content.unwrap()["error"]["kind"],
+        "not_found"
+    );
+    call_ok(&client, "undo", json!({})).await;
+    call_ok(&client, "redo", json!({})).await;
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    call_ok(&client, "project_open", json!({"path":created["path"]})).await;
+    let validation = call_ok(&client, "drc_run", json!({})).await;
+    assert_eq!(validation["errors"], 0, "{validation:#}");
+    call_ok(&client, "project_close", json!({})).await;
+    client.cancel().await.unwrap();
+}

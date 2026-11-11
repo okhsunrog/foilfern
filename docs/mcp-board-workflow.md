@@ -120,3 +120,18 @@ blindly repeat a write after a lost connection: inspect current state first.
 Use `history`, `undo` and `redo` to recover whole tool steps. Prefer the
 intent tools over `mutation_apply`; use `mutation_schema` before the raw
 mutation escape hatch (its length fields use integer nanometers).
+
+## Review builtin routing before applying it
+
+Use `routing_prepare` with optional `board`, `nets`, `layers`, `trace_width`,
+`via_drill`, `via_size`, `grid_pitch` and `expected_revision`. It returns an
+opaque `candidate`, full validation and remaining connections without changing
+the live board. Inspect its exact patch through `routing_preview` (paginate with
+`offset`/`limit` and `next_offset`). Check `validation.acceptable`, `drc_clean`
+and remaining connections separately. Apply with `routing_apply` and the
+candidate ID, or release it with `routing_discard`. Any intervening edit, even
+an edit followed by undo, can make a candidate stale. Saving can also invalidate
+its text attribute context without advancing the revision; prepare again instead of
+changing its revision. Apply preserves the reviewed geometry and is one undo.
+Candidates are session-local and disappear on closing the project. This first
+stage supports builtin only and returns data previews, without a GUI overlay.

@@ -267,6 +267,102 @@ fn boards() {
 }
 
 #[test]
+fn detached_snapshot_preserves_unsaved_model_assets_and_source_state() {
+    let mut p = new_project();
+    p.save().unwrap();
+    let mut metadata = p.metadata().clone();
+    metadata.name = ElementName::new("Unsaved routing candidate").unwrap();
+    p.apply(Mutation::SetProjectMetadata(metadata)).unwrap();
+    let net = add_net(&mut p, "UNSAVED");
+    add_component(&mut p, "R1", Some(net));
+    p.add_schematic(
+        Schematic::new(
+            Uuid::new_random(),
+            ElementName::new("Unsaved sheet").unwrap(),
+            "unsaved_sheet",
+        ),
+        None,
+    )
+    .unwrap();
+    p.add_board(
+        Board::new(
+            Uuid::new_random(),
+            ElementName::new("Unsaved board").unwrap(),
+            "unsaved_board",
+        ),
+        None,
+    )
+    .unwrap();
+    let fs = Arc::clone(p.directory().file_system());
+    fs.write("resources/candidate-asset.bin", b"unsaved asset")
+        .unwrap();
+    let before = snapshot(&p);
+    let files = fs.save_state();
+    let revision = p.revision();
+    let changes = format!("{:?}", p.changes_since(0));
+    let date_time = p.date_time();
+
+    let mut detached = p.snapshot().unwrap();
+    assert_eq!(snapshot(&detached), before);
+    assert_eq!(detached.uuid(), p.uuid());
+    assert_eq!(detached.revision(), 0);
+    assert_eq!(detached.date_time(), date_time);
+    for key in [
+        "PROJECT_DIRPATH",
+        "PROJECT_FILEPATH",
+        "PROJECT_BASENAME",
+        "DATE",
+        "TIME",
+    ] {
+        let source =
+            librepcb_core::project::ProjectAttributeLookup::for_project(&p, None).value(key);
+        let copied =
+            librepcb_core::project::ProjectAttributeLookup::for_project(&detached, None).value(key);
+        assert_eq!(copied, source, "snapshot attribute {key}");
+    }
+    assert_ne!(detached.file_path(), p.file_path());
+
+    assert!(detached.is_ref_index_consistent());
+    assert_eq!(
+        detached
+            .directory()
+            .read("resources/candidate-asset.bin")
+            .unwrap(),
+        b"unsaved asset"
+    );
+    assert!(!Arc::ptr_eq(&fs, detached.directory().file_system()));
+    assert!(!detached.directory().is_writable());
+    assert!(!detached.directory().abs_path("").unwrap().is_existing_dir());
+
+    let mut changed = detached.metadata().clone();
+    changed.author = "Sandbox only".into();
+    detached
+        .apply(Mutation::SetProjectMetadata(changed))
+        .unwrap();
+    detached
+        .directory()
+        .file_system()
+        .write("resources/candidate-asset.bin", b"sandbox replacement")
+        .unwrap();
+    detached.save().unwrap();
+    assert_eq!(snapshot(&p), before);
+    assert_eq!(p.revision(), revision);
+    assert_eq!(format!("{:?}", p.changes_since(0)), changes);
+    assert_eq!(p.date_time(), date_time);
+    assert_eq!(fs.save_state(), files);
+
+    fs.write("resources/candidate-asset.bin", b"source replacement")
+        .unwrap();
+    assert_eq!(
+        detached
+            .directory()
+            .read("resources/candidate-asset.bin")
+            .unwrap(),
+        b"sandbox replacement"
+    );
+}
+
+#[test]
 fn save_and_reopen() {
     let temp = TempDir::new();
     let fs = Arc::new(TransactionalFileSystem::open_rw(temp.path()).unwrap());

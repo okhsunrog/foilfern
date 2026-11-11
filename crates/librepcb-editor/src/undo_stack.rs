@@ -400,6 +400,25 @@ impl UndoStack {
         }
     }
 
+    /// Copies the exact forward mutations of the next redo entry. Used only
+    /// on detached routing sandboxes after undo; file/library operations are
+    /// refused rather than silently omitted from a candidate.
+    pub(crate) fn redo_mutations(&self) -> Result<Vec<Mutation>> {
+        let Some(entry) = self.entries.get(self.index) else {
+            return Ok(Vec::new());
+        };
+        entry
+            .ops
+            .iter()
+            .map(|op| match op {
+                Operation::Mutation(mutation) => Ok(mutation.clone()),
+                _ => Err(Error::InvalidArgument(
+                    "A routing candidate must contain model mutations only.".into(),
+                )),
+            })
+            .collect()
+    }
+
     /// Redoes the next undone group. Returns `false` if there is nothing to
     /// redo (or a group is active).
     pub fn redo(&mut self, project: &mut Project) -> Result<bool> {

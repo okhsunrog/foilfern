@@ -66,14 +66,15 @@ project_create -> component_add (part = name or device/component UUID; placed au
 connect (net + pins, e.g. net \"VCC\", pins [\"J1.1\",\"R1.1\"]; supply symbols like GND/VCC \
 force their net name and unconnected ones of the same name are attached automatically) -> \
 schematic_tidy (re-arranges the page by connectivity for readability) -> erc_run -> \
-board_set_outline (width/height mm) -> device_auto_place (or device_place) -> autoroute -> \
+board_set_outline (width/height mm) -> device_auto_place (or device_place) -> \
+routing_prepare -> routing_preview -> routing_apply (reviewed builtin; autoroute is direct) -> \
 plane_add (net \"GND\", bottom) -> drc_run -> export_fabrication / jobs_run -> project_save.\n\
 Addressing: designators (\"R1\"), pins \"R1.1\" (pad name) or \"U1.VCC\" (signal name) or a \
 designator alone for single-pin parts (\"GND1\"), net names, schematic/board names or indices; \
 UUIDs work everywhere. Unknown arguments are rejected (invalid_argument). Units: millimeters and degrees \
 (y upwards). Read tools: project_summary, component_get, netlist, schematic_get, board_get, \
 unrouted, render (PNG to look at the design).\n\
-Every write is one undo step \"AI: <tool>\" (undo/redo/history) and returns the re-read \
+Each committed model edit is one undo step (undo/redo/history) and returns the re-read \
 entities, the change events and the new revision; pass expected_revision to avoid lost \
 updates. Results: {outcome: complete|partial|failed, revision, result, warnings}; errors have a \
 stable kind (not_found, invalid_argument, conflict, stale_revision, no_project, no_workspace, \
@@ -851,6 +852,69 @@ impl LibrePcbMcp {
                     .await
             }
         }
+    }
+
+    #[tool(
+        description = "Prepare a checked builtin routing candidate without changing the live board. Search and full DRC run on an isolated snapshot; use routing_preview then routing_apply."
+    )]
+    async fn routing_prepare(
+        &self,
+        Parameters(args): Parameters<crate::tools::routing::RoutingPrepareArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let job = match self
+            .blocking(move |s| crate::tools::routing::prepare_job(s, args))
+            .await
+        {
+            Ok(job) => job,
+            Err(e) => return self.run(move |_| Err(e)).await,
+        };
+        let candidate =
+            match tokio::task::spawn_blocking(move || crate::tools::routing::run_job(job)).await {
+                Ok(Ok(candidate)) => candidate,
+                Ok(Err(e)) => return self.run(move |_| Err(e)).await,
+                Err(e) => {
+                    return self
+                        .run(move |_| {
+                            Err(ToolError::internal(format!("Routing worker failed: {e}")))
+                        })
+                        .await;
+                }
+            };
+        self.run(move |s| crate::tools::routing::finish_prepare(s, candidate))
+            .await
+    }
+
+    #[tool(
+        description = "Preview exact frozen routing mutations and validation, without changing the board. Paginated: offset and limit (1..200). Reports stale candidates."
+    )]
+    async fn routing_preview(
+        &self,
+        Parameters(args): Parameters<crate::tools::routing::RoutingPreviewArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| crate::tools::routing::routing_preview(s, args))
+            .await
+    }
+
+    #[tool(
+        description = "Apply a checked routing candidate exactly once, as one undo group. Rejects stale revisions and candidates with new DRC errors or incomplete checks; does not rerun routing."
+    )]
+    async fn routing_apply(
+        &self,
+        Parameters(args): Parameters<crate::tools::routing::RoutingCandidateArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| crate::tools::routing::routing_apply(s, args))
+            .await
+    }
+
+    #[tool(
+        description = "Discard a session-local routing candidate without changing the board, revision or undo history."
+    )]
+    async fn routing_discard(
+        &self,
+        Parameters(args): Parameters<crate::tools::routing::RoutingCandidateArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| crate::tools::routing::routing_discard(s, args))
+            .await
     }
 
     #[tool(description = "Export a board as Specctra DSN file (for external autorouters).")]

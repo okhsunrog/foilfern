@@ -343,3 +343,29 @@ binary at build time from `$LIBREPCB_UPSTREAM_DIR/share/librepcb/fontobene`
   devices, set outline, autoroute, add a ground plane, run ERC/DRC, export,
   save, and open the result with the official `librepcb-cli` (ERC/DRC
   clean, Gerber export works).
+
+### Reviewed builtin routing
+
+`routing_prepare` accepts builtin board/nets/layers and optional dimensions in
+mm, plus `expected_revision`. It captures an isolated native snapshot, releases
+the host locks, runs builtin search and before/after DRC, and retains the exact
+mutation candidate only if its source project session and revision still match.
+It does not edit the live board or its revision, dirty state, undo/redo or files.
+
+`routing_preview` reads candidate metadata and exact mutations with `offset` and
+`limit` (1–200, default 100), `next_offset` and a `stale` flag. This is a data
+preview; GUI overlays and candidate PNG rendering are future work. Retained storage bounds do not limit
+the number of concurrently running preparation workers.
+`routing_apply` checks the candidate revision independently of the optional
+caller revision (and rejects a changed save time or path, since text
+attributes can affect geometry), refuses incomplete validation or new non-connectivity DRC
+errors, then applies the frozen mutations as one undo group without rerouting.
+A successful commit consumes the candidate and reports `applied: true`,
+`consumed: true` and fresh applied-model validation. A failed post-commit check
+is reported as partial validation, never as an absent write. Partial connectivity
+is allowed and remains explicit. `routing_discard` frees a candidate without an
+edit. Closing the project clears candidates. Storage refuses more than eight
+candidates or a patch over 100,000 mutations; existing candidates are not evicted.
+
+See [routing service design](routing-service-design.md) for subsequent stages.
+The existing `autoroute` compatibility path continues to apply directly.

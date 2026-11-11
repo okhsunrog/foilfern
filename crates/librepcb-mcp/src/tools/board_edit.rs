@@ -71,7 +71,7 @@ pub fn copper_layer(s: &str) -> ToolResult<Layer> {
 }
 
 /// Resolves a board argument.
-fn board_id(p: &Project, key: Option<&str>) -> ToolResult<BoardId> {
+pub(crate) fn board_id(p: &Project, key: Option<&str>) -> ToolResult<BoardId> {
     Ok(resolve::board(p, key)?.1)
 }
 
@@ -1144,7 +1144,11 @@ impl FreeroutingJob {
     }
 }
 
-fn builtin_command(p: &Project, board: BoardId, args: &AutorouteArgs) -> ToolResult<Autoroute> {
+pub(crate) fn builtin_command(
+    p: &Project,
+    board: BoardId,
+    args: &AutorouteArgs,
+) -> ToolResult<Autoroute> {
     let nets = if args.nets.is_empty() {
         None
     } else {
