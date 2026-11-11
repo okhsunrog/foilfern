@@ -1,0 +1,98 @@
+{
+  "remove_traces": [
+    "08361653-2595-4db5-ba11-5bd62e44e405",
+    "0c486048-252c-45ab-8db0-507520793809",
+    "0f838b2f-e474-4dac-a8df-6adfa9cf7d0e",
+    "156c5199-5370-4e96-99c8-b9ccdc2ab31a",
+    "2ac55047-c828-47ec-b15e-4cf4cc4b4ee1",
+    "759e0df8-f598-4f30-b5f7-fe21d192c846",
+    "ae570753-a166-4f60-9153-15a95bbe811f",
+    "b6c658bf-2e54-47a5-9b66-4be7716e6c5e",
+    "ecce7f25-1e68-4e09-bc26-8033797dcea2",
+    "f7d1bada-daad-437a-b61f-7d9f4384b21d",
+    "0f3f9256-f9ff-4d8c-8fbb-0895a783f2b4",
+    "3d4b53f0-200a-402f-a57c-6e362ee948a1",
+    "58bf59bb-4fed-498c-bd77-ef8ecf371ee8",
+    "5e9d9886-be29-489e-8cc2-af14af79259d",
+    "a1dcb035-51cb-4296-b7cf-b4b04d1411a1",
+    "bdedd4fb-e1f9-4337-a827-6279c0cfe97b",
+    "be2453a6-b25f-4855-96dd-7f404efd49ba",
+    "dc21ba7b-f535-446f-84f5-06c502d0206d",
+    "e3041d18-283c-4ccd-8650-4accd1774331",
+    "ec17ed4c-705c-418a-8b51-ecabfc495709",
+    "76021803-a784-4a7c-902f-f2f50e68904a"
+  ],
+  "remove_vias": [
+    "527780fe-7d3d-47c8-a5a5-551613ae05b0",
+    "e14dd126-a41a-4109-b2a4-1e97d6762a8c",
+    "0be8d030-92e6-429c-9f66-cee121c81712"
+  ],
+  "traces": [
+    {
+      "from": "OLED1.28",
+      "to": "C21.1",
+      "points": [
+        {
+          "x": 146.75,
+          "y": -108.05
+        },
+        {
+          "x": 145.45,
+          "y": -109.35
+        },
+        {
+          "x": 145,
+          "y": -109.35
+        }
+      ],
+      "layer": "bottom",
+      "width": 0.2
+    },
+    {
+      "from": "OLED1.27",
+      "to": "C22.1",
+      "points": [
+        {
+          "x": 147.45,
+          "y": -108.0
+        },
+        {
+          "x": 146.6,
+          "y": -108.85
+        }
+      ],
+      "layer": "bottom",
+      "width": 0.2
+    },
+    {
+      "from": "C22.2",
+      "to": {
+        "via": "c22-ground"
+      },
+      "layer": "bottom",
+      "width": 0.2
+    }
+  ],
+  "placements": [
+    {
+      "component": "C21",
+      "rotation": 270
+    },
+    {
+      "component": "C22",
+      "rotation": 270
+    }
+  ],
+  "vias": [
+    {
+      "label": "c22-ground",
+      "net": "GND",
+      "position": {
+        "x": 146.6,
+        "y": -111.2
+      },
+      "drill": 0.3,
+      "size": 0.6
+    }
+  ]
+}

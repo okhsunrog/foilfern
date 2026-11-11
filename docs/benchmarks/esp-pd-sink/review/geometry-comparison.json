@@ -1,0 +1,76 @@
+{
+  "baseline": {
+    "trace_segments": 1009,
+    "vias": 145,
+    "trace_length_mm": 1529.787543222424
+  },
+  "best": {
+    "trace_segments": 994,
+    "vias": 143,
+    "trace_length_mm": 1517.093074801722
+  },
+  "unchanged_retained_copper": true,
+  "mechanical_and_plane_settings_preserved": true,
+  "changed_placements": [
+    {
+      "component": "47636e52-8e93-463f-aaf9-4bf0a48f15bf",
+      "designator": "C21",
+      "before": {
+        "position": {
+          "x": 145.0,
+          "y": -110.2
+        },
+        "rotation": 90.0,
+        "side": "bottom"
+      },
+      "after": {
+        "position": {
+          "x": 145.0,
+          "y": -110.2
+        },
+        "rotation": 270.0,
+        "side": "bottom"
+      }
+    },
+    {
+      "component": "65a898a8-e877-4b6e-9022-54c334fa1628",
+      "designator": "C16",
+      "before": {
+        "position": {
+          "x": 104.6,
+          "y": -146.3
+        },
+        "rotation": 90.0,
+        "side": "top"
+      },
+      "after": {
+        "position": {
+          "x": 105.25,
+          "y": -146.0
+        },
+        "rotation": 270.0,
+        "side": "top"
+      }
+    },
+    {
+      "component": "90b44ab4-5503-4893-b19d-d2dd2174465b",
+      "designator": "C22",
+      "before": {
+        "position": {
+          "x": 146.6,
+          "y": -110.2
+        },
+        "rotation": 90.0,
+        "side": "bottom"
+      },
+      "after": {
+        "position": {
+          "x": 146.6,
+          "y": -110.2
+        },
+        "rotation": 270.0,
+        "side": "bottom"
+      }
+    }
+  ]
+}

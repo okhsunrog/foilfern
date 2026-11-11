@@ -1,0 +1,140 @@
+{
+  "oled": {
+    "prepare_s": 29.908446926000124,
+    "preview_s": 0.003538175999892701,
+    "apply_s": 13.42445654800008,
+    "planes_rebuild_s": 0.43042710200006695,
+    "unrouted_s": 0.014968954999858397,
+    "process_peak_kib": 167948,
+    "drc_core_s": {
+      "before": 14.831,
+      "after": 14.082,
+      "apply": 13.003
+    },
+    "prepare_other_s": 0.995446926000124,
+    "before": {
+      "vias": 145,
+      "trace_length_mm": 1529.787543222424,
+      "vcomh": {
+        "status": "measured",
+        "direct_mm": 4.0575308070303056,
+        "length_mm": 9.373741023123365,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "5e9d9886-be29-489e-8cc2-af14af79259d",
+          "3d4b53f0-200a-402f-a57c-6e362ee948a1",
+          "0f3f9256-f9ff-4d8c-8fbb-0895a783f2b4",
+          "be2453a6-b25f-4855-96dd-7f404efd49ba",
+          "e3041d18-283c-4ccd-8650-4accd1774331",
+          "58bf59bb-4fed-498c-bd77-ef8ecf371ee8",
+          "dc21ba7b-f535-446f-84f5-06c502d0206d",
+          "a1dcb035-51cb-4296-b7cf-b4b04d1411a1",
+          "bdedd4fb-e1f9-4337-a827-6279c0cfe97b",
+          "ec17ed4c-705c-418a-8b51-ecabfc495709"
+        ]
+      }
+    },
+    "after": {
+      "vias": 143,
+      "trace_length_mm": 1516.949997759179,
+      "vcomh": {
+        "status": "measured",
+        "direct_mm": 2.9572886653148975,
+        "length_mm": 3.1845815280171244,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "75e3443f-c9f3-4b5e-8fd7-d5417ecc2d7f",
+          "57968d8b-4fe9-46ff-8245-086eb0b04782",
+          "0926c371-8492-4240-88ee-6bc9e0122bfe"
+        ]
+      }
+    }
+  },
+  "builtin": {
+    "prepare_s": 29.18028260899996,
+    "preview_s": 0.009135872000115342,
+    "apply_s": 12.487251689000004,
+    "planes_rebuild_s": 0.39518872399980864,
+    "unrouted_s": 0.018852803000072527,
+    "process_peak_kib": 178748,
+    "drc_core_s": {
+      "before": 12.971,
+      "after": 14.824,
+      "apply": 11.954
+    },
+    "prepare_other_s": 1.3852826089999581,
+    "effort": {
+      "congestion_tiles": 0,
+      "rip_ups": 0,
+      "searches": 1
+    },
+    "before": {
+      "vias": 145,
+      "trace_length_mm": 1529.787543222424,
+      "vcomh": {
+        "status": "measured",
+        "direct_mm": 4.0575308070303056,
+        "length_mm": 9.373741023123365,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "5e9d9886-be29-489e-8cc2-af14af79259d",
+          "3d4b53f0-200a-402f-a57c-6e362ee948a1",
+          "0f3f9256-f9ff-4d8c-8fbb-0895a783f2b4",
+          "be2453a6-b25f-4855-96dd-7f404efd49ba",
+          "e3041d18-283c-4ccd-8650-4accd1774331",
+          "58bf59bb-4fed-498c-bd77-ef8ecf371ee8",
+          "dc21ba7b-f535-446f-84f5-06c502d0206d",
+          "a1dcb035-51cb-4296-b7cf-b4b04d1411a1",
+          "bdedd4fb-e1f9-4337-a827-6279c0cfe97b",
+          "ec17ed4c-705c-418a-8b51-ecabfc495709"
+        ]
+      }
+    },
+    "after": {
+      "vias": 145,
+      "trace_length_mm": 1529.6896940579204,
+      "vcomh": {
+        "status": "measured",
+        "direct_mm": 4.0575308070303056,
+        "length_mm": 9.275891858620069,
+        "layers": [
+          "bot_cu"
+        ],
+        "via_count": 0,
+        "widths_mm": [
+          0.2
+        ],
+        "traces": [
+          "cdc4fdc0-e0f2-48e8-ad47-469243ca137f",
+          "e19f4d1e-0974-4547-92b6-af7610e4154c",
+          "a4793a58-7ea8-40e3-bc2a-72b48fa009fa",
+          "cbda0d61-c6be-4c88-ba71-b7286c22b59a",
+          "b202886c-4994-4df2-8cb1-1a2a5df17a23",
+          "ce358d8c-2776-40ed-9f40-1c2496273ff7",
+          "71c85e7e-ff13-4ddd-bc36-e0ce5a6bcb7e",
+          "5f42341a-5a46-4f99-94c9-8e470a950e5a",
+          "d83d0a70-76ed-40cb-b9a7-fa7d8716eb06",
+          "d036b5ea-6324-4eb6-ba98-00ac908038f9"
+        ]
+      }
+    }
+  }
+}

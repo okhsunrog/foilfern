@@ -37,3 +37,6 @@ and endpoints, returning resolved identities, measurement status/reason and the
 source project/revision. Store resolved references alongside human labels; reject
 unresolved/ambiguous pins. Add enforced allowed-area or reference-copper constraints
 only after the measured board experiments establish the needed semantics.
+
+The completed first batch, accepted candidate arguments, native project archive,
+renders and performance evidence are described in [REPORT.md](REPORT.md).

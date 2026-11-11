@@ -1,0 +1,80 @@
+[
+  {
+    "file": "ESP-PD-Sink_COPPER-BOTTOM.gbr",
+    "equal_excluding_generation_software_creation_date_md5": true,
+    "foilfern_sha256": "3b7d8899ad801a5e5bfaa8cbce0cfe228392b702d829903333ea25420d531945",
+    "upstream_sha256": "4317f4eb3a25a6ae5cfa300a70b41753d20c63b0b27037a38164521dd6e62731"
+  },
+  {
+    "file": "ESP-PD-Sink_COPPER-IN1.gbr",
+    "equal_excluding_generation_software_creation_date_md5": true,
+    "foilfern_sha256": "4d8d793e293e50ae97f92ad9dabd3822cd7ee7b4e1e3958dc8c8cf6114372b1d",
+    "upstream_sha256": "8a6a4330539a678440be661bdd6c7d91f0141b2469199ae3bd8cd9f957c2ad0f"
+  },
+  {
+    "file": "ESP-PD-Sink_COPPER-IN2.gbr",
+    "equal_excluding_generation_software_creation_date_md5": true,
+    "foilfern_sha256": "88a55df8e84ae1d01f00ee15b9d7c05372d650d41e673289293481c5882af32e",
+    "upstream_sha256": "3af3b7f82e0aeb6b1e5f7c818bf2d73a67ac7a3cd6142e98fe845bfd9bca3318"
+  },
+  {
+    "file": "ESP-PD-Sink_COPPER-TOP.gbr",
+    "equal_excluding_generation_software_creation_date_md5": true,
+    "foilfern_sha256": "3ee1ebff6b5c8433ec14003a250f4c8fd24fa3de8f8885e1a1b0d004cda53739",
+    "upstream_sha256": "77131fa3bb8a79466c81b5396888467121d6b01d7d85ee6a78b2eb502c160284"
+  },
+  {
+    "file": "ESP-PD-Sink_DRILLS-NPTH.drl",
+    "equal_excluding_generation_software_creation_date_md5": true,
+    "foilfern_sha256": "6dd37cbccf4727e21e49e69c2b3c13f69ac59d84c9e73940c6e29cc94826a631",
+    "upstream_sha256": "45bcd7ef509e419abb607795621497977603093273b0990f81ab0ddc9a5eee2a"
+  },
+  {
+    "file": "ESP-PD-Sink_DRILLS-PTH.drl",
+    "equal_excluding_generation_software_creation_date_md5": true,
+    "foilfern_sha256": "4afd798422888a86fb2f4bb3d61a862324a7fe6b96fcc81a51a401ee26af7b37",
+    "upstream_sha256": "1ed18f7140df9b15c024cdd9e045930666e756b0641ccf5668c32243074fa0e8"
+  },
+  {
+    "file": "ESP-PD-Sink_OUTLINES.gbr",
+    "equal_excluding_generation_software_creation_date_md5": true,
+    "foilfern_sha256": "0221267eea41328457ba1168fce5fc85c0bd0f9cfa0005fd31ff8e0501e3a367",
+    "upstream_sha256": "b08d802876fe43b25b15750fa18aa59bd001ac8699ce58659dd5fe67a1c64328"
+  },
+  {
+    "file": "ESP-PD-Sink_SILKSCREEN-BOTTOM.gbr",
+    "equal_excluding_generation_software_creation_date_md5": true,
+    "foilfern_sha256": "591c18548e9a4a3f5cd09de2881339ff355d93285f7fc58226d3d92adab8ebbd",
+    "upstream_sha256": "9653324bffded9c5a5768c7d23365bc81e5262dbc2b35d86d4d6e152d09eca77"
+  },
+  {
+    "file": "ESP-PD-Sink_SILKSCREEN-TOP.gbr",
+    "equal_excluding_generation_software_creation_date_md5": true,
+    "foilfern_sha256": "aad56108af8cf246611d00cd898cb8c08a0ee5e007e877e7372cf5031960b0f7",
+    "upstream_sha256": "c7a7ef9e30a5cb7b5e8530087a50d80ebbf067925adcecc4401ede3c13d1e7aa"
+  },
+  {
+    "file": "ESP-PD-Sink_SOLDERMASK-BOTTOM.gbr",
+    "equal_excluding_generation_software_creation_date_md5": true,
+    "foilfern_sha256": "953d535a8101c35cd4382893b7dae87e1f818043d4dde270369bd6bd5473e275",
+    "upstream_sha256": "cad991ab26a6d64e182535225958ddeb21092ea17a58cc4ff8bc7b61a5d71172"
+  },
+  {
+    "file": "ESP-PD-Sink_SOLDERMASK-TOP.gbr",
+    "equal_excluding_generation_software_creation_date_md5": true,
+    "foilfern_sha256": "ab85c0ac0210889c8c1e348aba71e5bf32126ff20fdfaa8f7225bc8d3e1f7c27",
+    "upstream_sha256": "f0d97434315abc1052b84a79118886d39497f24800cc2d4a6b1c0deb17c508df"
+  },
+  {
+    "file": "ESP-PD-Sink_SOLDERPASTE-BOTTOM.gbr",
+    "equal_excluding_generation_software_creation_date_md5": true,
+    "foilfern_sha256": "8731eb4d919f64b6955feb43b090c2f6a5eafa8805f027662bb9b5596458877e",
+    "upstream_sha256": "59f8dfd20e84de7e87b0775023165649e3bdacb16f29343f88d9be3db9517f64"
+  },
+  {
+    "file": "ESP-PD-Sink_SOLDERPASTE-TOP.gbr",
+    "equal_excluding_generation_software_creation_date_md5": true,
+    "foilfern_sha256": "162eab575471d39f73688c67a682695568857e0b2f7d86aca51e807c63027874",
+    "upstream_sha256": "b442960f8136962ad0b08148dd5a8bf5b2fe9789856f2ed6a84a3cdc69bf1a88"
+  }
+]
