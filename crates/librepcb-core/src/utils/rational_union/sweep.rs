@@ -1,6 +1,6 @@
 //! Winding classification of the noded arrangement, without coordinate rounding.
 
-use super::{Edge, Error, Operand, Point};
+use super::{Edge, Error, Operand, Operation, Point};
 use clipper::PolyFillType;
 use dashu_ratio::RBig;
 use std::collections::BTreeMap;
@@ -34,6 +34,7 @@ pub(super) fn boundary(
     points: &[Point],
     edges: &[Edge],
     operands: &[Operand],
+    operation: Operation,
 ) -> Result<Vec<(usize, usize)>, Error> {
     let mut events: BTreeMap<RBig, Event> = BTreeMap::new();
     let mut lines = Vec::with_capacity(edges.len());
@@ -92,7 +93,7 @@ pub(super) fn boundary(
         prefix.clear();
         prefix.push(false);
         for &id in &active {
-            let below = inside_count != 0;
+            let below = *prefix.last().ok_or(Error::InvalidTopology)?;
             for &(group, delta) in &edges[id].deltas {
                 let was = filled(winding[group], operands[group].fill);
                 winding[group] += delta;
@@ -103,7 +104,11 @@ pub(super) fn boundary(
                     _ => {}
                 }
             }
-            let above = inside_count != 0;
+            let above = operation.filled(
+                inside_count,
+                filled(winding[0], operands[0].fill),
+                operands.len(),
+            );
             prefix.push(above);
             if !seen[id] {
                 seen[id] = true;

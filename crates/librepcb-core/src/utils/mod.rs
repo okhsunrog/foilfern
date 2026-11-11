@@ -34,5 +34,4 @@ pub mod tangent_path_joiner;
 pub mod toolbox;
 pub mod transform;
 
-#[cfg(feature = "experimental-exact-copper")]
 pub mod rational_union;

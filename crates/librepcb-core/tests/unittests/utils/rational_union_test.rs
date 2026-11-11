@@ -1,4 +1,4 @@
-//! Correctness tests of the experimental exact copper union (not an upstream port).
+//! Correctness tests of the exact copper union (not an upstream port).
 
 use clipper::PolyFillType::{EvenOdd, Negative, NonZero, Positive};
 use dashu_ratio::RBig;
@@ -380,6 +380,156 @@ fn exact_union_matches_independent_point_location() {
             result,
             union(&[union(&operands[..2]).operand(), operands[2].clone()]),
             "case {case}"
+        );
+    }
+}
+
+#[test]
+fn boolean_checks_preserve_sub_nanometer_gaps_and_overlap() {
+    let left = operand(rect(0, 0, 1, 2));
+    let right = operand(vec![
+        Point::new(RBig::from(4) / RBig::from(3), RBig::ZERO),
+        Point::from_nm(3, 0),
+        Point::from_nm(3, 2),
+        Point::new(RBig::from(4) / RBig::from(3), RBig::from(2)),
+    ]);
+    let copper = union(&[left, right]);
+    let required = union(&[operand(rect(0, 0, 3, 2))]);
+    let missing = required.difference(&copper).unwrap();
+    assert_eq!(area(&missing), RBig::from(2) / RBig::from(3));
+    // Annular-ring coverage must still fail after its display collapses to a line.
+    assert!(!missing.is_empty());
+    assert!(
+        union(&[Operand::from_integer(
+            &missing.rounded_paths().unwrap(),
+            NonZero
+        )])
+        .is_empty()
+    );
+    let clip = union(&[operand(rect(1, 0, 1, 2))]);
+    assert_eq!(
+        area(&copper.intersection(&clip).unwrap()),
+        RBig::from(4) / RBig::from(3)
+    );
+    assert_eq!(
+        area(&copper.intersection(&required).unwrap()),
+        area(&copper)
+    );
+    assert!(copper.difference(&required).unwrap().is_empty());
+    assert!(
+        rational_union::intersection(&[copper.operand(), Region::default().operand()])
+            .unwrap()
+            .is_empty()
+    );
+    assert!(rational_union::intersection(&[]).unwrap().is_empty());
+    let touching = union(&[operand(rect(3, 0, 2, 2))]);
+    assert!(copper.intersection(&touching).unwrap().is_empty());
+}
+
+#[test]
+fn boolean_area_identities_and_holes() {
+    for i in 0..64 {
+        let a = union(&[operand(polygon(&[(0, 0), (11, 0), (i % 7, 13)]))]);
+        let b = union(&[operand(polygon(&[(i % 11, -2), (12, 6), (-1, 5)]))]);
+        let overlap = a.intersection(&b).unwrap();
+        assert_eq!(
+            overlap,
+            rational_union::intersection(&[a.operand(), b.operand()]).unwrap()
+        );
+        let difference = a.difference(&b).unwrap();
+        assert_eq!(area(&difference) + area(&overlap), area(&a));
+        assert_eq!(
+            area(&union(&[a.operand(), b.operand()])) + area(&overlap),
+            area(&a) + area(&b)
+        );
+        assert_eq!(overlap, b.intersection(&a).unwrap());
+        assert!(difference.intersection(&b).unwrap().is_empty());
+    }
+    let outer = union(&[operand(rect(0, 0, 20, 20))]);
+    let hole = union(&[operand(rect(5, 5, 10, 10))]);
+    let donut = outer.difference(&hole).unwrap();
+    assert_eq!(donut.paths().len(), 2);
+    assert_eq!(area(&donut), RBig::from(300));
+    assert!(donut.intersection(&hole).unwrap().is_empty());
+}
+
+#[test]
+fn exact_open_boundaries_keep_fractional_intervals_and_contacts() {
+    let copper = union(&[operand(rect(0, 0, 2, 2))]);
+    let path = polygon(&[(-1, 1), (3, 1)]);
+    assert_eq!(
+        copper.clip_polyline(&path, true).unwrap(),
+        vec![polygon(&[(0, 1), (2, 1)])]
+    );
+    assert_eq!(
+        copper.clip_polyline(&path, false).unwrap(),
+        vec![polygon(&[(-1, 1), (0, 1)]), polygon(&[(2, 1), (3, 1)])]
+    );
+    let boundary = polygon(&[(0, 0), (2, 0)]);
+    assert_eq!(
+        copper.clip_polyline(&boundary, true).unwrap(),
+        vec![boundary.clone()]
+    );
+    assert!(copper.clip_polyline(&boundary, false).unwrap().is_empty());
+    assert!(
+        copper
+            .clip_polyline(&polygon(&[(-1, 1), (1, 3)]), true)
+            .unwrap()
+            .is_empty()
+    );
+    let triangle = union(&[operand(polygon(&[(0, 0), (1, 0), (0, 3)]))]);
+    let clipped = triangle
+        .clip_polyline(&polygon(&[(-1, 2), (1, 2)]), true)
+        .unwrap();
+    assert_eq!(
+        clipped,
+        vec![vec![
+            Point::from_nm(0, 2),
+            Point::new(RBig::ONE / RBig::from(3), RBig::from(2))
+        ]]
+    );
+    let mut reversed = polygon(&[(-1, 2), (1, 2)]);
+    reversed.reverse();
+    let mut expected = clipped[0].clone();
+    expected.reverse();
+    assert_eq!(
+        triangle.clip_polyline(&reversed, true).unwrap(),
+        vec![expected]
+    );
+}
+
+#[test]
+fn query_box_clipping_preserves_disconnected_pieces_and_holes() {
+    let u = union(&[operand(polygon(&[
+        (0, 0),
+        (9, 0),
+        (9, 9),
+        (6, 9),
+        (6, 3),
+        (3, 3),
+        (3, 9),
+        (0, 9),
+    ]))]);
+    let strip = union(&[operand(rect(-1, 5, 11, 2))]);
+    let clipped = u.intersection(&strip).unwrap();
+    assert_eq!(clipped.paths().len(), 2);
+    assert_eq!(area(&clipped), RBig::from(12));
+    assert_eq!(
+        clipped,
+        rational_union::intersection(&[u.operand(), strip.operand()]).unwrap()
+    );
+    let outer = union(&[operand(rect(-100, -100, 200, 200))]);
+    let hole = union(&[operand(rect(1, 1, 6, 6))]);
+    let donut = outer.difference(&hole).unwrap();
+    for query in [rect(0, 0, 9, 9), rect(2, 2, 2, 2), rect(0, 3, 9, 2)] {
+        let q = union(&[operand(query)]);
+        assert_eq!(
+            donut.intersection(&q).unwrap(),
+            rational_union::intersection(&[donut.operand(), q.operand()]).unwrap()
+        );
+        assert_eq!(
+            q.difference(&donut).unwrap(),
+            q.intersection(&hole).unwrap()
         );
     }
 }

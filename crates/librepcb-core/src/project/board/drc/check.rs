@@ -30,12 +30,12 @@ use clipper::JoinType;
 use clipper::PolyFillType::{EvenOdd, NonZero};
 use librepcb_i18n::{tr, trn};
 
-use super::clipper_path_generator::{BoardClipperPathGenerator, has_geometry};
 use super::data::{
     BoardDrcData, DrcAirWireAnchor, DrcAirWireObject, DrcDevice, DrcHole, DrcPad, DrcPlane,
     DrcPolygon, DrcSegment, DrcTrace, DrcVia, DrcZone,
 };
 use super::error::{Error, Result};
+use super::geometry_generator::{GeometryGenerator, has_geometry};
 use super::messages::{
     ConnectionAnchor, CopperObject, DrcHoleRef, DrcMessage, ZoneObject, pad_transform,
 };
@@ -45,6 +45,7 @@ use crate::project::{BoardId, Project};
 use crate::types::{Angle, Layer, Length, Point, PositiveLength, UnsignedLength};
 use crate::utils::clipper_helpers::{self, ClipperPaths};
 use crate::utils::painter_path::PainterPathPx;
+use crate::utils::rational_union::{self, Operand, Region};
 use crate::utils::transform::Transform;
 
 const CTX: &str = "librepcb::BoardDesignRuleCheck";
@@ -123,14 +124,55 @@ fn intersection(subject: &ClipperPaths, clip: &ClipperPaths) -> Result<Vec<Path>
     Ok(from_clipper(&clipper_helpers::flatten_tree(tree.root())?))
 }
 
+/// Convert only established violations. Keep even collapsed display polygons:
+/// an integer-grid rendering must never suppress an exact nonempty result.
+fn exact_locations(region: &Region) -> Result<Vec<Path>> {
+    if region.is_empty() {
+        return Ok(Vec::new());
+    }
+    let rounded = region.rounded_paths()?;
+    // This Clipper call only prepares the display polygons (including cut-ins
+    // for holes). It cannot change whether a violation is emitted.
+    let tree = clipper_helpers::unite_to_tree(&rounded, NonZero)?;
+    let display = clipper_helpers::flatten_tree(tree.root())?;
+    Ok(from_clipper(if display.is_empty() {
+        &rounded
+    } else {
+        &display
+    }))
+}
+
+fn exact_intersection(a: &Region, b: &Region) -> Result<Vec<Path>> {
+    exact_locations(&a.intersection(b)?)
+}
+
+/// Stroke exact open violation intervals without adding a closing chord.
+fn exact_line_locations(paths: &[Vec<rational_union::Point>]) -> Result<Vec<Path>> {
+    let width = positive(Length::new(100_000))?;
+    let mut locations = Vec::new();
+    for path in paths {
+        let points = path
+            .iter()
+            .map(|p| p.rounded())
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let vertices = points
+            .iter()
+            .map(|p| Vertex::at(Point::from_nm(p.x, p.y)))
+            .collect();
+        // A collapsed nonempty interval still gets a circular display marker.
+        locations.extend(Path::new(vertices).to_outline_strokes(width));
+    }
+    Ok(locations)
+}
+
 /// Data calculated by stage 1 jobs (upstream `CalculatedJobData`).
 #[derive(Debug, Clone, Default)]
 struct CalculatedJobData {
-    copper_paths_per_layer: BTreeMap<Layer, ClipperPaths>,
+    copper_paths_per_layer: BTreeMap<Layer, Region>,
 }
 
 impl CalculatedJobData {
-    fn copper(&self, layer: Layer) -> ClipperPaths {
+    fn copper(&self, layer: Layer) -> Region {
         self.copper_paths_per_layer
             .get(&layer)
             .cloned()
@@ -144,7 +186,6 @@ type Stage2Check<'a> = fn(&Checker<'a>, &BoardDrcData, &CalculatedJobData) -> Me
 
 /// Runs the checks and reports progress.
 struct Checker<'a> {
-    copper: fn(&BoardDrcData, Layer) -> Result<ClipperPaths>,
     progress: DrcProgressCallback<'a>,
     /// Total weight and weight of the finished jobs.
     counter: Mutex<(u32, u32)>,
@@ -193,44 +234,8 @@ fn append(result: &mut DrcResult, other: DrcResult) {
 
 /// Runs the design rule check on `data` (upstream `BoardDesignRuleCheck::run()`).
 pub fn run_drc(data: &BoardDrcData, progress: DrcProgressCallback<'_>) -> DrcResult {
-    run_drc_impl(data, progress, legacy_copper)
-}
-
-fn legacy_copper(data: &BoardDrcData, layer: Layer) -> Result<ClipperPaths> {
-    let mut generator = BoardClipperPathGenerator::new(max_arc_tolerance());
-    generator.add_copper(data, layer, &[], data.quick)?;
-    Ok(generator.take_paths())
-}
-
-/// Research-only comparison using exact layer copper union, rounded once at the
-/// interface to the existing integer checks. Rounding can change topology and
-/// upstream results. This deliberately returns an unidentified result which
-/// cannot be considered complete/current or authorize approval cleanup.
-/// The regular DRC and all export geometry always use the legacy backend.
-#[cfg(feature = "experimental-exact-copper")]
-pub fn run_drc_with_exact_copper(
-    data: &BoardDrcData,
-    progress: DrcProgressCallback<'_>,
-) -> DrcResult {
-    fn exact_copper(data: &BoardDrcData, layer: Layer) -> Result<ClipperPaths> {
-        let operands =
-            BoardClipperPathGenerator::copper_operands(data, layer, max_arc_tolerance())?;
-        let (region, _) = crate::utils::rational_union::union(&operands)?;
-        Ok(region.rounded_paths()?)
-    }
-    let mut result = run_drc_impl(data, progress, exact_copper);
-    result.snapshot = None;
-    result
-}
-
-fn run_drc_impl(
-    data: &BoardDrcData,
-    progress: DrcProgressCallback<'_>,
-    copper: fn(&BoardDrcData, Layer) -> Result<ClipperPaths>,
-) -> DrcResult {
     let timer = Instant::now();
     let checker = Checker {
-        copper,
         progress,
         counter: Mutex::new((0, 0)),
     };
@@ -489,8 +494,8 @@ struct CopperItem<'a> {
     end_layer: Layer,
     net: Option<crate::types::Uuid>,
     clearance: Length,
-    copper_area: ClipperPaths,
-    clearance_area: ClipperPaths,
+    copper_area: Region,
+    clearance_area: Region,
 }
 
 /// A copper clearance violation (merged per object pair).
@@ -508,8 +513,8 @@ impl<'a> CopperItem<'a> {
         layers: (Layer, Layer),
         net: Option<crate::types::Uuid>,
         clearance: Length,
-        copper_area: ClipperPaths,
-        clearance_area: ClipperPaths,
+        copper_area: Region,
+        clearance_area: Region,
     ) -> Self {
         Self {
             serialized: object.serialize(),
@@ -534,9 +539,11 @@ struct ZoneItem<'a> {
 }
 
 impl Checker<'_> {
-    fn prepare_copper_paths(&self, data: &BoardDrcData, layer: Layer) -> Result<ClipperPaths> {
+    fn prepare_copper_paths(&self, data: &BoardDrcData, layer: Layer) -> Result<Region> {
         self.status(&tr!(CTX, "Prepare '{0}'...", layer.name_tr()));
-        (self.copper)(data, layer)
+        let mut generator = GeometryGenerator::new(max_arc_tolerance());
+        generator.add_copper(data, layer, &[], data.quick)?;
+        generator.take_region()
     }
 
     fn check_copper_copper_clearances(&self, data: &BoardDrcData) -> Messages {
@@ -560,22 +567,11 @@ impl Checker<'_> {
 
         // Determine the area of each copper object.
         let mut items: Vec<CopperItem<'_>> = Vec::new();
-        let mut generator = BoardClipperPathGenerator::new(max_arc_tolerance());
-        let offset_clearance =
-            |mut paths: ClipperPaths, clearance: UnsignedLength| -> Result<ClipperPaths> {
-                clipper_helpers::offset(
-                    &mut paths,
-                    reduced(clearance),
-                    max_arc_tolerance(),
-                    JoinType::Round,
-                )?;
-                Ok(paths)
-            };
-
+        let mut generator = GeometryGenerator::new(max_arc_tolerance());
         // Helper for pads: the copper and clearance areas per layer.
         let pad_areas = |pad: &DrcPad,
-                         generator: &mut BoardClipperPathGenerator|
-         -> Result<Vec<(Layer, Length, ClipperPaths, ClipperPaths)>> {
+                         generator: &mut GeometryGenerator|
+         -> Result<Vec<(Layer, Length, Region, Region)>> {
             let pad_clearance = pad
                 .copper_clearance
                 .max(data.min_copper_copper_clearance(pad.net_class));
@@ -583,9 +579,9 @@ impl Checker<'_> {
             for &layer in &data.copper_layers {
                 if has_geometry(pad, layer) {
                     generator.add_pad(pad, layer, Length::ZERO)?;
-                    let copper_area = generator.take_paths();
+                    let copper_area = generator.take_region()?;
                     generator.add_pad(pad, layer, reduced(pad_clearance))?;
-                    let clearance_area = generator.take_paths();
+                    let clearance_area = generator.take_region()?;
                     areas.push((layer, *pad_clearance, copper_area, clearance_area));
                 }
             }
@@ -615,9 +611,9 @@ impl Checker<'_> {
             // Vias.
             for via in ns.vias.values() {
                 generator.add_via(via, Length::ZERO)?;
-                let copper = generator.take_paths();
+                let copper = generator.take_region()?;
                 generator.add_via(via, reduced(clearance))?;
-                let clearance_area = generator.take_paths();
+                let clearance_area = generator.take_region()?;
                 items.push(CopperItem {
                     object: CopperObject::Via(via, ns),
                     serialized: CopperObject::Via(via, ns).serialize(),
@@ -634,9 +630,9 @@ impl Checker<'_> {
             for trace in &ns.traces {
                 if data.copper_layers.contains(&trace.layer) {
                     generator.add_trace(trace, Length::ZERO)?;
-                    let copper = generator.take_paths();
+                    let copper = generator.take_region()?;
                     generator.add_trace(trace, reduced(clearance))?;
-                    let clearance_area = generator.take_paths();
+                    let clearance_area = generator.take_region()?;
                     items.push(CopperItem {
                         object: CopperObject::Trace(trace, ns),
                         serialized: CopperObject::Trace(trace, ns).serialize(),
@@ -657,8 +653,15 @@ impl Checker<'_> {
                 if data.copper_layers.contains(&plane.layer) {
                     let clearance = data.min_copper_copper_clearance(plane.net_class);
                     generator.add_plane(&plane.fragments)?;
-                    let copper = generator.take_paths();
-                    let clearance_area = offset_clearance(copper.clone(), clearance)?;
+                    let copper = generator.take_region()?;
+                    let mut expanded = to_clipper(&plane.fragments);
+                    clipper_helpers::offset(
+                        &mut expanded,
+                        reduced(clearance),
+                        max_arc_tolerance(),
+                        JoinType::Round,
+                    )?;
+                    let clearance_area = Region::from_integer(&expanded, NonZero)?;
                     items.push(CopperItem {
                         object: CopperObject::Plane(plane),
                         serialized: CopperObject::Plane(plane).serialize(),
@@ -684,8 +687,14 @@ impl Checker<'_> {
                     polygon.filled,
                     Length::ZERO,
                 )?;
-                let copper = generator.take_paths();
-                let clearance_area = offset_clearance(copper.clone(), board_clearance)?;
+                let copper = generator.take_region()?;
+                generator.add_polygon(
+                    &polygon.path,
+                    polygon.line_width,
+                    polygon.filled,
+                    reduced(board_clearance),
+                )?;
+                let clearance_area = generator.take_region()?;
                 items.push(CopperItem {
                     object: CopperObject::Polygon(polygon, None),
                     serialized: CopperObject::Polygon(polygon, None).serialize(),
@@ -703,9 +712,9 @@ impl Checker<'_> {
         for st in &data.stroke_texts {
             if data.copper_layers.contains(&st.layer) {
                 generator.add_stroke_text(st, Length::ZERO)?;
-                let copper = generator.take_paths();
+                let copper = generator.take_region()?;
                 generator.add_stroke_text(st, reduced(board_clearance))?;
-                let clearance_area = generator.take_paths();
+                let clearance_area = generator.take_region()?;
                 items.push(CopperItem {
                     object: CopperObject::StrokeText(st, None),
                     serialized: CopperObject::StrokeText(st, None).serialize(),
@@ -749,8 +758,14 @@ impl Checker<'_> {
                         polygon.filled,
                         Length::ZERO,
                     )?;
-                    let copper = generator.take_paths();
-                    let clearance_area = offset_clearance(copper.clone(), board_clearance)?;
+                    let copper = generator.take_region()?;
+                    generator.add_polygon(
+                        &transform.map(&polygon.path),
+                        polygon.line_width,
+                        polygon.filled,
+                        reduced(board_clearance),
+                    )?;
+                    let clearance_area = generator.take_region()?;
                     items.push(CopperItem {
                         object: CopperObject::Polygon(polygon, Some(dev)),
                         serialized: CopperObject::Polygon(polygon, Some(dev)).serialize(),
@@ -769,9 +784,9 @@ impl Checker<'_> {
                 let layer = transform.map(&circle.layer);
                 if data.copper_layers.contains(&layer) {
                     generator.add_circle(circle, &transform, Length::ZERO)?;
-                    let copper = generator.take_paths();
+                    let copper = generator.take_region()?;
                     generator.add_circle(circle, &transform, reduced(board_clearance))?;
-                    let clearance_area = generator.take_paths();
+                    let clearance_area = generator.take_region()?;
                     items.push(CopperItem {
                         object: CopperObject::Circle(circle, Some(dev)),
                         serialized: CopperObject::Circle(circle, Some(dev)).serialize(),
@@ -790,9 +805,9 @@ impl Checker<'_> {
                 // Layer does not need to be transformed!
                 if data.copper_layers.contains(&st.layer) {
                     generator.add_stroke_text(st, Length::ZERO)?;
-                    let copper = generator.take_paths();
+                    let copper = generator.take_region()?;
                     generator.add_stroke_text(st, reduced(board_clearance))?;
-                    let clearance_area = generator.take_paths();
+                    let clearance_area = generator.take_region()?;
                     items.push(CopperItem {
                         object: CopperObject::StrokeText(st, Some(dev)),
                         serialized: CopperObject::StrokeText(st, Some(dev)).serialize(),
@@ -837,12 +852,12 @@ impl Checker<'_> {
                 if overlapping.is_empty() {
                     continue;
                 }
-                let mut locations = intersection(&it1.copper_area, &it2.clearance_area)?;
+                let mut locations = exact_intersection(&it1.copper_area, &it2.clearance_area)?;
                 // Perform the check the other way around only if:
                 //  - Either the two items have individual clearances
                 //  - Or there are any intersections -> show both violations
                 if (it1.clearance != it2.clearance) || !locations.is_empty() {
-                    locations.extend(intersection(&it2.copper_area, &it1.clearance_area)?);
+                    locations.extend(exact_intersection(&it2.copper_area, &it1.clearance_area)?);
                 }
                 if locations.is_empty() {
                     continue;
@@ -898,18 +913,20 @@ impl Checker<'_> {
         self.status(&tr!(CTX, "Check board clearances..."));
 
         // Determine restricted area around board outline.
-        let restricted_area = board_clearance_area(data, clearance)?;
+        let restricted_area =
+            Region::from_integer(&board_clearance_area(data, clearance)?, EvenOdd)?;
 
         // Helper for the actual check.
-        let intersects = |paths: &ClipperPaths| -> Result<Option<Vec<Path>>> {
-            let locations = intersection(&restricted_area, paths)?;
+        let intersects = |region: &Region| -> Result<Option<Vec<Path>>> {
+            let locations = exact_intersection(&restricted_area, region)?;
             Ok((!locations.is_empty()).then_some(locations))
         };
-        let single = |add: &dyn Fn(&mut BoardClipperPathGenerator) -> Result<()>| -> Result<Option<Vec<Path>>> {
-            let mut generator = BoardClipperPathGenerator::new(max_arc_tolerance());
-            add(&mut generator)?;
-            intersects(generator.paths())
-        };
+        let single =
+            |add: &dyn Fn(&mut GeometryGenerator) -> Result<()>| -> Result<Option<Vec<Path>>> {
+                let mut generator = GeometryGenerator::new(max_arc_tolerance());
+                add(&mut generator)?;
+                intersects(&generator.take_region()?)
+            };
 
         // Helper for pads: mention every pad only once.
         let check_pad = |pad: &DrcPad| -> Result<Option<Vec<Path>>> {
@@ -1057,28 +1074,32 @@ impl Checker<'_> {
     ) -> Messages {
         let mut messages = Vec::new();
         let clearance = data.settings.min_copper_npth_clearance();
-        if *clearance == Length::ZERO {
+        if *clearance == Length::ZERO
+            || (data.holes.is_empty() && data.devices.values().all(|dev| dev.holes.is_empty()))
+        {
             return Ok(messages);
         }
 
         self.status(&tr!(CTX, "Check hole clearances..."));
 
         // Determine the areas where copper is available on *any* layer.
-        let mut copper_any_layer = ClipperPaths::new();
-        for paths in calc.copper_paths_per_layer.values() {
-            clipper_helpers::unite_with(&mut copper_any_layer, paths, EvenOdd, NonZero)?;
-        }
+        let operands: Vec<_> = calc
+            .copper_paths_per_layer
+            .values()
+            .map(Region::operand)
+            .collect();
+        let copper_any_layer = rational_union::union(&operands)?.0;
 
         // Helper for the actual check.
         let intersects = |hole: &DrcHole, transform: &Transform| -> Result<Vec<Path>> {
-            let mut generator = BoardClipperPathGenerator::new(max_arc_tolerance());
+            let mut generator = GeometryGenerator::new(max_arc_tolerance());
             generator.add_hole(
                 hole.diameter,
                 &hole.path,
                 transform,
                 *clearance - *max_arc_tolerance() - Length::new(1),
             )?;
-            intersection(&copper_any_layer, generator.paths())
+            exact_intersection(&copper_any_layer, &generator.take_region()?)
         };
 
         // Check board holes.
@@ -1205,12 +1226,13 @@ impl Checker<'_> {
         self.status(&tr!(CTX, "Check drill to board edge clearances..."));
 
         // Determine restricted area around board outline.
-        let restricted_area = board_clearance_area(data, clearance)?;
+        let restricted_area =
+            Region::from_integer(&board_clearance_area(data, clearance)?, EvenOdd)?;
 
         // Helper for the actual check.
         let intersects = |path: &Path, diameter: PositiveLength| -> Result<Vec<Path>> {
             let area = to_clipper(&path.to_outline_strokes(diameter));
-            intersection(&restricted_area, &area)
+            exact_intersection(&restricted_area, &Region::from_integer(&area, EvenOdd)?)
         };
         let mut check =
             |hole: DrcHoleRef<'_>, path: &Path, diameter: PositiveLength| -> Result<()> {
@@ -1306,20 +1328,23 @@ impl Checker<'_> {
             // Build stopmask openings area. Only take the board area into
             // account since warnings outside the board area are not really
             // helpful.
-            let mut generator = BoardClipperPathGenerator::new(max_arc_tolerance());
+            let mut generator = GeometryGenerator::new(max_arc_tolerance());
             generator.add_stop_mask_openings(data, stop_mask, *clearance)?;
-            let mut clearance_area = generator.take_paths();
-            clipper_helpers::unite_with(&mut clearance_area, &board_clearance, EvenOdd, NonZero)?;
-            clipper_helpers::intersect(&mut clearance_area, &board_area, EvenOdd, EvenOdd)?;
+            let clearance_area = rational_union::union(&[
+                generator.take_region()?.operand(),
+                Operand::from_integer(&board_clearance, NonZero),
+            ])?
+            .0
+            .intersection(&Region::from_integer(&board_area, EvenOdd)?)?;
 
             // Note: We check only stroke texts. For other objects like
             // polygons, usually there are dozens of clearance violations but
             // most of the time they are not relevant and cannot be avoided.
             // So let's omit these annoying warnings.
             let intersects = |st: &super::data::DrcStrokeText| -> Result<Vec<Path>> {
-                let mut generator = BoardClipperPathGenerator::new(max_arc_tolerance());
+                let mut generator = GeometryGenerator::new(max_arc_tolerance());
                 generator.add_stroke_text(st, Length::ZERO)?;
-                intersection(&clearance_area, generator.paths())
+                exact_intersection(&clearance_area, &generator.take_region()?)
             };
 
             // Check board stroke texts.
@@ -1387,12 +1412,11 @@ impl Checker<'_> {
             let areas: Vec<_> = data
                 .copper_layers
                 .iter()
-                .map(|&layer| calc.copper(layer))
+                .map(|&layer| calc.copper(layer).operand())
                 .collect();
-            let tree = clipper_helpers::intersect_all_to_tree(&areas)?;
-            clipper_helpers::tree_to_paths(&tree)
+            rational_union::intersection(&areas)?
         } else {
-            ClipperPaths::new()
+            Region::default()
         };
 
         // Helper.
@@ -1402,25 +1426,22 @@ impl Checker<'_> {
             }
             // Determine hole areas including minimum annular ring.
             let transform = pad_transform(pad);
-            let mut areas = ClipperPaths::new();
+            let mut areas = Vec::new();
             for hole in &pad.holes {
                 let diameter = hole.diameter + (*annular_width * 2) - Length::new(1);
                 if diameter <= Length::ZERO {
                     continue;
                 }
                 let strokes = transform.map(&hole.path.to_outline_strokes(positive(diameter)?));
-                clipper_helpers::unite_with(&mut areas, &to_clipper(&strokes), EvenOdd, NonZero)?;
+                areas.push(Operand::from_integer(&to_clipper(&strokes), NonZero));
             }
 
-            // Check if there's not a 100% overlap.
-            let tree = clipper_helpers::subtract_to_tree(
-                &areas,
-                &tht_copper_area_paths,
-                EvenOdd,
-                EvenOdd,
-                true,
-            )?;
-            Ok(from_clipper(&clipper_helpers::flatten_tree(tree.root())?))
+            // Decide on the exact difference, before integer display conversion.
+            exact_locations(
+                &rational_union::union(&areas)?
+                    .0
+                    .difference(&tht_copper_area_paths)?,
+            )
         };
 
         // Check pad & via annular rings.
@@ -2360,67 +2381,48 @@ impl Checker<'_> {
         let mut messages = Vec::new();
         self.status(&tr!(CTX, "Check board cutouts..."));
 
+        let is_cutout =
+            |layer| [Layer::BOARD_CUTOUTS, Layer::BOARD_PLATED_CUTOUTS].contains(&layer);
+        if !data.polygons.iter().any(|p| is_cutout(p.layer))
+            && !data.devices.values().any(|dev| {
+                dev.polygons.iter().any(|p| is_cutout(p.layer))
+                    || dev.circles.iter().any(|c| is_cutout(c.layer))
+            })
+        {
+            return Ok(messages);
+        }
+
         // Helper to stroke a path.
         let get_locations = |path: &Path, line_width: UnsignedLength| -> Result<Vec<Path>> {
             Ok(path.to_outline_strokes(positive((*line_width).max(Length::new(100_000)))?))
         };
 
-        // Helper to get the locations of path segments.
-        let tree_to_locations = |tree: &clipper::PolyTree| -> Result<Vec<Path>> {
-            let mut locations = Vec::new();
-            for location in from_clipper(&clipper_helpers::tree_to_paths(tree)) {
-                locations.extend(get_locations(&location, UnsignedLength::ZERO)?);
-            }
-            Ok(locations)
-        };
+        let top = calc.copper(Layer::TOP_COPPER);
+        let bottom = calc.copper(Layer::BOT_COPPER);
+        let united_copper = rational_union::union(&[top.operand(), bottom.operand()])?.0;
+        let intersected_copper = top.intersection(&bottom)?;
 
-        // Top & bottom copper areas, united resp. intersected.
-        let mut united_copper = calc.copper(Layer::TOP_COPPER);
-        clipper_helpers::unite_with(
-            &mut united_copper,
-            &calc.copper(Layer::BOT_COPPER),
-            EvenOdd,
-            NonZero,
-        )?;
-        let mut intersected_copper = calc.copper(Layer::TOP_COPPER);
-        clipper_helpers::intersect(
-            &mut intersected_copper,
-            &calc.copper(Layer::BOT_COPPER),
-            EvenOdd,
-            NonZero,
-        )?;
-
-        // Helpers to check non-plated cutouts for intersections with copper.
+        let clipped_locations =
+            |region: &Region, outline: &Path, inside: bool| -> Result<Vec<Path>> {
+                let inputs =
+                    Operand::from_integer(&to_clipper(std::slice::from_ref(outline)), EvenOdd);
+                let mut locations = Vec::new();
+                for path in &inputs.paths {
+                    locations.extend(exact_line_locations(&region.clip_polyline(path, inside)?)?);
+                }
+                Ok(locations)
+            };
         let non_plated_but_intersected_by_copper = |layer: Layer, outline: &Path| {
             if (layer != Layer::BOARD_CUTOUTS) || !outline.is_closed() {
                 return Ok(Vec::new());
             }
-            let paths = to_clipper(std::slice::from_ref(outline));
-            let tree = clipper_helpers::intersect_to_tree(
-                &paths,
-                &united_copper,
-                EvenOdd,
-                EvenOdd,
-                false,
-            )?;
-            tree_to_locations(&tree)
+            clipped_locations(&united_copper, outline, true)
         };
-
-        // Helpers to check plated cutouts for missing copper along its
-        // outline.
         let plated_but_not_surrounded_by_copper = |layer: Layer, outline: &Path| {
             if (layer != Layer::BOARD_PLATED_CUTOUTS) || !outline.is_closed() {
                 return Ok(Vec::new());
             }
-            let paths = to_clipper(std::slice::from_ref(outline));
-            let tree = clipper_helpers::subtract_to_tree(
-                &paths,
-                &intersected_copper,
-                EvenOdd,
-                EvenOdd,
-                false,
-            )?;
-            tree_to_locations(&tree)
+            clipped_locations(&intersected_copper, outline, false)
         };
 
         // Check all plated and non-plated cutouts.
@@ -3066,4 +3068,54 @@ fn hole_location(hole: &DrcHole, transform: &Transform) -> Vec<Path> {
     transform
         .map(hole.path.get())
         .to_outline_strokes(hole.diameter)
+}
+
+#[cfg(test)]
+mod exact_geometry_tests {
+    use super::*;
+    use crate::utils::rational_union::Point as ExactPoint;
+    use dashu_ratio::RBig;
+
+    #[test]
+    fn collapsed_display_does_not_hide_a_real_violation() {
+        let region = rational_union::union(&[Operand {
+            paths: vec![vec![
+                ExactPoint::from_nm(0, 0),
+                ExactPoint::new(RBig::ONE / RBig::from(3), RBig::ZERO),
+                ExactPoint::new(RBig::ONE / RBig::from(3), RBig::from(2)),
+                ExactPoint::from_nm(0, 2),
+            ]],
+            fill: NonZero,
+        }])
+        .unwrap()
+        .0;
+        let locations = exact_intersection(&region, &region).unwrap();
+        assert!(!locations.is_empty());
+        assert!(
+            locations
+                .iter()
+                .flat_map(|p| p.vertices())
+                .all(|v| v.pos.x == Length::ZERO)
+        );
+        assert!(
+            exact_intersection(&region, &Region::default())
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn cutout_locations_do_not_close_open_intervals() {
+        let path = vec![
+            ExactPoint::from_nm(0, 0),
+            ExactPoint::from_nm(1_000_000, 0),
+            ExactPoint::from_nm(1_000_000, 1_000_000),
+        ];
+        assert_eq!(exact_line_locations(&[path]).unwrap().len(), 2);
+        let collapsed = vec![
+            ExactPoint::from_nm(0, 0),
+            ExactPoint::new(RBig::ONE / RBig::from(3), RBig::ZERO),
+        ];
+        assert_eq!(exact_line_locations(&[collapsed]).unwrap().len(), 1);
+    }
 }

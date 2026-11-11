@@ -1,10 +1,10 @@
-//! Exact segment noding for the experimental rational copper union.
+//! Exact segment noding for the rational copper union.
 
 use super::{Edge, Error, MAX_COORD, Operand, Point, Statistics, cross, direction};
 use dashu_ratio::RBig;
 use std::collections::BTreeMap;
 
-struct Segment {
+pub(super) struct Segment {
     a: Point,
     b: Point,
     group: usize,
@@ -14,7 +14,7 @@ struct Segment {
 }
 
 impl Segment {
-    fn new(a: Point, b: Point, group: usize) -> Self {
+    pub(super) fn new(a: Point, b: Point, group: usize) -> Self {
         let integer = [&a.x, &a.y, &b.x, &b.y].map(|n| {
             if n.is_int() {
                 i64::try_from(n.numerator()).ok()
@@ -33,6 +33,13 @@ impl Segment {
             b,
             group,
         }
+    }
+
+    pub(super) fn overlaps_box(&self, other: &Self) -> bool {
+        self.min.x <= other.max.x
+            && other.min.x <= self.max.x
+            && self.min.y <= other.max.y
+            && other.min.y <= self.max.y
     }
 
     fn contains_box(&self, p: &Point) -> bool {
@@ -127,7 +134,7 @@ pub(super) fn build(
     Ok((points, edges))
 }
 
-fn intersections(a: &Segment, b: &Segment) -> Vec<Point> {
+pub(super) fn intersections(a: &Segment, b: &Segment) -> Vec<Point> {
     if let (Some(a), Some(b)) = (a.integer, b.integer)
         && let Some(result) = integer_intersection(a, b)
     {

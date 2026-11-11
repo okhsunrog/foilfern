@@ -1,9 +1,9 @@
-//! Experimental exact alternative to the copper union in upstream
+//! Exact DRC boolean geometry replacing the copper union in upstream
 //! libs/librepcb/core/project/board/drc/boardclipperpathgenerator.cpp.
 //!
 //! Original implementation: existing Clipper/i_overlay/polyclip kernels quantize
 //! constructed vertices (polyclip also narrows the coordinate range). This
-//! experiment retains `dashu_ratio::RBig` vertices between unions, with a separate
+//! implementation retains `dashu_ratio::RBig` vertices between unions, with a separate
 //! explicit conversion to the integer grid. It does not replace file/export
 //! geometry or claim upstream numeric equivalence.
 //!
@@ -13,6 +13,8 @@
 //! Bounding-box rejection is conservative. No epsilon or floating point is used.
 
 mod arrangement;
+mod bounds;
+mod lines;
 mod sweep;
 
 use std::collections::BTreeMap;
@@ -33,6 +35,20 @@ pub struct Point {
 impl Point {
     pub fn new(x: RBig, y: RBig) -> Self {
         Self { x, y }
+    }
+
+    /// Converts a display point to the nanometer grid, ties away from zero.
+    pub fn rounded(&self) -> Result<IntPoint, Error> {
+        let round = |v: &RBig| -> Result<i64, Error> {
+            let half = RBig::ONE / RBig::from(2);
+            let n = if v < &RBig::ZERO {
+                -(-v + &half).floor()
+            } else {
+                (v + &half).floor()
+            };
+            i64::try_from(n).map_err(|_| Error::CoordinateOutOfRange)
+        };
+        Ok(IntPoint::new(round(&self.x)?, round(&self.y)?))
     }
 
     pub fn from_nm(x: i64, y: i64) -> Self {
@@ -60,7 +76,7 @@ impl Operand {
     }
 }
 
-/// Diagnostics for the experimental union, independent of wall-clock timings.
+/// Diagnostics for the union, independent of wall-clock timings.
 #[derive(Debug, Clone, Default)]
 pub struct Statistics {
     pub input_segments: usize,
@@ -72,12 +88,62 @@ pub struct Statistics {
 
 /// Exact oriented boundary: filled area is to the left of every edge.
 /// Rings have canonical start vertices and order; holes have clockwise winding.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Region {
     paths: Vec<Vec<Point>>,
+    bounds: Option<(Point, Point)>,
 }
 
 impl Region {
+    pub fn is_empty(&self) -> bool {
+        self.paths.is_empty()
+    }
+
+    pub fn from_integer(paths: &[Vec<IntPoint>], fill: PolyFillType) -> Result<Self, Error> {
+        Ok(union(&[Operand::from_integer(paths, fill)])?.0)
+    }
+
+    pub fn intersection(&self, other: &Self) -> Result<Self, Error> {
+        if !self.bounds_overlap(other) {
+            return Ok(Self::default());
+        }
+        // Both bounds exist after the overlap test.
+        let ((a, b), (c, d)) = self
+            .bounds
+            .as_ref()
+            .zip(other.bounds.as_ref())
+            .ok_or(Error::InvalidTopology)?;
+        let min = Point::new(a.x.clone().max(c.x.clone()), a.y.clone().max(c.y.clone()));
+        let max = Point::new(b.x.clone().min(d.x.clone()), b.y.clone().min(d.y.clone()));
+        Ok(combine(
+            &[
+                self.operand_within(&min, &max),
+                other.operand_within(&min, &max),
+            ],
+            Operation::Intersection,
+        )?
+        .0)
+    }
+
+    pub fn difference(&self, other: &Self) -> Result<Self, Error> {
+        if !self.bounds_overlap(other) {
+            return Ok(self.clone());
+        }
+        let (min, max) = self.bounds.as_ref().ok_or(Error::InvalidTopology)?;
+        Ok(combine(
+            &[self.operand(), other.operand_within(min, max)],
+            Operation::Difference,
+        )?
+        .0)
+    }
+
+    fn bounds_overlap(&self, other: &Self) -> bool {
+        match (&self.bounds, &other.bounds) {
+            (Some((a, b)), Some((c, d))) => a.x < d.x && c.x < b.x && a.y < d.y && c.y < b.y,
+            _ => false,
+        }
+    }
+
     pub fn paths(&self) -> &[Vec<Point>] {
         &self.paths
     }
@@ -90,27 +156,13 @@ impl Region {
         }
     }
 
-    /// Rounds each vertex to integer nanometers, with half ties away from zero.
-    /// This is a lossy comparison adapter, not a topology-preserving snap rounder.
-    /// It can collapse small features or change contacts. Do not use this output
-    /// to authorize manufacturing, routing acceptance or approval cleanup.
+    /// Lossy integer coordinates for displaying an already classified violation.
+    /// Never feed this output back into a geometric predicate: small gaps and
+    /// positive-area regions may collapse on the integer grid.
     pub fn rounded_paths(&self) -> Result<Vec<Vec<IntPoint>>, Error> {
-        let round = |v: &RBig| -> Result<i64, Error> {
-            let half = RBig::ONE / RBig::from(2);
-            let n = if v < &RBig::ZERO {
-                -(-v + &half).floor()
-            } else {
-                (v + &half).floor()
-            };
-            i64::try_from(n).map_err(|_| Error::CoordinateOutOfRange)
-        };
         self.paths
             .iter()
-            .map(|path| {
-                path.iter()
-                    .map(|p| Ok(IntPoint::new(round(&p.x)?, round(&p.y)?)))
-                    .collect()
-            })
+            .map(|path| path.iter().map(Point::rounded).collect())
             .collect()
     }
 }
@@ -127,13 +179,46 @@ static_assertions::assert_impl_all!(Point: Send, Sync);
 static_assertions::assert_impl_all!(Region: Send, Sync);
 static_assertions::assert_impl_all!(Operand: Send, Sync);
 
+#[derive(Clone, Copy)]
+enum Operation {
+    Union,
+    Intersection,
+    Difference,
+}
+
+impl Operation {
+    fn filled(self, count: usize, first: bool, operands: usize) -> bool {
+        match self {
+            Self::Union => count != 0,
+            Self::Intersection => operands != 0 && count == operands,
+            Self::Difference => first && count == 1,
+        }
+    }
+}
+
 pub fn union(operands: &[Operand]) -> Result<(Region, Statistics), Error> {
+    combine(operands, Operation::Union)
+}
+
+/// Intersection of every operand; an empty list or empty operand yields empty.
+pub fn intersection(operands: &[Operand]) -> Result<Region, Error> {
+    Ok(combine(operands, Operation::Intersection)?.0)
+}
+
+fn combine(operands: &[Operand], operation: Operation) -> Result<(Region, Statistics), Error> {
     let mut stats = Statistics::default();
     let (points, edges) = arrangement::build(operands, &mut stats)?;
-    let boundary = sweep::boundary(&points, &edges, operands)?;
+    let boundary = sweep::boundary(&points, &edges, operands, operation)?;
     stats.boundary_edges = boundary.len();
     let paths = rings(&points, &boundary)?;
-    Ok((Region { paths }, stats))
+    let bounds = paths.iter().flatten().fold(None, |bounds, p| match bounds {
+        None => Some((p.clone(), p.clone())),
+        Some((a, b)) => Some((
+            Point::new(a.x.min(p.x.clone()), a.y.min(p.y.clone())),
+            Point::new(b.x.max(p.x.clone()), b.y.max(p.y.clone())),
+        )),
+    });
+    Ok((Region { paths, bounds }, stats))
 }
 
 #[derive(Debug)]

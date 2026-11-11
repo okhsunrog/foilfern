@@ -677,15 +677,18 @@ Rendering only; no file is affected.
 
 ## project/board/drc
 
-- **Experimental exact copper:** the optional `experimental-exact-copper` Cargo
-  feature exposes a separate comparison API. It unions copper operands using
-  `dashu-ratio` rational vertices, preserving each operand's fill rule and
-  delaying integer rounding until the interface to the existing DRC checks.
-  This changes upstream's intermediate rounding, and the final vertex rounding
-  does not preserve topology in general. Experimental results are deliberately
-  unidentified: they cannot be treated as complete/current or clean approvals.
-  Standard DRC, routing validation, GUI/MCP entry points and manufacturing
-  exports continue to use Clipper, even when the feature is compiled in.
+- **Exact DRC copper geometry:** DRC uses one rational boolean implementation
+  (`dashu-ratio`) for copper/stopmask aggregation and the checks consuming those
+  regions: copper clearances, hole clearances, annular coverage and cutout
+  boundaries. Intermediate vertices are not rounded to integer nanometers.
+  Shape construction, arc flattening and primitive offsets still follow the
+  existing upstream-derived geometry; project files and manufacturing exporters
+  retain their integer format and geometry pipeline. At sub-nanometer boundaries,
+  exact positive-area overlaps or gaps can produce violations which upstream's
+  sequential rounding suppresses. Open boundary intervals coincident with copper
+  count as covered; isolated point touches do not create positive-length intervals.
+  Integer rounding is applied only to the resulting display locations and cannot
+  suppress a violation. There is no backend flag or alternate DRC runner.
 
 - **Snapshot safety and failed checks:** preparation rejects intervening model
   edits before applying planes and extracts data in the same exclusive operation.
