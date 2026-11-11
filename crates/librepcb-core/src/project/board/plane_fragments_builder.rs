@@ -440,7 +440,10 @@ impl Project {
     /// Failed, aborted or stale jobs are discarded without changing fragments
     /// or dirty layers. Successful current jobs clear their processed layers.
     pub fn apply_plane_job_result(&mut self, result: PlaneFragments) -> BoardExportResult<bool> {
-        if self.revision() != result.revision || !result.finished || !result.errors.is_empty() {
+        if !self.only_derived_changes_since(result.revision)
+            || !result.finished
+            || !result.errors.is_empty()
+        {
             return Ok(false);
         }
         let before = self.revision();

@@ -544,3 +544,38 @@ fn annular_ring_check_retains_via_errors_without_drilled_pads() {
         via_count
     );
 }
+
+#[test]
+fn drc_preparation_accepts_background_derived_updates() {
+    use librepcb_core::project::board::drc::run_drc;
+    for quick in [false, true] {
+        let mut project = open_project("Nested Planes", "project.lpp");
+        let board = project.boards()[0].id();
+        let prepared = project.drc_job(board, None, quick).unwrap().run();
+        let revision = project.revision();
+        // The GUI can update derived data while the DRC worker calculates planes.
+        // No model input has changed, so this must not cancel the requested check.
+        project.force_air_wires_rebuild(board).unwrap();
+        assert!(project.revision() > revision);
+        let data = prepared.apply(&mut project).unwrap();
+        if !quick {
+            let mut expected = open_project("Nested Planes", "project.lpp");
+            expected.rebuild_planes(board, None).unwrap();
+            assert_eq!(
+                project.board(board).unwrap().derived().plane_fragments(),
+                expected.board(board).unwrap().derived().plane_fragments()
+            );
+            assert_eq!(
+                project.board(board).unwrap().derived().dirty_plane_layers(),
+                expected
+                    .board(board)
+                    .unwrap()
+                    .derived()
+                    .dirty_plane_layers()
+            );
+        }
+        let result = run_drc(&data, &no_progress);
+        assert!(result.errors.is_empty());
+        assert!(result.is_current(&project, board));
+    }
+}

@@ -677,9 +677,10 @@ Rendering only; no file is affected.
 
 ## project/board/drc
 
-- **Snapshot safety and failed checks:** preparation rejects changed project
-  revisions before applying planes and extracts data in the same exclusive
-  operation. Failed/incomplete plane rebuilds abort preparation instead of
+- **Snapshot safety and failed checks:** preparation rejects intervening model
+  edits before applying planes and extracts data in the same exclusive operation.
+  Concurrent air-wire/plane-fragment updates are allowed because they do not
+  change calculation inputs; an expired change-journal cursor fails closed. Failed/incomplete plane rebuilds abort preparation instead of
   silently checking partial copper. Approval cleanup requires a successful,
   identified, current result; failed or outdated checks preserve approvals and
   their version. GUI results from older revisions remain marked outdated.

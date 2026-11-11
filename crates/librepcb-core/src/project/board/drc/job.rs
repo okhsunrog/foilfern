@@ -3,7 +3,8 @@
 //!
 //! Plane calculation runs without borrowing the project. Applying its result,
 //! rebuilding air wires and extracting check data form one exclusive operation;
-//! a changed project rejects the entire preparation before any derived writes.
+//! a model edit rejects the entire preparation before any derived writes.
+//! Concurrent derived-data rebuilds do not change the calculation inputs.
 
 use super::{BoardDrcData, Error, Result};
 use crate::library::org::BoardDesignRuleCheckSettings;
@@ -97,7 +98,9 @@ impl PreparedDrc {
     /// Callers sharing a project must hold its lock for this whole operation.
     pub fn apply(self, project: &mut Project) -> Result<BoardDrcData> {
         let board = self.snapshot.board;
-        if !self.snapshot.matches(project, board) {
+        if self.snapshot.project != project.uuid()
+            || !project.only_derived_changes_since(self.snapshot.revision)
+        {
             return Err(Error::StaleSnapshot);
         }
         if let Some(planes) = self.planes {

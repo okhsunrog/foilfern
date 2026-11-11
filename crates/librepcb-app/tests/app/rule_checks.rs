@@ -161,6 +161,13 @@ fn drc_removes_disappeared_approvals() {
         }
         let undo_index = project.shared().lock().editor.undo_stack().index();
         run_drc(headless, &app, &project, board);
+        let check = data.get_current_rule_check();
+        assert!(
+            check.execution_error.is_empty(),
+            "{}",
+            check.execution_error
+        );
+        assert_eq!(check.state, ui::RuleCheckState::UpToDate);
         let second = message_approvals(&project, board);
         assert!(second.len() < first.len());
         assert!(second.is_subset(&first));

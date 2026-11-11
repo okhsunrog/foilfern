@@ -398,6 +398,17 @@ impl Project {
         self.journal.changes_since(revision)
     }
 
+    /// Whether a calculation's model inputs are unchanged. Derived board data
+    /// can be rebuilt by another worker without invalidating those inputs.
+    /// An expired journal cursor fails closed, just like an actual model edit.
+    pub(crate) fn only_derived_changes_since(&self, revision: u64) -> bool {
+        revision <= self.revision()
+            && matches!(self.changes_since(revision), ChangesSince::Changes(changes)
+                if changes.iter().all(|change| matches!(change,
+                    Change::Board { change: super::BoardChange::AirWires(_)
+                        | super::BoardChange::PlaneFragments(_), .. })))
+    }
+
     pub(crate) fn record(&mut self, change: Change) {
         self.journal.push(change);
     }
