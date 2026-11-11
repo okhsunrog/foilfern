@@ -141,5 +141,8 @@ migrations, library checks, exports. Tests take it from `LIBREPCB_CLI` or the
   aggregates and types with interior mutability, caches or handles.
 - `Mutation`, `Change` and the types they contain derive serde
   `Serialize`/`Deserialize` unconditionally (JSON is the MCP wire format).
-- Commit only when asked. Parallel porting agents work in separate git
-  worktrees and leave their changes uncommitted for review.
+- Commit and push each completed logical step to the current branch's upstream
+  by default. Parallel porting agents work in separate git worktrees and
+  leave their changes for the coordinating agent to review.
+- Prefer focused tests of the affected code. Run expensive suites when the
+  scope or evidence calls for them.
