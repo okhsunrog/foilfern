@@ -60,6 +60,16 @@ diffing outputs against the official `librepcb-cli`.
   routing gap needed an explicit via site. Use that geometry to test local
   via-site guidance, and improve inspection and correction of imported
   footprint silkscreen against the board's rules.
+- The [two-layer ESP32-C3 replay](mcp-routing-reliability.md#two-layer-esp32-c3-dev-board-completion)
+  closes all six comparison gaps through checked local changes. Use it to
+  test automatically proposing a via site, a small reroute, or a bounded
+  placement change from the blocking objects found by diagnostics.
+- Add a declarative design update over the existing editor operations.
+  Resolve components by designator and library identity, pins by name, and
+  positions in mm. Preview the changed components, net assignments and
+  placements and apply them as one revision-bound undo group. Replaying the
+  same ESP32-C3 document should produce an empty diff. A one-value edit
+  should preserve component UUIDs, placements and routed copper.
 - The [Foilfern agent PCB workflow](agent-pcb-workflow.md) defines the
   evidence contract, bounded placement and mechanical experiments, and
   acceptance for real boards. Finish ESP-PD-Sink, then benchmark Cheap FOCer 2

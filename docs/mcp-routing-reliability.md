@@ -188,6 +188,51 @@ overlap with ground copper. Differential impedance requires the
 dielectric stack and a separate check. The inherited hole-clearance and
 antenna keepout findings still require a fabrication review.
 
+## Two-layer ESP32-C3 dev board completion
+
+The comparison against tscircuit used a 45 × 60 mm board with 36 positions
+and 29 nets. The saved Foilfern board opened with six gaps on `GPIO1`,
+`GPIO3`, `GPIO4`, `GPIO6`, `GPIO7` and `V3V3`. Routing `GPIO3` alone with
+pad escape on 0.10 and 0.075 mm grids produced empty candidates. A larger
+regional trial left eight gaps and was discarded.
+
+Five checked MCP patches closed the six gaps on the original two layers:
+
+1. Replaced local EN and ground paths and resized three existing vias
+   from 0.70 to 0.60 mm, keeping their 0.30 mm drills. The new `GPIO3` route
+   stayed on the top layer.
+2. Reworked the `GPIO0` and `GPIO2` launches to open the `GPIO4` path.
+3. Moved C5 by (−0.30, −0.80) mm and restored its supply and ground leads
+   in the same candidate as `GPIO6` and `V3V3`.
+4. Removed a GND via that had become redundant after the first patch.
+5. Closed `GPIO1` and `GPIO7`, replaced the conflicting `V3V3` branch,
+   and added a top-layer ground link to reconnect the two ground areas
+   that the `GPIO7` trial separated. The supply branch crosses the west
+   side of the board, away from the oscillator and RF feed.
+
+All geometry was applied through MCP. An external scratch search helped
+propose exact coordinates for the local paths. The checked candidates used
+the native model, full DRC and the rebuilt copper planes. `board_get` now
+reports effective dimensions for automatic vias, `routing_copper_prepare`
+can replace selected vias and move unlocked devices with their copper, and
+validation reports per-net connectivity gains separately from acceptance.
+
+The final board has 691 trace segments, 1,096.493 mm of centerlines and 79
+vias. The baseline had 608 segments, 852.307 mm and 71 vias. Foilfern and
+LibrePCB 2.1.1 agree on zero ERC errors, zero missing connections, zero DRC
+errors and 13 inherited silkscreen-to-stop-mask warnings. The circuit and
+schematic directories are byte-identical to the baseline. The 47 traces of
+`RF_CHIP`, `RF_ANT`, `XTAL_P` and `XTAL_N` retain their UUIDs and geometry,
+with zero vias on those nets. Their bottom-layer ground coverage is
+unchanged, including 90.7% for `RF_CHIP` and 100% for each crystal net.
+Impedance, antenna tuning and hardware operation are unverified.
+
+The five accepted previews contain 105 forward mutations. Replaying them
+through MCP against a fresh baseline copy reproduced the same placement,
+traces, vias, plane fill, outline and connectivity. An independent
+LibrePCB export matched all 11 Foilfern Gerber and Excellon files after
+removing generator version, timestamp and Gerber checksum metadata.
+
 ## Applied-result contract
 
 `autoroute` (both backends) and `specctra_import` return `result.validation`:
