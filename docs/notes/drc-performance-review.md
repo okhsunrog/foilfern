@@ -447,9 +447,9 @@ Keep the existing geometry/export implementation available as
 the upstream oracle. Compare actual violations, approval identities, locations,
 topology and exported data separately; file-format interoperability alone does
 not establish behavioral equivalence. This is a larger numeric-contract change,
-not a compatible scalar substitution ready to enable by default. The subsequent
-[exact copper experiment](drc-exact-copper.md) implements this behind an optional
-feature using only `dashu-ratio`, with independent geometric correctness tests.
+not a scalar substitution preserving the old rounding contract. The subsequent
+[exact copper implementation](drc-exact-copper.md) replaces DRC boolean geometry
+using only `dashu-ratio`, with independent geometric correctness tests.
 `BigRational` was used only in the standalone scalar probe below.
 
 ### Rational-crate probe

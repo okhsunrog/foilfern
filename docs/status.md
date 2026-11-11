@@ -41,9 +41,9 @@ Done, in `crates/librepcb-core` unless noted:
   All test projects round-trip byte for byte.
 - **Checks:** ERC and DRC; messages and approvals match `librepcb-cli`
   on all upstream test projects (DRC: 37/37 boards).
-  The optional [exact copper experiment](notes/drc-exact-copper.md) uses
-  `dashu-ratio` for layer unions. It is a separate comparison API; production
-  DRC and exports retain Clipper's numeric behavior.
+  [Exact copper geometry](notes/drc-exact-copper.md) is the main DRC implementation:
+  rational boolean results remain exact through the consuming checks, with integer
+  conversion only for display locations. File/export geometry is unchanged.
 - **Exports:** plane fragments, Gerber/Excellon, pick & place, Gerber X3,
   IPC-D-356A, BOM, project JSON, interactive HTML BOM (`interactive-html-bom`
   crate like upstream); about 1000 files compared byte for byte with

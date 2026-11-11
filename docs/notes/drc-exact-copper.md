@@ -1,163 +1,188 @@
-# Exact copper union experiment
+# Exact DRC copper geometry
 
-The optional `experimental-exact-copper` feature implements an isolated layer
-copper union with `dashu-ratio 0.6.1`. It is not enabled by default. Normal DRC,
-GUI/MCP/routing entry points and manufacturing exports still use Clipper, even
-when this feature is compiled. No file format or stored approval identity is
-changed.
+DRC has one geometry path. `dashu-ratio` is a regular dependency;
+`experimental-exact-copper`, the alternate runner and the rounded-copper adapter
+were removed. `run_drc()` returns an ordinary identified result, subject to the
+existing failed/stale/quick-result approval protections.
 
-## Scope and numeric contract
+## Implementation
 
-`BoardClipperPathGenerator::copper_operands()` captures the original copper
-objects before their sequential layer-wide unions. Each operand retains its
-own fill rule. Opposite winding in separate objects must not cancel; holes and
-self-intersections within an object follow its original fill rule.
+`GeometryGenerator` accumulates independently filled operands, then unions them
+as a batch. There is no repeated union of a growing integer contour. Each
+operand retains its fill rule: opposite winding in separate objects cannot
+cancel, whereas holes and self-crossings within an object obey its fill rule.
 
-The new `utils::rational_union` kernel:
+`rational_union` computes a noded arrangement with checked `i128` determinants
+for integer endpoints and `RBig` fallback for fractional inputs or overflow.
+The sweep classifies union, intersection and difference with per-operand winding
+counts. Coordinates remain rational through chained operations, including
+intersections across all copper layers and subtraction of required annular areas.
+Cached exact bounding boxes reject disjoint positive-area intersections.
+Overlapping queries clip contours to the common query box with exact
+Sutherland-Hodgman clipping before arrangement construction. Signed contour
+winding and cancelling bridges preserve holes and disconnected pieces; tests
+compare these results with the unreduced operation. This avoids rebuilding a
+whole plane arrangement for each small pad or trace.
 
-1. Uses a conservative x-axis bounding-box sweep to find candidate segment
-   pairs, then computes exact intersections and splits overlapping edges.
-2. Uses checked `i128` determinants for integer endpoints. Overflow and
-   fractional endpoints fall back to `RBig`; coordinates are never converted to
-   floating point. Input coordinates retain Clipper's ±(2^62−1) range.
-3. Classifies the resulting noncrossing edges with per-operand winding counts,
-   combining filled areas by OR. Vertical edges use the filled intervals on
-   their left and right. Shared vertices are ordered by exact direction.
-4. Reconstructs oriented, canonically ordered rings. `Region::operand()` keeps
-   rational coordinates for another union without intermediate rounding.
+The consumers now use exact regions:
 
-Only `dashu-ratio` was added as a direct optional dependency. There is no
-`num-rational` oracle dependency and no retained `Relaxed` representation.
-Independent area/point-location tests provide a geometric oracle. This is an
-original kernel because the existing integer boolean kernels quantize their
-constructed vertices instead of retaining rational intersections.
+- Copper-to-copper and copper-to-board clearance intersections.
+- Copper-to-hole clearance, including the union across layers.
+- Annular-ring coverage: required area minus copper present on every layer.
+- Top/bottom copper coverage of plated and non-plated cutout boundaries.
+- Silkscreen-to-stopmask intersections using the same geometry generator.
 
-The implementation is intentionally a bounded experiment, not a general
-replacement geometry library: it currently supports union, and its active-list
-sweeps and ring simplification have quadratic worst cases. Allocation counts,
-peak memory and adversarial rational denominator growth have not been profiled.
+Cutout polylines are split at exact boundary intersections and classified by
+exact midpoint winding. Coincident boundary intervals count as covered copper;
+isolated point contacts do not create positive-length violation intervals.
+Checks without holes or cutouts avoid the corresponding cross-layer preparation.
+The earlier skip of annular preparation for hole-free pads remains in place.
 
-## Compatibility boundary
+The previously rejected batch-union idea is now the primary algorithm. The
+integer Clipper variant was rejected because intermediate rounding changed its
+result; this implementation retains the intersection coordinates. There is no
+need to keep a separate variant restricted to disjoint operands.
 
-Input pad/trace construction, transformations, offsets and arc flattening still
-use the existing geometry pipeline. Exactness starts at the layer union inputs;
-it does not recover precision already lost there.
+## Where integer geometry remains
 
-`run_drc_with_exact_copper()` rounds the final union vertices to integer nm
-(ties away from zero) for the existing downstream checks. This adapter is
-**lossy and not topology-preserving**. A regression test demonstrates that it
-can close a positive 1/3 nm gap. Exact union cannot reproduce all artifacts of
-Clipper's sequential rounding, either.
+Input primitives, arc flattening, transformations and offsets still use the
+existing upstream-derived shape construction. This work replaces the boolean
+composition and its consumers; it does not make circles or offsets symbolically
+exact. In particular, plane/polygon clearance shapes are constructed from their
+integer source outlines before exact composition, not by rounding a rational
+union back into an offset operation.
 
-The experimental API deliberately clears the result's snapshot identity.
-Therefore `is_complete()` and `is_current()` are false and the result cannot
-authorize removal of stored approvals. A board regression verifies unchanged
-approvals and their version. Callers inspecting this API must read `errors` and
-compare messages; an error-free experimental result is not production approval.
+After an exact violation has been established, its coordinates are rounded to
+nanometers for display. Clipper is used there to arrange display rings and add
+cut-ins for holes. This rendering step cannot decide whether to emit a violation:
+if the integer display geometry collapses, the rounded original paths are kept.
+The regression for a 1/3 nm-wide violation verifies it remains reported even
+when its displayed polygon becomes a line. Cutout highlights keep clipped
+polylines open. The old conversion closed those paths and added an artificial
+chord (or a duplicated reverse segment); a regression checks that an open
+three-point interval produces two strokes, not three.
 
-On ESP-PD-Sink, rounded copper differs from the legacy area on top, inner 2 and
-bottom copper (27, 7 and 9 nonempty XOR paths respectively). Inner 1 matches.
-This is a difference in geometry, not evidence of 43 changed violations.
-The full ordered DRC messages, locations and approval multisets match on:
+Unrelated DRC checks, primitive construction and manufacturing exporters still
+use their existing geometry operations. They are not alternate copper backends.
+No project serialization, Gerber/Excellon pipeline or file version was changed.
 
-- All **37 upstream fixture boards**, **925 total messages**, with no errors.
-- ESP-PD-Sink, **12 messages**, across all six timing runs below.
+## Correctness and compatibility
 
-These comparisons establish compatibility on those inputs, not at arbitrary
-sub-nanometer contacts or clearance thresholds. Export code was not switched;
-the ordinary core compatibility suite remains the export/file oracle.
+Kernel tests cover four fill rules, holes, coincident edges, point/edge touches,
+self-crossings, full coordinate range, the known half-grid floating rounding
+case, reassociation of repeated unions, and independent point-location/area
+oracles. New tests cover rational intersection/difference area identities,
+sub-nanometer missing coverage, open boundary clipping, coincident intervals and
+collapsed display locations.
 
-## Release measurement
+The ordinary DRC fixture test checks expected approvals. Failed, stale and quick
+results retain their existing cleanup restrictions; there is no special result
+identity for this geometry implementation.
 
-Same release example binary for both modes:
+Differences at sub-nanometer thresholds are intentional and documented in
+`COMPAT.md`: exact nonempty areas or intervals are not suppressed to emulate
+Clipper's intermediate rounding. Existing fixture compatibility and real-board
+comparisons are recorded below; they do not prove equality on all coordinates.
 
-`/home/okhsunrog/tmp_zfs/codex_tmp/drc-review/worktree/target/release/examples/drc_copper_benchmark`
+Final validation:
 
-Implementation commit: `2a4483da7624c50542b768d29f19a921af7982cf`, based on
-`4b98b3241f4d26995c8b9435396b53f24cf38aed`. The binary was built before the
-commit; subsequent changes were tests and documentation only. Cargo's standard `release` profile,
-Rust `1.99.1 (58cf8f9c3 2026-10-13)`, Intel Core Ultra 5 125H, 18 logical CPUs.
-The normal DRC worker scheduling is unchanged.
-Measured binary SHA-256:
-`9e281d593781f0b4630515f20555d327c87c9b576345d5b264dff7eef5f33996`.
+- `cargo test --locked -p librepcb-core`: **113 unit + 894 integration tests
+  passed**, one integration test ignored. `LIBREPCB_CLI` was set, including
+  upstream DRC, migration, roundtrip and export oracles.
+- `cargo clippy --locked --workspace --all-targets -- -D warnings` passed.
+- `cargo fmt --all --check` and `git diff --check` passed.
+- Both headless application tests passed: `live_mcp_rule_checks_and_outputs`
+  and `drc_removes_disappeared_approvals`. These exercise the standard GUI/MCP
+  entry points, result freshness and approval removal after a violation disappears.
+- All **37 upstream fixture boards**, **925 total messages**, retain the same
+  message identities, severity, texts, descriptions, order and approval multisets
+  as the previous regular DRC. Thirteen display location arrays differ on six
+  boards, including contour start/order and the open-cutout display correction.
+  There were no check errors. Full Debug strings are therefore not byte-identical.
 
-Board: the unchanged ESP-PD-Sink snapshot from
-`docs/benchmarks/esp-pd-sink/inputs.tar.gz`, archive SHA-256
-`3a74dd46af84f76a59828e2e2a0b63ab695dea81142c7e7bde557e5d3247ccc0`;
-4 copper layers, 86 devices, 1,009 traces. Both modes already include the earlier
-annular-ring skip optimization. These are not comparisons against the older
-17-second baseline.
+The source fixtures use upstream commit
+`7f1b548abb61bd59b2b9c1166eca3e6557480c17`, tests/data commit
+`b0724e58b6755354d93c60f3ed3afdf109069927`. The CLI oracle is the official
+LibrePCB 2.1.1 binary (revision `06465bf`, file format 2). Full workspace tests
+were not repeated; the full core suite and workspace compilation/linting were
+checked.
 
-Three fresh-process samples per mode, interleaved
-`legacy, exact, exact, legacy, legacy, exact`. No task compilation ran during
-these six samples. Wall time includes plane/air-wire preparation and checks;
-process CPU time includes project loading and all worker threads as well.
-
-| Metric | Legacy union | Exact union + final rounding |
-| --- | ---: | ---: |
-| Median full DRC | 10.890 s | 8.603 s |
-| Full DRC range | 10.272–11.004 s | 8.415–8.833 s |
-| Median checks only | 10.388 s | 8.032 s |
-| Median process CPU time | 26.606 s | 12.079 s |
-
-Full DRC wall time improves **21.0% (1.27×)**; process CPU time falls **54.6%**.
-The improvement in the whole check is smaller than in copper preparation:
-independent checks run concurrently and still determine much of the elapsed
-runtime. This experiment does not identify the next critical check by timing.
-
-The SHA-256 of compact JSON containing the ordered Debug message strings is
-`ee338ed698a3a9ed00c91dcde0a3cc3d283865f552fb7f78b6c990ecf57df7d1`
-for all six runs. The benchmark also compares complete approval multisets, not
-just message counts.
-
-Reproduce the build and either mode:
+## Reproduction
 
 ```sh
-cargo build --locked --release -p librepcb-core \
-  --features experimental-exact-copper --example drc_copper_benchmark
-target/release/examples/drc_copper_benchmark /path/to/ESP-PD-Sink.lpp legacy
-target/release/examples/drc_copper_benchmark /path/to/ESP-PD-Sink.lpp exact
-target/release/examples/drc_copper_benchmark /path/to/ESP-PD-Sink.lpp layers
+cargo build --locked --release -p librepcb-core --example drc_copper_benchmark
+target/release/examples/drc_copper_benchmark /path/to/project.lpp full
+target/release/examples/drc_copper_benchmark /path/to/project.lpp layers
 ```
 
-The `layers` mode reports input segments, candidate pairs, atomic and boundary
-edges, fractional output vertices, collection/union durations and the Clipper
-XOR comparison. `intersections` counts discoveries per candidate pair, including
-shared endpoints; it is not a count of unique geometric intersection points.
+The example exposes no backend selector. Compare revisions using separately
+built binaries and identical project snapshots. `full` includes DRC preparation
+and emits full Debug messages and approvals; `layers` reports the aggregation
+time and retained fractional vertices for each layer.
+
 Local raw records and replay scripts are under
-`/home/okhsunrog/tmp_zfs/codex_tmp/drc-review/exact-copper/`.
+`/home/okhsunrog/tmp_zfs/codex_tmp/drc-review/exact-main/`.
 
-## Tests and next acceptance gate
+## Comparison with master and upstream LibrePCB
 
-The kernel regressions cover holes and all four fill rules, opposite winding
-across operands, partial/full coincident edges, point/edge touches, self-crossing
-polygons, repeated union and operand order, the full coordinate range, a known
-half-grid floating-rounding discrepancy, and the explicit final-rounding hazard.
-Seeded generated tests independently verify rectangle coverage and point
-location; 256 polygon arrangements also check exact union reassociation.
+Input: the same unmodified ESP-PD-Sink snapshot for all three implementations,
+from `docs/benchmarks/esp-pd-sink/inputs.tar.gz` (SHA-256
+`3a74dd46af84f76a59828e2e2a0b63ab695dea81142c7e7bde557e5d3247ccc0`),
+4 copper layers, 86 devices and 1,009 traces. Every process opens
+`/home/okhsunrog/tmp_zfs/codex_tmp/drc-review/input/foilfern/ESP-PD-Sink.lpp`.
+No save or project modification is requested.
 
-Validation on 2026-11-12:
+Versions and builds:
 
-- Full `cargo test --locked -p librepcb-core --features experimental-exact-copper`:
-  111 unit tests and 889 integration tests passed, one integration test ignored.
-  The upstream CLI oracle was present, including file/export and DRC comparisons.
-- After adding the final half-grid regression, all 10 kernel tests passed again.
-  The approval-protection regression also passed in the full integration run.
-- `cargo clippy --locked --workspace --all-targets --features
-  librepcb-core/experimental-exact-copper -- -D warnings` passed.
-- `cargo fmt --all --check` and `git diff --check` passed.
-- `cargo check --locked -p librepcb-core --all-targets` passed with the feature
-  disabled, checking the ordinary build independently.
+- Current implementation: `c610b68d00c6ed4a9e06cbf910c0ec0d189a88e8`.
+  `worktree/target/release/examples/drc_copper_benchmark`, SHA-256
+  `7748eb95fd60f457a09c3318b62510bb1b55444d211f0cdcbaa39f485eb56d85`.
+- Master pinned at `dfee64b16e1897bfcd0f73a6750a7928f3a39cac`, built in the
+  detached `../master-benchmark` worktree with a read-only timing example calling
+  `Project::run_drc()`. No production source changes. Binary
+  `master-benchmark/target/release/examples/drc_master_benchmark`, SHA-256
+  `777b51005581eea7a0939d8938c3bc241779a0bc594c498da2ef0a1505b6bfcc`.
+- Official LibrePCB CLI **2.1.1**, revision **06465bf**, file format 2,
+  Qt 6.11.1, prebuilt Linux x86-64 distribution. Binary
+  `/home/okhsunrog/tmp_zfs/codex_tmp/librepcb-attributes/librepcb-2.1.1-linux-x86_64/bin/librepcb-cli`,
+  SHA-256 `0626428de6f793acdf1f27d1ed8dd9a44a025229b6db0159a1fa0f899412a66b`.
 
-The oracle used `LIBREPCB_UPSTREAM_DIR` at upstream commit
-`7f1b548abb61bd59b2b9c1166eca3e6557480c17` and tests/data commit
-`b0724e58b6755354d93c60f3ed3afdf109069927`; `LIBREPCB_CLI` pointed to the
-same-version CLI wrapper. Full workspace tests were not rerun for this core-only
-experiment; workspace compilation/linting and the full core suite were checked.
+Both Rust versions use Cargo's standard **release** profile and
+`rustc 1.99.1 (58cf8f9c3 2026-10-13)` on the same Intel Core Ultra 5 125H
+(18 logical CPUs). CLI command: `librepcb-cli -v open-project --drc PROJECT`.
+`QT_LOGGING_RULES` enables default-category debug messages so the upstream
+internal DRC elapsed time is recorded; other Qt debug categories remain disabled.
+The distribution's library-path wrapper is used unchanged.
 
-Before enabling this for production, the final rational-to-integer boundary
-needs an explicit correctness contract. Keeping exact vertices through the
-relevant predicates avoids this particular quantization step; a grid adapter
-instead needs well-defined treatment of collapsed gaps, holes and contacts.
-Either choice requires targeted threshold/topology regressions and separate
-behavioral compatibility review. Faster aggregation alone is insufficient.
+Three fresh-process samples per implementation in rotated order:
+`master/current/LibrePCB`, `LibrePCB/master/current`, `current/LibrePCB/master`.
+Task builds and tests finished before these samples. The shared host's unrelated
+processes were not stopped. Full DRC includes plane rebuilding, air wires, data
+extraction and all checks; project loading is excluded. Upstream's internal
+`QElapsedTimer` starts before plane rebuilding, matching that scope. Whole-process
+wall/CPU time also includes project loading, printing and process teardown.
+
+Median of three samples (seconds):
+
+| Version | Full DRC | Full DRC range | Whole process wall time | Whole process CPU time |
+| --- | ---: | ---: | ---: | ---: |
+| Master `dfee64b` | 15.365 | 15.205–15.531 | 15.452 | 29.409 |
+| LibrePCB 2.1.1 `06465bf` | 13.897 | 13.631–13.977 | 14.987 | 28.727 |
+| Current `c610b68` | **3.332** | 3.310–3.431 | **3.449** | **8.797** |
+
+On this board, full DRC is **4.61× faster than master (−78.3%)** and
+**4.17× faster than LibrePCB (−76.0%)**. These numbers compare complete checks,
+including preparation, rather than just the union kernel. They are not a
+prediction for every board size or geometry distribution.
+
+All six Rust runs emitted the exact same ordered Debug messages, locations and
+approval multisets (12 messages). The upstream CLI reported the same 12
+severity/text pairs: three errors and nine warnings. Its exit code 1 denotes
+these violations, not a failed calculation. The CLI does not expose serialized
+approval keys or location polygons, so their equality with the C++ result is
+not claimed for this board.
+
+[Individual samples](../benchmarks/esp-pd-sink/drc-timings.json) record timings,
+versions and Rust message/approval hashes. Full stdout/stderr and the rotated
+three-way replay script are preserved in the local `exact-main` artifact
+folder listed above.
