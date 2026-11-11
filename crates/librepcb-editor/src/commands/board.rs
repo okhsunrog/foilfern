@@ -35,6 +35,7 @@ use librepcb_core::types::{
 };
 use librepcb_core::utils::toolbox;
 use librepcb_i18n::tr;
+use serde::{Deserialize, Serialize};
 
 use super::library::remove_unused_library_elements;
 use super::{NetRef, PadRef, resolve};
@@ -1574,4 +1575,148 @@ pub fn closed_path(points: &[Point]) -> Path {
     let mut path = Path::new(points.iter().map(|p| Vertex::at(*p)).collect());
     path.close();
     path
+}
+
+/// An explicit drill and copper diameter for an existing via.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct ViaDimensions {
+    pub uuid: Uuid,
+    pub drill: PositiveLength,
+    pub size: PositiveLength,
+}
+
+/// Moves one existing junction or via; its traces follow their shared anchor.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct RoutingAnchorMove {
+    pub anchor: TraceAnchor,
+    pub position: Point,
+}
+
+/// Groups via sizing and connected anchor moves. The routing service checks
+/// this command on a detached board before publishing a candidate.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EditRoutingGeometry {
+    pub board: BoardId,
+    pub vias: Vec<ViaDimensions>,
+    pub moves: Vec<RoutingAnchorMove>,
+}
+
+impl Command for EditRoutingGeometry {
+    type Output = ();
+
+    fn text(&self) -> String {
+        tr!("librepcb::editor::CmdBoardNetLineEdit", "Edit trace")
+    }
+
+    fn execute(self, tx: &mut Transaction<'_>) -> Result<()> {
+        if self.vias.is_empty() && self.moves.is_empty() {
+            return Err(Error::InvalidArgument("No routing edits requested.".into()));
+        }
+        let p = tx.project();
+        let b = resolve::board(p, Some(self.board))?;
+        let mut dimensions = BTreeMap::new();
+        for via in self.vias {
+            if dimensions.insert(via.uuid, (via.drill, via.size)).is_some() {
+                return Err(Error::InvalidArgument(format!(
+                    "Duplicate via size edit: {}.",
+                    via.uuid
+                )));
+            }
+        }
+        let mut positions = BTreeMap::new();
+        for movement in self.moves {
+            if !matches!(
+                movement.anchor,
+                TraceAnchor::Via(_) | TraceAnchor::Junction(_)
+            ) {
+                return Err(Error::InvalidArgument(
+                    "Only via and junction anchors can be moved.".into(),
+                ));
+            }
+            if positions
+                .insert(movement.anchor, movement.position)
+                .is_some()
+            {
+                return Err(Error::InvalidArgument(
+                    "Duplicate routing anchor move.".into(),
+                ));
+            }
+        }
+        let mut updates = Vec::new();
+        for (segment, data) in b.net_segments() {
+            let mut elements = BoardSegmentElements::default();
+            let mut moved = BTreeMap::new();
+            for via in data.vias().values() {
+                let anchor = TraceAnchor::Via(via.uuid());
+                let position = positions.remove(&anchor);
+                let size = dimensions.remove(&via.uuid());
+                if position.is_none() && size.is_none() {
+                    continue;
+                }
+                let mut edited = via.clone();
+                if let Some((drill, size)) = size {
+                    edited
+                        .set_drill_and_size(Some(drill), Some(size))
+                        .map_err(|error| Error::InvalidArgument(error.to_string()))?;
+                }
+                if let Some(position) = position
+                    && edited.set_position(position)
+                {
+                    moved.insert(anchor, position);
+                }
+                if edited != *via {
+                    elements.vias.push(edited);
+                }
+            }
+            for junction in data.junctions().values() {
+                let anchor = TraceAnchor::Junction(junction.uuid());
+                if let Some(position) = positions.remove(&anchor)
+                    && position != junction.position()
+                {
+                    moved.insert(anchor, position);
+                    elements
+                        .junctions
+                        .push(Junction::new(junction.uuid(), position));
+                }
+            }
+            if !moved.is_empty() {
+                let position = |anchor: TraceAnchor| {
+                    moved
+                        .get(&anchor)
+                        .copied()
+                        .or_else(|| b.anchor_position(data, anchor, p.library(), p.circuit()))
+                };
+                for trace in data.traces().values() {
+                    if (moved.contains_key(&trace.p1()) || moved.contains_key(&trace.p2()))
+                        && let Some(start) = position(trace.p1())
+                        && Some(start) == position(trace.p2())
+                    {
+                        return Err(Error::InvalidArgument(format!(
+                            "Moving this anchor would collapse trace {} to zero length.",
+                            trace.uuid()
+                        )));
+                    }
+                }
+            }
+            if !elements.is_empty() {
+                updates.push(BoardMutation::UpdateNetSegmentElements {
+                    segment: BoardNetSegmentRef {
+                        board: self.board,
+                        segment: *segment,
+                    },
+                    elements,
+                });
+            }
+        }
+        if let Some(uuid) = dimensions.keys().next() {
+            return Err(Error::not_found("Via", uuid));
+        }
+        if let Some(anchor) = positions.keys().next() {
+            return Err(Error::not_found("Routing anchor", format!("{anchor:?}")));
+        }
+        for update in updates {
+            tx.apply(brd(update))?;
+        }
+        Ok(())
+    }
 }

@@ -41,6 +41,7 @@ pub mod library;
 pub mod placement;
 pub mod project;
 mod resolve;
+pub(crate) use resolve::board as resolve_board;
 pub mod schematic;
 pub mod schematic_tidy;
 pub mod specctra;

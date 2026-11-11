@@ -170,3 +170,8 @@ builtin clearance, six of eight 0.6 mm straight probes from the pad were
 blocked by `GND` and `GPIO_J4_3` traces or a `GPIO_J4_3` via. The result
 establishes local obstruction and rules out an empty access set at either
 endpoint for these settings. It does not determine why the full search fails.
+
+A follow-up `routing_edit_prepare` on a separate STM32 copy moved the
+`GPIO_J4_3` via 0.05 mm in +X. It prepared and applied one reviewed
+mutation with zero new copper errors. The attached traces followed the via.
+The `V3V3` connection still remained open.

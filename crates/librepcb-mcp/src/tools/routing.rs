@@ -144,7 +144,7 @@ fn candidate_output(summary: &str, info: &RoutingCandidateInfo) -> ToolResult<To
     }
     if !info.validation.acceptable {
         out = out.warn(
-            "Validation is unacceptable: checks incomplete, changed netlist or new DRC errors.",
+            "Validation is unacceptable: inspect checks, netlist, new DRC errors and unrouted regressions.",
         );
     }
     if !info.validation.drc_clean {
@@ -329,4 +329,80 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
         "probe_length_mm":mm(*reach),"unsupported_air_wires":extracted.unsupported.len(),
         "endpoint_count":ids.len(),"endpoints":endpoints,
     })).map(|out| out.warn("Straight probes show local clearance only. A blocked probe does not rule out another path."))
+}
+
+/// Explicit via dimensions in mm. The existing position and layers are kept
+/// unless the same via is also listed in moves.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RoutingViaSizeArgs {
+    pub uuid: String,
+    pub drill: f64,
+    pub size: f64,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RoutingAnchorKind {
+    Via,
+    Junction,
+}
+
+/// Move a connected via or junction to an absolute board position in mm.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RoutingMoveArgs {
+    pub kind: RoutingAnchorKind,
+    pub uuid: String,
+    pub position: crate::units::PointMm,
+}
+
+/// Prepare one atomic connected edit for preview and validation.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RoutingEditArgs {
+    pub board: Option<String>,
+    #[serde(default)]
+    pub vias: Vec<RoutingViaSizeArgs>,
+    #[serde(default)]
+    pub moves: Vec<RoutingMoveArgs>,
+    pub expected_revision: Option<u64>,
+}
+
+pub fn prepare_edit_job(session: &Session, args: RoutingEditArgs) -> ToolResult<RoutingJob> {
+    use librepcb_core::geometry::TraceAnchor;
+    use librepcb_editor::commands::{EditRoutingGeometry, RoutingAnchorMove, ViaDimensions};
+
+    let open = session.project()?;
+    write::check_revision(open.project(), args.expected_revision)?;
+    let board = board_edit::board_id(open.project(), args.board.as_deref())?;
+    let vias = args
+        .vias
+        .into_iter()
+        .map(|via| {
+            Ok(ViaDimensions {
+                uuid: crate::resolve::required_uuid(&via.uuid, "via")?,
+                drill: board_edit::positive(via.drill, "drill")?,
+                size: board_edit::positive(via.size, "size")?,
+            })
+        })
+        .collect::<ToolResult<_>>()?;
+    let moves = args
+        .moves
+        .into_iter()
+        .map(|movement| {
+            let uuid = crate::resolve::required_uuid(&movement.uuid, "anchor")?;
+            let anchor = match movement.kind {
+                RoutingAnchorKind::Via => TraceAnchor::Via(uuid),
+                RoutingAnchorKind::Junction => TraceAnchor::Junction(uuid),
+            };
+            Ok(RoutingAnchorMove {
+                anchor,
+                position: movement.position.to_point()?,
+            })
+        })
+        .collect::<ToolResult<_>>()?;
+    open.routing
+        .prepare_edit(&open.editor, EditRoutingGeometry { board, vias, moves })
+        .map_err(routing_error)
 }

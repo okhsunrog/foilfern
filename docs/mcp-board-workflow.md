@@ -135,3 +135,18 @@ its text attribute context without advancing the revision; prepare again instead
 changing its revision. Apply preserves the reviewed geometry and is one undo.
 Candidates are session-local and disappear on closing the project. This first
 stage supports builtin only and returns data previews, without a GUI overlay.
+
+Use `routing_diagnose` with `net` to inspect remaining endpoint access and
+local clearance blockers. It accepts the builtin `grid_pitch`,
+`trace_width`, and `layers` options. `probe_length` sets the length in mm
+of each straight probe. Access points come from the builtin grid. A straight
+probe checks local clearance along one direction.
+
+Use `routing_edit_prepare` for grouped changes to existing copper. In
+`vias`, provide `uuid`, `drill`, and `size` in mm. In `moves`, provide
+`kind` (`via` or `junction`), `uuid`, and an absolute `position` in mm.
+The same via can be resized and moved in one request. Attached traces
+follow the anchor and retain their UUIDs. Review the candidate with
+`routing_preview` and commit it with `routing_apply` after checking
+`validation.acceptable`. An edit that increases the rebuilt air-wire count
+on any net is refused.

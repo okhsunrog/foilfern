@@ -199,6 +199,32 @@ impl LibrePcbMcp {
             .map_err(|e| ToolError::internal(format!("tool failed: {e}")))?
     }
 
+    async fn prepare_routing_candidate(
+        &self,
+        prepare: impl FnOnce(&mut Session) -> ToolResult<librepcb_editor::routing_service::RoutingJob>
+        + Send
+        + 'static,
+    ) -> Result<CallToolResult, McpError> {
+        let job = match self.blocking(prepare).await {
+            Ok(job) => job,
+            Err(e) => return self.run(move |_| Err(e)).await,
+        };
+        let candidate =
+            match tokio::task::spawn_blocking(move || crate::tools::routing::run_job(job)).await {
+                Ok(Ok(candidate)) => candidate,
+                Ok(Err(e)) => return self.run(move |_| Err(e)).await,
+                Err(e) => {
+                    return self
+                        .run(move |_| {
+                            Err(ToolError::internal(format!("Routing worker failed: {e}")))
+                        })
+                        .await;
+                }
+            };
+        self.run(move |s| crate::tools::routing::finish_prepare(s, candidate))
+            .await
+    }
+
     /// Asks the host in a blocking thread (no lock held).
     async fn ask_host<T, F>(&self, f: F) -> ToolResult<HostDecision<T>>
     where
@@ -861,26 +887,18 @@ impl LibrePcbMcp {
         &self,
         Parameters(args): Parameters<crate::tools::routing::RoutingPrepareArgs>,
     ) -> Result<CallToolResult, McpError> {
-        let job = match self
-            .blocking(move |s| crate::tools::routing::prepare_job(s, args))
+        self.prepare_routing_candidate(move |s| crate::tools::routing::prepare_job(s, args))
             .await
-        {
-            Ok(job) => job,
-            Err(e) => return self.run(move |_| Err(e)).await,
-        };
-        let candidate =
-            match tokio::task::spawn_blocking(move || crate::tools::routing::run_job(job)).await {
-                Ok(Ok(candidate)) => candidate,
-                Ok(Err(e)) => return self.run(move |_| Err(e)).await,
-                Err(e) => {
-                    return self
-                        .run(move |_| {
-                            Err(ToolError::internal(format!("Routing worker failed: {e}")))
-                        })
-                        .await;
-                }
-            };
-        self.run(move |s| crate::tools::routing::finish_prepare(s, candidate))
+    }
+
+    #[tool(
+        description = "Prepare via dimension changes and connected via/junction moves for routing_preview and routing_apply. Position and dimensions are in millimeters."
+    )]
+    async fn routing_edit_prepare(
+        &self,
+        Parameters(args): Parameters<crate::tools::routing::RoutingEditArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.prepare_routing_candidate(move |s| crate::tools::routing::prepare_edit_job(s, args))
             .await
     }
 

@@ -10,12 +10,12 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use librepcb_core::fileio::FilePath;
-use librepcb_core::project::{Mutation, Project};
+use librepcb_core::project::{BoardId, Mutation, Project};
 use librepcb_core::types::Uuid;
 use serde::Serialize;
 
 use crate::ProjectEditor;
-use crate::commands::{Autoroute, AutorouteResult};
+use crate::commands::{Autoroute, AutorouteResult, EditRoutingGeometry};
 use crate::routing_validation::{RoutingSnapshot, RoutingValidation, capture_routing_state};
 
 /// Bounded session-local storage; callers explicitly discard unwanted candidates.
@@ -46,11 +46,42 @@ pub struct RoutingCandidateInfo {
     pub candidate: Uuid,
     pub project: Uuid,
     pub base_revision: u64,
-    pub backend: &'static str,
-    pub request: Autoroute,
-    pub routing: AutorouteResult,
+    pub board: BoardId,
+    #[serde(flatten)]
+    pub details: RoutingCandidateDetails,
     pub mutation_count: usize,
     pub validation: RoutingValidation,
+}
+
+/// The operation that produced the patch. Builtin retains its existing wire
+/// representation; edits report their explicit request and the shared checks.
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
+pub enum RoutingCandidateDetails {
+    Builtin {
+        backend: &'static str,
+        request: Autoroute,
+        routing: AutorouteResult,
+    },
+    Edit {
+        edit: EditRoutingGeometry,
+    },
+}
+
+impl RoutingCandidateDetails {
+    fn validate(&self, before: RoutingSnapshot, after: RoutingSnapshot) -> RoutingValidation {
+        let mut validation = RoutingValidation::compare(before, after);
+        if matches!(self, Self::Edit { .. }) && !validation.unrouted_regressions.is_empty() {
+            validation.acceptable = false;
+        }
+        validation
+    }
+}
+
+#[derive(Debug)]
+enum RoutingWork {
+    Builtin(Autoroute),
+    Edit(EditRoutingGeometry),
 }
 
 /// Date and path placeholders affect physical board text without necessarily
@@ -102,26 +133,36 @@ pub struct RoutingJob {
     base_revision: u64,
     source_context: SourceContext,
     sandbox: ProjectEditor,
-    request: Autoroute,
+    work: RoutingWork,
 }
 
 impl RoutingJob {
     /// Runs builtin once and freezes its applied-model result. Live state is
     /// untouched even if search, validation or native loading fails.
     pub fn run(mut self) -> Result<RoutingCandidate, RoutingError> {
-        let board = self
-            .sandbox
-            .project()
-            .boards()
-            .iter()
-            .find(|b| self.request.board.is_none_or(|id| id == b.id()))
-            .map(|b| b.id())
-            .ok_or_else(|| crate::Error::InvalidArgument("Routing board not found.".into()))?;
-        self.request.board = Some(board);
+        let requested = match &self.work {
+            RoutingWork::Builtin(request) => request.board,
+            RoutingWork::Edit(edit) => Some(edit.board),
+        };
+        let board = crate::commands::resolve_board(self.sandbox.project(), requested)?.id();
         let before = capture_routing_state(&mut self.sandbox, board)?;
-        let routing = self.sandbox.execute(self.request.clone())?;
+        let details = match self.work {
+            RoutingWork::Builtin(mut request) => {
+                request.board = Some(board);
+                let routing = self.sandbox.execute(request.clone())?;
+                RoutingCandidateDetails::Builtin {
+                    backend: "builtin",
+                    request,
+                    routing,
+                }
+            }
+            RoutingWork::Edit(edit) => {
+                self.sandbox.execute(edit.clone())?;
+                RoutingCandidateDetails::Edit { edit }
+            }
+        };
         let after = capture_routing_state(&mut self.sandbox, board)?;
-        let validation = RoutingValidation::compare(before.clone(), after);
+        let validation = details.validate(before.clone(), after);
         // Undo runs only on the private sandbox. The redo entry then contains
         // exact forward mutations, rather than a second nondeterministic route.
         self.sandbox.undo()?;
@@ -138,9 +179,8 @@ impl RoutingJob {
                 candidate: Uuid::new_random(),
                 project: self.project,
                 base_revision: self.base_revision,
-                backend: "builtin",
-                request: self.request,
-                routing,
+                board,
+                details,
                 mutation_count: mutations.len(),
                 validation,
             },
@@ -179,6 +219,23 @@ impl RoutingService {
         editor: &ProjectEditor,
         request: Autoroute,
     ) -> Result<RoutingJob, RoutingError> {
+        self.prepare_work(editor, RoutingWork::Builtin(request))
+    }
+
+    /// Captures a checked connected edit for the same preview/apply path.
+    pub fn prepare_edit(
+        &self,
+        editor: &ProjectEditor,
+        edit: EditRoutingGeometry,
+    ) -> Result<RoutingJob, RoutingError> {
+        self.prepare_work(editor, RoutingWork::Edit(edit))
+    }
+
+    fn prepare_work(
+        &self,
+        editor: &ProjectEditor,
+        work: RoutingWork,
+    ) -> Result<RoutingJob, RoutingError> {
         if editor.undo_stack().is_group_active() {
             return Err(crate::Error::GroupActive.into());
         }
@@ -194,7 +251,7 @@ impl RoutingService {
             base_revision: project.revision(),
             source_context: SourceContext::of(project),
             sandbox,
-            request,
+            work,
         })
     }
 
@@ -244,10 +301,17 @@ impl RoutingService {
             return Err(crate::Error::GroupActive.into());
         }
         if !candidate.info.validation.acceptable {
-            return Err(RoutingError::Refused("Checks incomplete, netlist changed, or new DRC errors detected; inspect the candidate.".into()));
+            return Err(RoutingError::Refused("Checks incomplete, netlist changed, new DRC errors or connectivity regression; inspect the candidate.".into()));
         }
         editor.apply_mutations(
-            librepcb_i18n::tr!("Autorouter", "Autoroute Board"),
+            match candidate.info.details {
+                RoutingCandidateDetails::Builtin { .. } => {
+                    librepcb_i18n::tr!("Autorouter", "Autoroute Board")
+                }
+                RoutingCandidateDetails::Edit { .. } => {
+                    librepcb_i18n::tr!("librepcb::editor::CmdBoardNetLineEdit", "Edit trace")
+                }
+            },
             candidate.mutations.clone(),
         )?;
         let candidate = self
@@ -260,8 +324,8 @@ impl RoutingService {
             // check instead of publishing derived-only live revisions for a no-op.
             return Ok(info);
         }
-        match capture_routing_state(editor, info.routing.board) {
-            Ok(after) => info.validation = RoutingValidation::compare(candidate.before, after),
+        match capture_routing_state(editor, info.board) {
+            Ok(after) => info.validation = info.details.validate(candidate.before, after),
             Err(error) => {
                 // Copper has committed. Report the incomplete post-check honestly
                 // instead of returning an error that suggests no write occurred.

@@ -251,10 +251,18 @@ review experience. The STM32 run used the earlier experiment copy, not the newer
 
 ### R2 — diagnostics and ordinary connected edits
 
-Extend identity-preserving grouped edits from trace widths to via dimensions,
-then connected vertices, track/via moves and local topology changes. Widening or
-moving copper exposes its actual clearance effects, and all edits share the
-candidate/validation/apply path where review is needed.
+Implemented `routing_diagnose` for one net's remaining endpoints. It reports
+builtin grid access, effective width and clearance, and the first object that
+blocks each local straight probe. Existing trace blockers include UUIDs.
+See the [preserved STM32 observation](mcp-routing-reliability.md#local-access-diagnostics).
+
+Implemented `routing_edit_prepare` for explicit via dimensions and moves of
+existing vias and junctions, including both in one candidate. Connected traces
+follow the anchor with unchanged IDs and connectivity. Prepare runs full model
+checks on the detached edit. Preview/apply use the same exact patch, revision
+checks and undo history as builtin routing.
+
+Remaining R2 work includes richer diagnostics and local topology changes.
 
 Separate no pad access, exhausted search budget, fixed-geometry blockage,
 changeable-route congestion, rejected geometry and cancellation. Report facts

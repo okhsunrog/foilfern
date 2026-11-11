@@ -460,3 +460,231 @@ fn diagnostics_report_grid_access_and_local_blockers_without_edits() {
     assert_eq!(open.project().revision(), revision);
     assert_eq!(board_value(&session), before);
 }
+
+#[test]
+fn reviewed_edit_preserves_anchors_and_rejects_new_clearance_errors() {
+    use librepcb_mcp::tools::layout::board_get;
+
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let board = board_get(&session, Default::default()).unwrap().result;
+    let pad = |net: &str| {
+        board["devices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|device| device["pads"].as_array().unwrap())
+            .find(|pad| pad["net"] == net)
+            .unwrap()["position"]
+            .clone()
+    };
+    let y = pad("A")["y"].as_f64().unwrap();
+    let via = board_edit::via_add(
+        &mut session,
+        args(json!({
+            "position":{"x":10.0,"y":y}, "net":"A", "drill":0.3,"size":0.6
+        })),
+    )
+    .unwrap()
+    .result["uuid"]
+        .clone();
+    board_edit::trace_add(
+        &mut session,
+        args(json!({
+            "from":"R1.1","to":via,"points":[{"x":8.0,"y":y}],"width":0.2
+        })),
+    )
+    .unwrap();
+    board_edit::trace_add(
+        &mut session,
+        args(json!({
+            "from":via,"to":"R2.1","width":0.2
+        })),
+    )
+    .unwrap();
+    let before = board_get(&session, Default::default()).unwrap().result;
+    let junction = before["traces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|trace| [&trace["from"], &trace["to"]])
+        .find_map(|anchor| anchor["junction"].as_str())
+        .unwrap();
+    let prepare = |session: &mut Session, request| {
+        let job = routing::prepare_edit_job(session, args(request)).unwrap();
+        routing::finish_prepare(session, routing::run_job(job).unwrap())
+            .unwrap()
+            .result
+    };
+    let baseline_revision = session.project().unwrap().project().revision();
+    let bad = prepare(
+        &mut session,
+        json!({
+            "moves":[{"kind":"via","uuid":via,"position":pad("B")}]
+        }),
+    );
+    assert_eq!(bad["validation"]["acceptable"], false, "{bad:#}");
+    assert!(
+        bad["validation"]["new_copper_error_count"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+    let error = routing::routing_apply(
+        &mut session,
+        args(json!({
+            "candidate":bad["candidate"]
+        })),
+    )
+    .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Refused);
+    assert_eq!(
+        session.project().unwrap().project().revision(),
+        baseline_revision
+    );
+    assert_eq!(
+        board_get(&session, Default::default()).unwrap().result,
+        before
+    );
+
+    let planned = prepare(
+        &mut session,
+        json!({
+            "vias":[{"uuid":via,"drill":0.3,"size":0.7}],
+            "moves":[
+                {"kind":"via","uuid":via,"position":{"x":10.25,"y":y}},
+                {"kind":"junction","uuid":junction,"position":{"x":8.25,"y":y}}
+            ]
+        }),
+    );
+    assert_eq!(planned["validation"]["acceptable"], true, "{planned:#}");
+    let preview = routing::routing_preview(
+        &session,
+        args(json!({
+            "candidate":planned["candidate"]
+        })),
+    )
+    .unwrap()
+    .result;
+    assert_eq!(preview["mutation_count"], 1);
+    assert_eq!(
+        board_get(&session, Default::default()).unwrap().result,
+        before
+    );
+    let history = session.project().unwrap().editor.undo_stack().index();
+    routing::routing_apply(
+        &mut session,
+        args(json!({"candidate":planned["candidate"]})),
+    )
+    .unwrap();
+    let after = board_get(&session, Default::default()).unwrap().result;
+    assert_eq!(after["vias"][0]["uuid"], via);
+    assert_eq!(after["vias"][0]["size"], 0.7);
+    assert_eq!(after["vias"][0]["position"]["x"], 10.25);
+    assert_eq!(after["air_wires"], before["air_wires"]);
+    for (a, b) in after["traces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .zip(before["traces"].as_array().unwrap())
+    {
+        assert_eq!(a["uuid"], b["uuid"]);
+    }
+    let mut ends = after["traces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|trace| [&trace["from"], &trace["to"]]);
+    assert!(ends.any(|end| end["junction"] == junction && end["position"]["x"] == 8.25));
+    assert_eq!(
+        session.project().unwrap().editor.undo_stack().index(),
+        history + 1
+    );
+    write::undo_redo(&mut session, Default::default(), false).unwrap();
+    assert_eq!(
+        board_get(&session, Default::default()).unwrap().result,
+        before
+    );
+    write::undo_redo(&mut session, Default::default(), true).unwrap();
+    assert_eq!(
+        board_get(&session, Default::default()).unwrap().result,
+        after
+    );
+}
+
+#[test]
+fn reviewed_edit_rejects_losing_a_plane_connection() {
+    use librepcb_mcp::tools::layout::board_get;
+
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let board = board_get(&session, Default::default()).unwrap().result;
+    let y = board["devices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|device| device["pads"].as_array().unwrap())
+        .find(|pad| pad["net"] == "A")
+        .unwrap()["position"]["y"]
+        .as_f64()
+        .unwrap();
+    let mut vias = Vec::new();
+    for (pad, x) in [("R1.1", 7.0), ("R2.1", 13.0)] {
+        let via = board_edit::via_add(
+            &mut session,
+            args(json!({
+                "position":{"x":x,"y":y},"net":"A","drill":0.3,"size":0.6
+            })),
+        )
+        .unwrap()
+        .result["uuid"]
+            .clone();
+        board_edit::trace_add(
+            &mut session,
+            args(json!({
+                "from":pad,"to":via,"layer":"top","width":0.2
+            })),
+        )
+        .unwrap();
+        vias.push(via);
+    }
+    board_edit::plane_add(
+        &mut session,
+        args(json!({
+            "net":"A","layer":"bottom","connect_style":"solid","outline":[
+                {"x":6.0,"y":y-1.0},{"x":14.0,"y":y-1.0},
+                {"x":14.0,"y":y+1.0},{"x":6.0,"y":y+1.0}
+            ]
+        })),
+    )
+    .unwrap();
+    let job = routing::prepare_edit_job(
+        &session,
+        args(json!({
+            "moves":[{"kind":"via","uuid":vias[0],"position":{"x":5.5,"y":y}}]
+        })),
+    )
+    .unwrap();
+    let prepared = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
+        .unwrap()
+        .result;
+    let validation = &prepared["validation"];
+    assert_eq!(validation["before"]["unrouted"], 1, "{prepared:#}");
+    assert_eq!(validation["after"]["unrouted"], 2, "{prepared:#}");
+    assert_eq!(validation["new_copper_error_count"], 0, "{prepared:#}");
+    assert_eq!(
+        validation["unrouted_regressions"].as_array().unwrap().len(),
+        1
+    );
+    assert_eq!(validation["acceptable"], false);
+    let before = board_value(&session);
+    let error = routing::routing_apply(
+        &mut session,
+        args(json!({
+            "candidate":prepared["candidate"]
+        })),
+    )
+    .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Refused);
+    assert_eq!(board_value(&session), before);
+}

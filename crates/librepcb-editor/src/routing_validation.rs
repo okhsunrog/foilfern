@@ -43,6 +43,7 @@ pub struct RoutingError {
 pub struct RoutingSnapshot {
     pub checks: RoutingCheckSummary,
     errors: BTreeMap<String, RoutingError>,
+    unrouted_by_net: BTreeMap<NetSignalId, usize>,
     signals: BTreeMap<(ComponentInstanceId, Uuid), Option<NetSignalId>>,
     nets: BTreeSet<NetSignalId>,
 }
@@ -59,6 +60,9 @@ pub struct RoutingValidation {
     pub drc_clean: bool,
     pub new_error_count: usize,
     pub new_copper_error_count: usize,
+    /// Nets whose rebuilt air-wire count increased.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unrouted_regressions: Vec<NetSignalId>,
     pub resolved_error_count: usize,
     /// At most 50 newly reported errors (the count above is never truncated).
     pub new_errors: Vec<RoutingError>,
@@ -149,8 +153,15 @@ pub fn capture_routing_state(
                 .map(move |(signal, instance)| ((component.id(), *signal), instance.net()))
         })
         .collect();
+    let unrouted_by_net = p
+        .board(board)
+        .into_iter()
+        .flat_map(|b| b.derived().air_wires())
+        .filter_map(|(net, wires)| net.map(|net| (net, wires.len())))
+        .collect();
     Ok(RoutingSnapshot {
         checks,
+        unrouted_by_net,
         errors,
         signals,
         nets: p.circuit().net_signals().keys().copied().collect(),
@@ -175,6 +186,14 @@ impl RoutingValidation {
             netlist_preserved,
             new_error_count: new_errors.len(),
             new_copper_error_count: new_errors.iter().filter(|e| e.copper).count(),
+            unrouted_regressions: after
+                .unrouted_by_net
+                .iter()
+                .filter(|(net, count)| {
+                    **count > before.unrouted_by_net.get(net).copied().unwrap_or(0)
+                })
+                .map(|(net, _)| *net)
+                .collect(),
             resolved_error_count: before
                 .errors
                 .keys()
