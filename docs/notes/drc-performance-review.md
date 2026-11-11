@@ -271,3 +271,248 @@ Apply the instrumentation patch to the reviewed base and copy the example to
 `crates/librepcb-core/examples/drc_review.rs` to reproduce; provide the upstream
 checkout through `LIBREPCB_UPSTREAM_DIR`. Prototype code is not proposed as a
 finished implementation.
+
+## Implemented follow-up
+
+The correctness fixes landed first in `f2fb53d`:
+
+- Failed, unidentified, wrong-board or stale DRC results cannot update supported
+  approvals, delete saved approvals, or upgrade their file-format version.
+- Full checks report plane-calculation errors instead of checking partial copper.
+- DRC preparation captures the project UUID, board and revision before off-thread
+  plane calculation. It validates that token before applying anything, then
+  applies planes, rebuilds air wires and extracts the snapshot under one exclusive
+  project borrow. The GUI uses this same core path and marks late results stale.
+- Background plane results are also rejected when stale, aborted or failed,
+  preserving both the current fragments and dirty-layer markers.
+
+Regression tests exercise failed checks with approval versions 1 and 2, an
+unidentified result, a wrong board, edit/undo, an edit during plane calculation,
+post-extraction edits, real out-of-range plane geometry, late background results,
+and aborted/failed plane jobs. The full core integration suite passed **877 tests
+with 1 ignored**, including file roundtrips, migrations, exports and official CLI
+comparisons. The board subset passed **46 tests**.
+
+The annular-ring optimization landed in `e670266`. Hole-free pads return before
+any Clipper operation; boards with no drilled pads also skip the all-layer copper
+intersection used by this rule. Via checks still run. A dedicated regression
+removes all pad drills, makes every via ring too small, and verifies that every
+via violation remains. All **14 focused release DRC tests** passed, including the
+official LibrePCB CLI comparisons. Baseline and optimized binaries also produced
+exactly the same ordered full messages, approvals and location paths on all
+**37 upstream fixture boards**, with no check errors.
+
+### Copper union experiments rejected on correctness grounds
+
+Two implementations were tested and removed before committing production code:
+
+1. Normalize each operand with its original fill rule, then combine the operands
+   with one NonZero union. An exact geometric XOR comparison with sequential
+   union failed on upstream `v1`, `default`, `top_cu`.
+2. Batch only consecutive operands with the same fill rule and strictly disjoint
+   bounding boxes, flushing before touching/overlapping operands. Exact XOR still
+   failed on upstream `v0.1`, `default`, `bot_cu`: one edge endpoint changed from
+   Y = 48,282,196 nm to Y = 48,282,197 nm.
+
+Both passed simple fill-rule tests involving holes, overlapping contours and
+opposite winding. Those tests alone would have missed the problem. Clipper's
+mixed arithmetic stores integer-nanometer vertices but computes slopes and
+intersections in `f64`, rounding the output back to integers. Intermediate
+quantization can make the operation sequence observable even when the new
+operands are mutually disjoint (they still intersect accumulated copper).
+The precise arithmetic step responsible for each fixture difference has not
+been isolated; the exact-XOR failures establish the compatibility discrepancy. The committed generator therefore retains
+its original operation order; no geometric tolerance was relaxed to accept a
+faster result. A future union optimization needs to preserve these intermediate
+numeric semantics, or first establish a separately reviewed compatibility
+policy. Optimizing the existing Clipper execution and reducing unnecessary
+per-rule work are safer next targets than unconditional batch union.
+
+The rejected patches and exact-XOR failure logs remain under the task artifact
+root (`implementation/rejected-full-batch.patch`,
+`implementation/rejected-disjoint-batch.patch`, `union-geometry-tests.log`,
+`union-disjoint-tests.log`). They are experiments, not installed optimizations.
+
+### Release measurements of the implemented skip
+
+These measurements use separate, uninstrumented binaries of the actual
+implementation, not the earlier runtime-switch prototypes. The baseline is
+`f2fb53dddcf7fbe7e61f4e0bcd5297f4a4ebb2cc` (correctness fixes, no skip); the
+optimized version is `e6702663d37e0c826d40685c361bbdaae5696ca4`. Both were built
+with the standard Cargo **release** profile and the same temporary
+`librepcb-core` example calling `Project::run_drc(board, None, false, ...)`.
+Project loading is outside the timer; plane rebuilding, air wires, extraction
+and checks are inside. This is a core replay, not MCP transport or GUI latency.
+
+The input archive, upstream/test-data revisions and machine are the same as
+above. Six fresh processes ran in the order base/skip/skip/base/base/skip after
+this task's build and test processes finished. The board was opened read-only.
+
+| Measurement | Baseline | Skip empty annular-ring work |
+| --- | ---: | ---: |
+| Full DRC median | 17.109 s | 10.769 s |
+| Full DRC range | 16.098–17.988 s | 10.763–11.042 s |
+| Checks-only median | 16.580 s | 10.251 s |
+| Process CPU time median | 32.904 s | 26.940 s |
+
+Full elapsed time decreased **37.1% (1.59× speedup)**; process CPU time decreased
+**18.1%**. CPU time includes process startup and loading and is not the same
+interval as the wall-time DRC timer. All six full-message hashes equal
+`6dd1dfbf412031954d88a3374bdd25f0387d5e014a0c3a17d722a9a22cd04648`.
+This small, interleaved sample on a shared desktop is evidence for this board,
+not a performance guarantee for other designs.
+
+Binary copies under
+`/home/okhsunrog/tmp_zfs/codex_tmp/drc-review/implementation/`:
+
+- `drc-base`, SHA-256
+  `b94b745f4c1a3a4928748b9d842a6a70bf371d81daec6355a183f20d5be98e58`.
+- `drc-skip`, SHA-256
+  `457ae0c3a095d148a0ff117915fda0c3152da1390867a2e11025ee3cafd74a9a`.
+
+The same directory holds `compare.py`, `measurements.json`, raw JSONL results,
+and `check_messages.py` with both 37-board message manifests. The example source
+is preserved as `../drc_benchmark.rs`; it was removed from the source tree after
+building the binaries.
+
+### Derived-data race regression
+
+One headless GUI run failed because a repeated DRC retained its old messages;
+a second run passed, exposing a timing-sensitive case. A deterministic core
+regression then captured a DRC preparation, rebuilt air wires without changing
+any model input, and applied the preparation. The initial revision guard rejected
+it with `StaleSnapshot`.
+
+Preparation and plane-result application now consult the change journal and
+permit intervening `AirWires`/`PlaneFragments` events only. Any actual model edit,
+including edit/undo, or an expired journal cursor still rejects the job. The
+prepared full check must apply its own complete plane result before extraction;
+the regression compares both fragments and dirty layers with a fresh full
+rebuild. It also covers quick preparation. Already-extracted DRC results retain
+the strict revision guard for approval cleanup. The GUI regression now explicitly
+checks that the repeated run has no execution error and is up to date, before
+checking disappeared messages and approval deletion.
+
+### Arithmetic and rounding alternatives
+
+Moving rounding is more relevant to batching than replacing the scalar type.
+There are two independent approximations today: arc flattening (DRC tolerance
+5,000 nm) and rounding polygon intersections back to the 1 nm grid. Changing the
+second does not make the first exact. Neither small coordinate differences nor
+an area tolerance alone prove identical decisions: touches, narrow gaps, hole
+nesting and clearance-threshold cases need separate checks.
+
+| Approach | What it changes | Compatibility and performance implications |
+| --- | --- | --- |
+| Keep current rounding; optimize candidate selection, caching and Clipper execution | Preserves the current numeric pipeline | Best fit for strict upstream equivalence. Does not itself enable regrouping unions. |
+| Exact rational intersection, then round after every operation | Removes floating-point error from constructing intersection points | Still has intermediate quantization and order dependence. Can differ from upstream at half-grid boundaries. Exact arithmetic is not automatically faster. |
+| Finer fixed-point grid | Moves the quantization scale below 1 nm | Reduces individual grid error but does not remove rounding or guarantee associativity/topology. Scaling reduces coordinate headroom and changes upstream geometry. |
+| Decimal arithmetic | Changes the finite number representation | Non-terminating fractions such as 1/3 still need rounding. It does not solve the geometric problem on its own. |
+| Preserve rational vertices between polygon operations; round only for display/output | Removes intermediate grid quantization from the linear-polygon stage | Makes exact set operations associative geometrically, enabling different grouping. Requires exact constructions, predicates and topology handling throughout the algorithm; replacing `IntPoint` alone is insufficient. Ring order/serialization still need deterministic canonicalization. |
+| Keep original operands and evaluate one union | Avoids feeding rounded intermediate unions into later unions | A cheaper experiment with the existing Clipper, but already changes geometry on fixtures. Exact rational evaluation would remove its intersection quantization as well. |
+| Exact predicates/constructions with an adaptive fast path | Uses cheap arithmetic when an error bound proves the answer, exact arithmetic otherwise | Potential way to contain the cost of a new exact kernel. Requires certified bounds, not a guessed epsilon, and still needs a decision about matching legacy rounded results. |
+
+Rational vertices do not require floating-point arithmetic or a hand-written
+big-integer implementation. `num-rational::BigRational` and `dashu-ratio::RBig`
+provide exact fractions over arbitrary-precision integers. `dashu-ratio::Relaxed`
+avoids requiring a fully reduced fraction after every operation; this can reduce
+GCD work but may grow intermediates. Both candidates are pure Rust. The
+comparison prototype uses these crates only in a temporary diagnostic package,
+added using `cargo add`; no new production dependency was introduced.
+
+For original integer line segments, determinants can be computed on integers,
+and the intersection coordinates retained as numerator/denominator pairs. A
+checked `i128` implementation is useful for bounded coordinates, but its
+intermediate products do not cover the full Clipper input range of
+±(2^62−1) nm. An extreme diagonal crossing whose exact answer is simply (0,0)
+already overflows the straightforward `i128` formula. Arbitrary precision (or a
+formally bounded wide-integer path with an exact fallback) avoids silently
+shrinking the accepted input range.
+
+Rounding only at the output boundary also needs care. Independent coordinate
+rounding can alter topology. Snap rounding transforms the segment arrangement
+as a whole; iterated snap rounding additionally separates vertices from
+nonincident edges, at a cost in geometric approximation. These are different
+semantics from preserving the existing Clipper output. See the primary
+references: [CGAL exact predicates and constructions](https://doc.cgal.org/latest/Kernel_23/classCGAL_1_1Exact__predicates__exact__constructions__kernel.html),
+[CGAL 2D snap rounding](https://doc.cgal.org/latest/Snap_rounding_2/index.html), and
+[Clipper's rounding-artifact discussion](https://www.angusj.com/clipper2/Docs/Robustness.htm).
+The last reference also discusses Clipper1 artifacts; this repository still
+ports Clipper1, not Clipper2. CGAL is a conceptual reference here, not a proposed
+C++ dependency.
+
+The most useful architecture experiment is an isolated DRC copper-aggregation
+prototype with retained exact vertices and rounding only at its interface.
+Use `BigRational` as a correctness oracle and benchmark `RBig`/`Relaxed` on the
+same operations. Keep the existing geometry/export implementation available as
+the upstream oracle. Compare actual violations, approval identities, locations,
+topology and exported data separately; file-format interoperability alone does
+not establish behavioral equivalence. This is a larger numeric-contract change,
+not a compatible scalar substitution ready to merge. No such kernel change has
+been installed by this work.
+
+### Rational-crate probe
+
+The standalone Rust 2024 diagnostic package
+`/home/okhsunrog/tmp_zfs/codex_tmp/drc-review/implementation/rational-probe/`
+compares `num-rational 0.4.2` (`BigRational`, using `num-bigint 0.4.8`) with
+`dashu-ratio 0.6.1` (`RBig` and `Relaxed`, using `dashu-int 0.6.2`). Its lockfile
+pins all versions. Build: `cargo build --locked --release`; binary:
+`target/release/rational-probe` under that package. Compiler and host are the
+same as the DRC measurements.
+
+Two algebraically equivalent implementations are measured: all intermediate
+values represented as rationals, and integer determinants with rationals
+constructed only for the two output coordinates. Inputs are 2,000 generated
+crossing segment pairs and 2,000 deliberately constructed half-grid crossings.
+An additional extreme crossing at ±(2^62−1) verifies the full coordinate range.
+All six implementations agree exactly on all **4,001** outputs. This tests
+arithmetic construction only, not a polygon sweep or DRC compatibility.
+
+Three interleaved samples per implementation, 40,000 intersections per sample,
+standard release optimization, black-boxed inputs/results. Median time per
+intersection:
+
+| Representation | Rational arithmetic throughout | Integer determinants, then rational output |
+| --- | ---: | ---: |
+| `num-rational::BigRational` | 24.340 µs | 3.194 µs |
+| `dashu-ratio::RBig` | 2.426 µs | 0.737 µs |
+| `dashu-ratio::Relaxed` | 1.448 µs | 0.471 µs |
+
+These are small diagnostic implementations using the same algebra, not a general
+ranking of crate performance. No claim is made about full polygon throughput,
+memory growth across chained unions, or whole-DRC speed. This task's builds had
+finished; unrelated work on the shared host was not stopped. The integer-first
+formulation itself matters substantially, independent of crate selection.
+
+A separate bounded line-intersection probe compared the existing-style `f64`
+formula and checked `i128` construction with immediate rounding: median 24.46 ns
+and 79.51 ns respectively. These have different output representation and input
+mix from the rational table and are not directly comparable benchmark cases.
+Of 220,000 inputs (including 20,000 deliberate half-grid cases), 6,045 rounded
+outputs differed. This is not an estimate of real-board error frequency. For
+example, two segments
+`(620776482,382053621) → (455267721,359395578)` and
+`(451017960,427449599) → (625026243,313999600)` meet at
+`(538022101.5,370724599.5)` nm. Exact ties-away rounding gives
+`(538022102,370724600)`, whereas the floating expression gives
+`(538022102,370724599)`. This illustrates why even replacing the arithmetic
+without moving rounding can change the upstream result. It is not a minimized
+reproduction of the earlier complete-union fixture failures.
+
+The recommended next experiment is **integer determinants plus `RBig` output**,
+using `BigRational` as the reference. Evaluate `Relaxed` for transient arithmetic
+and measure bit lengths/allocations before retaining it throughout long operation
+chains. Its faster short test does not establish bounded intermediate growth.
+The crate APIs and representation guarantees are documented in
+[`num-rational`](https://docs.rs/num-rational/latest/num_rational/type.BigRational.html)
+and [`dashu-ratio`](https://docs.rs/dashu-ratio/latest/dashu_ratio/).
+Raw timings are in `implementation/rational-probe-final.log` and
+`implementation/intersection-probe-final.log`; the latter's source is
+`implementation/intersection_probe.rs`.
+
+Final validation of the derived-data follow-up (`143b74c`): **48 board tests**,
+**2 headless GUI/MCP tests**, `cargo fmt --all --check`, and
+`cargo clippy --locked --workspace --all-targets -- -D warnings` passed.
+The entire workspace test suite was not rerun. Existing Slint layout build
+warnings and the dependency's future-compatibility notice remain unrelated.
