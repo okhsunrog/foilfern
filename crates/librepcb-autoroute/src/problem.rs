@@ -171,6 +171,8 @@ pub struct RoutingRules {
     pub trace_width: PositiveLength,
     /// Trace widths of specific nets.
     pub net_trace_widths: BTreeMap<NetId, PositiveLength>,
+    /// Optional reduced-width escapes from pads, by net.
+    pub neck_downs: BTreeMap<NetId, NeckDown>,
     /// Copper to copper clearance between different nets.
     pub clearance: Length,
     /// Copper to board edge clearance.
@@ -215,6 +217,7 @@ impl Default for RoutingRules {
         Self {
             trace_width: positive(250_000),
             net_trace_widths: BTreeMap::new(),
+            neck_downs: BTreeMap::new(),
             clearance: Length::new(200_000),
             board_clearance: Length::new(300_000),
             npth_clearance: Length::new(250_000),
@@ -234,6 +237,13 @@ impl Default for RoutingRules {
             critical_nets: BTreeSet::new(),
         }
     }
+}
+
+/// A bounded reduced-width pad escape before the regular grid route.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NeckDown {
+    pub width: PositiveLength,
+    pub max_length: PositiveLength,
 }
 
 /// Deterministic initial order. Critical nets come first in every order.

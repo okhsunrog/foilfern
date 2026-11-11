@@ -98,6 +98,9 @@ pub struct Autoroute {
     /// copper width).
     #[serde(default)]
     pub trace_width: Option<PositiveLength>,
+    /// Opt into bounded local escapes from pads using reduced trace width.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub neck_down: Option<PadNeckDown>,
     /// Drill diameter of new vias (default: the design rules' default via
     /// drill, at least the DRC minimum PTH drill diameter).
     #[serde(default)]
@@ -131,6 +134,12 @@ pub struct Autoroute {
     /// Limits new copper to a rectangular region.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub region: Option<RoutingBounds>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct PadNeckDown {
+    pub width: PositiveLength,
+    pub max_length: PositiveLength,
 }
 
 /// Explicit builtin trial order, independent of the pad escape setting.
@@ -224,12 +233,71 @@ pub struct AutorouteResult {
     /// Work performed by the builtin search.
     #[serde(default)]
     pub effort: RoutingEffort,
+    /// Lengths and exact reduced-width segments of the new copper, in nm.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub trace_width_profile: Vec<TraceWidthProfile>,
     /// Original air wires left unresolved, with the router's attempt evidence.
     #[serde(default)]
     pub failed_requests: Vec<UnroutedAirWire>,
     /// The air wires of the routed nets which remain after routing
     /// (rebuilt from the new copper).
     pub remaining_air_wires: Vec<UnroutedAirWire>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct TraceWidthProfile {
+    pub net: NetSignalId,
+    pub net_name: String,
+    pub nominal_width_nm: i64,
+    pub nominal_length_nm: i64,
+    pub neck_down_length_nm: i64,
+    pub neck_down_segments: Vec<NeckDownSegment>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct NeckDownSegment {
+    pub layer: Layer,
+    pub from: Point,
+    pub to: Point,
+    pub width_nm: i64,
+    pub length_nm: i64,
+}
+
+fn trace_width_profile(
+    project: &Project,
+    problem: &RoutingProblem,
+    result: &RoutingResult,
+) -> Vec<TraceWidthProfile> {
+    let mut profiles = BTreeMap::new();
+    for route in &result.routes {
+        let nominal = problem.rules.trace_width_of(&route.net);
+        let profile = profiles
+            .entry(route.net)
+            .or_insert_with(|| TraceWidthProfile {
+                net: NetSignalId(route.net),
+                net_name: resolve::net_name(project, Some(NetSignalId(route.net))),
+                nominal_width_nm: nominal.to_nm(),
+                nominal_length_nm: 0,
+                neck_down_length_nm: 0,
+                neck_down_segments: Vec::new(),
+            });
+        for s in &route.segments {
+            let length = (s.end - s.start).length().to_nm();
+            if s.width == nominal {
+                profile.nominal_length_nm += length;
+            } else {
+                profile.neck_down_length_nm += length;
+                profile.neck_down_segments.push(NeckDownSegment {
+                    layer: s.layer,
+                    from: s.start,
+                    to: s.end,
+                    width_nm: s.width.to_nm(),
+                    length_nm: length,
+                });
+            }
+        }
+    }
+    profiles.into_values().collect()
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -318,6 +386,9 @@ impl Command for Autoroute {
                 rip_ups: result.stats.rip_ups,
                 congestion_tiles: result.stats.congestion_tiles,
             },
+            trace_width_profile: self.neck_down.map_or_else(Vec::new, |_| {
+                trace_width_profile(p, &extracted.problem, &result)
+            }),
             failed_requests,
             remaining_air_wires,
         })

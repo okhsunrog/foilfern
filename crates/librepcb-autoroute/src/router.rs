@@ -42,7 +42,7 @@ struct Wire {
 /// Where a path starts or ends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Ep {
-    Terminal(usize, Option<P>),
+    Terminal(usize, PadStub),
     /// On a route: on a trace of routing layer `Some(l)`, or on a via.
     Route {
         route: RouteId,
@@ -51,11 +51,17 @@ enum Ep {
     },
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct PadStub {
+    elbow: Option<P>,
+    neck_width: Option<PositiveLength>,
+}
+
 #[derive(Debug, Clone, Copy)]
 struct Access {
     node: usize,
     cost: u32,
-    elbow: Option<P>,
+    stub: PadStub,
     escape: bool,
 }
 
@@ -63,7 +69,14 @@ struct Access {
 #[derive(Debug, Clone)]
 struct Run {
     layer: usize,
+    width: PositiveLength,
     points: Vec<P>,
+}
+
+impl Run {
+    fn half_width(&self) -> i64 {
+        self.width.to_nm() / 2
+    }
 }
 
 /// A committed route.
@@ -71,8 +84,6 @@ struct Run {
 struct RouteState {
     wire: usize,
     net: u32,
-    half_width: i64,
-    width: PositiveLength,
     runs: Vec<Run>,
     vias: Vec<P>,
     start: Ep,
@@ -498,7 +509,7 @@ impl<'p> Router<'p> {
                     &mut out,
                     access.node,
                     access.cost,
-                    Ep::Terminal(t, access.elbow),
+                    Ep::Terminal(t, access.stub),
                 );
             }
         }
@@ -588,11 +599,23 @@ impl<'p> Router<'p> {
     fn terminal_access(&self, t: usize, net: u32, h: i64) -> Vec<Access> {
         let terminal = &self.problem.terminals[t];
         let pos = P::from(terminal.position);
-        if self
+        let is_pad = self.problem.pad_terminals.contains(&TerminalId(t));
+        let within_region = |p: P, half_width| {
+            self.problem
+                .region
+                .is_none_or(|region| region.contains(p.to_point(), Length::new(half_width + 1)))
+        };
+        let wide_inside = within_region(pos, h);
+        let neck = self
             .problem
-            .region
-            .is_some_and(|region| !region.contains(terminal.position, Length::new(h + 1)))
-        {
+            .rules
+            .neck_downs
+            .get(&terminal.net)
+            .filter(|neck| {
+                let narrow = neck.width.to_nm() / 2;
+                is_pad && narrow < h && within_region(pos, narrow)
+            });
+        if !wide_inside && neck.is_none() {
             return Vec::new();
         }
         let (core, radius) = core_of(&terminal.shape);
@@ -608,10 +631,12 @@ impl<'p> Router<'p> {
                 .filter(|&i| i < 64)
                 .fold(0, |acc, i| acc | 1u64 << i),
         };
-        let cost_of = |a: P, b: P| -> u32 {
+        let distance = |a: P, b: P| {
             let (dx, dy) = ((b.x - a.x) as f64, (b.y - a.y) as f64);
-            ((dx * dx + dy * dy).sqrt() / pitch * f64::from(STEP)).round() as u32
+            (dx * dx + dy * dy).sqrt()
         };
+        let cost_of =
+            |a: P, b: P| -> u32 { (distance(a, b) / pitch * f64::from(STEP)).round() as u32 };
         let (lo, hi) = core.bounds();
         let r = radius.ceil() as i64;
         let collect =
@@ -644,7 +669,10 @@ impl<'p> Router<'p> {
                                 out.push(Access {
                                     node,
                                     cost,
-                                    elbow,
+                                    stub: PadStub {
+                                        elbow,
+                                        neck_width: None,
+                                    },
                                     escape,
                                 });
                             }
@@ -653,20 +681,21 @@ impl<'p> Router<'p> {
                 }
                 out
             };
-        let clear = |a, b, cu| {
+        let clear_at = |a, b, cu, half_width: i64| {
             self.items
-                .check_segment((a, b), cu, net, h as f64, None, &mut |_| false)
+                .check_segment((a, b), cu, net, half_width as f64, None, &mut |_| false)
                 .is_ok()
         };
+        let clear = |a, b, cu| clear_at(a, b, cu, h);
         let inside_copper = |p: P| core.distance_to_segment(p, p) <= radius;
         let mut out = collect(
-            &|p, cu| (inside_copper(p) && clear(pos, p, cu)).then_some(None),
+            &|p, cu| (wide_inside && inside_copper(p) && clear(pos, p, cu)).then_some(None),
             P::new(lo.x - r, lo.y - r),
             P::new(hi.x + r, hi.y + r),
             false,
         );
         let reach = 2 * self.grid.pitch;
-        if out.is_empty() {
+        if wide_inside && out.is_empty() {
             // Small or off-grid terminal: nodes near the position.
             out = collect(
                 &|p, cu| {
@@ -679,7 +708,7 @@ impl<'p> Router<'p> {
                 false,
             );
         }
-        if self.problem.rules.pad_escape && self.problem.pad_terminals.contains(&TerminalId(t)) {
+        if wide_inside && self.problem.rules.pad_escape && is_pad {
             let existing: BTreeSet<_> = out.iter().map(|a| a.node).collect();
             let escapes = collect(
                 &|p, cu| {
@@ -692,10 +721,7 @@ impl<'p> Router<'p> {
                     escape_elbows(pos, p)
                         .into_iter()
                         .find(|&elbow| {
-                            self.problem.region.is_none_or(|region| {
-                                region.contains(elbow.to_point(), Length::new(h + 1))
-                            }) && clear(pos, elbow, cu)
-                                && clear(elbow, p, cu)
+                            within_region(elbow, h) && clear(pos, elbow, cu) && clear(elbow, p, cu)
                         })
                         .map(Some)
                 },
@@ -716,6 +742,48 @@ impl<'p> Router<'p> {
                 exits.sort_unstable_by_key(|a| (a.cost, a.node));
                 out.extend(exits.into_iter().take(4));
             }
+        }
+        if let Some(neck) = neck {
+            // Look for a short, exact-checked connection to an already
+            // usable full-width node. The main search stays full width.
+            let reach = neck.max_length.to_nm().min(24 * self.grid.pitch);
+            let half = neck.width.to_nm() / 2;
+            let stub = |p, cu| {
+                if p == pos {
+                    return None;
+                }
+                let fits = |elbow: Option<P>, hw| {
+                    if let Some(e) = elbow {
+                        within_region(e, hw) && clear_at(pos, e, cu, hw) && clear_at(e, p, cu, hw)
+                    } else {
+                        clear_at(pos, p, cu, hw)
+                    }
+                };
+                let eligible = |elbow: Option<P>| {
+                    let length = elbow
+                        .map_or_else(|| distance(pos, p), |e| distance(pos, e) + distance(e, p));
+                    length <= reach as f64 && fits(elbow, half) && !(wide_inside && fits(elbow, h))
+                };
+                if is_octilinear(pos, p) {
+                    eligible(None).then_some(None)
+                } else {
+                    escape_elbows(pos, p)
+                        .into_iter()
+                        .map(Some)
+                        .find(|&e| eligible(e))
+                }
+            };
+            let mut narrow = collect(
+                &stub,
+                P::new(pos.x - reach, pos.y - reach),
+                P::new(pos.x + reach, pos.y + reach),
+                true,
+            );
+            for access in &mut narrow {
+                access.stub.neck_width = Some(neck.width);
+                access.cost = access.cost.saturating_mul(2).saturating_add(2 * STEP);
+            }
+            out.extend(narrow);
         }
         out
     }
@@ -909,31 +977,32 @@ impl<'p> Router<'p> {
                     vias.push(p);
                     runs.push(Run {
                         layer,
+                        width,
                         points: vec![p],
                     });
                 }
                 None => runs.push(Run {
                     layer,
+                    width,
                     points: vec![p],
                 }),
             }
         }
-        if let Ep::Terminal(t, elbow) = start {
-            let pos = P::from(self.problem.terminals[t].position);
-            if let Some(elbow) = elbow {
-                runs[0].points.insert(0, elbow);
-            }
-            if runs[0].points[0] != pos {
-                runs[0].points.insert(0, pos);
-            }
+        if let Ep::Terminal(t, stub) = start {
+            attach_pad_stub(
+                &mut runs,
+                self.problem.terminals[t].position.into(),
+                stub,
+                true,
+            );
         }
-        if let Ep::Terminal(t, elbow) = end {
-            let pos = P::from(self.problem.terminals[t].position);
-            let run = runs.last_mut().expect("path has at least one node");
-            run.points.extend(elbow);
-            if run.points.last() != Some(&pos) {
-                run.points.push(pos);
-            }
+        if let Ep::Terminal(t, stub) = end {
+            attach_pad_stub(
+                &mut runs,
+                self.problem.terminals[t].position.into(),
+                stub,
+                false,
+            );
         }
         for run in &mut runs {
             merge_collinear(&mut run.points);
@@ -957,7 +1026,7 @@ impl<'p> Router<'p> {
                             (pair[0], pair[1]),
                             self.routing[run.layer],
                             wire.net,
-                            h as f64,
+                            run.half_width() as f64,
                             None,
                             &mut collect,
                         )
@@ -1023,6 +1092,7 @@ impl<'p> Router<'p> {
 
         // Shortcuts along 45° lines.
         for run in &mut runs {
+            let h = run.half_width();
             let pts = &run.points;
             if pts.len() <= 2 {
                 continue;
@@ -1048,9 +1118,9 @@ impl<'p> Router<'p> {
 
         // Exact verification.
         let ok_segments = runs.iter().all(|run| {
-            run.points
-                .windows(2)
-                .all(|pair| self.check_segment_strict(pair[0], pair[1], run.layer, wire.net, h))
+            run.points.windows(2).all(|pair| {
+                self.check_segment_strict(pair[0], pair[1], run.layer, wire.net, run.half_width())
+            })
         });
         let ok_vias = vias.iter().all(|&v| {
             self.items
@@ -1068,7 +1138,7 @@ impl<'p> Router<'p> {
             return (Err(UnroutedReason::GeometryRejected), ripped);
         }
 
-        self.commit(w, width, h, runs, vias, start, end);
+        self.commit(w, runs, vias, start, end);
         if !contested.is_empty()
             && let Some(history) = &mut self.congestion
         {
@@ -1138,23 +1208,13 @@ impl<'p> Router<'p> {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn commit(
-        &mut self,
-        w: usize,
-        width: PositiveLength,
-        h: i64,
-        runs: Vec<Run>,
-        vias: Vec<P>,
-        start: Ep,
-        end: Ep,
-    ) {
+    fn commit(&mut self, w: usize, runs: Vec<Run>, vias: Vec<P>, start: Ep, end: Ep) {
         let id = self.routes.len();
         let net = self.wires[w].net;
-        let hw = h as f64;
         let r = self.rules;
         let mut new_items = Vec::new();
         for run in &runs {
+            let hw = run.half_width() as f64;
             for pair in run.points.windows(2) {
                 new_items.push(Item {
                     core: Core::Segment(pair[0], pair[1]),
@@ -1196,8 +1256,6 @@ impl<'p> Router<'p> {
         self.routes.push(Some(RouteState {
             wire: w,
             net,
-            half_width: h,
-            width,
             runs,
             vias,
             start,
@@ -1264,7 +1322,7 @@ impl<'p> Router<'p> {
                                 (pair[0], pair[1]),
                                 self.routing[run.layer],
                                 r.net,
-                                r.half_width as f64,
+                                run.half_width() as f64,
                                 Some(id),
                                 &mut |_| false,
                             )
@@ -1485,7 +1543,7 @@ impl<'p> Router<'p> {
                         layer: layer_of(run.layer),
                         start: pair[0].to_point(),
                         end: pair[1].to_point(),
-                        width: route.width,
+                        width: run.width,
                     })
                 })
                 .collect();
@@ -1539,6 +1597,45 @@ impl<'p> Router<'p> {
 fn is_octilinear(a: P, b: P) -> bool {
     let (dx, dy) = (b.x - a.x, b.y - a.y);
     dx == 0 || dy == 0 || dx.abs() == dy.abs()
+}
+
+fn attach_pad_stub(runs: &mut Vec<Run>, pos: P, stub: PadStub, at_start: bool) {
+    let index = if at_start { 0 } else { runs.len() - 1 };
+    let run = &mut runs[index];
+    let node = if at_start {
+        run.points[0]
+    } else {
+        *run.points.last().unwrap()
+    };
+    if let Some(width) = stub.neck_width {
+        let layer = run.layer;
+        let mut points = vec![pos];
+        points.extend(stub.elbow);
+        points.push(node);
+        if !at_start {
+            points.reverse();
+        }
+        runs.insert(
+            if at_start { 0 } else { index + 1 },
+            Run {
+                layer,
+                width,
+                points,
+            },
+        );
+    } else if at_start {
+        if let Some(elbow) = stub.elbow {
+            run.points.insert(0, elbow);
+        }
+        if run.points[0] != pos {
+            run.points.insert(0, pos);
+        }
+    } else {
+        run.points.extend(stub.elbow);
+        if run.points.last() != Some(&pos) {
+            run.points.push(pos);
+        }
+    }
 }
 
 /// Both ways to join an off-grid anchor and a grid node with one 45° bend.

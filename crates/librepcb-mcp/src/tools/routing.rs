@@ -3,7 +3,7 @@
 
 use librepcb_core::project::Project;
 use librepcb_core::types::Uuid;
-use librepcb_editor::commands::{Autoroute, NetRef, RoutingOrder};
+use librepcb_editor::commands::{Autoroute, NetRef, PadNeckDown, RoutingOrder};
 use librepcb_editor::routing_service::{
     RegionalRoutingRequest, RoutingCandidate, RoutingCandidateInfo, RoutingComparisonJob,
     RoutingError, RoutingJob, RoutingTrials,
@@ -35,6 +35,8 @@ pub struct RoutingPrepareArgs {
     #[serde(default)]
     /// Trace width in mm for all selected nets. Omit to honor each net class.
     pub trace_width: Option<f64>,
+    /// Optional short reduced-width escape at pads.
+    pub neck_down: Option<PadNeckDownArgs>,
     #[serde(default)]
     /// Via drill diameter in mm; clamped to the board minimum.
     pub via_drill: Option<f64>,
@@ -59,6 +61,24 @@ pub struct RoutingPrepareArgs {
     #[serde(default)]
     /// Reject if the current live revision differs.
     pub expected_revision: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PadNeckDownArgs {
+    /// Requested reduced width in mm, raised to board and net-class DRC minima.
+    pub width: f64,
+    /// Maximum length in mm per pad escape.
+    pub max_length: f64,
+}
+
+impl PadNeckDownArgs {
+    fn command(self) -> ToolResult<PadNeckDown> {
+        Ok(PadNeckDown {
+            width: board_edit::positive(self.width, "neck_down.width")?,
+            max_length: board_edit::positive(self.max_length, "neck_down.max_length")?,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
@@ -156,6 +176,7 @@ fn builtin_request(project: &Project, args: RoutingPrepareArgs) -> ToolResult<Au
     };
     let mut command = board_edit::builtin_command(project, board, &options)?;
     command.search_evidence = args.search_evidence;
+    command.neck_down = args.neck_down.map(PadNeckDownArgs::command).transpose()?;
     command.pad_escape = args.pad_escape;
     command.congestion_history = args.congestion_history;
     command.critical_nets = critical_nets(project, &args.critical_nets)?;
@@ -579,6 +600,8 @@ pub struct RoutingEditRouteArgs {
     pub layers: Vec<String>,
     /// Trace width in mm for all selected nets. Omit to honor each net class.
     pub trace_width: Option<f64>,
+    /// Optional short reduced-width escape at pads.
+    pub neck_down: Option<PadNeckDownArgs>,
     /// Via drill override in mm.
     pub via_drill: Option<f64>,
     /// Via outer diameter override in mm.
@@ -619,6 +642,7 @@ impl RoutingEditRouteArgs {
             },
         )?;
         command.search_evidence = self.search_evidence;
+        command.neck_down = self.neck_down.map(PadNeckDownArgs::command).transpose()?;
         command.pad_escape = self.pad_escape;
         command.congestion_history = self.congestion_history;
         command.critical_nets = critical_nets(project, &self.critical_nets)?;

@@ -6,7 +6,7 @@ use std::ops::ControlFlow;
 use std::time::Instant;
 
 use librepcb_autoroute::{
-    Connection, Error, Hole, LayerScope, NetId, Obstacle, RoutingOrder, RoutingProblem,
+    Connection, Error, Hole, LayerScope, NeckDown, NetId, Obstacle, RoutingOrder, RoutingProblem,
     RoutingResult, RoutingRules, Shape, Terminal, TerminalId, UnroutedReason, route,
     route_with_progress,
 };
@@ -604,6 +604,59 @@ fn checked_pad_escape_crosses_a_gap_hidden_by_the_coarse_grid() {
     assert!(improved.is_complete(), "{improved:?}");
     assert_eq!(improved.stats.grid_pitch, baseline.stats.grid_pitch);
     assert_clean(&p, &improved);
+}
+
+#[test]
+fn neck_down_escapes_the_pad_and_keeps_the_main_trace_wide() {
+    let mut p = RoutingProblem::new(
+        rect_outline(12.0, 10.0),
+        vec![Layer::TOP_COPPER],
+        RoutingRules {
+            grid_pitch: Some(pos(0.1)),
+            trace_width: pos(0.35),
+            pad_escape: true,
+            ..Default::default()
+        },
+    );
+    let n = net(1);
+    let a = smd(&mut p, n, 4.5, 5.0, 0.5, 0.3);
+    let b = smd(&mut p, n, 8.0, 5.0, 0.5, 0.3);
+    p.pad_terminals.extend([a, b]);
+    for (low, high) in [(-1.0, 4.675), (5.325, 11.0)] {
+        p.add_obstacle(Obstacle::keepout(
+            Shape::rect(pt(5.0, (low + high) / 2.0), mm(0.1), mm(high - low)),
+            LayerScope::All,
+        ));
+    }
+    p.connect(a, b);
+    assert!(!route(&p).unwrap().is_complete());
+
+    let mut neck = NeckDown {
+        width: pos(0.2),
+        max_length: pos(0.5),
+    };
+    p.rules.neck_downs.insert(n, neck);
+    assert!(
+        !route(&p).unwrap().is_complete(),
+        "a short escape cannot cross the wall"
+    );
+
+    neck.max_length = pos(0.9);
+    p.rules.neck_downs.insert(n, neck);
+    let improved = route(&p).unwrap();
+    assert!(improved.is_complete(), "{improved:?}");
+    assert_clean(&p, &improved);
+    let segments = &improved.routes[0].segments;
+    assert_eq!(segments.first().unwrap().width, pos(0.2));
+    assert_eq!(segments.last().unwrap().width, pos(0.35));
+    assert!(
+        segments
+            .iter()
+            .filter(|s| s.width == pos(0.2))
+            .map(|s| (s.end - s.start).length().to_nm())
+            .sum::<i64>()
+            <= neck.max_length.to_nm()
+    );
 }
 
 #[test]

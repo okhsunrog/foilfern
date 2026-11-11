@@ -317,6 +317,7 @@ impl<'a> Inputs<'a> {
     pub(super) fn routing_rules(&self) -> RoutingRules {
         let default = RoutingRules::default();
         let mut net_trace_widths = std::collections::BTreeMap::new();
+        let mut neck_downs = std::collections::BTreeMap::new();
         if self.options.trace_width.is_none() {
             for net in self.circuit.net_signals().values() {
                 let class = self.circuit.net_class(net.net_class());
@@ -325,11 +326,31 @@ impl<'a> Inputs<'a> {
                 }
             }
         }
+        if let Some(neck) = self.options.neck_down {
+            for net in self.circuit.net_signals().values() {
+                let class = self.circuit.net_class(net.net_class());
+                let class_minimum = class.map_or(Length::ZERO, |c| *c.min_copper_width());
+                let effective = (*neck.width)
+                    .max(class_minimum)
+                    .max(*self.drc.min_copper_width());
+                let width = PositiveLength::new(effective).expect("requested width is positive");
+                if width < self.trace_width(class).effective() {
+                    neck_downs.insert(
+                        net.uuid(),
+                        librepcb_autoroute::NeckDown {
+                            width,
+                            max_length: neck.max_length,
+                        },
+                    );
+                }
+            }
+        }
         let clearance = self.copper_clearance_base(self.largest_class_copper_minimum());
         let via_drill = self.via_drill().effective();
         RoutingRules {
             trace_width: self.trace_width(None).effective(),
             net_trace_widths,
+            neck_downs,
             clearance: clearance.length + CLEARANCE_MARGIN,
             board_clearance: self.copper_board_clearance().length + CLEARANCE_MARGIN,
             npth_clearance: self.copper_npth_clearance().length + CLEARANCE_MARGIN,

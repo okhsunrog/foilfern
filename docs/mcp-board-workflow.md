@@ -168,6 +168,15 @@ trace length. Preview the recommended ID or choose another. Applying a
 candidate that changes the board makes the other IDs stale; discard them
 to free their slots.
 
+Use `neck_down` for short pad escapes on a wider net. For example,
+`{"nets":["V3V3"],"neck_down":{"width":0.2,"max_length":1.0}}`
+uses the net-class width for the main route and allows up to 1 mm
+of reduced width at each pad. The board and net-class DRC minima
+raise the requested narrow width when necessary. Inspect
+`routing.trace_width_profile` in the candidate for the total length
+at each width and the exact reduced-width segments. Profile dimensions
+and segment coordinates use integer nanometers, like the mutation preview.
+
 Use `routing_diagnose` with `net` to inspect remaining endpoint access and
 local clearance blockers. It accepts the builtin `grid_pitch`,
 `trace_width`, and `layers` options. `probe_length` sets the length in mm

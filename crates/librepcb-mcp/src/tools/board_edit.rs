@@ -1337,6 +1337,7 @@ pub(crate) fn builtin_command(
         via_cost: None,
         search_evidence: false,
         pad_escape: false,
+        neck_down: None,
         congestion_history: false,
         order: None,
         critical_nets: Vec::new(),

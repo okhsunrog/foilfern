@@ -497,3 +497,33 @@ The portable `routing-baseline.zip` in the experiment deliverables has
 SHA-256 `47876d3e09a84f58d39eea5ff67aa29693467a00c52034a7e5d93e16dcc9619d`.
 It retains the benchmark placement. The separate finished project also
 shifts C10 and its local ground via for assembly clearance.
+
+### Short pad escapes on a wide net
+
+Pass `neck_down: {"width":0.2,"max_length":1.0}` to a reviewed builtin
+trial to allow a short reduced-width escape from a pad to a grid point
+that accepts the full trace width. Both values are in mm. An escape is
+straight or has one 45° bend. Its length is also bounded by 24 grid pitches.
+The exact checks apply the width of each segment. A cost penalty favors
+ordinary escapes, and the main A* search uses the full width.
+
+The STM32 buck benchmark has 15 open `V3V3` connections before routing.
+With the other nets still open, the same placement and 0.1 mm grid gave:
+
+| Trace widths | Remaining V3V3 | New DRC errors | New trace length |
+| --- | ---: | ---: | --- |
+| 0.20 mm throughout | 0 | 0 | 81.826 mm at 0.20 mm |
+| 0.35 mm throughout | 10 | 0 | 44.135 mm at 0.35 mm |
+| 0.35 mm with short pad escapes | 0 | 0 | 76.956 mm at 0.35 mm, 5.105 mm at 0.20 mm |
+
+In a second trial with existing signal copper fixed, rerouting the 15
+V3V3 connections left two open at 0.20 mm or with the mixed-width option,
+and ten at 0.35 mm. The mixed-width candidate added 93.804 mm at
+0.35 mm and 3.264 mm at 0.20 mm. In both trials, applying the mixed-width
+candidate reproduced the preview metrics and the widths survived native
+save and reopen.
+
+After routing the remaining nets in the power-first trial, upstream
+LibrePCB found one open GND connection at U1.23. The fixed-copper trial
+still had two open V3V3 connections, including U1.21. Both upstream checks
+reported zero ERC findings and no DRC errors other than the open connections.

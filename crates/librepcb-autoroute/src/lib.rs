@@ -70,7 +70,7 @@ use std::ops::ControlFlow;
 
 pub use error::{Error, Result};
 pub use problem::{
-    Connection, Hole, LayerScope, NetId, Obstacle, PreferredDirection, RoutingOrder,
+    Connection, Hole, LayerScope, NeckDown, NetId, Obstacle, PreferredDirection, RoutingOrder,
     RoutingProblem, RoutingRegion, RoutingRules, Shape, Terminal, TerminalId,
 };
 pub use result::{

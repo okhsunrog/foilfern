@@ -335,6 +335,10 @@ fixed. It ranks initial orders by DRC, connectivity (including critical nets),
 via count and total trace length, retains exact candidates, and recommends a
 candidate without applying it. See [routing_compare](mcp-design.md#reviewed-builtin-routing).
 
+The optional `neck_down` rule lets a short pad escape use a smaller width
+before joining a full-width grid path. The preview reports the reduced
+segments and lengths by net. See [the mixed-width STM32 replay](mcp-routing-reliability.md#short-pad-escapes-on-a-wide-net).
+
 The opt-in congestion history records contested grid tiles after successful
 rip-ups and raises their costs in later soft searches. See [the DC/DC replay](mcp-routing-reliability.md#congestion-history-and-stm32-with-a-buck-converter).
 
@@ -383,6 +387,10 @@ checks only after ordinary routing and topology are reliable. Numerical helpers
 can come from `pcb-toolkit` through a unit-checked boundary, with model name,
 validity range and validation status exposed. Formula output is not a field
 solver or proof of whole-board signal integrity.
+
+Evaluate teardrops at pad and via entries as a separate copper operation.
+Preview the additional copper and verify its net connection and clearances
+in the native board format.
 
 Keep fixed synthetic problems, real native boards and independent verification.
 Compare algorithm-only, agent-guided fixed placement and permitted placement
