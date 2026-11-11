@@ -33,7 +33,7 @@ pub struct RoutingPrepareArgs {
     /// Allowed copper layers, e.g. top/bottom; empty means all.
     pub layers: Vec<String>,
     #[serde(default)]
-    /// Trace width in mm; defaults to effective board/net-class rules.
+    /// Trace width in mm for all selected nets. Omit to honor each net class.
     pub trace_width: Option<f64>,
     #[serde(default)]
     /// Via drill diameter in mm; clamped to the board minimum.
@@ -577,7 +577,7 @@ pub struct RoutingEditRouteArgs {
     /// Allowed copper layers. Empty means all.
     #[serde(default)]
     pub layers: Vec<String>,
-    /// Trace width override in mm.
+    /// Trace width in mm for all selected nets. Omit to honor each net class.
     pub trace_width: Option<f64>,
     /// Via drill override in mm.
     pub via_drill: Option<f64>,

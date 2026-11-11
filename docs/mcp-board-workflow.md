@@ -64,6 +64,10 @@ Set `board_set_outline` and `design_rules_set` before routing. `inner_layers`
 counts inner copper layers: `0` means two total layers, `2` means four.
 Set clearances, widths and drill sizes from the fabrication requirements.
 `net_class_set` assigns routing dimensions to selected nets.
+Omit `trace_width` from builtin routing requests to honor the per-net
+widths. An explicit value applies to all selected nets. A net class sets
+the default for future routing, so use `trace_update` or reroute selected
+connections to change existing copper. Check DRC after resizing.
 
 Use `board_polygon_add` for graphics or cutouts: pass a LibrePCB board layer
 ID such as `top_legend` or `brd_cutouts` and at least three vertices in
@@ -99,7 +103,9 @@ errors stay visible; `complete` can still have `drc_clean: false`. Inspect
 the candidate or undo the whole operation before trying another approach.
 
 Add copper planes with `plane_add`, rebuild with `planes_rebuild`, and run
-`drc_run`. Inspect both board sides with `render`. Resolve errors and review
+`drc_run`. Use `plane_set_outline` with the plane UUID and replacement
+vertices to change the extent of an existing pour. Inspect both board
+sides with `render`. Resolve errors and review
 warnings; a zero error count alone does not validate the physical design.
 
 ## Save and deliver

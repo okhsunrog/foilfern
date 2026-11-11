@@ -843,6 +843,17 @@ impl LibrePcbMcp {
     }
 
     #[tool(
+        description = "Replace the outline of an existing copper plane by UUID using vertices in mm. Preserves its net and fill settings. Rebuild planes to inspect the fill."
+    )]
+    async fn plane_set_outline(
+        &self,
+        Parameters(args): Parameters<board_edit::PlaneSetOutlineArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| board_edit::plane_set_outline(s, args))
+            .await
+    }
+
+    #[tool(
         description = "Set board design rules (default trace width, via drill) and DRC \
                        minimums (clearances, widths, drills) in mm, or the inner layer count."
     )]

@@ -9,15 +9,15 @@ use std::collections::BTreeSet;
 use librepcb_core::fileio::{CleanFileNameOptions, FileNameCase, FilePath};
 use librepcb_core::geometry::Path;
 use librepcb_core::project::board::PlaneConnectStyle;
-use librepcb_core::project::{BoardId, ComponentInstanceId, Project};
+use librepcb_core::project::{BoardId, ComponentInstanceId, PlaneId, Project};
 use librepcb_core::types::{
     Angle, ElementName, Layer, Length, Point, PositiveLength, UnsignedLength,
 };
 use librepcb_editor::commands::{
     AddBoard, AddBoardPolygon, AddDevice, AddPlane, AddTrace, AddVia, AutoPlaceDevices, Autoroute,
-    BoardSelection, EditBoardSettings, EditTraceWidths, ImportSpecctraSession, MessageLevel,
-    MoveDevice, NetRef, PadRef, PlaneSettings, RemoveBoardItems, ReplaceDevice, SetBoardOutline,
-    SpecctraExportManifest, TraceEndpoint, closed_path, export_specctra_dsn,
+    BoardSelection, EditBoardSettings, EditPlane, EditTraceWidths, ImportSpecctraSession,
+    MessageLevel, MoveDevice, NetRef, PadRef, PlaneSettings, RemoveBoardItems, ReplaceDevice,
+    SetBoardOutline, SpecctraExportManifest, TraceEndpoint, closed_path, export_specctra_dsn,
 };
 use librepcb_editor::routing_validation::{
     RoutingSnapshot, RoutingValidation, capture_routing_state,
@@ -1023,6 +1023,70 @@ pub fn plane_add(session: &mut Session, args: PlaneAddArgs) -> ToolResult<ToolOu
             layer.id()
         ),
         result,
+    )
+}
+
+/// Arguments of `plane_set_outline`.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlaneSetOutlineArgs {
+    /// UUID of an existing copper plane from board_get.
+    pub plane: String,
+    /// Outline vertices in board millimeters. Closed automatically.
+    pub outline: Vec<PointMm>,
+    /// Board name, index or UUID (default: first board).
+    pub board: Option<String>,
+    /// Fail with stale_revision if the project revision differs.
+    pub expected_revision: Option<u64>,
+}
+
+/// Edit the outline of an existing pour while retaining its ID and rules.
+pub fn plane_set_outline(
+    session: &mut Session,
+    args: PlaneSetOutlineArgs,
+) -> ToolResult<ToolOutput> {
+    let board = board_id(session.project()?.project(), args.board.as_deref())?;
+    let plane = PlaneId(resolve::required_uuid(&args.plane, "plane")?);
+    let points = args
+        .outline
+        .into_iter()
+        .map(PointMm::to_point)
+        .collect::<ToolResult<Vec<_>>>()?;
+    if points.iter().collect::<BTreeSet<_>>().len() < 3 {
+        return Err(ToolError::invalid(
+            "A plane outline needs at least three distinct points.",
+        ));
+    }
+    let done = write(
+        session,
+        "plane_set_outline",
+        args.expected_revision,
+        |editor| {
+            Ok(editor.execute(EditPlane {
+                board: Some(board),
+                plane,
+                net: None,
+                layer: None,
+                outline: Some(closed_path(&points)),
+                settings: PlaneSettings::default(),
+            })?)
+        },
+    )?;
+    let open = session.project()?;
+    let updated = open
+        .project()
+        .board(board)
+        .and_then(|board| board.plane(plane))
+        .ok_or_else(|| ToolError::not_found("Updated plane was not found."))?;
+    done.output(
+        open,
+        "Updated plane outline. Rebuild planes to inspect the fill.",
+        json!({
+            "uuid": plane.0,
+            "layer": updated.layer().id(),
+            "net": updated.net().map(|id| resolve::net_name(open.project(), id)),
+            "outline": views::path(updated.outline()),
+        }),
     )
 }
 
