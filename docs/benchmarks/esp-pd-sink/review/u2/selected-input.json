@@ -1,0 +1,129 @@
+{
+  "placements": [
+    {
+      "component": "C29",
+      "position": {
+        "x": 109.5,
+        "y": -132.4
+      },
+      "rotation": 0
+    },
+    {
+      "component": "C30",
+      "position": {
+        "x": 114.5,
+        "y": -128.9
+      },
+      "rotation": 180
+    }
+  ],
+  "remove_traces": [
+    "5cf4bae3-92d5-4ffa-8d7a-5f581faabe34",
+    "f7d8eec7-d922-4bfe-8133-58a29dc866f1",
+    "8e43a6c2-c0bf-47d0-885d-7794fb7c9501",
+    "a20780b6-1aa6-442e-963f-1f45f320b731",
+    "d0be0e6d-ee9a-498d-ad9c-75d457fa8f00",
+    "14f302b5-cea2-4ded-a6ce-0be09fa11858",
+    "f1bcf9f4-d939-433d-8c66-81d602941dfa",
+    "035db995-f068-4764-8906-81aef29c985e",
+    "b30dbb90-5408-4941-b315-f99ef404d39d",
+    "c99aef5f-816c-4224-b72d-f0ba01d1914e",
+    "d9b31c9a-b585-4471-8e54-4059efff4b1f"
+  ],
+  "remove_vias": [
+    "e917781a-88cc-4c46-bfa8-f17206aebee0",
+    "4d4d675e-9106-41cd-bcf3-5540ff47f9d0"
+  ],
+  "vias": [
+    {
+      "label": "c29-ground",
+      "net": "GND",
+      "position": {
+        "x": 108.4,
+        "y": -132.4
+      },
+      "drill": 0.3,
+      "size": 0.6
+    },
+    {
+      "label": "c30-ground",
+      "net": "GND",
+      "position": {
+        "x": 115.65,
+        "y": -128.9
+      },
+      "drill": 0.3,
+      "size": 0.6
+    }
+  ],
+  "traces": [
+    {
+      "from": "C29.2",
+      "to": "U2.3",
+      "layer": "top",
+      "width": 0.4
+    },
+    {
+      "from": "C29.1",
+      "to": {
+        "via": "c29-ground"
+      },
+      "layer": "top",
+      "width": 0.3
+    },
+    {
+      "from": "C30.1",
+      "to": {
+        "via": "c30-ground"
+      },
+      "layer": "top",
+      "width": 0.2
+    },
+    {
+      "from": "C30.2",
+      "to": "30630c78-f78f-453e-926d-5bed41be1cae",
+      "layer": "top",
+      "width": 0.4,
+      "points": [
+        {
+          "x": 113.82,
+          "y": -128.7
+        }
+      ]
+    },
+    {
+      "from": "8479d907-f727-49f0-adee-c259d6c18995",
+      "to": "77e15941-d453-49fd-a868-8e39ccf3f19c",
+      "layer": "top",
+      "width": 0.4
+    },
+    {
+      "from": "e877e657-9a74-4c2d-9d59-3aae80ab879b",
+      "to": "ea69abd0-486f-461f-a376-34eb643da130",
+      "layer": "top",
+      "width": 0.18,
+      "points": [
+        {
+          "x": 107.6,
+          "y": -132.2
+        },
+        {
+          "x": 107.6,
+          "y": -133.2
+        },
+        {
+          "x": 108.0,
+          "y": -133.6
+        },
+        {
+          "x": 111.1,
+          "y": -133.6
+        },
+        {
+          "x": 111.5,
+          "y": -133.2
+        }
+      ]
+    }
+  ]
+}

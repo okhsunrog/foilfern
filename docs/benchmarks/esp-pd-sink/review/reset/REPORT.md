@@ -1,5 +1,8 @@
 # OLED RESET placement and routing
 
+Subsequent work: [U2 decoupling is completed](../u2/REPORT.md). Use that report
+for the latest native board and the next Kelvin-routing step.
+
 2026-11-11. Continues the [first batch](../REPORT.md) at `f58b690`. The input is
 that batch's combined board, not the original unmodified handoff project.
 
