@@ -45,6 +45,29 @@ copper. The second change must report new clearance errors and `partial`.
 Invalid selections and stale revisions leave geometry and history unchanged;
 repeating the same width does not add an undo entry.
 
+## Native STM32 replay
+
+At `9aa62e3`, the frozen final project was copied into an isolated stdio
+session without a workspace or network library lookup. After removing its
+old routing, a built-in run with 0.1 mm grid, 0.2 mm traces and 0.3/0.6 mm
+via dimensions reduced actual air wires from 57 to 1. Full model checks
+found zero copper errors before and after, no new non-connectivity errors,
+and an unchanged netlist. The result correctly remained `partial`.
+
+Upstream LibrePCB independently opened the saved candidate and agreed:
+one missing `V3V3` connection to `U1.21`, two silkscreen warnings, and no
+other DRC errors. ERC reported an unused-net-class hint. A subsequent
+V3V3-only pass on a 0.05 mm grid left the same one connection outstanding.
+This is evidence for the applied-result checks and the explicit via fix;
+the final placements differ from earlier experimental attempts, so these
+counts are not an isolated router-performance comparison.
+
+Two bounded manual probes on separate copies were reverted. A normal
+escape from `U1.21` crossed GND copper and failed clearance. Bridging the
+adjacent same-net `U1.20` did not reduce the air-wire count, since it was
+already in the same connected segment. The remaining routing-access case
+is preserved; a grid or endpoint-conversion root cause has not been proven.
+
 ## Applied-result contract
 
 `autoroute` (both backends) and `specctra_import` return `result.validation`:
