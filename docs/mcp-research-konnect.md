@@ -1,9 +1,29 @@
 # Lessons from Konnect (KiCad MCP server) for our MCP
 
-Research notes for roadmap milestone M1.5, from studying
+Historical research for the original M1.5 milestone, from studying
 [Konnect](https://github.com/mixelpixx/Konnect), an MCP server for KiCad
 (Rust, ~226 tools in 21 toolsets, v0.12.1 at the time). Paths below are
-relative to that repository.
+relative to that repository. External-project details describe that research
+snapshot, not a current audit of Konnect. Adopt/avoid lists below are the original
+design input, not a claim that every proposed feature shipped.
+
+## Current disposition (2026-11-11)
+
+- Standalone and embedded hosts share `Arc<parking_lot::Mutex<OpenProject>>`,
+  the editor undo stack and native project ownership. Both hosts are implemented.
+- Schema-derived dispatch, structured errors, read-back, revision checks,
+  library database search and rendered feedback are implemented; see the
+  [current MCP contract](mcp-design.md).
+- Reviewed routing has detached prepare/preview/apply, full model checks and
+  exact retained patches. This is not a universal plan/apply API for every write.
+- The board workflow is an embedded MCP resource. A client-specific skill
+  installer, general observability ring buffer and persistent intent system are
+  not established by these research notes.
+- The server registers 79 tools at `f3c3fda`; the original under-60 aspiration
+  did not hold. Avoid duplicate APIs and evaluate response size and usefulness.
+- Build provenance, declarative updates and sourced persistent requirements now
+  have concrete P0–P2 gates in the [roadmap](roadmap.md). Technical constraints
+  should still reuse native rules where the semantics match.
 
 ## Konnect in short
 
@@ -72,20 +92,20 @@ relative to that repository.
 ## Hard for them because of KiCad, and our position
 
 - Live GUI vs saved file ambiguity: avoided if MCP runs inside the app on
-  the shared `Arc<RwLock<Project>>`; a standalone server must honor
+  the shared `Arc<parking_lot::Mutex<OpenProject>>`; a standalone server must honor
   `DirectoryLock` (which stores user/host/PID, unlike KiCad's lock files).
 - Formatting-preserving text edits: avoided, we have a canonical serializer.
 - ERC/DRC via subprocess and JSON parsing: avoided, they run in-process.
 - Invalid data reaching the editor: avoided, validation on every mutation.
-- Library search by walking library tables: still to solve with the SQLite
-  library index (M1.5).
+- Library search by walking library tables: our SQLite workspace library index
+  and project-library search are now implemented.
 
-## Decisions (agreed with the user)
+## Original decisions and implementation notes
 
 1. **Process model**: one MCP crate, two hosts. First a standalone
    `librepcb-mcp` that owns the project and takes the upstream-compatible
-   `DirectoryLock`; later the same server embedded in the Slint app on the
-   shared `Arc<RwLock<Project>>`, so the user can watch the agent work.
+   `DirectoryLock`; the same server is now embedded in the Slint app on the
+   shared `Arc<parking_lot::Mutex<OpenProject>>`, so the user can watch edits.
 2. **Undo**: one shared history with labeled groups; each agent tool call is
    one group ("AI: …") that the user can revert as a unit.
 3. **Granularity**: intent-level, batch-native tools on top of `Mutation`,
@@ -95,8 +115,9 @@ relative to that repository.
    `librepcb-mcp init` (installer still planned). The client-independent
    board workflow is now embedded as `librepcb://guides/board-design`, a
    standard MCP resource available over stdio and HTTP without installation.
-5. **Toolsets**: no dynamic loading at first; keep the surface under about
-   60 tools.
+5. **Toolsets**: no dynamic loading. The original under-60 target is historical;
+   current tools are listed in the MCP design and advertised schemas.
 6. **Design rules**: technical constraints only in LibrePCB's own
    `BoardDesignRules`/settings (visible to upstream); free-text design intent
-   in a small separate project file, which upstream keeps untouched.
+   in a separate project-associated representation (planned, not implemented).
+   Preservation by upstream must be demonstrated before relying on that storage.

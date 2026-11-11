@@ -1,584 +1,266 @@
 # Project model design
 
-Design of `librepcb_core::project` (port of `libs/librepcb/core/project`).
-Everything else in the editor stack (schematic/board editors, undo/redo, the
-command bus shared by UI, CLI and MCP) builds on it, so this document states
-decisions, not options. Upstream is a densely linked object graph (raw
-back-pointers, `register*()`/`addTo*()` bookkeeping, `isAddedTo*` flags,
-`ScopeGuardList` rollback, Qt signals). The port replaces it with a plain
-data tree keyed by the UUIDs the file format already has, one private
-reverse index, and a change journal.
+Current architecture of `librepcb_core::project` and the editor layer, reviewed
+2026-11-11. The upstream behavioral reference is `libs/librepcb/core/project`.
+This document describes implemented ownership and invariants; new declarative
+updates and requirements are planned in [the roadmap](roadmap.md).
+
+The model replaces upstream's pointer graph, registration callbacks and Qt
+signals with owned UUID-keyed data, private reverse indices and a change journal.
+Native serialization and interoperability remain hard requirements.
 
 ## 1. Storage and identity
 
-**Tree of plain data, `BTreeMap<Uuid, T>` for every UUID-keyed collection.**
+[`Project`](../crates/librepcb-core/src/project/project.rs) owns the transactional
+directory, file name and UUID, metadata/settings, save/open time, typed output
+jobs, stroke fonts, project library, circuit, ERC approvals, ordered schematics
+and boards, reverse index and change journal. Its revision comes from the journal;
+there is no independent persistent revision field in the project file.
 
-```rust
-pub struct Project {
-    directory: TransactionalDirectory,      // project root
-    file_name: String,                      // "*.lpp"
-    metadata: ProjectMetadata,              // uuid, name, author, version, created, attributes
-    settings: ProjectSettings,              // locale/norm order, custom BOM attrs, lock default
-    output_jobs: OutputJobList,             // project/jobs.lp (`job` module)
-    stroke_fonts: StrokeFontPool,
-    library: ProjectLibrary,
-    circuit: Circuit,
-    erc_approvals: BTreeSet<SExpression>,
-    schematics: Vec<Schematic>,             // page order = index file order
-    boards: Vec<Board>,                     // first = primary board
-    refs: RefIndex,                         // §2, private
-    journal: ChangeLog,                     // §5
-    revision: u64,
-}
+- UUID-keyed collections use `BTreeMap`/`BTreeSet`. Their deterministic ordering
+  matches the native UUID-sorted serialization without a second identity system.
+- Page/board order, assembly variants, attributes and other ordered lists retain
+  their explicit list order. The first board is the primary board.
+- Typed IDs (`BoardId`, `ComponentInstanceId`, `NetSignalId`, etc.) wrap the UUIDs
+  used by native files. Composite references include the owning instance/segment.
+  A library pad UUID alone does not identify a placed physical pad.
+- Designators and names are lookup/display labels. Renaming an entity does not
+  change its UUID. Undo restores the original identities and list positions.
+- References are IDs rather than pointers. `ProjectView` borrows the library and
+  circuit for computations which need context; items have no parent back-pointers.
+- Symbols and devices derive pin/pad views from library mappings and placement.
+  Standalone board pads are persistent items. Derived views are not another
+  editable set of model objects.
+- Boards and schematics contain typed items and a directory name; they do not
+  own separate transactional directory handles or preserve the whole native
+  document as an unparsed `raw` payload.
 
-pub struct Circuit {
-    assembly_variants: AssemblyVariantList,             // insertion order (file order)
-    net_classes: BTreeMap<Uuid, NetClass>,
-    net_signals: BTreeMap<Uuid, NetSignal>,
-    buses: BTreeMap<Uuid, Bus>,
-    component_instances: BTreeMap<Uuid, ComponentInstance>,
-}
-pub struct ComponentInstance {
-    uuid: Uuid, name: CircuitIdentifier, value: String,
-    lib_component: Uuid, lib_variant: Uuid,             // resolved via ProjectLibrary
-    attributes: AttributeList, assembly_options: ComponentAssemblyOptionList,
-    lock_assembly: bool,
-    signals: BTreeMap<Uuid, ComponentSignalInstance>,  // key: library signal UUID
-}
-pub struct ComponentSignalInstance { net: Option<Uuid> }  // + nothing else persistent
-
-pub struct Schematic {
-    directory: TransactionalDirectory, directory_name: String,
-    uuid: Uuid, name: ElementName, grid_interval: PositiveLength, grid_unit: LengthUnit,
-    symbols: BTreeMap<Uuid, SchematicSymbol>,
-    bus_segments: BTreeMap<Uuid, SchematicBusSegment>,
-    net_segments: BTreeMap<Uuid, SchematicNetSegment>,
-    polygons: BTreeMap<Uuid, Polygon>, texts: BTreeMap<Uuid, Text>, images: BTreeMap<Uuid, Image>,
-}
-pub struct SchematicNetSegment {
-    uuid: Uuid, net: Uuid,
-    junctions: BTreeMap<Uuid, Junction>,               // geometry types reused as-is
-    lines: BTreeMap<Uuid, NetLine>,                    // anchors = geometry::NetLineAnchor
-    labels: BTreeMap<Uuid, NetLabel>,
-}
-```
-
-Why `BTreeMap<Uuid, _>` and not slotmap/arena keys or `IndexMap`:
-
-- Upstream keeps these in `QMap<Uuid, T*>` and serializes by iterating it,
-  so **file order is UUID order** (verified in `tests/data/projects/*`:
-  nets, components, symbols, segments, junctions, lines, labels, devices,
-  planes, pads, vias, ... are all sorted by UUID string). `BTreeMap`
-  iteration is that order for free; `Uuid: Ord` already matches the string
-  order. Byte-identical save needs no sorting step.
-- UUIDs are stable across load/save/undo: an undone removal re-inserts the
-  same key, and MCP/CLI clients can address entities by the identifiers they
-  see in files. Slotmap keys are neither stable nor meaningful outside the
-  process, so they would have to be mapped to UUIDs everywhere anyway.
-- Deterministic iteration everywhere (upstream iterates `QHash` in a few
-  places where order does not affect files; we get the sorted order,
-  recorded in COMPAT.md where observable, e.g. auto-numbering).
-
-Insertion-ordered collections stay `Vec`/`SerializableObjectList`:
-schematics, boards, assembly variants, attributes, assembly options, parts.
-
-**References are UUIDs, never pointers.** Newtype IDs give type safety
-without changing the representation: `NetSignalId(Uuid)`, `NetClassId`,
-`BusId`, `ComponentInstanceId`, `SchematicId`, `BoardId`, `NetSegmentId`,
-`SymbolId`, `PlaneId`, ... (one `id_type!` macro; `Display`/`FromStr`/
-`ToSExpression` delegate to `Uuid`). Nested items are addressed by path
-structs: `ComponentSignalRef { component, signal }`, `SymbolPinRef { symbol,
-pin }`, `NetPointRef { segment, junction }`. Net line / trace anchors are the
-existing `geometry::NetLineAnchor` and `geometry::TraceAnchor` enums, which
-already carry exactly the file-format references (junction, pin{symbol,pin},
-bus junction, via, pad, footprint pad{device,pad}); no second "resolved"
-anchor type exists. Resolution is a lookup with context:
-`schematic.anchor_position(&anchor, ctx) -> Option<Point>`.
-
-**No back-pointers.** Children do not know their parents. Functions that
-need context take it explicitly, bundled in a read view:
-
-```rust
-pub struct ProjectView<'a> { pub library: &'a ProjectLibrary, pub circuit: &'a Circuit, ... }
-impl SchematicSymbol {
-    pub fn pins<'a>(&'a self, ctx: ProjectView<'a>) -> Result<impl Iterator<Item = SymbolPinView<'a>>>;
-}
-```
-
-**Instances derived from library elements are not stored.** Upstream
-allocates `SI_SymbolPin` per symbol pin and `BI_Pad` per footprint pad, each
-caching position, name, numbers and geometry. Here they are computed views
-(`SymbolPinView`, `FootprintPadView`) built from the placed item, the library
-element and the component's pin-signal / pad-signal maps. This removes the
-largest source of registration code; the only state a pin/pad has that is not
-derivable is "which net lines touch it", which is an index (§2). Standalone
-board pads (`BoardPadData` in a net segment) are stored, as upstream.
-
-`Send + Sync`: everything is owned plain data. `TransactionalDirectory`
-wraps `Arc<TransactionalFileSystem>` with a `Mutex`, already asserted
-`Send + Sync`. `static_assertions::assert_impl_all!(Project: Send, Sync)`
-sits next to the type.
+`Project` and `OpenProject` assert `Send + Sync`. Core model ownership does not
+use `Rc`, `RefCell` or UI callbacks. File-backed library elements use transactional
+filesystem handles; this does not turn individual circuit objects into a locked
+pointer graph.
 
 ## 2. Relationships and reverse lookups
 
-Decision per relation (S = stored index maintained by the mutation API,
-D = computed on demand):
+[`RefIndex`](../crates/librepcb-core/src/project/ref_index.rs) is private to the
+project. It tracks net uses, component uses and bus uses across aggregates.
+Mutation implementations update it; the loader populates the model through the
+validating insertion paths. `Project::is_ref_index_consistent()` compares it
+with a full rebuild and also checks schematic anchor and board pad indices.
 
-| Relation (upstream registration) | Choice | Why |
-|---|---|---|
-| NetSignal → schematic segments, board segments, planes, component signals (`register*NetSegment`, `registerComponentSignal`, `registerBoardPlane`) | S (`RefIndex::net_uses`) | queried by every removal, every rename, ERC for every net, air wire scheduling; on demand would scan all segments of all schematics and boards per query |
-| ComponentInstance → symbols per gate (`registerSymbol`), devices per board (`registerDevice`) | S (`RefIndex::component_uses`) | removal check, "gate already placed", "all symbols in one schematic", primary device, BOM/`getUsedDeviceUuids` |
-| Bus → bus segments | S (`RefIndex::bus_uses`) | same pattern as nets |
-| External anchor → net segment (pin → `SI_NetSegment`, footprint pad → `BI_NetSegment`, bus junction → net segment) | S (per schematic/board `anchor_segments: BTreeMap<ExternalAnchor, NetSegmentId>`) | encodes the invariant "one segment per pin/pad" directly; ERC and scene builders ask it per pin; a scan would be O(lines) per pin |
-| Anchor → lines within its segment (`mRegisteredNetLines`, `isOpen`, junction dots) | D (`segment.lines_at(anchor)`) | segments are small; a line count is a linear scan of tens of lines |
-| ComponentSignal → pins/pads (`registerSymbolPin`, `registerFootprintPad`) | D | derivable from `component_uses` + library maps; needed only by ERC and pad-name display |
-| NetClass → nets, library element → users, device ↔ component | D | rare operations (remove net class, prune library), linear in the circuit |
+| Relationship | Representation |
+| --- | --- |
+| Net to component signals, schematic/board segments and planes | Project reverse index |
+| Component to symbols and placed board devices | Project reverse index |
+| Bus to schematic bus segments | Project reverse index |
+| Schematic external anchors / board footprint pad attachments | Aggregate-local indices |
+| Lines at an anchor within a segment | Computed from that segment |
+| Component signal to library pins/physical pads | Computed from instance and library mappings |
+| Rare dependency queries such as net-class users | Model queries rather than a parallel mutable graph |
 
-```rust
-pub(crate) struct RefIndex {
-    net_uses: BTreeMap<NetSignalId, BTreeSet<NetUse>>,
-    bus_uses: BTreeMap<BusId, BTreeSet<(SchematicId, BusSegmentId)>>,
-    component_uses: BTreeMap<ComponentInstanceId, ComponentUses>,
-}
-pub enum NetUse {
-    ComponentSignal(ComponentSignalRef),
-    SchematicSegment(SchematicId, NetSegmentId),
-    BoardSegment(BoardId, NetSegmentId),
-    Plane(BoardId, PlaneId),
-}
-pub struct ComponentUses {
-    symbols: BTreeMap<Uuid /* gate item */, (SchematicId, SymbolId)>,
-    devices: BTreeSet<BoardId>,      // a board holds at most one device per component
-}
-```
-
-`RefIndex` is private to the `project` module, rebuilt from scratch after
-load (`RefIndex::build(&Project)`), updated incrementally by every mutation
-that adds/removes/re-targets a referencing item, and checked against a full
-rebuild in `debug_assert!` inside tests. Because forward references live in
-different aggregates than the referenced entity (a board segment references a
-circuit net), the index lives on `Project`, not on `Circuit`.
+Indices are accelerators for the authoritative forward references. Clients do
+not edit them directly or infer a new circuit netlist from drawn coordinates.
+Copper connectivity and plane contacts are separate derived geometric checks.
 
 ## 3. Invariants and registration semantics
 
-Upstream has two error classes: `LogicError` for misuse of the object
-lifecycle (not added, added twice, wrong parent) and `RuntimeError` for
-data-level conflicts. The lifecycle class disappears: **an entity exists iff
-it is in its map**. Constructors produce values (`NetSignal::new(uuid,
-net_class, name, auto)`), insertion validates, removal returns the value.
-There is no "constructed but not added" state, so `isAddedToCircuit`,
-`addToSchematic()`/`removeFromBoard()` and the recursive register/unregister
-cascades have no Rust counterpart.
+An entity exists when it is in its owning collection. There is no separate
+constructed/registered/added lifecycle. Validating insertion and mutation paths
+check duplicate identities/names, referenced entities, library mappings,
+anchor nets/layers and net-segment cohesion. Errors are typed and preserve
+upstream messages where compatibility requires them.
 
-Data-level rules become variants of `project::Error` with the upstream
-messages (`tr!` with the upstream class name as context):
+Removal in core is strict. A referenced net/component cannot simply disappear;
+editor commands compose the needed disconnections/removals. Core does not hide
+cascading edits from a caller. Failed individual validating mutations do not
+commit invalid model data. Batch rollback restores prior data using inverses,
+but does not rewind the monotonic change journal (see sections 4 and 5).
 
-| Upstream check | Rust error (checked before mutating) |
-|---|---|
-| duplicate UUID / name / directory name (schematic, board, net class, net, bus, component, assembly variant) | `DuplicateUuid`, `DuplicateName`, `DuplicateDirectoryName` |
-| remove net/component/bus/net class still referenced | `NetSignalInUse`, `ComponentInUse`, `BusInUse`, `NetClassInUse` (via `RefIndex`/scan) |
-| remove schematic that is not empty; remove last assembly variant | `SchematicNotEmpty`, `LastAssemblyVariant` |
-| symbol: gate not in variant / gate already placed / other schematic than sibling symbols / symbol not in library / pin count mismatch | `InvalidSymbolItem`, `SymbolItemAlreadyPlaced`, `SymbolsInDifferentSchematics`, `MissingLibrarySymbol`, `PinCountMismatch` |
-| device: no such device/package/footprint in project library, device ↔ component mismatch, unknown signal in pad-signal map | `MissingLibraryDevice`, ..., `DeviceComponentMismatch` |
-| line/trace to pin/pad of another net; trace layer not on pad; lines of several segments on one pin/pad; both endpoints equal | `AnchorNetMismatch`, `TraceLayerMismatch`, `AnchorInMultipleSegments`, `DegenerateLine` |
-| net segment not cohesive (after add/remove of elements) | `NetSegmentNotCohesive` (connected components via `petgraph::unionfind::UnionFind` over the candidate element set) |
-| change net of component signal while its pins/pads are wired; change net of a used segment | `ComponentSignalInUse`, `NetSegmentInUse` |
-| loader: inexistent net class / net / component / signal, signal defined twice, signal count mismatch, unknown anchor | one variant each, messages verbatim |
+## 4. Mutations, commands and undo
 
-**Check-then-commit replaces `ScopeGuardList`.** Every mutation validates
-against the current model plus the candidate change and only then mutates,
-so a failed mutation leaves the model untouched. Composite operations
-(loading a schematic, adding a net segment with elements) validate the
-composed candidate (e.g. cohesion of `existing ∪ new` elements) before
-inserting anything.
+[`Mutation`](../crates/librepcb-core/src/project/mutation/mod.rs) is serializable
+data. `Project::apply(mutation)` returns the inverse on success. Schematic and
+board item operations are nested `SchematicMutation` and `BoardMutation` variants;
+typed project methods are wrappers around the same implementation.
+`Mutation::Batch` applies in order and returns inverses in reverse order. If a
+step fails, it applies the inverses of earlier steps before returning the error.
 
-**Strict removal, no cascade, exactly as upstream.** Removing a net that
-still has segments fails; the editor removes the segments first (its own
-commands, each individually undoable). This keeps every mutation's inverse a
-single mutation (§4).
+The inverse of a successful mutation must succeed when applied immediately.
+Removal inverses carry removed values so undo preserves identities. Inverses
+are data, not closures. Serialization details live in the source enums rather
+than a second handwritten list of variants in this document.
 
-## 4. Mutation API
+[`ProjectEditor`](../crates/librepcb-editor/src/editor.rs) owns the project,
+library source and undo stack. Intent-level `Command`s execute through a
+`Transaction`. A command starts one labeled group, or joins an already active
+group; a failure rolls back its operations. Empty groups are dropped. Committing
+a new group discards redo; starting and aborting one does not discard redo.
+Undo/redo apply stored inverse operations and keep their inverses for the next
+transition. They restore data, not an earlier revision number.
 
-**Commands are data.** There is one `Mutation` enum; `Project::apply()` is
-the only way to change a loaded project, and it returns the inverse:
+[`Operation`](../crates/librepcb-editor/src/undo_stack.rs) covers more than
+`Mutation`: it also adds/removes file-backed project library elements and
+writes/removes project asset files. Library additions/removals are `Project`
+methods with journal events, not serializable `Mutation` variants. This is why
+a future declarative update which installs parts must use an editor transaction,
+not only a batch of circuit mutations.
 
-```rust
-#[non_exhaustive]
-pub enum Mutation {
-    // circuit
-    AddNetSignal(NetSignal),
-    RemoveNetSignal(NetSignalId),
-    SetNetSignalName { id: NetSignalId, name: CircuitIdentifier, auto: bool },
-    SetComponentSignalNet { signal: ComponentSignalRef, net: Option<NetSignalId> },
-    AddComponentInstance(ComponentInstance),
-    // schematic
-    AddSchematic { schematic: Schematic, index: usize },
-    AddSymbol { schematic: SchematicId, symbol: SchematicSymbol },
-    SetSymbolPlacement { symbol: SymbolRef, position: Point, rotation: Angle, mirrored: bool },
-    AddNetSegmentElements { segment: NetSegmentRef, junctions: Vec<Junction>, lines: Vec<NetLine> },
-    RemoveNetSegmentElements { segment: NetSegmentRef, junctions: Vec<Uuid>, lines: Vec<Uuid> },
-    SetNetSegmentNet { segment: NetSegmentRef, net: NetSignalId },
-    // board
-    AddDevice { board: BoardId, device: BoardDevice },
-    AddBoardNetSegmentElements { .. }, SetPlaneOutline { .. }, ...
-    // project
-    SetProjectMetadata(ProjectMetadata), SetProjectSettings(ProjectSettings), SetErcApproval { .. },
-    Batch(Vec<Mutation>),                 // applied in order, inverted in reverse
-}
+Derived-data updates use `ProjectEditor::update_derived_data()` outside the undo
+history. They can still publish change events. Dirty state is tracked by the
+editor's clean/history state and manual modifications, with pending file-format
+upgrade state in `OpenProject`; revision equality alone is not a dirty-state test.
 
-impl Project {
-    /// Applies `m`; on success returns the mutation that undoes it.
-    /// On error nothing changed (check-then-commit; `Batch` rolls back
-    /// already applied steps with their inverses).
-    pub fn apply(&mut self, m: Mutation) -> Result<Mutation>;
-    pub fn revision(&self) -> u64;
-}
-```
+## 5. Change notification and derived data
 
-Guaranteed invariant: *the inverse of a successful mutation, applied
-immediately afterwards, succeeds*. Removal inverses carry the removed value
-(`RemoveNetSignal(id)` inverts to `AddNetSignal(value)`, `RemoveSchematic`
-inverts to `AddSchematic { schematic, index }`), so undo restores UUIDs and
-list positions and the saved file is identical to before.
+[`ChangeLog`](../crates/librepcb-core/src/project/change.rs) stores a bounded
+sequence of `Change` events (default capacity 4096). It currently uses a vector,
+dropping the older half when full. `Project::revision()` is the latest sequence
+number; one command/mutation may publish multiple events. A lagging consumer of
+`changes_since(cursor)` receives `ChangesSince::Resync` and rebuilds its view.
+`clear()` keeps the revision counter; creation/loading reset it to zero.
 
-Granularity mirrors upstream's `Cmd*` classes (which are the atomic model
-operations upstream already needed for undo): entity add/remove, property
-set, segment element add/remove, net re-targeting. Typed methods
-(`project.add_net_signal(ns) -> Result<NetSignalId>`,
-`project.circuit()`, `project.schematic(id)`, ...) are the readable API;
-`apply` dispatches to `pub(crate)` implementations per area so the enum stays
-the single source of truth. The later command bus is then: `UndoStack {
-groups: Vec<(text, Vec<Mutation /* inverses */>)> }`, and MCP/CLI submit
-`Mutation`s (a serde DTO layer lives in the MCP crate; `Mutation`, `Change`
-and their contained types derive serde unconditionally for the JSON wire format).
+A rollback or edit followed by undo can leave identical persistent geometry
+with a newer revision. Preparation therefore cannot be implemented as temporary
+edits to the live project. Runtime revision numbers are scoped to an open model,
+not durable cross-session version identifiers.
 
-**Derived data** is kept out of the persistent tree and invalidated by
-dirty sets that the mutations maintain (the same events upstream turns into
-`scheduleAirWiresRebuild()` / `invalidatePlanes()`):
+Boards maintain dirty net/layer sets and derived air wires/plane fragments.
+Mutations invalidate these directly; correctness does not depend on a UI consumer
+reading the journal. Plane and air-wire rebuilds are synchronous core operations
+or operate on extracted jobs on caller-provided workers. Consumers must rebuild
+what they need before claiming connectivity or reference coverage.
 
-```rust
-pub struct Board {
-    ...persistent fields...,
-    derived: BoardDerived,   // skipped by PartialEq and by save()
-}
-pub struct BoardDerived {
-    air_wires: BTreeMap<Option<NetSignalId>, Vec<AirWire>>,
-    dirty_air_wire_nets: BTreeSet<Option<NetSignalId>>,
-    plane_fragments: BTreeMap<PlaneId, Vec<Path>>,
-    dirty_plane_layers: BTreeSet<Layer>,
-}
-impl Project {
-    pub fn rebuild_air_wires(&mut self, board: BoardId);            // sync, BoardAirWiresBuilder
-    pub fn plane_job(&self, board: BoardId, layers: Option<&BTreeSet<Layer>>) -> PlaneJob; // snapshot
-    pub fn apply_plane_fragments(&mut self, board: BoardId, result: PlaneFragments); // not undoable
-}
-```
+ERC reads the model. DRC runs on extracted board check data and rebuilt copper.
+Scenes consume the journal incrementally and handle `Resync`. MCP host notices
+and a `tokio::sync::watch` channel notify the application layer; core has no
+async runtime or observer callbacks.
 
-- Air wires: dirty nets are collected per mutation; the editor calls
-  `rebuild_air_wires` after each command batch (upstream `trigger`), the CLI
-  before export. `AirWire { net, p1: TraceAnchor, p2: TraceAnchor }` plus
-  positions.
-- Plane fragments: `PlaneJob` is the ported `JobData` snapshot; the builder
-  runs on a caller thread (rayon per layer, as upstream uses QtConcurrent)
-  and the result is applied through `apply_plane_fragments`, journaled as
-  `Change::PlaneFragments` but never part of undo.
-- Pad geometry, pin positions, symbol/device texts, attribute lookup
-  (`ProjectAttributeLookup`) are pure functions of the model and the
-  library; consumers memoize by `(revision)` if they need to.
-- ERC runs directly on `&Project`. DRC works on an extracted
-  `BoardDrcData` (upstream already does this), so it can run off-thread.
-- Net connectivity for MCP ("netlist") is a query over
-  `circuit.component_instances[*].signals` and `RefIndex::net_uses`; no
-  extra state.
-
-## 5. Change notification
-
-No callbacks in core. `Project` keeps a **change journal**:
-
-```rust
-pub struct ChangeLog { first_seq: u64, entries: VecDeque<(u64, Change)>, capacity: usize }
-#[non_exhaustive]
-pub enum Change {
-    ProjectMetadata, ProjectSettings,
-    NetSignalAdded(NetSignalId), NetSignalRemoved(NetSignalId), NetSignalRenamed(NetSignalId),
-    ComponentInstance { id: ComponentInstanceId, what: ComponentChange },
-    SchematicAdded(SchematicId), SchematicRemoved(SchematicId),
-    Symbol { schematic: SchematicId, id: SymbolId, what: ItemChange },   // Added, Removed, Placement, Texts
-    NetSegment { schematic: SchematicId, id: NetSegmentId, what: SegmentChange }, // Added, Removed, Net, Elements{..}, Labels
-    Device { board: BoardId, component: ComponentInstanceId, what: ItemChange },
-    Plane { board: BoardId, id: PlaneId, what: PlaneChange },
-    AirWires(BoardId), PlaneFragments(BoardId, Vec<PlaneId>),
-    Resync,   // journal overflowed: rebuild everything
-    ...
-}
-impl Project {
-    pub fn changes_since(&self, seq: u64) -> ChangesSince<'_>; // Ok(iterator) or Resync if `seq` fell off the ring
-}
-```
-
-Every `apply` appends the entity-level events that upstream would have
-emitted (`Schematic::symbolAdded` → `Change::Symbol{Added}`,
-`SI_Symbol::onEdited(PositionChanged)` → `Change::Symbol{Placement}`, list
-signals → `Elements{added, removed}`), always after the mutation succeeded,
-and bumps `revision`. Consumers (scene builders, ERC panel, MCP
-subscriptions) pull with their own cursor. The UI loop calls `changes_since`
-after each command batch; async code learns the new revision through a
-`tokio::sync::watch<u64>` the application layer updates after every apply
-(core stays synchronous). The journal is a bounded ring (default 4096
-entries); a lagging cursor gets `Resync`, which every consumer must handle
-anyway (initial build).
-
-Dirty sets for derived data (§4) are computed by the mutations themselves,
-not by re-reading the journal, so the journal is purely an outbound
-interface.
+Attribute-expanded board text depends on save/open time and source paths as
+well as ordinary mutations. Cache and candidate freshness must account for these
+inputs rather than keying everything on revision alone.
 
 ## 6. Concurrency model
 
-Recommendation: **one owner, `Arc<parking_lot::RwLock<Project>>` at the
-application layer, short critical sections, long work on extracted
-snapshots.**
+[`SharedProject`](../crates/librepcb-editor/src/open_project.rs) is
+`Arc<parking_lot::Mutex<OpenProject>>`. `OpenProject` holds the editor, directory
+lock/filesystem, save/upgrade bookkeeping and session-owned `RoutingService`.
+The desktop and embedded MCP share that handle and one undo history. Standalone
+MCP owns an equivalent session; it is not a separate domain implementation.
 
-- The editor thread applies commands under the write lock (microseconds to
-  a few ms). Nothing else ever mutates.
-- MCP handlers (`spawn_blocking`) and CLI take the read lock only to
-  *extract* what they need (JSON netlist, `BoardDrcData`, `PlaneJob`, a
-  `Project::clone()` for an export run) and release it before computing or
-  awaiting. DRC, plane fragments, exports and ERC-on-request all follow
-  upstream's existing `JobData` pattern, so this costs nothing extra.
-- Locks are never nested and never held across `.await`; the rule is
-  documented on the type that owns the lock (editor crate), not in core.
-- Change propagation to async code: the `watch<u64>` revision channel.
+MCP locks workspace before project when both are needed. Ordinary synchronous
+tool work executes under session guards in `spawn_blocking`; that alone does
+not make a long operation release its lock. Detached routing preparation uses
+a separate capture/work/publish path, releasing live guards during search and
+validation. Host callbacks occur after those guards are released. Never hold
+project guards across an await or call state setters while holding those guards.
 
-Rejected: actor/message passing to the owner thread (adds latency and an
-API per query; can be layered on later without changing core),
-`ArcSwap<Project>` copy-on-write (clones the whole project on every edit
-while any reader holds a snapshot), persistent (`im`) collections (a second
-collection API for little gain; `BTreeMap` clones are cheap enough for the
-occasional full snapshot).
+A live interactive undo group makes conflicting MCP writes refuse rather than
+mix operations. GUI and MCP both mutate through the shared editor. Workers own
+snapshots/extracted data; their publication checks source freshness. Concurrency
+limits and cooperative cancellation for routing workers remain roadmap P3.
 
-## 7. Loading and saving
+The original proposal used `RwLock<Project>`. The implemented ownership boundary
+is `Mutex<OpenProject>` because edits include history, file state and candidate
+state. An actor or copy-on-write project model is not currently used.
 
-**Loader** (`project::ProjectLoader`, order identical to upstream
-`ProjectLoader::open`): verify `<name>.lpp` and `.librepcb-project` exist;
-read the format version; reject newer; run file format migrations on the
-`TransactionalDirectory` (the migration agent's code, one call site here,
-producing the same `MigrationLog` HTML); then `metadata.lp`, `settings.lp`,
-`jobs.lp` (typed `job::OutputJobList`), library
-(`library/{sym,pkg,cmp,dev}/<uuid>/` via `TransactionalFileSystem::dirs()`;
-invalid element directories are skipped with a warning, loaded with
-`LibraryBaseElement::open`), `circuit/circuit.lp` (variants, net classes,
-nets, buses, components with signals; each with the upstream error), ERC
-approvals, schematics in `schematics.lp` order, boards in `boards.lp` order,
-user settings (errors → defaults, logged). After a migration: run ERC, keep
-only approvals still produced, `save()`.
+## 7. Loading, saving and detached snapshots
 
-Loading goes through the same validating insertion functions as editing
-(builds `RefIndex` incrementally, same error messages as upstream, which
-also validates while loading); the journal is cleared and `revision` reset
-when `open` returns. Each schematic/board is deserialized into a complete
-value first and inserted once (upstream `addToProject()` validates the
-whole page in one go).
+[`ProjectLoader`](../crates/librepcb-core/src/project/loader/mod.rs) verifies
+native markers/versions, rejects unsupported newer files, performs migrations
+in the transactional filesystem and loads typed jobs, library, circuit,
+schematics, boards and settings. Old-format migration and ERC approval cleanup
+are implemented. Native save writes canonical upstream-compatible documents;
+round-trip fixtures check byte identity where required.
 
-**Saving** (`Project::save(&mut self) -> fileio::Result<()>`) writes the
-same files in the same order as `Project::save()` upstream into the
-transactional file system: `.librepcb-project`, `<name>.lpp`,
-`project/metadata.lp`, `settings.lp`, `settings.user.lp`, `jobs.lp`,
-`circuit/circuit.lp`, `circuit/erc.lp`, `schematics/schematics.lp` +
-`schematics/<dir>/schematic.lp` + `settings.user.lp`, `boards/boards.lp` +
-`boards/<dir>/board.lp` + `settings.user.lp`; then updates `date_time`.
-Committing to disk stays `TransactionalFileSystem::save()`.
+`Project::save()` stages files and updates its save time.
+`TransactionalFileSystem::save()` commits to disk; `OpenProject::save()` uses
+the editor save path and updates its save/upgrade bookkeeping. Removing a board
+or page removes its directory from the overlay; undo can regenerate its native
+files from typed data. The application/editor creation path installs stroke-font
+assets; low-level `Project::create()` does not copy application resources itself.
 
-Element order in files (what must be preserved):
+`Project::snapshot()` copies the current transactional assets/library and
+serializes the current model, including unsaved edits, into an independent
+in-memory transactional filesystem, then loads a new `Project`. It does not
+write the source, acquire a second source lock, or alter live journal/history.
+The snapshot starts at revision zero; callers retain the live base revision
+separately. Derived copper is rebuilt by its consumer. Logical source paths and
+save time are preserved for text attributes without sharing filesystem writes.
 
-| Sorted by UUID (upstream `QMap`) → `BTreeMap` | Insertion order (upstream lists) → `Vec` |
-|---|---|
-| net classes, nets, buses, components, signals per component | assembly variants, attributes, assembly options, parts |
-| symbols, symbol texts, bus/net segments, junctions, lines, labels, polygons, texts, images | schematics, boards (index files and page order) |
-| devices (keyed by component UUID), device stroke texts, pads, vias, traces, planes, zones, polygons, stroke texts, holes | silkscreen layer lists, preferred footprint tags |
-| ERC/DRC approvals (`BTreeSet<SExpression>`, upstream `sortedQSet`) | layer visibility (`BTreeMap<String,bool>`, upstream `QMap<QString,bool>`) |
+Routing candidates freeze mutations generated on this detached editor. They bind
+to the service instance, project/board, live revision and save/path context.
+Apply replays the frozen patch rather than rerunning search. Baseline-check reuse
+is session-local and uses those freshness inputs; candidate and non-empty
+applied-model checks remain fresh. The complete lifecycle, rejection rules and
+post-commit check semantics are in [routing service design](routing-service-design.md).
+Candidates and baseline caches are not native project objects.
 
-**Project library** (`ProjectLibrary { directory, symbols: BTreeMap<Uuid,
-Symbol>, packages, components, devices }`): elements are the existing
-`library` types with their own `TransactionalDirectory` under
-`library/<sym|pkg|cmp|dev>/<uuid>/`. `add_*` copies a foreign element into
-the project's file system immediately (`save_into_parent_directory`, as
-upstream; nothing reaches disk before `save()`), `remove_*` moves its files
-to a temporary directory and returns the element value, so the undo inverse
-(`AddLibraryElement(value)`) restores files and entry. Model objects
-reference library elements by UUID only (`lib_component`, `lib_device`,
-`lib_footprint`, gate → symbol UUID); `MissingLibrary*` errors at insertion
-replace upstream's constructor exceptions.
+## 8. Module ownership
 
-## 8. Module layout and parallel porting
+| Area | Owning source |
+| --- | --- |
+| Project aggregate, snapshots and serialization | `librepcb-core/src/project/project.rs` |
+| IDs, changes, reverse index and library ownership | `librepcb-core/src/project/{id,change,ref_index,library}.rs` |
+| Typed circuit, schematic and board data | `librepcb-core/src/project/{circuit,schematic,board}/` |
+| Validating changes and native loading | `librepcb-core/src/project/{mutation,loader}/` |
+| Electrical and board checks | `librepcb-core/src/project/erc/`, `board/drc/` |
+| Commands, file/library operations and history | `librepcb-editor/src/{editor,undo_stack,open_project}.rs`, `commands/` |
+| Detached routing work and validation | `librepcb-editor/src/routing_service/`, `routing_service.rs`, `routing_validation.rs` |
+| Tool DTOs, dispatch and session orchestration | `librepcb-mcp/src/` |
+| UI event translation and scene presentation | `librepcb-app`, `librepcb-scene`, `librepcb-canvas` |
 
-File names describe the Rust type or concept, without the prefixes the
-module path already implies (AGENTS.md); the upstream file is named in each
-`//! Port of ...` module doc. Types drop the upstream abbreviations
-(`SchematicSymbol`, `SchematicNetSegment`, `BoardDevice`, `BoardNetSegment`,
-`BoardPlane`).
+The initial skeleton/parallel porting assignments are historical. These modules
+contain implementations; new work follows the ownership boundaries rather than
+reintroducing placeholders or a second model for an external algorithm.
 
-```
-crates/librepcb-core/src/project/
-  mod.rs               doc, re-exports; declares all submodules up front
-  id.rs                typed identifiers (id_type!) and path structs (ComponentSignalRef, ...)
-  error.rs             project::Error, EntityKind (one enum, upstream messages)
-  project.rs           Project, ProjectMetadata, ProjectSettings, save(), reverse index queries
-  library.rs           ProjectLibrary, LibraryElementKind (project-local library elements)
-  ref_index.rs         RefIndex, Reference, NetUse, ComponentUses (private index)
-  change.rs            Change, ChangeLog, ChangesSince
-  mutation/            mod.rs (Mutation, apply, Batch, typed wrappers, library add/remove)
-                       circuit.rs, schematic.rs (SchematicMutation), board.rs (BoardMutation)
-  loader/              mod.rs (ProjectLoader: open, migrations hook, metadata/settings/jobs/library/erc)
-                       circuit.rs, schematic.rs, board.rs
-  circuit/             circuit.rs, net_class.rs, net_signal.rs, bus.rs, assembly_variant.rs,
-                       component_instance.rs, component_signal_instance.rs, component_assembly_option.rs
-  schematic/           schematic.rs (Schematic, SchematicProperties), symbol.rs (SchematicSymbol + pin views),
-                       net_segment.rs, bus_segment.rs, change.rs (SchematicChange)
-                       later: polygon/text/image items, net_segment_splitter.rs
-  board/               board.rs (Board, BoardDerived, BoardProperties), device.rs (BoardDevice + pad views),
-                       net_segment.rs, plane.rs, air_wire.rs, change.rs (BoardChange)
-                       later: design_rules.rs, fabrication_output_settings.rs, *_data.rs, zone/polygon/
-                       stroke_text/hole items, air_wires_builder.rs, plane_fragments_builder.rs,
-                       net_segment_splitter.rs, drc/
-  erc/                 later: electrical_rule_check.rs, electrical_rule_check_messages.rs
-```
-
-The skeleton (implemented): ids, `error.rs`, `Project` with
-metadata/settings/save, `ProjectLibrary`, the complete `circuit/`,
-`RefIndex`, `change.rs`, `mutation/mod.rs` + `mutation/circuit.rs`,
-`loader/mod.rs` + `loader/circuit.rs`, and the `Schematic`/`Board`
-containers with their item maps typed against placeholder item structs in
-their final files. Until the items are ported, the loaded `schematic.lp`,
-`board.lp` and the board's `settings.user.lp` are kept verbatim
-(`raw` fields, `#[serde(skip)]`) and written back unchanged, so the
-round-trip test already covers whole projects. Three agents then work
-without touching the same files:
-
-- **schematic items**: `schematic/**` (item structs, `Schematic::references()`,
-  `Schematic::is_component_signal_wired()`, `Schematic::save()` instead of
-  `raw`), `mutation/schematic.rs` (`SchematicMutation` variants and their
-  validation, reverse index updates via `p.refs.insert()/remove()`),
-  `loader/schematic.rs`, `schematic/change.rs` (`SchematicChange`
-  variants), serde derives on the geometry types its items embed.
-- **board items**: `board/**` (item structs, settings, `BoardDerived` with
-  air wires, plane fragments and dirty sets, `Board::save()`),
-  `mutation/board.rs`, `loader/board.rs`, `board/change.rs`, the air wires
-  and plane fragments builders.
-- **file format migrations**: `serialization/file_format_migration*.rs`
-  (raw `SExpression`/file operations) plus the single call site marked
-  `TODO(wave3b/migrations)` in `loader/mod.rs::open` (and the `library`
-  open hook); no dependency on the item types.
-
-Shared files (`mod.rs` re-exports, the top-level `Mutation`/`Change` enums)
-already delegate to the per-area enums, so they need no edits. The
-round-trip test (`tests/unittests/compat/project_roundtrip.rs`: open every project in
-upstream `tests/data/projects`, save, every written file byte-identical)
-stays green as the `raw` passthroughs are replaced by real serialization.
-
-## 9. Crates
+## 9. Representation and implementation choices
 
 | Need | Choice |
-|---|---|
-| UUID-keyed, file-ordered collections | `std::collections::BTreeMap`/`BTreeSet` (no crate; `indexmap` not needed because file order is UUID order, not insertion order) |
-| net segment cohesion, air wires | `petgraph` (already a dependency: `UnionFind` for connected components; `min_spanning_tree` already used by `AirWiresBuilder`) |
-| plane fragments per layer in parallel | `rayon` (already in the lock file via dependencies; add to `librepcb-core` when porting the builder) |
-| errors, thread-safety asserts | `thiserror`, `static_assertions` (existing) |
-| application-level lock | `parking_lot::RwLock` in the editor/MCP crates, not in core |
-| async notification | `tokio::sync::watch` in the app/MCP crates |
-| `Mutation`/`Change` over the wire | `serde` derive, unconditional (core functionality, see "Serde representation"); `serde_json` as dev-dependency for the tests |
-| Not used | `slotmap`/`generational-arena` (unstable keys, §1), `im`/`rpds` (§6), `arc-swap` (§6) |
+| --- | --- |
+| Stable file/object identity and ordering | Typed UUIDs, `BTreeMap`/`BTreeSet`, explicit ordered lists |
+| Segment cohesion and graph algorithms | Existing `petgraph` dependency |
+| Parallel plane work | `rayon` on extracted data |
+| Typed errors and thread-safety assertions | `thiserror`, `static_assertions` |
+| Shared editor ownership | `parking_lot::Mutex<OpenProject>` |
+| Async host notifications | `tokio::sync::watch` outside core |
+| Wire representation | Unconditional serde on `Mutation`, `Change` and contained model values |
 
-## Serde representation
+Serde uses UUID strings (including map keys), integer nanometres for lengths,
+integer microdegrees for angles, and `{x, y}` integer coordinates for points.
+Validated string newtypes serialize as strings; ordered object lists as arrays;
+enums such as mutations are externally tagged. Dates use RFC 3339. Typed MCP
+DTOs convert human-facing mm/degrees at the boundary; raw mutations use core units.
+Use generated schemas for the exact current shape.
 
-`Mutation`, `Change`, the identifiers and every model/value type they
-contain derive `Serialize`/`Deserialize` unconditionally (MCP and CLI
-clients speak this representation). JSON-friendly choices:
+This serde wire form is not the native file format. Native S-expression writers
+preserve ordering, numeric rounding and escaping independently. Project library
+objects own directories and are handled by editor operations instead of pretending
+the entire runtime project can be serialized through the mutation wire schema.
 
-| Type | Wire form |
-|---|---|
-| `Uuid`, all `*Id` newtypes | string, e.g. `"d2c30518-5cd1-4ce9-a569-44f783a3f66a"`; map keys of `BTreeMap<*Id, _>` become JSON object keys |
-| `Length`, `UnsignedLength`, `PositiveLength` | integer nanometers (`2540000`); constraints checked when deserializing |
-| `Angle` | integer microdegrees (`90000000`) |
-| `Point` | `{"x": <nm>, "y": <nm>}` |
-| validated string newtypes (`ElementName`, `CircuitIdentifier`, `BusName`, `FileProofName`, `SimpleString`, `AttributeKey`), `Version`, `LengthUnit`, `Layer`, `AttributeType` | their string / identifier form (`"1.2"`, `"millimeters"`, `"top_cu"`, `"voltage"`), validated when deserializing (`utils::serde_string!`) |
-| `Attribute` | `{"key", "type", "unit" (name or `null`), "value"}`, validated |
-| `SerializableObjectList<T>` | plain array |
-| `DateTime<Utc>` | RFC 3339 (chrono) |
-| `SExpression` (check message approvals) | externally tagged tree (`{"List": {"name": .., "children": [..]}}`) |
-| enums (`Mutation`, `Change`, `NetUse`, ...) | serde's default externally tagged form |
+## 10. Design boundaries and future extensions
 
-Integers instead of the file format's decimal strings because they are
-exact, need no parsing rules on the wire and are what the model stores; a
-client converting to millimeters divides by 10<sup>6</sup>. Non-persistent
-state (`Board::derived`, the verbatim `raw` files) is skipped.
+Stable UUIDs avoid maintaining a second arena-key identity across files, undo
+and MCP. Pull-based changes avoid callbacks/re-entrancy inside core. Explicit
+editor composition keeps destructive cascades visible. Native snapshots preserve
+unsaved state and assets while isolating long experiments from the live editor.
 
-## Skeleton deviations from the sections above
+Roadmap P1/P2 will add reconciliation and requirements. Their implementation must
+resolve human labels to stable identities, preserve native interoperability, cover
+file/library changes in transactions, and invalidate candidate/cache evidence when
+requirements change. There is no implemented persistent intent schema today.
+A future sidecar needs explicit save/archive/undo and upstream-preservation tests;
+its survival cannot be assumed from this architecture alone.
 
-- Project library elements are file backed (`TransactionalDirectory`) and
-  not serializable, so adding/removing them is not a `Mutation` but the
-  methods `Project::add_library_*()` / `remove_library_*()` (journaled as
-  `Change::LibraryElement*`); an undo stack keeps the removed element
-  itself.
-- `Schematic` and `Board` own no `TransactionalDirectory`: the project
-  writes `schematics/<dir>/` and `boards/<dir>/` on save and removes the
-  directory from the transactional file system when a page/board is
-  removed (upstream moves it to a temporary file system; the files are
-  regenerated from the value on undo + save, byte-identical).
-- `project/jobs.lp` is the typed `job::OutputJobList` (replaced as a whole
-  by `Mutation::SetOutputJobs`, journaled as `Change::OutputJobs`);
-  `Project::create()` does not copy the application's fontobene fonts yet
-  (no resources directory port).
-- Projects in an older file format are upgraded by the file format
-  migrations (`serialization::file_format_migrations()`), followed by the
-  ERC approval cleanup (`project::erc::run_erc()`), like upstream.
-- `Project::create()`/`open()` reset the journal, so a fresh project has
-  revision 0; `created` is truncated to seconds (the file format's
-  precision).
+## Verification entry points
 
-## 10. Alternatives considered
+- Core `tests/unittests/project/` covers model operations, indices, journal,
+  detached snapshots and their isolation; `tests/unittests/compat/` covers native
+  round trips, checks and exports against upstream fixtures/oracles.
+- Editor `tests/editor/` covers commands, undo, library/assets and editor FSMs.
+- MCP `tests/mcp/routing_candidates.rs` covers exact preview/apply, stale/session
+  refusal, connected edits, rebuilt-plane regressions and measurements.
+- Application `tests/app/` covers shared editing and headless UI behavior;
+  rendering/desktop acceptance has separate platform requirements.
 
-- **Arena + generational keys (slotmap)**: fast lookups, but keys are not
-  stable across undo/reload and would sit beside the UUIDs the files and
-  MCP clients use; two identities for every entity. Rejected.
-- **`Rc<RefCell>`/`Arc<Mutex>` object graph mirroring upstream**: violates
-  the `Send + Sync`/no-interior-mutability rule and reproduces the
-  registration bookkeeping the rewrite is meant to shed. Rejected.
-- **`IndexMap` (insertion order) + sort on save**: would preserve an order
-  nobody observes, at the cost of a sort per save and non-canonical
-  iteration in algorithms. Rejected.
-- **Mutations returning inverse closures** instead of data: not
-  serializable, not inspectable, not `Send`; the command bus could not
-  batch, coalesce or forward them to MCP. Rejected.
-- **Observer callbacks (`Box<dyn Fn(&Change)>`)** instead of a journal:
-  re-entrancy hazards during `apply`, needs `Send + Sync` closures in the
-  model, and async consumers would need a channel anyway. A pull journal
-  serves UI and MCP with one mechanism.
-- **Cascading removal in the model** ("remove net = remove its segments"):
-  simpler for callers, but makes inverses composite, diverges from upstream
-  error behavior, and hides destructive edits from users. Composite
-  operations belong to the command layer as `Batch`.
-- **Storing pins/pads as objects** (upstream): most of the registration
-  code and cache invalidation exists only to keep them in sync with the
-  library; views computed from the library are simpler and always
-  consistent.
-
-## Open questions (with recommendation)
-
-1. **Type names**: `SchematicSymbol`/`BoardDevice` (recommended) vs
-   upstream-like `SiSymbol`/`BiDevice`. Files stay `si_*.rs`/`bi_*.rs`.
-2. **Concurrency**: `RwLock` + extracted snapshots (recommended, §6) vs an
-   owner-thread actor from the start. Both keep core unchanged; the actor
-   can be layered later.
-3. **Journal retention**: bounded ring of 4096 entries with `Resync`
-   (recommended) vs unbounded until every registered cursor advanced
-   (needs cursor registration API).
-4. **Derived data placement**: inside `Board` as a non-persistent
-   `derived` field (recommended, because DRC and Gerber export read air wires
-   and plane fragments from the board like upstream) vs a separate
-   `DerivedState` map keyed by `BoardId` on `Project`.
-5. **`output_jobs` as raw `SExpression`** until `core/job` is ported
-   (recommended: guarantees byte-identical round trip now) vs porting `job`
-   first. (Done: `job` is ported, `output_jobs` is typed.)
-6. **`serde` on `Mutation`/`Change`**: feature-gated derive in core
-   (cheap, recommended once the MCP crate exists) vs hand-written DTOs in the
-   MCP crate only.
+Run focused tests for the affected boundary and broaden for cross-cutting changes
+as required by AGENTS.md. A skipped optional oracle is not a passing comparison.

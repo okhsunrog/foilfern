@@ -1,7 +1,8 @@
 # MCP server design
 
-Design of `crates/librepcb-mcp` (milestone M1.5), building on the decisions
-in `mcp-research-konnect.md`. Goal: an AI agent designs a simple board end to
+Current contract of `crates/librepcb-mcp`, reviewed 2026-11-11 against `f3c3fda`.
+The [Konnect notes](mcp-research-konnect.md) record its historical rationale;
+the [roadmap](roadmap.md) defines planned work. Goal: an agent designs a board end to
 end through MCP alone — find parts, draw the schematic, place and route the
 board, run ERC/DRC, export manufacturing data — and the result opens in
 upstream LibrePCB.
@@ -52,7 +53,8 @@ wires, device placement, routing helpers) lives in `librepcb-editor`.
   same way. The `ProjectEditor` (editor crate) owns the project, its
   undo stack and the library element source (the workspace library
   database, shared via `Workspace::shared_library_db()`). Unsaved changes
-  are the undo stack's clean state (plus a pending file format upgrade).
+  include the undo stack's clean state, manual modifications and a pending
+  file format upgrade.
   Derived data (plane fragments, air wires) is updated outside the undo
   history through `ProjectEditor::update_derived_data()` (DRC, exports,
   output jobs, `planes_rebuild`). The upstream-compatible directory lock is
@@ -155,7 +157,19 @@ backend and checks the realistic board PDF.
 - Checks never read as passing when they did not run: `run_drc` returns
   `ran: true` and the message list, or an error.
 
-## Tools (first version, < 60)
+## Tool surface
+
+At the reviewed revision, `server.rs` registers 79 tools. The schemas advertised
+by `tools/list` are authoritative; the historical target of fewer than 60 tools
+is no longer an accurate inventory. New operations should reuse domain services
+and batch inputs where appropriate rather than add aliases for existing behavior.
+
+`server_info` currently reports package and file-format versions. Source commit,
+dirty build state, Cargo profile and capability version are planned in P0.
+Declarative reconciliation (P1), persisted enforced requirements (P2), worker
+jobs/cancellation (P3) and visual candidate review (P5) are not current MCP
+capabilities. `routing_compare` already ranks builtin-order candidates; runtime
+candidate capacity does not limit the number of active preparation workers.
 
 Session / project:
 `server_info`, `workspace_open`, `workspace_create`, `project_create`,

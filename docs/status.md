@@ -1,302 +1,160 @@
 # Status and handoff
 
-State of the port as of 2026-11-10, for continuing the work in a new
-session (for example a cloud session). Read `AGENTS.md` first; this file
-covers where things stand and how the work has been organized.
+Reviewed 2026-11-11 against `f3c3fda`, including `work` through `33c4dfb`.
+This is a capability summary, not a claim that every listed check was rerun on
+that commit. Read `AGENTS.md` for repository rules and [roadmap.md](roadmap.md)
+for the next delivery stages and their acceptance criteria.
 
-## Where we are
+## Documentation map
 
-The project editing, MCP, workspace/library, import and application work is
-merged with the physical board renderer and pure-Rust STEP backend. CLI,
-standalone MCP and desktop jobs share the same graphics and CAD exporters.
-The board's interactive Bevy 3D view is connected to Slint. Package-editor 3D
-previews and the coverage gaps in `COMPAT.md` Part 2 remain.
+| Question | Owning document |
+| --- | --- |
+| What works, what remains, where to continue? | This status page |
+| What should be built next, and what counts as done? | [Roadmap](roadmap.md) |
+| How are identity, mutations, history and snapshots represented? | [Project model](project-model-design.md) |
+| What can an MCP caller use today? | [MCP contract](mcp-design.md), runtime `tools/list`, [board workflow](mcp-board-workflow.md) |
+| How are routing candidates prepared, checked and applied? | [Routing service](routing-service-design.md) |
+| What does a reviewed board require? | [Agent PCB workflow](agent-pcb-workflow.md) |
+| What has been measured on real boards? | [Routing replays](mcp-routing-reliability.md), [ESP-PD-Sink index](benchmarks/esp-pd-sink/HANDOFF.md) |
+| What differs from upstream or is still missing? | [COMPAT.md](../COMPAT.md) |
+| Why were the original choices made? | [Konnect research](mcp-research-konnect.md), [historical validation](history/port-validation.md) |
 
-The application is checked headless (Slint software renderer, screenshots,
-embedded HTTP MCP); desktop platform integration (Wayland/X11, clipboard,
-native file dialogs, DPI and Slint GPU rendering) remains a separate manual pass.
-Bevy's offscreen GPU rendering is checked separately from Slint presentation.
+Keep current contracts here and in their owning documents. Historical reports
+retain their original inputs, limitations and measurements; they do not define
+the next task merely because their last paragraph once said "next".
 
-Done, in `crates/librepcb-core` unless noted:
+## Implemented foundation
 
-- **Base:** types, the S-expression format, the serialization traits, and utils.
-  Upstream Qt semantics are dropped, with the divergences listed in `COMPAT.md`
-  (Part 1).
-- **Geometry, stroke fonts, polygon clipping:** `crates/clipper` is a
-  faithful port of Clipper 1, verified differentially against the C++
-  library.
-- **Attributes, air wires** (literal port incl. upstream's Delaunay
-  library, same tie-breaking as upstream), the math parser (evalexpr),
-  and SQLite.
-- **File I/O** (transactional file system, directory locks, ZIP, CSV) and
-  system info; `crates/librepcb-network` (tokio + reqwest) incl. the
-  library download/installer (api.librepcb.org).
-- **Workspace** (`workspace/`): workspace open/create, settings, the
-  library index (SQLite, schema identical to upstream `cache_v8.sqlite`),
-  scanner and search facade.
-- **Libraries:** all element types and their checks, identical to upstream
-  `librepcb-cli --check`.
-- **Project model** (`project/`): circuit, schematics and boards with
-  mutations, inverses, the reverse index, the change journal and serde.
-  All test projects round-trip byte for byte.
-- **Checks:** ERC and DRC; messages and approvals match `librepcb-cli`
-  on all upstream test projects (DRC: 37/37 boards).
-- **Exports:** plane fragments, Gerber/Excellon, pick & place, Gerber X3,
-  IPC-D-356A, BOM, project JSON, interactive HTML BOM (`interactive-html-bom`
-  crate like upstream); about 1000 files compared byte for byte with
-  `librepcb-cli`. Output jobs (`job`) and the output job runner.
-- **File format migrations** v0.1 → v1 → v2, byte-identical incl. `jobs.lp`.
-- **`crates/librepcb-cli`:** native CLI including standalone STEP loading,
-  CPU tessellation, document minification and library `--minify-step`.
-  Mechanical STEP, realistic graphics, interactive HTML BOM and manufacturing
-  output jobs share core output ownership and archives.
-- **`crates/librepcb-editor`:** undo stack and intent-level commands
-  (components, wiring with forced net names, devices, traces, vias,
-  planes, outline, autorouting) used by MCP and later the UI. The
-  schematic and board editor FSMs (`fsm::schematic`, `fsm::board`) cover
-  all upstream tools and actions (M3d done in the editor crate: buses,
-  images, polygon vertex editing, standalone board pads, DXF import,
-  "find", change device, segment simplification after edits, the tool
-  bar's value attribute, pasting graphics from the library editors,
-  cross-probing outputs; headless scenarios in
-  `tests/editor/{fsm_schematic,board_fsm}_test.rs`); the application tabs
-  expose them (M3d wiring done). M4b
-  groundwork: `library_editor` (element editor with snapshot undo stack,
-  dirty state, interface check, save; commands for symbols, packages,
-  components and devices; check fixes) and `fsm::library` (symbol and
-  package editor FSMs with all upstream tools),
-  headless scenarios in `tests/editor/library_editor_test.rs`; the Slint
-  element tabs are wired (see `librepcb-app` below).
-- **`crates/librepcb-import`:** EAGLE import (parseagle model, type and
-  library converters, library import, project import) and KiCad library
-  import (`*.kicad_sym`, `*.kicad_mod`/`*.pretty`, 3D models), UI
-  independent: element selection with dependency states, wizard options,
-  `Progress` with cancellation and a `MessageLogger` (core
-  `utils::message_logger`). The EAGLE test project is imported byte for
-  byte like upstream's golden sample; imported libraries pass
-  `librepcb-cli open-library --all --strict`. MCP: `library_import`,
-  `project_create` with `eagle_schematic`. The app's import wizards (M4c)
-  and the new project wizard's EAGLE page use it.
-- **`crates/librepcb-autoroute`:** built-in grid A* router with rip-up and
-  exact clearance verification.
-- **`crates/librepcb-scene`:** scene builders for schematics, boards,
-  symbols and footprints on `crates/librepcb-canvas`, headless PNG
-  rendering, and the graphics export (PDF via `pdf-writer`, SVG,
-  PNG/JPEG/BMP; upstream's page layout and realistic board rendering).
-  Schematic and board scenes are updated incrementally from the change
-  journal (`apply_changes()`, `SceneSync`), checked against fresh builds
-  after editor command sequences and seeded random edits.
-- **`crates/librepcb-mcp`:** MCP server (rmcp, stdio/HTTP), see
-  `mcp-design.md`.
-- **`crates/librepcb-i18n`, `tools/ts2po`, `lang/`:** translations from the
-  upstream catalogs.
-- **`crates/librepcb-app`** (binary `librepcb`, M2a + most of M2b):
-  upstream's Slint UI (`ui/`, compiled by the `librepcb-app-ui` crate with
-  Slint master `aebe3dd` / edition 1.20, see `ui/PROVENANCE.md`) with a Rust backend: main window,
-  sections and tabs, home tab (folder tree, recent/favorite projects),
-  themes, about panel, notifications, translations, documents panel,
-  schematic and board 2D tabs rendered through `librepcb-scene` and
-  `librepcb-canvas` (pan/zoom like upstream, grid, layers panel, read-only
-  select/hover), headless screenshots (`--screenshot`) and Slint's MCP
-  server for agents (feature `ui-debug-mcp`, see `docs/ui-design.md`).
-  M2c: embedded LibrePCB MCP server (`--mcp`, status bar toggle) editing
-  the open project live with a shared undo stack, the UI following the
-  agent; M2d: ERC/DRC rule check panel (automatic ERC, background DRC,
-  approvals, zoom to location) and exports/output jobs from the menus.
-  M3a (editing in the tabs) is in place: the schematic and board tabs
-  drive the `librepcb-editor` FSMs (tools, tool bars, overlays, context
-  menus, clipboard with upstream MIME types, cross-probing, undo/redo;
-  `crates/librepcb-app/tests/app/editing.rs`). M3b (project dialogs) is
-  done: generic Slint form dialogs (`src/dialogs/`,
-  `ui/dialogs/formdialog.slint`) for the properties of all schematic and
-  board items the FSMs request (symbol, symbol text, net/bus label
-  rename, polygon, text, device, via, pad, plane, board polygon, stroke
-  text, hole, zone), line width, move/align, board setup, project setup,
-  graphics export, output jobs (all job types), BOM review and the
-  pick&place generator, and the add component dialog
-  (`ui/dialogs/addcomponentdialog.slint`: categories, search, symbol and
-  footprint previews, symbol variant, device); each applies one undo
-  group. Tests: `tests/app/{dialogs,setup_dialogs,output_dialogs}.rs`
-  (headless) and `tests/app/dialog_screenshots.rs` (the dialogs in the
-  headless application, screenshots in `$CARGO_TARGET_TMPDIR`).
-  M3d in the tabs: bus and image tools, board pad tools, DXF import,
-  "find", plane visibility (`tests/app/m3d_tools.rs`). M4a (library
-  management) and M4b (element editors) are done: libraries panel with
-  online libraries and installer, create/download library tabs, library
-  tab, symbol, package, component, device, category and organization
-  tabs with the library FSMs, list panels, properties and chooser
-  dialogs, checks with approvals and autofixes, undo/redo, wizard mode
-  for new elements and saving into the library
-  (`tests/app/{library_management,library_elements}.rs`); see
-  `docs/ui-design.md` (M4) and COMPAT.md Part 2, app, "Library management" /
-  "Library element editors" for the gaps.
-  M3c (project lifecycle) is done: new project wizard (incl. EAGLE project
-  import), directory lock and autosave restore prompts, autosave, file
-  format upgrade notification, project library tab and updater, workspace
-  settings dialog (all tabs, keyboard shortcut overrides, color schemes
-  applied to the scenes), initialize workspace wizard
-  (`tests/app/{lifecycle,workspace_settings,workspace_wizard}.rs`).
-  M4c (EAGLE/KiCad library import wizards on `librepcb-import`) is done
-  (`tests/app/library_import.rs`).
-  Also done: rule check runs remove approvals of disappeared messages
-  (`tests/app/rule_checks.rs`); images, DXF import and "Paste Geometry" in
-  the symbol and package tabs (`tests/app/element_graphics.rs`); automatic
-  and manual ("Rebuild All Planes") plane rebuilds in worker threads
-  (`tests/app/planes.rs`); opening `*.lppz` archives read-only; all
-  `tr!` contexts of the app are checked by `librepcb-i18n`'s
-  `context_check` (app-only strings in its `NEW_STRINGS`).
+- **Native model and compatibility:** UUID-keyed circuit, schematic and board
+  data, validating mutations with inverses, reverse indices, change journal,
+  transactional files and migrations from v0.1 through v2. Upstream fixtures
+  and the optional upstream CLI are the round-trip/check/export oracles.
+- **Core checks and manufacturing:** ERC, board DRC, plane rebuilding, Gerber,
+  Excellon, pick-and-place, Gerber X3, IPC-D-356A, BOM, project JSON and output
+  jobs. Graphics, mechanical STEP and interactive HTML BOM use the shared
+  exporter adapters from CLI, desktop and MCP. Project BOM without a board
+  deliberately reports `Package=N/A`; select a board for footprint packages.
+- **Shared editing:** `ProjectEditor` owns commands and undo. Desktop and MCP
+  share `Arc<Mutex<OpenProject>>`; a directory lock protects native files.
+  Library additions/removals and assets have editor operations alongside
+  model mutations. Preview uses detached state, not live apply-and-undo.
+- **Libraries and import:** SQLite workspace index, official-library installation,
+  project library management, library element editors/checks, EAGLE library and
+  project import, and KiCad library import. MCP also imports flat KiCad schematics
+  and board placement/outline/zones/supported rules for rerouting. Full routed
+  KiCad PCB and hierarchical schematic import remain outside that contract.
+- **Desktop:** Slint schematic/board editors, tool FSMs, dialogs, library tabs,
+  workspace/project lifecycle, shared live MCP editing, rule-check panels,
+  output jobs and read-only `.lppz` opening. Detailed UI gaps remain in COMPAT.md.
+- **Rendering/CAD:** incremental 2D scenes, realistic board graphics, pure-Rust
+  STEP import/export/minification and a Bevy board 3D viewer. Camera, materials
+  and edit/undo refresh are wired. Slint presents GPU readback images; shared
+  textures and package-editor 3D are not implemented.
 
-## Interactive 3D board viewer
+These subsystems were delivered under the historical M1–M5 porting labels.
+Their remaining polish and compatibility gaps do not reset those milestones.
 
-- `librepcb-render3d` builds physical meshes from `BoardPhysicalGeometry`,
-  including through/blind/buried drills, copper, mask, silkscreen and paste.
-  `librepcb-step` supplies directly tessellated component bodies with their
-  existing placement, normals and surface colors. CAD/GPU work runs on owned
-  snapshots in the viewer worker, outside the project lock.
-- The Slint board's `3D` button opens the existing 3D tab. Orbit, pan, zoom,
-  top/bottom, fit (including component bounds), material opacity and return to
-  `2D` are connected. Project edits and shared undo/redo refresh the snapshot.
-- Bevy renders offscreen with PBR materials, lights and tone mapping. Readback
-  into Slint images works with the software UI renderer; shared Slint/Bevy GPU
-  textures are still an optimization to implement.
-- GPU acceptance ran without a window server on Intel Arc (MTL), Mesa Vulkan.
-  The GPU test checks rendering, camera-only updates, both sides and unaligned
-  viewport resizing. The application GPU scenario checks navigation, material
-  sliders, a command-bus color edit, undo and closing/returning to 2D.
-- The actual application was driven through Slint's `ui-debug-mcp` server:
-  CAN–USB orbit/zoom, bottom view and return to 2D, with all 40 recorded pointer
-  and wheel events accepted. CAN–USB has 44,031 render triangles in 115
-  material groups. Dark/light application screenshots were inspected.
-- Run `librepcb --project /path/to/project.lppz --tab board3d`; add
-  `--screenshot /path/to/view.png` for an offscreen GPU/UI capture. Diagnostic
-  artifacts and logs are in
-  `/home/okhsunrog/tmp_zfs/codex_tmp/librepcb-bevy-3d/`.
+## Routing and measurements available now
 
-Validation: all workspace test targets pass across the application run and the
-separate remaining-workspace run: 1,503 passed, 10 ignored by default. Both
-GPU tests also pass when explicitly enabled on the GPU host. The initial overall
-shell was interrupted by SIGTERM; the separate Cargo run completed with status
-0. Workspace Clippy with warnings denied, formatting, the application build
-with `ui-debug-mcp`, and the headless CAN–USB screenshot command pass.
+The editor owns one `RoutingService` per open project; MCP is its transport.
 
-## Merge integration
+- Detached preparation, exact paginated mutation preview, revision/context-bound
+  apply, discard and one undo step. Storage holds at most eight candidates and
+  refuses capacity overflow; concurrent workers are not bounded by this cap.
+- Builtin order comparison, diagnostics with local blockers and failed-search
+  evidence, pad escapes, short neck-downs, critical-net ordering, optional
+  congestion history, authorized regional rip-up and local via-site search.
+- Connected via/junction edits, path replacement, explicit copper batches and
+  moves/rotations of unlocked devices with their copper in one candidate.
+  A rejected candidate can be extended with a checked repair via `base_candidate`.
+  Coordinates are supplied explicitly; bounded placement planning and connected
+  side changes are not implemented.
+- Full before/after board checks, per-net connectivity regressions/improvements,
+  new warnings and `connectivity_progress` separate from `acceptable`.
+  An acceptable partial or unchanged candidate is not proof of target completion.
+- Plane diagnosis/stitch candidates and geometric reference-centerline coverage.
+  Coverage is not an impedance or signal-integrity check.
+- One reusable complete source-check baseline bound to the session, project,
+  board, revision and save/path context. Derived copper is rebuilt; candidate
+  checks and non-empty applied-model checks remain fresh.
+- Read-only `trace_path_measure`: resolved physical pads, shortest anchored
+  centerline, trace/layer/width/via identities. Plane paths, unanchored contacts
+  and via-barrel lengths are excluded. An unavailable trace-only length is
+  `not_measured`, not zero length or a connectivity failure.
 
-- The CLI, app and MCP install `librepcb-step::board_exporter()`; `jobs_run`
-  executes STEP and graphics instead of skipping them as unsupported.
-- `librepcb-graphics::ProjectGraphicsExporter` prepares encoded outputs; core
-  checks all page filenames before writing, retaining indexed ownership,
-  collision protection, archive dependencies and obsolete-file cleanup.
-- The existing MCP stdio/HTTP, shared editing/undo and application suites
-  cover the combined implementation. A stdio regression exports and reads
-  back STEP and checks the realistic-board PDF.
-- The CAN–USB assembly was regenerated through the merged CLI: independent
-  OCCT/XCAF checks retain 87 valid solids and all 2,048 face appearances.
-  Realistic top/bottom PNGs were regenerated and inspected as well.
-- Slint dependencies, build compiler and canvas adapter use the same master
-  revision `aebe3dd580ce0594de272bc5797b7444a2aa18fd` (1.20.0 development snapshot).
+Current limitations: no declarative reconciliation API, persisted engineering
+requirements, automatic diagnosis-to-repair planner, MCP progress/cancellation
+workflow or desktop candidate overlay. The router's cancellation callback is
+not yet wired through the editor/MCP preparation path. `server_info` reports
+package/file-format versions but not commit/dirty build provenance.
 
-Validation before the 3D viewer changes: 1,499 Rust tests pass across the complete
-workspace run and the focused graphics/i18n reruns after the two merge fixes;
-eight tests are ignored. All 53 headless application scenarios and the new
-stdio STEP/PDF regression pass. The unmodified upstream CLI suite reports
-177 passed / 1 failed; the remaining snapshot expects Qt/OpenCascade version
-lines, intentionally different in this Rust implementation.
-Formatting, workspace Clippy with warnings denied, and production builds of
-the CLI, MCP server and application pass.
+## Evidence and continuation points
 
-Artifacts and logs: `/home/okhsunrog/tmp_zfs/codex_tmp/librepcb-mcp-integration/`.
+| Case | Recorded result | Limit / next use |
+| --- | --- | --- |
+| [STM32 local via](mcp-routing-reliability.md#local-via-search) | Automatic bounded via-site search closes the preserved U1.21 gap; undo/reopen/upstream checks recorded | Ordinary builtin routing still misses this case; use it for strategy selection |
+| [Two-layer ESP32-C3](mcp-routing-reliability.md#two-layer-esp32-c3-dev-board-completion) | Five checked patches close all six gaps; zero ERC/DRC errors and 13 inherited silkscreen warnings; RF/crystal geometry preserved | External scratch search helped choose coordinates; 79 vias and 1096.493 mm versus 71 and 852.307 mm initially; not an automatic planner result |
+| [ESP-PD-Sink selected layout](benchmarks/esp-pd-sink/review/gate/REPORT.md) | OLED, U5, U2, Kelvin, ADC and gate-clamp review batches; zero open connections, three inherited errors and nine warnings | Continue PCB review from the gate-clamp archive; mechanical/silkscreen and remaining engineering findings are not closed |
+| [Release baseline reuse](benchmarks/esp-pd-sink/review/performance/release/REPORT.md) | Repeated OLED prepare: 25.598 → 13.915 s; full validation and normalized geometry agree | Small samples; first preparation and apply are not accelerated |
+| [Competing builtin trial](benchmarks/esp-pd-sink/review/performance/release/BUILTIN.md) | Repeated prepare: 26.553 → 14.667 s; both versions reject a new plane-fed GND break | DRC dominates this local workload; no A* speedup established |
+| [Path API](benchmarks/esp-pd-sink/review/path-api/REPORT.md) | All 18 saved pairs replayed; 17 match prototype lengths, one is explicitly unmeasured | Requirements/groups remain external prototypes, not enforced project objects |
 
-## Next steps
+Use the original ESP-PD-Sink `inputs.tar.gz` for performance comparisons and the
+selected gate-clamp project for further layout work. They are different snapshots.
+Do not substitute one for the other in a before/after benchmark.
 
-Historical MCP branch acceptance (before this merge): a stdio session designed a
-two-transistor LED multivibrator from the official libraries — library
-install, part search, schematic with `connect`/`schematic_tidy`, board
-outline, connectivity-based placement, Freerouting, GND plane, ERC/DRC,
-Gerber export — and the official `librepcb-cli` reports ERC 0, DRC 0.
+The immediate product sequence is P0 observability, P1 declarative updates,
+P2 requirements, P3 bounded workers, P4 local planning and P5 visual review.
+P6 defines end-to-end evidence, including a held-out board. See the roadmap for
+exact dependencies and acceptance rather than adding another task list here.
 
-1. MCP reliability: applied-result DRC and actual connectivity reporting
-   now cover both routers and SES import; automatic/explicit via dimensions
-   are fixed. Grouped trace-width edits preserve identities and report DRC
-   changes. Reviewed candidates support connected via and junction edits,
-   trace path replacements and builtin trials after an edit. Physical pin
-   resolution before placement and reports of effective routing rules
-   are available. Failed searches can report sampled blockers, and regional
-   candidates use an explicit list of copper authorized for rip-up. Next are
-   pad escape and congestion handling ([details and reproductions](mcp-routing-reliability.md)).
-   Templates, design-intent storage and a separate Freerouting MCP mode
-   come later.
-2. M3c/M4c polish (see COMPAT.md "app"): scene highlight colors and the
-   library editors from the color schemes, recording key presses in the
-   shortcut editor, remembering wizard paths, the example projects
-   download.
-3. M2 viewer: finish M2b (library info on the home panel, grid/unit and
-   layer visibility persisted in the user settings, keyboard handling) and
-   the rest of M2d (rule check location markers and autofixes, print and
-   image export); M2c is done.
-4. Extend the 3D viewer to package editors, replace GPU readback with shared
-   Slint/Bevy textures, and broaden STEP representation support. Mechanical
-   STEP is already implemented by `librepcb-step` (Monstertruck, no C++ FFI).
+## Validation scope
 
-## How the work is organized
+The last local merge checks on `33c4dfb` passed six routing-service unit tests and
+32 routing-candidate MCP integration tests with the configured upstream checkout,
+plus formatting. The Nix addition at `f3c3fda` was evaluated for x86_64-linux and
+aarch64-linux; shell/resource/library checks and `cargo check -p librepcb-i18n`
+ran on x86_64-linux. This was not a full workspace or GUI-in-Nix acceptance run.
 
-- Work goes in **waves** of parallel agents, each in its own git worktree
-  (`../librepcb-rs.w<N>-<name>`, branch `wave<N>/<name>`) with a clearly
-  separated file ownership. The coordinating session reviews each branch
-  (fmt, clippy, tests, no hardcoded paths), merges it into `master` and
-  pushes.
-- Related small tasks are batched per agent (about 5–10 agents per wave),
-  rather than one agent per tiny task.
-- Architecture and design work (design documents) runs on the strongest
-  available model, and the design is reviewed with the user before
-  implementation starts.
-- Acceptance is always mechanical where possible: upstream unit test
-  vectors, byte-identical round trips over upstream `tests/data`, and diffs
-  against the official `librepcb-cli`.
-- Each intentional divergence from upstream goes into `COMPAT.md` Part 1;
-  missing features still to be matched go into Part 2.
+Earlier full-workspace, upstream CLI, GPU and desktop evidence is in
+[historical validation](history/port-validation.md). Do not carry its test counts
+forward as current results. Real-board timing and output evidence belong to
+the linked reports and their exact commits, not to this documentation refresh.
 
-## Environment
+## Environment and development
 
-On Linux with Nix, run `nix develop` from the repository root. The locked
-shell provides Rust, native development libraries and the pinned upstream
-source/test resources through `LIBREPCB_UPSTREAM_DIR`; a pre-existing value
-overrides that default. See [the build instructions](../README.md#build-from-source)
-for the separate upstream CLI and Freerouting setup.
+On Linux with Nix, run `nix develop`. The lock pins Rust, native development
+libraries and upstream source/test resources. `LIBREPCB_UPSTREAM_DIR` defaults
+to the prepared Nix store source; an existing value selects a custom checkout.
+The upstream CLI oracle and Freerouting remain optional external tools. See
+[README](../README.md#build-from-source) and [the porting guide](porting-guide.md).
 
-Run `scripts/cloud-setup.sh` on a fresh machine. It sets up the pinned
-upstream checkout next to the repository and the official `librepcb-cli`
-behind Xvfb, and Freerouting 2.4.1 with Java 25; after that,
-`cargo test --workspace` runs everything, including the upstream
-comparisons. Set `USER` if the environment lacks it (a ported system info
-test needs it), and `LIBREPCB_TEST_LIBRARIES_DIR` to a directory with
-official `*.lplib` clones to run the real-library design tests. With
-several parallel agents, use `CARGO_INCREMENTAL=0` and shared target
-directories: the cloud disk allowance fills up quickly.
+On a fresh Debian/Ubuntu environment, `scripts/cloud-setup.sh` prepares the
+pinned upstream checkout, CLI and Freerouting. Optional oracle comparisons may
+skip when these tools are unavailable; report that rather than claiming they
+passed. `LIBREPCB_TEST_LIBRARIES_DIR` selects installed official library clones
+for tests that require them. Network availability is environment-specific; the
+library installer can fall back from ZIP download to Git.
 
-To keep the target directory small, the dev profile builds workspace crates
-with line tables only (backtraces keep file and line) and dependencies
-without debug info, and each crate has one integration test binary (see
-AGENTS.md). For full debug info in a local debugging session, build with
-`CARGO_PROFILE_DEV_DEBUG=full` (workspace crates), plus
-`--config 'profile.dev.package."*".debug="full"'` for the dependencies.
-Measured with `cargo clippy --workspace --all-targets` followed by
-`cargo test --workspace` in a fresh target directory: 25 GB before (49
-executables, 20 GB), 16 GB with one test binary per crate, 5.7 GB with the
-debug info settings too (26 executables, 2.7 GB). `split-debuginfo =
-"unpacked"` saved only another 0.4 GB and is not supported on all
-platforms, so it is not set.
+Use release binaries for real boards, routing, DRC and timing; restart the MCP
+process after rebuilding. Match profile, snapshot and request across comparisons.
+Focused correctness tests use the normal dev profile. Keep the configured Cargo
+cache/output paths; temporary copies and diagnostics follow AGENTS.md.
 
-## Open items to remember
+The dev profile uses line tables for workspace crates and no dependency debug
+info. Each crate has one integration-test binary to limit linking/storage. For
+full debugging, use `CARGO_PROFILE_DEV_DEBUG=full` and, if needed,
+`--config 'profile.dev.package."*".debug="full"'`.
 
-- Adding and removing project library elements are `Project` methods, not
-  `Mutation`s; `librepcb-editor`'s undo stack makes them undoable.
-- `@tr()` strings of our own `.slint` additions are not checked
-  automatically (only `tr!`/`trn!` in Rust are, by `context_check`); new
-  `.slint` strings should use `@tr("upstream::Context" => "text")` where an
-  upstream string exists.
-- Direct ZIP downloads from codeload.github.com are blocked in the cloud
-  sandbox; official libraries can be cloned with git instead.
-- Upstream bugs found along the way, which could be reported upstream:
-  Qt/Transifex plural form order mismatches in several languages, `"1e-3"`
-  rejected as a length, and a v0.1 circular board outline that cannot be
-  migrated.
+## Maintenance rules
+
+- Update the owning API/design document with a behavioral change and link its
+  acceptance evidence. Move completed roadmap items only when their gates pass.
+- Keep intentional upstream divergences in COMPAT.md Part 1 and real remaining
+  gaps in Part 2; remove resolved gaps instead of appending contradictory notes.
+- Domain behavior stays in core/editor. MCP and GUI share operations and history.
+  Core remains synchronous and its model types remain `Send + Sync`.
+- New Rust user-visible strings use the existing translation contexts. Custom
+  `.slint` `@tr()` additions are not covered by the Rust `context_check` test.
+- Use the current branch's commit/push policy and dedicated temporary root from
+  AGENTS.md. Historical porting waves do not prescribe how every task is staffed.

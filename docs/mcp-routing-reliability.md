@@ -1,9 +1,13 @@
 # Routing reliability for MCP design workflows
 
-The STM32G474 experiment on `c1101ac` established a useful end-to-end
-workflow and exposed two routing-integration failures. Correctness and
-ordinary board editing take priority over design-intent storage, templates,
-additional exports and 3D work.
+Chronological implementation and replay evidence. The STM32G474 experiment on
+`c1101ac` established the initial workflow and exposed routing-integration
+failures; later sections record subsequent fixes and their limits. Counts,
+timings and statements about the next experiment belong to the cited revision.
+Use [status](status.md) for the current summary, [MCP design](mcp-design.md) for
+available APIs and [roadmap](roadmap.md) for the next delivery gates. In particular,
+persistent requirements are now planned in P2, after the ordinary editing and
+candidate-validation foundations recorded here.
 
 ## Reproducible regressions
 

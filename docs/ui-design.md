@@ -1,12 +1,16 @@
-# UI design (M2 viewer → M3 editor)
+# UI design
 
 Design of the graphical application `crates/librepcb-app` (binary
-`librepcb`). Status: agreed with the user (copy and port upstream's `.slint` files;
-embedded MCP server in M2).
+`librepcb`), reviewed 2026-11-11. The ported viewer, schematic/board editors,
+library editors and embedded MCP host are implemented. M2/M3 labels below record
+their delivery history, not the current work queue. Remaining differences are
+tracked in [COMPAT.md](../COMPAT.md); visual routing-candidate review is P5 in
+the [roadmap](roadmap.md).
 
 ## Key finding: upstream already has a Slint UI
 
-Upstream LibrePCB 2.x replaced most of its Qt Widgets UI with Slint:
+At the upstream revision used for the UI port, LibrePCB 2.x had replaced most
+of its Qt Widgets UI with Slint:
 `libs/librepcb/ui/` holds 122 `.slint` files (~34k lines): main window,
 window sections and tabs, home tab, schematic and board 2D tabs with their
 tool bars, library editors, panels (documents, layers, ERC/DRC, place
@@ -31,9 +35,10 @@ and the translations (the `.slint` strings use `@tr` with upstream
 contexts, which the existing `lang/` catalogs already contain) come for
 free; the work is the backend.
 
-What upstream still does with Qt Widgets: 72 `.ui` dialogs (property
+The port's upstream snapshot also had 72 Qt Widgets `.ui` dialogs (property
 dialogs, board setup, output jobs, BOM review, ...) and the 3D view. Those
-need new Slint dialogs (M3, batched per area). The board's 3D view now uses
+needed new Slint dialogs; the implemented forms and remaining gaps are listed
+below and in COMPAT.md. The board's 3D view now uses
 `librepcb-render3d` (Bevy) in the existing `Board3dTab` component.
 
 ## Decisions
@@ -48,13 +53,13 @@ need new Slint dialogs (M3, batched per area). The board's 3D view now uses
 2. **Crate layout:**
    - `crates/librepcb-app` (bin `librepcb`): the backend (`app.rs`:
      application and main window, `section.rs`, `tabs/`: home, schematic,
-     board 2D, library tabs later), models, panels, and glue to the canvas.
+     board 2D/3D and library tabs), models, panels, and glue to the canvas.
      The `.slint` files in `crates/librepcb-app/ui/` are compiled by the
      separate crate `librepcb-app-ui` (`ui/Cargo.toml`, `build.rs` with
      `slint-build`): the generated code is tens of MB of Rust, so keeping
      it apart means backend changes do not recompile it.
    - Scene building stays in `librepcb-scene` (already used by render and
-     graphics export); it gains **incremental updates**: apply
+     graphics export); its **incremental updates** apply
      `project::Change` events to a built scene (update/insert/remove the
      items of one symbol, segment, device, ...) instead of rebuilding.
    - Interaction logic (editor state machines: select, draw wire, add
@@ -66,10 +71,13 @@ need new Slint dialogs (M3, batched per area). The board's 3D view now uses
 3. **State and threading:** one UI thread owns the open projects as
    `librepcb_editor::SharedProject` (`Arc<parking_lot::Mutex<OpenProject>>`,
    an `OpenProject` holds the `ProjectEditor` and the directory lock); the
-   embedded MCP server gets the same handles via `McpState::set_project()`. Long jobs
-   (DRC, plane fragments, exports, library scan, Freerouting) run on worker
-   threads on snapshots (as in core) and post results back with
-   `slint::invoke_from_event_loop`. After each command the tab pulls
+   embedded MCP server gets the same handles via `McpState::set_project()`.
+   Long jobs use worker threads and post UI results with
+   `slint::invoke_from_event_loop`. Worker execution alone does not imply a
+   detached snapshot or an unlocked project: reviewed routing uses a detached
+   model, while ordinary MCP calls acquire the shared locks. See the
+   [ownership contract](project-model-design.md#6-concurrency-model).
+   After each command the tab pulls
    `Project::changes_since(cursor)` and updates its scene (or rebuilds on
    `Resync`).
 4. **Embedded MCP ("watch the agent"):** the app can start the MCP server
@@ -77,9 +85,8 @@ need new Slint dialogs (M3, batched per area). The board's 3D view now uses
    runtime in a background thread) sharing the same `ProjectEditor`
    mutex; every MCP write bumps the revision and wakes the UI, which
    applies the journal to the visible scenes. Agent edits appear live and
-   are in the same undo history ("AI: ..." groups). This is the headline
-   feature of M2 and needs only a small refactor of `librepcb-mcp`'s
-   session to accept an externally owned editor.
+   are in the same undo history ("AI: ..." groups). This is implemented through
+   shared open-project handles and host callbacks; see [MCP design](mcp-design.md).
 5. **Rendering:** vello_cpu into a `SharedPixelBuffer` per canvas (works
    with every Slint renderer, incl. software); GPU vello later. Upstream's
    `frame` counter property triggers repaints.
@@ -90,9 +97,9 @@ need new Slint dialogs (M3, batched per area). The board's 3D view now uses
    versions). Screenshots are also how agents without a display check
    their work.
 
-## Milestones
+## Porting history and remaining UI gaps
 
-**M2 — viewer** (this wave):
+**M2 — viewer** (implemented, with output gaps noted below):
 - M2a skeleton: crate, copied `.slint` files compiling with slint-build,
   `Data`/`Backend` bound in Rust, main window, home tab (recent projects,
   open/new project), window sections and tabs, notifications, about
@@ -113,7 +120,7 @@ need new Slint dialogs (M3, batched per area). The board's 3D view now uses
   active tab; undo/redo/save buttons work for agent and UI edits; status
   bar indicator and a notification when an agent edits. Test:
   `tests/app/live_mcp.rs` (rmcp HTTP client against the headless app).
-- M2d checks and outputs (**mostly done**): ERC (automatic after
+- M2d checks and outputs: ERC (automatic after
   changes) and DRC (full or quick, worker thread with progress
   notification) in upstream's rule check panel: list, approve/unapprove
   (undoable mutations), zoom to location (no location marker yet, no
@@ -121,11 +128,12 @@ need new Slint dialogs (M3, batched per area). The board's 3D view now uses
   `<project>/output/<version>/`): PDF export (schematics, board assembly),
   Gerber/Excellon, pick&place, IPC-D-356A netlist, BOM, `*.lppz` export,
   "Output Jobs" runs all jobs; worker threads with progress and result
-  notifications. Missing: print, image export, opening `*.lppz`.
+  notifications. Image export and read-only opening of `*.lppz` archives are
+  implemented too. Printing remains missing.
 
 **M3 — schematic and board editors** (the FSMs are already ported in
-`librepcb-editor::fsm::{schematic, board}` and tested headless; M3 wires
-them into the app):
+`librepcb-editor::fsm::{schematic, board}` and tested headless; the app wiring
+is implemented, with the exceptions listed below):
 - M3a editing in the tabs: `SchematicView`/`BoardView` adapters on the
   scenes, Slint pointer/key events → FSM, FSM outputs → `Data` (tool bar
   `tool-*` fields, cursor, overlays: rubber band, previews, ruler, info

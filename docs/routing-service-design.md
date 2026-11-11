@@ -1,9 +1,21 @@
 # Unified routing service
 
-Agreed direction, 2026-11-11. This document specifies the routing roadmap;
-only capabilities explicitly marked implemented are available today. R1 below
-records the implemented builtin candidate path and its verification evidence.
-Later stages remain proposals. The design complements the current [reliability contract](mcp-routing-reliability.md).
+Reviewed 2026-11-11 against `f3c3fda`. This document owns the routing service
+contract. R0–R6 are historical design areas, not the delivery order: implemented
+slices and remaining proposals coexist within them. The [roadmap](roadmap.md)
+sets current priorities and acceptance gates; [reliability reports](mcp-routing-reliability.md)
+retain the evidence for individual changes.
+
+## Current capability map
+
+| Area | Available | Remaining work |
+| --- | --- | --- |
+| Candidates | Detached prepare/preview/apply/discard, exact patches, stale guards, one undo | Desktop candidate overlay (P5) |
+| Evaluation | Full DRC and rebuilt connectivity, per-net deltas, connectivity improvement status, 2–3 builtin order comparisons | Requirement-aware objectives and disturbance costs (P2/P4) |
+| Local repair | Trace replacement, junction/via moves, regional rip-up, local via search, explicit unlocked-device moves/rotations with copper | Diagnosed bounded placement search; connected side changes are unsupported |
+| Router | Pad escape, critical-net ordering, neckdown, congestion history | Joint fanout planning and benchmark-driven refinements (P4) |
+| Planes and measurements | Split diagnostics, stitching, geometric reference coverage, trace-only path length | Electrical return-path analysis and broader measurement semantics |
+| Runtime | Detached workers, guarded baseline reuse, bounded retained candidate store | Worker admission, job progress and cancellation (P3) |
 
 ## Purpose and scope
 
@@ -23,16 +35,17 @@ Freerouting/SES workflows retain their documented behavior during migration.
 
 - `librepcb-autoroute`: independent geometry problem and routing result,
   deterministic grid A*, pad access, bounded rip-up/reroute, simplification and
-  geometric verification. Current order is shortest connections first.
+  geometric verification, configurable ordering, pad escape and congestion history.
 - `librepcb-editor`: extraction from real board/DRC data and application through
   ordinary commands, preserving the shared model and undo history.
 - Full applied-model before/after DRC and connectivity validation for built-in,
   Freerouting and SES import; explicit/automatic via dimensions are consistent.
 - `trace_update`: grouped width changes preserve trace identities and anchors,
   with the same validation evidence.
-- Frozen STM32G474 reproduction and small local-fixture regressions. The
-  remaining `V3V3` access to `U1.21` is an unresolved diagnostic case, not a
-  demonstrated root cause or a guaranteed acceptance result for R1.
+- Frozen STM32G474 reproduction and small local-fixture regressions. Ordinary
+  builtin routing left `V3V3` access to `U1.21` open; the subsequent
+  [local-via search](mcp-routing-reliability.md#local-via-search) closes that
+  case. This does not establish general autorouter completion.
 
 ## Ownership and architecture
 
@@ -67,9 +80,11 @@ caller-owned blocking workers, without holding project locks across awaits.
 
 The target contract describes the board and base revision, scope (whole board,
 selected nets, connection or region), permitted changes, objective and budget.
-R1 supports the existing built-in routing options and preserves existing copper;
-region selection, arbitrary reroute permissions and component motion are later
-stages. Unsupported request capabilities must be rejected explicitly.
+Current entry points support builtin options, selected regions and explicit
+rip-up permissions, local repairs and selected device moves/rotations combined
+with copper changes. They do not automatically search allowed placement regions
+or enforce a persisted engineering-intent document. Unsupported capabilities
+must be rejected explicitly; see the [current MCP contracts](mcp-design.md).
 
 Hard constraints include connectivity, clearance/width/drill limits, forbidden
 areas/layers and protected geometry. Preferences include route length, via cost,
@@ -129,13 +144,14 @@ Algorithms may output segments and vias, but their adapters must connect those
 to the existing typed pad/via/junction identities. Use one shared topology
 construction path rather than a separate importer for each algorithm. Coordinate
 matching is checked supporting logic, not a replacement for known identities.
-Future delete/reshape/shove patches must state what existing items are changed
+Delete/reshape patches and any future shove operation must state what items change
 and preserve unrelated topology, copper and locks.
 
-## Staged delivery and acceptance
+## Design areas and implementation evidence
 
-Stages are ordered by demonstrated end-to-end usefulness. Do not start a new
-engine integration simply because it has an attractive feature list.
+The original R labels are retained for links and implementation history. Use
+roadmap P0–P6 for new delivery decisions. Do not start a new engine integration
+simply because it has an attractive feature list.
 
 ### R1 — built-in candidates, preview and apply (implemented first slice)
 
@@ -195,6 +211,10 @@ The MCP interface for this stage is:
 | `routing_apply` | Apply `candidate` with optional caller `expected_revision`; source binding is always checked even if the caller omits that field. |
 | `routing_discard` | Release a retained candidate without changing the project or undo history. |
 
+Other prepare tools (regional, copper, local-via and plane-stitch operations)
+use the same lifecycle. Their accepted inputs are documented in
+[MCP design](mcp-design.md).
+
 Storage retains at most eight candidates, each containing at most 100,000
 mutations. A full store refuses preparation/retention instead of silently
 evicting a reviewed candidate. Explicit discard releases capacity. Identity
@@ -221,11 +241,12 @@ to claim the commit never occurred or that the candidate remains reusable.
 Preview in R1 is structured mutation/geometry data, not a PNG or GUI overlay.
 Preparation is an asynchronous MCP call backed by `spawn_blocking`, not a new
 background-job protocol. There are no job IDs, progress polling/cancellation
-tools, automatic candidate ranking, cross-candidate comparison operation or
-new GUI review panel in this stage. Long-worker cancellation and richer review
-remain later work. The eight-candidate cap bounds retained patches only; it
-does not currently limit concurrent preparation workers or total snapshot
-memory. Admission control and cancellation are operational follow-up work.
+tools or a new GUI review panel. `routing_compare` does rank and recommend
+retained candidates from two or three builtin order trials. Long-worker
+cancellation and visual review remain planned. The eight-candidate cap bounds
+retained patches only; it does not currently limit concurrent preparation workers
+or total snapshot memory. Admission control and cancellation are operational
+follow-up work.
 
 The legacy immediate `autoroute` call remains a compatibility path with its
 existing behavior; R1 does not claim it already runs through the candidate
@@ -233,6 +254,9 @@ service. Converging those paths belongs to a later bounded refactor after the
 reviewed lifecycle is validated.
 
 #### Verification evidence
+
+The counts below describe the original R1 verification, not today's entire suite.
+See [status](status.md) for the latest scoped checks.
 
 - Core `project::project_test`: six tests, including detached unsaved snapshot
   and embedded-asset isolation; native project roundtrip corpus passes.
@@ -422,7 +446,7 @@ Acceptance: improve fixed pad-access and congestion cases without DRC regression
 measure against unchanged baseline placements, rules and budgets. Include the
 preserved STM32 access case, without assuming a particular fix.
 
-### R4 — local interactive routing shared by human and agent
+### R4 — local interactive routing shared by human and agent (proposal)
 
 Evaluate `pnsrouter` through a small adapter for snapshot/rules → local route or
 shove → preview/change set. Reuse the common topology construction and acceptance
@@ -441,12 +465,13 @@ Expose analysis, candidate comparison, soft corridors versus mandatory waypoints
 region reroute and explicit budgets. An agent chooses a strategy between bounded
 algorithm runs rather than submitting thousands of individual coordinates.
 
-Treat component motion as a separate candidate operation with mechanical bounds
-and fixed connectors. Pin swaps require an explicitly permitted mapping, circuit
-updates and a firmware pin-map consequence; changing board labels is insufficient.
-Record the origin of proposed engineering constraints. Durable design-intent
-storage and circuit templates remain deferred until concrete workflows justify
-them; this plan does not change the native file format.
+`routing_copper_prepare` already combines explicitly selected unlocked-device
+moves/rotations and copper changes in one checked candidate and undo operation.
+It does not select coordinates automatically or change footprint sides. P2 adds
+durable sourced requirements, and P4 uses them for bounded placement alternatives.
+Pin swaps require an explicitly permitted mapping, circuit updates and a firmware
+pin-map consequence; changing board labels is insufficient. Circuit templates
+remain deferred. Native file compatibility applies to all of these extensions.
 
 See the [Foilfern agent PCB workflow](agent-pcb-workflow.md) for the staged
 placement, mechanical and silkscreen checks, evidence requirements and

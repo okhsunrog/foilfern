@@ -80,8 +80,8 @@ breaks define the bytes): `root.append_value(&uuid)`,
 
 Reading: `node.child_value::<T>("layer/@0")?` for values,
 `Point::deserialize(node.required_child("position")?)?` for objects, and
-`node.child("junction")` for optional children. Older file formats will be
-upgraded on the raw `SExpression` tree by the (not yet ported) file format
+`node.child("junction")` for optional children. Supported older file formats are
+upgraded on the raw `SExpression` tree by the file format
 migrations before deserialization, so deserializers only handle the current
 format.
 

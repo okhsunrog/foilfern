@@ -11,7 +11,7 @@ Generate a report from the exact MCP `board_get` and `component_list` results
 (or their outcome envelopes):
 
 ```sh
-python3 measure.py BOARD_JSON COMPONENT_LIST_JSON NATIVE_PROJECT_DIR > report.json
+uv run --no-project measure.py BOARD_JSON COMPONENT_LIST_JSON NATIVE_PROJECT_DIR > report.json
 ```
 
 The final optional argument selects a different intent JSON. Reports include
@@ -37,13 +37,15 @@ including resolved identities, board/project/revision, length, layers, via and
 trace IDs, and an explicit unmeasured result for absent trace-only paths.
 See [the MCP contract](../../../mcp-design.md#read-only-trace-path-measurements).
 The group/requirements document remains an external review prototype; bulk group
-storage and enforced allowed-area/reference constraints are future work.
+storage and enforced allowed-area/reference constraints are planned in
+[roadmap P2](../../../roadmap.md#p2--persisted-requirements-and-evidence).
 
 The completed first batch, accepted candidate arguments, native project archive,
 renders and performance evidence are described in [REPORT.md](REPORT.md).
 
-The next batch completed [OLED RESET placement and routing](reset/REPORT.md).
-Use its compact native project for continued layout work.
+The subsequent batch completed [OLED RESET placement and routing](reset/REPORT.md).
+It is an intermediate snapshot; continue layout work from the selected gate-clamp
+project linked below.
 
 [U2 VDD/VCONN decoupling](u2/REPORT.md), [U6/R17 Kelvin routing](kelvin/REPORT.md)
 and [ADC C4 alternatives/SW5 review](adc/REPORT.md) are completed.

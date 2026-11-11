@@ -1,4 +1,4 @@
-# librepcb-rs
+# Foilfern
 
 Rewrite of LibrePCB (C++/Qt) into idiomatic Rust with a Slint UI and no Qt
 dependency. The upstream C++ code is the behavioral reference; the goal is
@@ -15,9 +15,10 @@ Read before working:
 - `docs/project-model-design.md`: the project model (UUID-keyed data tree,
   `Mutation`/`apply()` with inverses, change journal). Required reading for
   anything under `project/`.
-- `docs/status.md`: current state, next steps and how the work is organized.
-- `docs/roadmap.md`: milestones.
-- `docs/mcp-research-konnect.md`: MCP decisions.
+- `docs/status.md`: current capabilities, evidence and continuation points.
+- `docs/roadmap.md`: delivery order and acceptance gates.
+- `docs/mcp-design.md`: current MCP contract.
+- `docs/mcp-research-konnect.md`: historical MCP research and decision rationale.
 - `COMPAT.md`: differences from upstream (Part 1: intentional, Part 2: not
   ported yet).
 
@@ -56,6 +57,9 @@ code changes using the same build profile, board snapshot and request.
   module per upstream directory (`types`, `serialization`, `geometry`,
   `library`, `project`, `export`, ...).
 - `crates/librepcb-i18n`: runtime for translating strings from Rust code.
+- `crates/librepcb-editor`: shared commands, undo, editor FSMs and routing service.
+- `crates/librepcb-app`: Slint desktop host; `ui/` is the separate app UI crate.
+- `crates/librepcb-cli`: command-line checks and exports.
 - `crates/librepcb-network`: async networking (tokio, reqwest).
 - `crates/librepcb-canvas`: 2D rendering canvas (vello_cpu, rstar, kurbo) with
   an optional Slint adapter.

@@ -1361,8 +1361,6 @@ upstream `librepcb-cli` 2.1.1 except for:
     organization cannot be edited yet (upstream opens the board setup
     and output jobs dialogs on a temporary project); design rules can be
     added (with default settings), renamed, copied and removed.
-  - *Opening elements from projects* (upstream: the project library
-    tab) is not available since the project library tab is not ported.
 - **Keyboard shortcuts:** no alternative default shortcuts (upstream's
   C++ command set has some); the shortcut editor takes text key sequences
   instead of recording key presses and has no command categories.

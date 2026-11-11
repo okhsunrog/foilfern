@@ -100,10 +100,12 @@ before claiming a design is better for the same operating conditions.
 
 ## ESP-PD-Sink handoff
 
-The [ESP-PD-Sink handoff](benchmarks/esp-pd-sink/HANDOFF.md) continues the
-checked local routing work with a release-build benchmark and a product
-patch. The four-layer project and a saved routing request reproduce the
-case.
+The [ESP-PD-Sink handoff](benchmarks/esp-pd-sink/HANDOFF.md) indexes completed
+local routing batches, release baseline-reuse validation and the trace-path API.
+Use the original fixture for performance comparisons and the selected gate-clamp
+archive for continued PCB review. Mechanical, silkscreen and inherited DRC
+findings remain open. The [roadmap](roadmap.md) turns the remaining product gaps
+into acceptance stages; the ideas below are design input, not a parallel queue.
 
 ## Ideas to evaluate on real boards
 
