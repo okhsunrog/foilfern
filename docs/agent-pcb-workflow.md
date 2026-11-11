@@ -98,6 +98,12 @@ layout and checks before discussing a smaller variant; establish electrical
 and thermal equivalence with appropriate analysis and hardware measurements
 before claiming a design is better for the same operating conditions.
 
+## ESP-PD-Sink handoff
+
+The [ESP-PD-Sink handoff](benchmarks/esp-pd-sink/HANDOFF.md) includes the
+four-layer project, pin-to-pin measurements, proposed placement changes
+and a plan for measuring and improving routing and validation times.
+
 ## Ideas to evaluate on real boards
 
 - Build a requirement-to-evidence report: status, units, rule source, net
