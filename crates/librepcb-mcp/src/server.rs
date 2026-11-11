@@ -771,6 +771,28 @@ impl LibrePcbMcp {
     }
 
     #[tool(
+        description = "List the board and footprint texts on the configured silkscreen layers, with UUIDs and positions in mm."
+    )]
+    async fn board_legend_list(
+        &self,
+        Parameters(args): Parameters<board_edit::BoardLegendArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| board_edit::board_legend_list(s, args))
+            .await
+    }
+
+    #[tool(
+        description = "Move an existing board or footprint text by UUID, without moving its device or copper. Use board_legend_list to inspect silkscreen text."
+    )]
+    async fn board_text_move(
+        &self,
+        Parameters(args): Parameters<board_edit::BoardTextMoveArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| board_edit::board_text_move(s, args))
+            .await
+    }
+
+    #[tool(
         description = "Place (or move) the device of a component on a board: position (mm), \
                        rotation (deg), side top/bottom, optional device/footprint UUID to \
                        change the footprint."

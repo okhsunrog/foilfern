@@ -65,10 +65,11 @@ EMI performance, enclosure fit or hardware behavior.
   nor replace one loop while preserving its identity.
 - The native board model supports holes and slots. The raw mutation endpoint
   can edit board items today, but MCP lacks a typed hole/slot add, update and
-  remove workflow in millimeters, as well as typed board silkscreen text edits.
-  Prioritize round and slotted NPTH, closed cutouts with radii, stable IDs,
-  mechanical clearance checks and per-side legend preview. Keep plated holes
-  distinct from NPTH and net-connected vias.
+  remove workflow in millimeters. `board_legend_list` and `board_text_move`
+  support inspecting and repositioning existing silkscreen labels without
+  moving copper. Prioritize round and slotted NPTH, closed cutouts with radii,
+  stable IDs, mechanical clearance checks and per-side legend preview.
+  Keep plated holes distinct from NPTH and net-connected vias.
 
 ## Dogfooding sequence
 

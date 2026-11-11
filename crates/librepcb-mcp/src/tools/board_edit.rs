@@ -9,9 +9,12 @@ use std::collections::BTreeSet;
 use librepcb_core::fileio::{CleanFileNameOptions, FileNameCase, FilePath};
 use librepcb_core::geometry::Path;
 use librepcb_core::project::board::{
-    PlaneConnectStyle, PlaneFragmentDiagnostic, PlaneFragmentStatus, PlaneJob,
+    BoardItem, BoardStrokeTextData, PlaneConnectStyle, PlaneFragmentDiagnostic,
+    PlaneFragmentStatus, PlaneJob,
 };
-use librepcb_core::project::{BoardId, ComponentInstanceId, PlaneId, Project};
+use librepcb_core::project::{
+    BoardId, BoardMutation, ComponentInstanceId, Mutation, PlaneId, Project,
+};
 use librepcb_core::types::{
     Angle, ElementName, Layer, Length, Point, PositiveLength, UnsignedLength,
 };
@@ -315,6 +318,128 @@ pub fn board_polygon_add(
             "line_width":mm(line_width), "filled":args.filled,
         }),
     )
+}
+
+#[derive(Debug, Default, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BoardLegendArgs {
+    pub board: Option<String>,
+}
+
+fn legend_json(text: &BoardStrokeTextData, component: Option<String>) -> Value {
+    json!({
+        "uuid": text.uuid(),
+        "component": component,
+        "text": text.text(),
+        "layer": text.layer().id(),
+        "position": views::point(text.position()),
+        "rotation": text.rotation().to_deg(),
+        "height": mm(text.height()),
+        "locked": text.locked(),
+    })
+}
+
+pub fn board_legend_list(session: &Session, args: BoardLegendArgs) -> ToolResult<ToolOutput> {
+    let project = session.project()?.project();
+    let (_, id, board) = resolve::board(project, args.board.as_deref())?;
+    let is_printed = |text: &&BoardStrokeTextData| {
+        let settings = board.settings();
+        settings.silkscreen_layers_top.contains(&text.layer())
+            || settings.silkscreen_layers_bot.contains(&text.layer())
+    };
+    let mut texts: Vec<_> = board
+        .stroke_texts()
+        .values()
+        .filter(is_printed)
+        .map(|text| legend_json(text, None))
+        .collect();
+    for device in board.devices().values() {
+        texts.extend(
+            device
+                .stroke_texts()
+                .values()
+                .filter(is_printed)
+                .map(|text| {
+                    legend_json(text, Some(resolve::designator(project, device.component())))
+                }),
+        );
+    }
+    ToolOutput::new(
+        "Board and footprint silkscreen text.",
+        json!({"board":id,"texts":texts}),
+    )
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BoardTextMoveArgs {
+    pub board: Option<String>,
+    /// UUID from board_legend_list.
+    pub uuid: String,
+    /// Device designator or UUID. Omit for standalone board text.
+    pub component: Option<String>,
+    /// New position in board millimeters.
+    pub position: PointMm,
+    /// Optional absolute rotation in degrees.
+    pub rotation: Option<f64>,
+    pub expected_revision: Option<u64>,
+}
+
+pub fn board_text_move(session: &mut Session, args: BoardTextMoveArgs) -> ToolResult<ToolOutput> {
+    let project = session.project()?.project();
+    let (_, id, board) = resolve::board(project, args.board.as_deref())?;
+    let uuid = resolve::required_uuid(&args.uuid, "board text")?;
+    let mut device = args
+        .component
+        .as_deref()
+        .map(|key| {
+            let (component, _) = resolve::component(project, key)?;
+            board
+                .device(component)
+                .cloned()
+                .ok_or_else(|| ToolError::not_found("Device is not placed."))
+        })
+        .transpose()?;
+    let texts = device
+        .as_ref()
+        .map_or(board.stroke_texts(), |d| d.stroke_texts());
+    let mut text = texts
+        .get(&uuid)
+        .cloned()
+        .ok_or_else(|| ToolError::not_found("Board text not found."))?;
+    if text.locked() {
+        return Err(ToolError::new(ErrorKind::Refused, "Board text is locked."));
+    }
+    text.set_position(args.position.to_point()?);
+    if let Some(rotation) = args.rotation {
+        text.set_rotation(angle(rotation)?);
+    }
+    let result = legend_json(
+        &text,
+        device
+            .as_ref()
+            .map(|d| resolve::designator(project, d.component())),
+    );
+    let mutation = match device.as_mut() {
+        Some(device) => {
+            device.insert_stroke_text(text);
+            BoardMutation::UpdateDevice {
+                board: id,
+                device: device.clone(),
+            }
+        }
+        None => BoardMutation::UpdateItem {
+            board: id,
+            item: BoardItem::StrokeText(text),
+        },
+    };
+    let done = write(
+        session,
+        "board_text_move",
+        args.expected_revision,
+        |editor| Ok(editor.apply_mutations("Move board text", vec![Mutation::Board(mutation)])?),
+    )?;
+    done.output(session.project()?, "Moved board text.", result)
 }
 
 /// Board side of a device.
