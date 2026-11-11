@@ -441,15 +441,16 @@ The last reference also discusses Clipper1 artifacts; this repository still
 ports Clipper1, not Clipper2. CGAL is a conceptual reference here, not a proposed
 C++ dependency.
 
-The most useful architecture experiment is an isolated DRC copper-aggregation
+The architecture experiment proposed here was an isolated DRC copper-aggregation
 prototype with retained exact vertices and rounding only at its interface.
-Use `BigRational` as a correctness oracle and benchmark `RBig`/`Relaxed` on the
-same operations. Keep the existing geometry/export implementation available as
+Keep the existing geometry/export implementation available as
 the upstream oracle. Compare actual violations, approval identities, locations,
 topology and exported data separately; file-format interoperability alone does
 not establish behavioral equivalence. This is a larger numeric-contract change,
-not a compatible scalar substitution ready to merge. No such kernel change has
-been installed by this work.
+not a compatible scalar substitution ready to enable by default. The subsequent
+[exact copper experiment](drc-exact-copper.md) implements this behind an optional
+feature using only `dashu-ratio`, with independent geometric correctness tests.
+`BigRational` was used only in the standalone scalar probe below.
 
 ### Rational-crate probe
 
@@ -500,10 +501,10 @@ example, two segments
 without moving rounding can change the upstream result. It is not a minimized
 reproduction of the earlier complete-union fixture failures.
 
-The recommended next experiment is **integer determinants plus `RBig` output**,
-using `BigRational` as the reference. Evaluate `Relaxed` for transient arithmetic
-and measure bit lengths/allocations before retaining it throughout long operation
-chains. Its faster short test does not establish bounded intermediate growth.
+The subsequent kernel uses **checked integer determinants plus `RBig` output**,
+falling back to `RBig` arithmetic on overflow or fractional inputs. It does not
+add `num-rational` or use `Relaxed`: faster transient arithmetic in this short
+probe does not establish bounded intermediate growth across operation chains.
 The crate APIs and representation guarantees are documented in
 [`num-rational`](https://docs.rs/num-rational/latest/num_rational/type.BigRational.html)
 and [`dashu-ratio`](https://docs.rs/dashu-ratio/latest/dashu_ratio/).
