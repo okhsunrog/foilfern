@@ -160,9 +160,22 @@ project or schematic-to-board synchronization model.
 `routing_diagnose` takes a net name or UUID, optional board, builtin grid/width
 and layer options, and a straight probe length (default 0.6 mm). It reports
 grid access points at up to 16 remaining endpoints, effective width and
-clearance, and the first blocker of each straight probe. Trace blockers include
-their UUIDs and terminal blockers include their board anchors. Straight probes
-are local geometry checks, so they do not establish path reachability.
+clearance, and the first blocker found by each straight probe. A blocker
+with a source object includes `object.kind` and `object.uuid`, plus the
+placed `device_uuid` for footprint geometry and the owning `pad_uuid` for
+pad holes. The board-edge finding describes the combined outline. Terminal
+blockers keep their board anchors and trace blockers retain `trace_uuid`.
+Probe results describe local geometry and depend on which shape the check
+encounters first.
+
+To request one focused image, pass `"image":{"endpoint":0,"layer":"top"}`,
+where `endpoint` is the zero-based index in the returned endpoints array.
+Omit the layer to use the first probed layer, or the first allowed copper
+layer if there are no probes. The 640 × 640 PNG is an MCP image block.
+`result.image` gives the selected layer, crop bounds in board millimeters
+and a color legend. The crop stays in top-view coordinates on every layer.
+Amber marks the reported blocking shape, pink and green mark blocked and
+clear probes, and cyan marks the endpoint and reported access nodes.
 
 On the preserved STM32 retry board, `V3V3` at 0.1 mm grid and 0.2 mm width
 had 17 access nodes at `U1.21` and four at the other endpoint. With 0.21 mm
@@ -170,6 +183,10 @@ builtin clearance, six of eight 0.6 mm straight probes from the pad were
 blocked by `GND` and `GPIO_J4_3` traces or a `GPIO_J4_3` via. The result
 establishes local obstruction and rules out an empty access set at either
 endpoint for these settings. It does not determine why the full search fails.
+
+The top-layer crop around `U1.21` covers 2 × 2 mm. A stdio MCP call
+attached the PNG and returned five trace UUIDs and one via UUID for the six
+blocked probes. All six resolved in `board_get` at the same project revision.
 
 A follow-up `routing_edit_prepare` on a separate STM32 copy moved the
 `GPIO_J4_3` via 0.05 mm in +X. It prepared and applied one reviewed

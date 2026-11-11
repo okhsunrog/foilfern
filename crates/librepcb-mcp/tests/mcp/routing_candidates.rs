@@ -438,7 +438,8 @@ fn diagnostics_report_grid_access_and_local_blockers_without_edits() {
     let report = routing::routing_diagnose(
         &session,
         args(json!({
-            "net":"A", "grid_pitch":0.1, "trace_width":0.2, "probe_length":2.0
+            "net":"A", "grid_pitch":0.1, "trace_width":0.2, "probe_length":2.0,
+            "image":{"endpoint":0, "layer":"top"},
         })),
     )
     .unwrap();
@@ -447,16 +448,29 @@ fn diagnostics_report_grid_access_and_local_blockers_without_edits() {
         assert!(endpoint["access_count"].as_u64().unwrap() > 0);
         assert_eq!(endpoint["grid_pitch_mm"], 0.1);
         assert_eq!(endpoint["width_mm"], 0.2);
+        let blocker = endpoint["straight_probes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|probe| &probe["blocker"])
+            .find(|blocker| blocker["kind"] == "terminal" && blocker["net"] == "B")
+            .unwrap_or_else(|| panic!("No adjacent pad blocker: {endpoint:#}"));
+        assert_eq!(blocker["object"]["kind"], "pad");
+        assert_eq!(blocker["object"]["uuid"], blocker["anchor"]["pad_uuid"]);
+        let device: librepcb_core::types::Uuid =
+            serde_json::from_value(blocker["object"]["device_uuid"].clone()).unwrap();
         assert!(
-            endpoint["straight_probes"]
-                .as_array()
-                .unwrap()
+            open.project()
+                .boards()
                 .iter()
-                .any(|probe| probe["blocker"]["kind"] == "terminal"
-                    && probe["blocker"]["net"] == "B"),
-            "{endpoint:#}"
+                .any(|b| b.device(device.into()).is_some())
         );
     }
+    assert_eq!(report.result["image"]["endpoint"], 0);
+    assert_eq!(report.result["image"]["layer"], "top_cu");
+    assert_eq!(report.images.len(), 1);
+    assert!(report.images[0].starts_with(b"\x89PNG\r\n\x1a\n"));
+    assert_eq!(&report.images[0][16..24], &[0, 0, 2, 128, 0, 0, 2, 128]);
     assert_eq!(open.project().revision(), revision);
     assert_eq!(board_value(&session), before);
 }

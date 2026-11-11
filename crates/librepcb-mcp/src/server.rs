@@ -903,7 +903,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Inspect builtin grid access and local clearance blockers at remaining endpoints of one net."
+        description = "Inspect builtin grid access and local clearance blockers at remaining endpoints of one net. Optionally attach an annotated PNG for one endpoint and copper layer."
     )]
     async fn routing_diagnose(
         &self,

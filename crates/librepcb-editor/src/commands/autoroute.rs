@@ -27,8 +27,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 pub use librepcb_autoroute::{
-    AccessBlocker, Connection as RoutingConnection, TerminalId as RoutingTerminalId,
-    diagnose_access,
+    AccessBlocker, Connection as RoutingConnection, Shape as RoutingShape, TerminalAccess,
+    TerminalId as RoutingTerminalId, diagnose_access,
 };
 use librepcb_autoroute::{
     Hole, LayerScope, NetId, Obstacle, RoutingProblem, RoutingResult, RoutingRules, Shape,
@@ -37,7 +37,7 @@ use librepcb_autoroute::{
 use librepcb_core::geometry::{
     NonEmptyPath, PadGeometry, Path, TraceAnchor, Via, ZoneLayers, ZoneRules,
 };
-use librepcb_core::project::board::drc::{BoardDrcData, DrcHole, DrcPad};
+use librepcb_core::project::board::drc::{BoardDrcData, DrcHole, DrcPad, DrcStrokeText};
 use librepcb_core::project::board::{AirWire, BoardAirWiresBuilder};
 use librepcb_core::project::{BoardId, ComponentInstanceId, NetSignalId, Project};
 use librepcb_core::types::{Layer, Length, MaskConfig, Point, PositiveLength, Uuid};
@@ -250,6 +250,54 @@ fn reason_name(reason: UnroutedReason) -> &'static str {
     }
 }
 
+/// Type of the board object that contributed routing geometry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RoutingObjectKind {
+    Trace,
+    Via,
+    Pad,
+    Junction,
+    Hole,
+    Polygon,
+    Circle,
+    StrokeText,
+    Zone,
+}
+
+/// Identity of routing geometry in the board or its placed footprint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub struct RoutingObject {
+    pub kind: RoutingObjectKind,
+    pub uuid: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_uuid: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pad_uuid: Option<Uuid>,
+}
+
+impl RoutingObject {
+    fn new(kind: RoutingObjectKind, uuid: Uuid, device_uuid: Option<Uuid>) -> Self {
+        Self {
+            kind,
+            uuid,
+            device_uuid,
+            pad_uuid: None,
+        }
+    }
+
+    /// Identifies the board object addressed by a trace anchor.
+    pub fn from_anchor(anchor: TraceAnchor) -> Self {
+        use RoutingObjectKind as Kind;
+        match anchor {
+            TraceAnchor::FootprintPad { device, pad } => Self::new(Kind::Pad, pad, Some(device)),
+            TraceAnchor::Pad(uuid) => Self::new(Kind::Pad, uuid, None),
+            TraceAnchor::Via(uuid) => Self::new(Kind::Via, uuid, None),
+            TraceAnchor::Junction(uuid) => Self::new(Kind::Junction, uuid, None),
+        }
+    }
+}
+
 /// A routing problem with the mapping back to the board.
 #[derive(Debug, Clone)]
 pub struct ExtractedProblem {
@@ -257,8 +305,10 @@ pub struct ExtractedProblem {
     pub problem: RoutingProblem,
     /// The anchor of each terminal (index = [`TerminalId`]).
     pub terminal_anchors: Vec<TraceAnchor>,
-    /// Existing trace UUIDs by obstacle index.
-    pub obstacle_traces: BTreeMap<usize, Uuid>,
+    /// Source objects indexed by routing obstacle.
+    pub obstacle_objects: Vec<RoutingObject>,
+    /// Source objects indexed by routing hole.
+    pub hole_objects: Vec<RoutingObject>,
     /// The nets whose air wires are routed.
     pub nets: BTreeSet<NetSignalId>,
     /// Original board air wires, indexed by routing connection request.
@@ -367,6 +417,8 @@ struct Builder<'a> {
     problem: RoutingProblem,
     terminal_anchors: Vec<TraceAnchor>,
     terminals_by_anchor: BTreeMap<TraceAnchor, TerminalId>,
+    obstacle_objects: Vec<RoutingObject>,
+    hole_objects: Vec<RoutingObject>,
     copper_layers: &'a [Layer],
 }
 
@@ -388,15 +440,22 @@ impl Builder<'_> {
         (clearance > self.problem.rules.clearance).then_some(clearance)
     }
 
-    fn add_hole(&mut self, shapes: Vec<Shape>, plated: bool) {
+    fn add_obstacle(&mut self, obstacle: Obstacle, object: RoutingObject) {
+        self.problem.add_obstacle(obstacle);
+        self.obstacle_objects.push(object);
+    }
+
+    fn add_hole(&mut self, shapes: Vec<Shape>, plated: bool, object: RoutingObject) {
         for shape in shapes {
             self.problem.add_hole(Hole { shape, plated });
+            self.hole_objects.push(object);
         }
     }
 
     /// Adds a pad: a terminal (first shape) plus same-net obstacles for the
     /// other shapes, or obstacles only if it has no net.
     fn add_pad(&mut self, pad: &DrcPad, anchor: TraceAnchor) {
+        let object = RoutingObject::from_anchor(anchor);
         let transform = Transform::new(pad.position, pad.rotation, pad.mirror);
         let clearance = self.clearance(*pad.copper_clearance);
         let net = pad.net;
@@ -416,7 +475,16 @@ impl Builder<'_> {
         // Plated drills.
         for hole in &pad.holes {
             let shapes = hole_shapes(&hole.path, hole.diameter, &transform);
-            self.add_hole(shapes, true);
+            self.add_hole(
+                shapes,
+                true,
+                RoutingObject {
+                    kind: RoutingObjectKind::Hole,
+                    uuid: hole.uuid,
+                    device_uuid: object.device_uuid,
+                    pad_uuid: Some(object.uuid),
+                },
+            );
         }
         let layers: Vec<Layer> = shapes_per_layer.iter().map(|(l, _)| *l).collect();
         if let (Some(net), Some((_, first))) = (net, shapes_per_layer.first()) {
@@ -435,66 +503,106 @@ impl Builder<'_> {
             for (layer, shapes) in &shapes_per_layer {
                 for s in shapes {
                     if *s != shape {
-                        self.problem.add_obstacle(Obstacle {
-                            shape: s.clone(),
-                            layers: LayerScope::single(*layer),
-                            net: Some(net),
-                            clearance,
-                        });
+                        self.add_obstacle(
+                            Obstacle {
+                                shape: s.clone(),
+                                layers: LayerScope::single(*layer),
+                                net: Some(net),
+                                clearance,
+                            },
+                            object,
+                        );
                     }
                 }
             }
         } else {
             for (layer, shapes) in shapes_per_layer {
                 for shape in shapes {
-                    self.problem.add_obstacle(Obstacle {
-                        shape,
-                        layers: LayerScope::single(layer),
-                        net,
-                        clearance,
-                    });
+                    self.add_obstacle(
+                        Obstacle {
+                            shape,
+                            layers: LayerScope::single(layer),
+                            net,
+                            clearance,
+                        },
+                        object,
+                    );
                 }
             }
         }
     }
 
-    fn add_board_holes(&mut self, holes: &[DrcHole], transform: &Transform) {
+    fn add_board_holes(&mut self, holes: &[DrcHole], transform: &Transform, device: Option<Uuid>) {
         for hole in holes {
             let shapes = hole_shapes(&hole.path, hole.diameter, transform);
-            self.add_hole(shapes, false);
+            self.add_hole(
+                shapes,
+                false,
+                RoutingObject::new(RoutingObjectKind::Hole, hole.uuid, device),
+            );
         }
     }
 
-    fn add_keepout(&mut self, rules: ZoneRules, outline: &Path, layers: BTreeSet<Layer>) {
+    fn add_keepout(
+        &mut self,
+        rules: ZoneRules,
+        outline: &Path,
+        layers: BTreeSet<Layer>,
+        object: RoutingObject,
+    ) {
         if !rules.contains(ZoneRules::NO_COPPER) || layers.is_empty() {
             return;
         }
         let points = polygon_points(outline);
         if points.len() >= 3 {
             let layers = self.layer_scope(layers);
-            self.problem
-                .add_obstacle(Obstacle::keepout(Shape::Polygon(points), layers));
+            self.add_obstacle(Obstacle::keepout(Shape::Polygon(points), layers), object);
         }
     }
 
-    fn add_copper_polygon(&mut self, path: &Path, line_width: Length, filled: bool, layer: Layer) {
+    fn add_copper_polygon(
+        &mut self,
+        path: &Path,
+        line_width: Length,
+        filled: bool,
+        layer: Layer,
+        object: RoutingObject,
+    ) {
         if !self.copper_layers.contains(&layer) {
             return;
         }
         if let Some(width) = positive(line_width) {
             for shape in stroke_shapes(path, width) {
-                self.problem
-                    .add_obstacle(Obstacle::copper(shape, LayerScope::single(layer), None));
+                self.add_obstacle(
+                    Obstacle::copper(shape, LayerScope::single(layer), None),
+                    object,
+                );
             }
         }
         if filled && path.is_closed() {
             let points = polygon_points(path);
             if points.len() >= 3 {
-                self.problem.add_obstacle(Obstacle::copper(
-                    Shape::Polygon(points),
-                    LayerScope::single(layer),
-                    None,
-                ));
+                self.add_obstacle(
+                    Obstacle::copper(Shape::Polygon(points), LayerScope::single(layer), None),
+                    object,
+                );
+            }
+        }
+    }
+
+    fn add_copper_text(&mut self, text: &DrcStrokeText, device: Option<Uuid>) {
+        if self.copper_layers.contains(&text.layer)
+            && let Some(width) = positive(*text.stroke_width)
+        {
+            let transform = Transform::new(text.position, text.rotation, text.mirror);
+            let object = RoutingObject::new(RoutingObjectKind::StrokeText, text.uuid, device);
+            for path in &text.paths {
+                for shape in stroke_shapes(&transform.map(path), width) {
+                    self.add_obstacle(
+                        Obstacle::copper(shape, LayerScope::single(text.layer), None),
+                        object,
+                    );
+                }
             }
         }
     }
@@ -509,6 +617,8 @@ pub fn extract_problem(
     options: &Autoroute,
     nets: Option<&BTreeSet<NetSignalId>>,
 ) -> Result<ExtractedProblem> {
+    use RoutingObjectKind as Kind;
+
     let b = resolve::board(p, Some(board))?;
     let settings = b.settings().drc_settings.clone();
     let data = BoardDrcData::new(p, board, &settings, true)
@@ -608,6 +718,8 @@ pub fn extract_problem(
         problem: RoutingProblem::new(outline, copper_layers.clone(), routing_rules),
         terminal_anchors: Vec::new(),
         terminals_by_anchor: BTreeMap::new(),
+        obstacle_objects: Vec::new(),
+        hole_objects: Vec::new(),
         copper_layers: &copper_layers,
     };
 
@@ -618,31 +730,25 @@ pub fn extract_problem(
             *polygon.line_width,
             polygon.filled,
             polygon.layer,
+            RoutingObject::new(Kind::Polygon, polygon.uuid, None),
         );
     }
-    for st in &data.stroke_texts {
-        if copper_layers.contains(&st.layer)
-            && let Some(width) = positive(*st.stroke_width)
-        {
-            let transform = Transform::new(st.position, st.rotation, st.mirror);
-            for path in &st.paths {
-                for shape in stroke_shapes(&transform.map(path), width) {
-                    builder.problem.add_obstacle(Obstacle::copper(
-                        shape,
-                        LayerScope::single(st.layer),
-                        None,
-                    ));
-                }
-            }
-        }
+    for text in &data.stroke_texts {
+        builder.add_copper_text(text, None);
     }
-    builder.add_board_holes(&data.holes, &Transform::default());
+    builder.add_board_holes(&data.holes, &Transform::default(), None);
     for zone in &data.zones {
-        builder.add_keepout(zone.rules, &zone.outline, zone.board_layers.clone());
+        builder.add_keepout(
+            zone.rules,
+            &zone.outline,
+            zone.board_layers.clone(),
+            RoutingObject::new(Kind::Zone, zone.uuid, None),
+        );
     }
 
     // Devices.
     for (device_uuid, dev) in &data.devices {
+        let device = Some(*device_uuid);
         let transform = dev.transform();
         for (pad_uuid, pad) in &dev.pads {
             builder.add_pad(
@@ -659,6 +765,7 @@ pub fn extract_problem(
                 *polygon.line_width,
                 polygon.filled,
                 transform.map(&polygon.layer),
+                RoutingObject::new(Kind::Polygon, polygon.uuid, device),
             );
         }
         for circle in &dev.circles {
@@ -671,37 +778,31 @@ pub fn extract_problem(
             if let Some(diameter) = positive(outer)
                 && (circle.filled || *circle.line_width > Length::ZERO)
             {
-                builder.problem.add_obstacle(Obstacle::copper(
-                    Shape::Circle { center, diameter },
-                    LayerScope::single(layer),
-                    None,
-                ));
+                builder.add_obstacle(
+                    Obstacle::copper(
+                        Shape::Circle { center, diameter },
+                        LayerScope::single(layer),
+                        None,
+                    ),
+                    RoutingObject::new(Kind::Circle, circle.uuid, device),
+                );
             }
         }
-        for st in &dev.stroke_texts {
-            if copper_layers.contains(&st.layer)
-                && let Some(width) = positive(*st.stroke_width)
-            {
-                let t = Transform::new(st.position, st.rotation, st.mirror);
-                for path in &st.paths {
-                    for shape in stroke_shapes(&t.map(path), width) {
-                        builder.problem.add_obstacle(Obstacle::copper(
-                            shape,
-                            LayerScope::single(st.layer),
-                            None,
-                        ));
-                    }
-                }
-            }
+        for text in &dev.stroke_texts {
+            builder.add_copper_text(text, device);
         }
-        builder.add_board_holes(&dev.holes, &transform);
+        builder.add_board_holes(&dev.holes, &transform, device);
         for zone in &dev.zones {
             let layers = zone_layers(zone.footprint_layers, dev.mirror, &copper_layers);
-            builder.add_keepout(zone.rules, &transform.map(&zone.outline), layers);
+            builder.add_keepout(
+                zone.rules,
+                &transform.map(&zone.outline),
+                layers,
+                RoutingObject::new(Kind::Zone, zone.uuid, device),
+            );
         }
     }
 
-    let mut obstacle_traces = BTreeMap::new();
     // Net segments.
     let mut junction_terminals: BTreeSet<Uuid> = BTreeSet::new();
     let air_wire_builder = BoardAirWiresBuilder::new(b, p.library(), p.circuit());
@@ -729,6 +830,7 @@ pub fn extract_problem(
             builder.add_pad(pad, TraceAnchor::Pad(*uuid));
         }
         for via in seg.vias.values() {
+            let object = RoutingObject::new(Kind::Via, via.uuid, None);
             let layers = builder.layer_scope(
                 copper_layers
                     .iter()
@@ -745,6 +847,7 @@ pub fn extract_problem(
                     diameter: via.drill_diameter,
                 }],
                 true,
+                object,
             );
             match net {
                 Some(net) => {
@@ -759,22 +862,22 @@ pub fn extract_problem(
                     builder.terminal_anchors.push(anchor);
                     builder.terminals_by_anchor.insert(anchor, id);
                 }
-                None => builder
-                    .problem
-                    .add_obstacle(Obstacle::copper(shape, layers, None)),
+                None => builder.add_obstacle(Obstacle::copper(shape, layers, None), object),
             }
         }
         for trace in &seg.traces {
-            obstacle_traces.insert(builder.problem.obstacles.len(), trace.uuid);
-            builder.problem.add_obstacle(Obstacle::copper(
-                Shape::Segment {
-                    start: trace.p1,
-                    end: trace.p2,
-                    width: trace.width,
-                },
-                LayerScope::single(trace.layer),
-                net,
-            ));
+            builder.add_obstacle(
+                Obstacle::copper(
+                    Shape::Segment {
+                        start: trace.p1,
+                        end: trace.p2,
+                        width: trace.width,
+                    },
+                    LayerScope::single(trace.layer),
+                    net,
+                ),
+                RoutingObject::new(Kind::Trace, trace.uuid, None),
+            );
         }
         if let Some(net) = net {
             for junction in seg.junctions.values() {
@@ -831,7 +934,8 @@ pub fn extract_problem(
     Ok(ExtractedProblem {
         problem: builder.problem,
         terminal_anchors: builder.terminal_anchors,
-        obstacle_traces,
+        obstacle_objects: builder.obstacle_objects,
+        hole_objects: builder.hole_objects,
         nets: routed_nets,
         request_wires,
         unsupported,

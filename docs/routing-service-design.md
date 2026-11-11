@@ -253,7 +253,9 @@ review experience. The STM32 run used the earlier experiment copy, not the newer
 
 Implemented `routing_diagnose` for one net's remaining endpoints. It reports
 builtin grid access, effective width and clearance, and the first object that
-blocks each local straight probe. Existing trace blockers include UUIDs.
+blocks each local straight probe. Blockers carry their source board or
+footprint object identities. An optional focused PNG shows probe results,
+access points and blocking shapes on a selected copper layer.
 See the [preserved STM32 observation](mcp-routing-reliability.md#local-access-diagnostics).
 
 Implemented `routing_edit_prepare` for explicit via dimensions and moves of
@@ -273,8 +275,8 @@ Remaining R2 work includes locating specific blockers along the search,
 separating pre-existing copper from routes that can be changed, and adding
 local topology changes. Report suggested remedies as hypotheses until a trial
 verifies them. A drained heuristic frontier only describes the attempted grid
-search. Expose effective rule values and sources, focused board images, and
-blocking object IDs. Fix selected-device pin resolution before placement.
+search. Expose effective rule values and sources. Fix selected-device pin
+resolution before placement.
 
 Acceptance: an agent can inspect a remaining connection, identify a concrete
 blocker, make a bounded edit and verify progress without hand-editing files or

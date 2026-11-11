@@ -14,6 +14,8 @@ use crate::error::{ErrorKind, ToolError, ToolResult};
 use crate::outcome::ToolOutput;
 use crate::session::Session;
 
+mod diagnose_image;
+
 /// Builtin-only options; external backends are deliberately not accepted.
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -243,11 +245,23 @@ pub struct RoutingDiagnoseArgs {
     pub layers: Vec<String>,
     /// Length of each straight clearance probe in mm (default 0.6, max 5).
     pub probe_length: Option<f64>,
+    /// Attach one focused PNG for a selected endpoint and copper layer.
+    pub image: Option<RoutingDiagnoseImageArgs>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RoutingDiagnoseImageArgs {
+    /// Zero-based index in the returned endpoints array (at most 16 entries).
+    pub endpoint: usize,
+    /// Copper layer (top, bottom, inner1, or a layer ID). Defaults to the first probed layer.
+    pub layer: Option<String>,
 }
 
 pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolResult<ToolOutput> {
     use librepcb_editor::commands::autoroute::{
-        AccessBlocker, RoutingConnection, diagnose_access, extract_problem,
+        AccessBlocker, RoutingConnection, RoutingObject, RoutingObjectKind, diagnose_access,
+        extract_problem,
     };
 
     let p = session.project()?.project();
@@ -295,20 +309,25 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
         diagnose_access(problem, &selected, reach).map_err(librepcb_editor::Error::from)?
     };
     let obstacle_net = |id| crate::resolve::net_name(p, librepcb_core::project::NetSignalId(id));
-    let endpoints: Vec<_> = selected.into_iter().zip(access).map(|(id, report)| {
+    let endpoints: Vec<_> = selected.iter().copied().zip(&access).map(|(id, report)| {
         let probes: Vec<_> = report.probes.iter().map(|probe| {
             let blocker = match probe.blocker {
                 None => serde_json::Value::Null,
                 Some(AccessBlocker::BoardEdge) => json!({"kind":"board_edge"}),
-                Some(AccessBlocker::Hole(index)) => json!({"kind":"hole","index":index}),
+                Some(AccessBlocker::Hole(index)) => json!({
+                    "kind":"hole","index":index,"object":extracted.hole_objects[index],
+                }),
                 Some(AccessBlocker::Terminal(id)) => {
                     let terminal = &problem.terminals[id.0];
                     json!({"kind":"terminal","anchor":anchor(id),"net":obstacle_net(terminal.net),
+                        "object":RoutingObject::from_anchor(extracted.terminal_anchors[id.0]),
                         "clearance_mm":mm(problem.rules.clearance.max(terminal.clearance.unwrap_or_default()))})
                 }
                 Some(AccessBlocker::Obstacle(index)) => {
                     let item = &problem.obstacles[index];
-                    json!({"kind":"obstacle","index":index,"trace_uuid":extracted.obstacle_traces.get(&index),
+                    let object = extracted.obstacle_objects[index];
+                    json!({"kind":"obstacle","index":index,"object":object,
+                        "trace_uuid":(object.kind == RoutingObjectKind::Trace).then_some(object.uuid),
                         "net":item.net.map(obstacle_net),
                         "clearance_mm":mm(problem.rules.clearance.max(item.clearance.unwrap_or_default()))})
                 }
@@ -323,12 +342,47 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
             "straight_probes":probes,
         })
     }).collect();
-    ToolOutput::new("Inspected builtin terminal access and local clearance.", json!({
+    let mut out = ToolOutput::new("Inspected builtin terminal access and local clearance.", json!({
         "net":args.net,"board":board,"clearance_mm":mm(problem.rules.clearance),
         "clearance_source":"maximum board and net-class clearance plus builtin margin",
         "probe_length_mm":mm(*reach),"unsupported_air_wires":extracted.unsupported.len(),
         "endpoint_count":ids.len(),"endpoints":endpoints,
-    })).map(|out| out.warn("Straight probes show local clearance only. A blocked probe does not rule out another path."))
+    }))?.warn("Straight probes show local clearance only. A blocked probe does not rule out another path.");
+    if let Some(image) = args.image {
+        let (&id, report) = selected
+            .get(image.endpoint)
+            .zip(access.get(image.endpoint))
+            .ok_or_else(|| {
+                ToolError::invalid(
+                    "image.endpoint must be an index in the returned endpoints array",
+                )
+            })?;
+        let layer = match image.layer.as_deref() {
+            Some(layer) => board_edit::copper_layer(layer)?,
+            None => report
+                .probes
+                .first()
+                .map(|probe| probe.layer)
+                .or_else(|| {
+                    options
+                        .layers
+                        .as_ref()
+                        .and_then(|layers| layers.first().copied())
+                })
+                .unwrap_or(problem.copper_layers[0]),
+        };
+        if !problem.copper_layers.contains(&layer) {
+            return Err(ToolError::invalid(
+                "image.layer is not a copper layer of this board",
+            ));
+        }
+        let (mut info, png) =
+            diagnose_image::render(p, board, &extracted, id, report, layer, reach)?;
+        info["endpoint"] = json!(image.endpoint);
+        out.result["image"] = info;
+        out = out.image(png);
+    }
+    Ok(out)
 }
 
 /// Explicit via dimensions in mm. The existing position and layers are kept
