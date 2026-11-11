@@ -371,6 +371,9 @@ pad names, existing anchor UUIDs and coordinates also work. The whole batch
 is checked against the board as one candidate and applies in one undo step.
 Use `remove_traces` to replace selected existing traces by UUID in the
 same candidate. It supports up to 512 vias, paths, points and removals combined.
+Candidate validation reports new DRC warnings by identity as well as errors.
+Review warnings such as undersized drills before applying; warnings alone
+do not block a candidate.
 
 `routing_compare` uses one detached baseline and a fresh copy of it for
 each of two or three distinct builtin initial orders. Pass common

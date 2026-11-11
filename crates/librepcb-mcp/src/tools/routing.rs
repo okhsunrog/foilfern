@@ -401,6 +401,12 @@ fn candidate_output(summary: &str, info: &RoutingCandidateInfo) -> ToolResult<To
     if !info.validation.drc_clean {
         out = out.warn("Candidate is not DRC-clean; inspect validation and remaining connections.");
     }
+    if info.validation.new_warning_count > 0 {
+        out = out.warn(format!(
+            "Candidate introduces {} DRC warning(s); see validation.new_warnings.",
+            info.validation.new_warning_count
+        ));
+    }
     Ok(out)
 }
 

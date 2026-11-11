@@ -2,7 +2,7 @@
 //! counterpart). Shared by routing callers, independent of the MCP protocol.
 //!
 //! Each snapshot runs full DRC, including rebuilt planes and air wires.
-//! Error identities use the upstream approval expressions; missing connections
+//! Finding identities use the upstream approval expressions; missing connections
 //! are tracked separately because their air-wire tree can change after routing.
 //! The netlist comparison checks signal assignments, not physical connectivity;
 //! shorts and copper geometry are checked by DRC.
@@ -31,20 +31,23 @@ pub struct RoutingCheckSummary {
     pub check_failures: Vec<String>,
 }
 
-/// A non-connectivity DRC error, identified independently of translated text.
+/// A non-connectivity DRC finding, identified independently of translated text.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RoutingError {
+pub struct RoutingDrcFinding {
     pub kind: String,
     pub message: String,
     pub approval: String,
     pub copper: bool,
 }
 
+pub type RoutingError = RoutingDrcFinding;
+
 /// Captured state before or after a routing operation.
 #[derive(Debug, Clone)]
 pub struct RoutingSnapshot {
     pub checks: RoutingCheckSummary,
     errors: BTreeMap<String, RoutingError>,
+    warnings: BTreeMap<String, RoutingDrcFinding>,
     unrouted_by_net: BTreeMap<NetSignalId, usize>,
     unrouted_examples: BTreeMap<NetSignalId, (String, Vec<AirWire>)>,
     signals: BTreeMap<(ComponentInstanceId, Uuid), Option<NetSignalId>>,
@@ -107,6 +110,15 @@ pub struct RoutingValidation {
     pub resolved_error_count: usize,
     /// At most 50 newly reported errors (the count above is never truncated).
     pub new_errors: Vec<RoutingError>,
+    /// Warnings inform review without blocking an otherwise acceptable patch.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub new_warning_count: usize,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub new_warnings: Vec<RoutingDrcFinding>,
+}
+
+fn is_zero(value: &usize) -> bool {
+    *value == 0
 }
 
 fn is_copper_error(kind: DrcMessageKind) -> bool {
@@ -149,6 +161,7 @@ pub fn capture_routing_state(
         check_failures: Vec::new(),
     };
     let mut errors = BTreeMap::new();
+    let mut warnings = BTreeMap::new();
     match result {
         Ok(result) => {
             checks.check_failures = result.errors;
@@ -157,28 +170,32 @@ pub fn capture_routing_state(
                 if approvals.is_some_and(|a| a.contains(message.approval())) {
                     continue;
                 }
-                match message.message().severity() {
-                    Severity::Warning => checks.warnings += 1,
+                let copper = is_copper_error(message.kind());
+                let findings = match message.message().severity() {
+                    Severity::Warning => {
+                        checks.warnings += 1;
+                        &mut warnings
+                    }
                     Severity::Error => {
                         checks.errors += 1;
-                        let copper = is_copper_error(message.kind());
                         checks.copper_errors += usize::from(copper);
-                        if message.kind() != DrcMessageKind::MissingConnection {
-                            let approval =
-                                message.approval().to_string_with_mode(Default::default())?;
-                            errors.insert(
-                                approval.clone(),
-                                RoutingError {
-                                    kind: format!("{:?}", message.kind()),
-                                    message: message.message().message().to_owned(),
-                                    approval,
-                                    copper,
-                                },
-                            );
+                        if message.kind() == DrcMessageKind::MissingConnection {
+                            continue;
                         }
+                        &mut errors
                     }
-                    Severity::Hint => {}
-                }
+                    Severity::Hint => continue,
+                };
+                let approval = message.approval().to_string_with_mode(Default::default())?;
+                findings.insert(
+                    approval.clone(),
+                    RoutingDrcFinding {
+                        kind: format!("{:?}", message.kind()),
+                        message: message.message().message().to_owned(),
+                        approval,
+                        copper,
+                    },
+                );
             }
         }
         Err(error) => checks.check_failures.push(error.to_string()),
@@ -227,6 +244,7 @@ pub fn capture_routing_state(
         unrouted_by_net,
         unrouted_examples,
         errors,
+        warnings,
         signals,
         nets: p.circuit().net_signals().keys().copied().collect(),
     })
@@ -240,6 +258,16 @@ impl RoutingValidation {
             .filter(|(key, _)| !before.errors.contains_key(*key))
             .map(|(_, error)| error.clone())
             .collect();
+        let mut new_warnings = Vec::new();
+        let mut new_warning_count = 0;
+        for (key, warning) in &after.warnings {
+            if !before.warnings.contains_key(key) {
+                new_warning_count += 1;
+                if new_warnings.len() < 50 {
+                    new_warnings.push(warning.clone());
+                }
+            }
+        }
         let netlist_preserved = before.signals == after.signals && before.nets == after.nets;
         let unrouted_regressions: Vec<_> = after
             .unrouted_by_net
@@ -286,6 +314,8 @@ impl RoutingValidation {
                 .filter(|key| !after.errors.contains_key(*key))
                 .count(),
             new_errors: new_errors.into_iter().take(50).collect(),
+            new_warning_count,
+            new_warnings,
             before: before.checks,
             after: after.checks,
         }

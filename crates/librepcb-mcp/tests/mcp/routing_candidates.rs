@@ -69,6 +69,7 @@ fn board_value(session: &Session) -> Value {
 fn explicit_copper_resolves_via_labels_and_applies_as_one_step() {
     let temp = tempfile::tempdir().unwrap();
     let mut session = board_session(temp.path());
+    board_edit::design_rules_set(&mut session, args(json!({"min_drill_diameter":0.3}))).unwrap();
     let original = board_edit::trace_add(
         &mut session,
         args(json!({"from":"R1.1","to":"R2.1","width":0.2})),
@@ -94,6 +95,16 @@ fn explicit_copper_resolves_via_labels_and_applies_as_one_step() {
     let mut invalid = plan.clone();
     invalid["traces"][1]["to"]["via"] = json!("absent");
     assert!(routing::prepare_copper_job(&session, args(invalid)).is_err());
+    let mut undersized = plan.clone();
+    undersized["vias"][0]["drill"] = json!(0.25);
+    let job = routing::prepare_copper_job(&session, args(undersized)).unwrap();
+    let trial = routing::run_job(job).unwrap();
+    assert!(trial.info().validation.acceptable);
+    assert_eq!(trial.info().validation.new_warning_count, 1);
+    assert_eq!(
+        trial.info().validation.new_warnings[0].kind,
+        "MinimumDrillDiameterViolation"
+    );
     let job = routing::prepare_copper_job(&session, args(plan)).unwrap();
     let candidate = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
         .unwrap()
@@ -105,6 +116,7 @@ fn explicit_copper_resolves_via_labels_and_applies_as_one_step() {
     assert_eq!(candidate["validation"]["acceptable"], true, "{candidate}");
     assert_eq!(candidate["validation"]["before"]["unrouted"], 1);
     assert_eq!(candidate["validation"]["after"]["unrouted"], 1);
+    assert!(candidate["validation"]["new_warning_count"].is_null());
     assert_eq!(session.project().unwrap().project().revision(), revision);
     assert_eq!(board_value(&session), before);
     routing::routing_apply(
