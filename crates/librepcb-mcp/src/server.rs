@@ -205,7 +205,7 @@ impl LibrePcbMcp {
         + Send
         + 'static,
     ) -> Result<CallToolResult, McpError> {
-        self.prepare_routing_work(
+        self.run_detached(
             prepare,
             crate::tools::routing::run_job,
             crate::tools::routing::finish_prepare,
@@ -213,7 +213,7 @@ impl LibrePcbMcp {
         .await
     }
 
-    async fn prepare_routing_work<J: Send + 'static, P: Send + 'static>(
+    async fn run_detached<J: Send + 'static, P: Send + 'static>(
         &self,
         prepare: impl FnOnce(&mut Session) -> ToolResult<J> + Send + 'static,
         run: impl FnOnce(J) -> ToolResult<P> + Send + 'static,
@@ -228,7 +228,7 @@ impl LibrePcbMcp {
             Ok(Err(e)) => return self.run(move |_| Err(e)).await,
             Err(e) => {
                 return self
-                    .run(move |_| Err(ToolError::internal(format!("Routing worker failed: {e}"))))
+                    .run(move |_| Err(ToolError::internal(format!("Detached worker failed: {e}"))))
                     .await;
             }
         };
@@ -873,6 +873,21 @@ impl LibrePcbMcp {
         self.run(move |s| board_edit::planes_rebuild(s, args)).await
     }
 
+    #[tool(
+        description = "Diagnose the actual fill of a copper plane on a read-only snapshot. +                       Locate discarded islands by area and bounds, or probe a board point."
+    )]
+    async fn plane_diagnose(
+        &self,
+        Parameters(args): Parameters<board_edit::PlaneDiagnoseArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run_detached(
+            move |s| board_edit::prepare_plane_diagnostic(s, args),
+            board_edit::run_plane_diagnostic,
+            |s, report| board_edit::finish_plane_diagnostic(s, report),
+        )
+        .await
+    }
+
     #[tool(description = "The unrouted connections (air wires) and unplaced devices of a board.")]
     async fn unrouted(
         &self,
@@ -941,7 +956,7 @@ impl LibrePcbMcp {
         &self,
         Parameters(args): Parameters<crate::tools::routing::RoutingCompareArgs>,
     ) -> Result<CallToolResult, McpError> {
-        self.prepare_routing_work(
+        self.run_detached(
             move |s| crate::tools::routing::prepare_comparison_job(s, args),
             crate::tools::routing::run_comparison_job,
             crate::tools::routing::finish_comparison,

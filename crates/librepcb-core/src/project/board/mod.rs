@@ -79,7 +79,9 @@ pub use pad_data::BoardPadData;
 pub use physical_geometry::*;
 pub use pick_place_generator::{BoardPickPlaceGenerator, export_pick_place_csv};
 pub use plane::{BoardPlane, PlaneConnectStyle};
-pub use plane_fragments_builder::{PlaneFragments, PlaneJob};
+pub use plane_fragments_builder::{
+    PlaneFragmentDiagnostic, PlaneFragmentStatus, PlaneFragments, PlaneJob,
+};
 pub use polygon_data::BoardPolygonData;
 pub use specctra_export::{
     ANONYMOUS_NET_PREFIX, BoardSpecctraExport, SPECCTRA_HOST_CAD, SPECCTRA_HOST_VERSION,

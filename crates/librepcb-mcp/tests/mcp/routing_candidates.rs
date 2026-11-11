@@ -66,6 +66,46 @@ fn board_value(session: &Session) -> Value {
 }
 
 #[test]
+fn plane_diagnostic_distinguishes_discarded_and_kept_islands_without_editing() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    for keep_islands in [false, true] {
+        let plane = board_edit::plane_add(
+            &mut session,
+            args(json!({
+                "net":"A", "layer":"bottom", "keep_islands":keep_islands
+            })),
+        )
+        .unwrap()
+        .result["uuid"]
+            .clone();
+        let before = board_value(&session);
+        let revision = session.project().unwrap().project().revision();
+        let job = board_edit::prepare_plane_diagnostic(
+            &session,
+            args(json!({
+                "plane":plane, "probe":{"x":10,"y":10}, "expected_revision":revision
+            })),
+        )
+        .unwrap();
+        let report = board_edit::run_plane_diagnostic(job).unwrap();
+        let report = board_edit::finish_plane_diagnostic(&session, report)
+            .unwrap()
+            .result;
+        let status = if keep_islands {
+            "island_kept"
+        } else {
+            "island_discarded"
+        };
+        assert_eq!(report["probe"]["status"], status);
+        assert_eq!(report["totals"][status]["count"], 1);
+        assert!(report["totals"][status]["area_mm2"].as_f64().unwrap() > 0.0);
+        assert_eq!(board_value(&session), before);
+        assert_eq!(session.project().unwrap().project().revision(), revision);
+    }
+}
+
+#[test]
 fn local_via_rejects_blocked_site_and_applies_a_checked_alternative() {
     let temp = tempfile::tempdir().unwrap();
     let mut session = board_session(temp.path());

@@ -108,6 +108,14 @@ vertices to change the extent of an existing pour. Inspect both board
 sides with `render`. Resolve errors and review
 warnings; a zero error count alone does not validate the physical design.
 
+`plane_diagnose` runs the normal fill on a snapshot without editing the board.
+Pass a plane UUID from `board_get`. The report shows the count and area of
+connected, discarded, kept-island and netless fragments at the final island
+filter. Each fragment has board-space bounds in mm, with discarded islands
+listed first. Pass `probe: {"x": 34.2, "y": 25}` to test whether a point is
+inside any fragment, including discarded ones. Use `offset` and `limit`
+to page through the report and `expected_revision` to pin it to your read.
+
 ## Save and deliver
 
 After the final edits, rerun ERC, DRC and `unrouted`. Export fabrication

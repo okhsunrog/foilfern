@@ -168,11 +168,41 @@ impl PlaneFragments {
     }
 }
 
+/// A fragment at the final island filter of a plane fill.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlaneFragmentDiagnostic {
+    pub status: PlaneFragmentStatus,
+    pub outline: Path,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlaneFragmentStatus {
+    Connected,
+    IslandDiscarded,
+    IslandKept,
+    Netless,
+}
+
+impl PlaneFragmentDiagnostic {
+    pub fn area_mm2(&self) -> f64 {
+        clipper::area(&ch::path_to_clipper(&self.outline, max_arc_tolerance())).abs() / 1e12
+    }
+
+    /// Whether the point is strictly inside the copper, excluding holes.
+    pub fn contains(&self, point: Point) -> bool {
+        clipper::point_in_polygon(
+            ch::point_to_clipper(point),
+            &ch::path_to_clipper(&self.outline, max_arc_tolerance()),
+        ) == 1
+    }
+}
+
 /// Result of one layer (upstream `LayerJobResult`).
 #[derive(Debug, Default)]
 struct LayerResult {
     planes: BTreeMap<Uuid, Vec<Path>>,
     errors: Vec<String>,
+    diagnostics: Vec<PlaneFragmentDiagnostic>,
 }
 
 impl Project {
@@ -460,7 +490,29 @@ impl PlaneJob {
 
     /// Like [`run()`](Self::run), but stops early (with
     /// [`PlaneFragments::finished`] = `false`) once `abort` is set.
-    pub fn run_with_abort(mut self, abort: &AtomicBool) -> PlaneFragments {
+    pub fn run_with_abort(self, abort: &AtomicBool) -> PlaneFragments {
+        self.run_inner(abort, None).0
+    }
+
+    /// Inspect one plane's actual island filter, with all pour priorities intact.
+    pub fn diagnose(self, plane: PlaneId) -> BoardExportResult<Vec<PlaneFragmentDiagnostic>> {
+        if !self.planes.iter().any(|data| data.uuid == plane.0) {
+            return Err(Error::NotFound {
+                kind: EntityKind::Plane,
+                uuid: plane.0,
+            }
+            .into());
+        }
+        let (result, diagnostics) = self.run_inner(&AtomicBool::new(false), Some(plane));
+        result.check()?;
+        Ok(diagnostics)
+    }
+
+    fn run_inner(
+        mut self,
+        abort: &AtomicBool,
+        inspect: Option<PlaneId>,
+    ) -> (PlaneFragments, Vec<PlaneFragmentDiagnostic>) {
         log::debug!(
             "Start calculating areas of {} plane(s) on {} layer(s)...",
             self.planes.len(),
@@ -474,19 +526,21 @@ impl PlaneJob {
             finished: false,
             revision: self.revision,
         };
+        let mut diagnostics = Vec::new();
         match self.preprocess() {
             Ok(board_area) => {
                 let this = &self;
                 let results: Vec<LayerResult> = self
                     .layers
                     .par_iter()
-                    .map(|layer| this.run_layer(*layer, &board_area, abort))
+                    .map(|layer| this.run_layer(*layer, &board_area, abort, inspect))
                     .collect();
                 for r in results {
                     result
                         .planes
                         .extend(r.planes.into_iter().map(|(k, v)| (PlaneId(k), v)));
                     result.errors.extend(r.errors);
+                    diagnostics.extend(r.diagnostics);
                 }
             }
             Err(e) => {
@@ -495,7 +549,7 @@ impl PlaneJob {
             }
         }
         result.finished = !abort.load(Ordering::Relaxed);
-        result
+        (result, diagnostics)
     }
 
     /// Preprocesses the data and returns the board area (upstream first
@@ -575,6 +629,7 @@ impl PlaneJob {
         layer: Layer,
         board_area: &ClipperPaths,
         abort: &AtomicBool,
+        inspect: Option<PlaneId>,
     ) -> LayerResult {
         let mut result = LayerResult::default();
         for (index, plane) in self.planes.iter().enumerate() {
@@ -584,9 +639,16 @@ impl PlaneJob {
             if abort.load(Ordering::Relaxed) {
                 break;
             }
-            match self.build_plane(plane, &self.planes[..index], board_area, &result) {
-                Ok(fragments) => {
+            match self.build_plane(
+                plane,
+                &self.planes[..index],
+                board_area,
+                &result,
+                inspect == Some(PlaneId(plane.uuid)),
+            ) {
+                Ok((fragments, diagnostics)) => {
                     result.planes.insert(plane.uuid, fragments);
+                    result.diagnostics.extend(diagnostics);
                 }
                 Err(e) => {
                     log::error!("Failed to calculate plane areas, leaving empty: {e}");
@@ -604,7 +666,8 @@ impl PlaneJob {
         previous_planes: &[PlaneData],
         board_area: &ClipperPaths,
         layer_result: &LayerResult,
-    ) -> Result<Vec<Path>, String> {
+        inspect: bool,
+    ) -> Result<(Vec<Path>, Vec<PlaneFragmentDiagnostic>), String> {
         let tol = max_arc_tolerance();
         let err = |e: ch::Error| e.to_string();
         let mut removed_areas = ClipperPaths::new();
@@ -907,7 +970,8 @@ impl PlaneJob {
         fragments = ch::flatten_tree(tree.root()).map_err(err)?;
 
         // If requested, remove unconnected fragments (islands).
-        if plane.net.is_some() && !plane.keep_islands {
+        let mut diagnostics = Vec::new();
+        if plane.net.is_some() && (!plane.keep_islands || inspect) {
             let mut kept = ClipperPaths::with_capacity(fragments.len());
             for fragment in fragments {
                 let mut intersections = vec![fragment.clone()];
@@ -918,7 +982,20 @@ impl PlaneJob {
                     PolyFillType::NonZero,
                 )
                 .map_err(err)?;
-                if !intersections.is_empty() {
+                let status = if !intersections.is_empty() {
+                    PlaneFragmentStatus::Connected
+                } else if plane.keep_islands {
+                    PlaneFragmentStatus::IslandKept
+                } else {
+                    PlaneFragmentStatus::IslandDiscarded
+                };
+                if inspect {
+                    diagnostics.push(PlaneFragmentDiagnostic {
+                        status,
+                        outline: ch::path_from_clipper(&fragment),
+                    });
+                }
+                if status != PlaneFragmentStatus::IslandDiscarded {
                     kept.push(fragment);
                 }
             }
@@ -941,7 +1018,19 @@ impl PlaneJob {
         fragments.retain(|p| !p.is_empty());
         fragments.sort_by_key(|p| key(&p[0]));
 
-        Ok(ch::paths_from_clipper(&fragments))
+        let fragments = ch::paths_from_clipper(&fragments);
+        if inspect && plane.net.is_none() {
+            diagnostics.extend(
+                fragments
+                    .iter()
+                    .cloned()
+                    .map(|outline| PlaneFragmentDiagnostic {
+                        status: PlaneFragmentStatus::Netless,
+                        outline,
+                    }),
+            );
+        }
+        Ok((fragments, diagnostics))
     }
 }
 

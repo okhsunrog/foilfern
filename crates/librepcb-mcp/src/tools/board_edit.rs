@@ -8,7 +8,9 @@ use std::collections::BTreeSet;
 
 use librepcb_core::fileio::{CleanFileNameOptions, FileNameCase, FilePath};
 use librepcb_core::geometry::Path;
-use librepcb_core::project::board::PlaneConnectStyle;
+use librepcb_core::project::board::{
+    PlaneConnectStyle, PlaneFragmentDiagnostic, PlaneFragmentStatus, PlaneJob,
+};
 use librepcb_core::project::{BoardId, ComponentInstanceId, PlaneId, Project};
 use librepcb_core::types::{
     Angle, ElementName, Layer, Length, Point, PositiveLength, UnsignedLength,
@@ -1771,6 +1773,164 @@ pub fn planes_rebuild(session: &mut Session, args: BoardArgs) -> ToolResult<Tool
     } else {
         out
     })
+}
+
+/// Arguments for a read-only plane fill diagnostic.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlaneDiagnoseArgs {
+    /// UUID of a copper plane from board_get.
+    pub plane: String,
+    pub board: Option<String>,
+    pub expected_revision: Option<u64>,
+    /// Zero-based fragment offset. Discarded islands are listed first.
+    #[serde(default)]
+    pub offset: usize,
+    /// Number of fragments to return, from 1 to 64 (default 16).
+    pub limit: Option<usize>,
+    /// Also report which copper fragment contains this board point in mm.
+    pub probe: Option<PointMm>,
+}
+
+pub struct PlaneDiagnosticJob {
+    job: PlaneJob,
+    plane: PlaneId,
+    metadata: Value,
+    offset: usize,
+    limit: usize,
+    probe: Option<Point>,
+}
+
+pub fn prepare_plane_diagnostic(
+    session: &Session,
+    args: PlaneDiagnoseArgs,
+) -> ToolResult<PlaneDiagnosticJob> {
+    let project = session.project()?.project();
+    super::write::check_revision(project, args.expected_revision)?;
+    let (_, board, model) = resolve::board(project, args.board.as_deref())?;
+    let plane = PlaneId(resolve::required_uuid(&args.plane, "plane")?);
+    let model = model
+        .plane(plane)
+        .ok_or_else(|| ToolError::not_found("Plane was not found on this board."))?;
+    let limit = args.limit.unwrap_or(16);
+    if !(1..=64).contains(&limit) {
+        return Err(ToolError::invalid("limit must be between 1 and 64."));
+    }
+    let metadata = json!({
+        "project": project.uuid(),
+        "base_revision": project.revision(),
+        "board": board,
+        "plane": plane,
+        "layer": model.layer().id(),
+        "net": model.net().map(|net| resolve::net_name(project, net)),
+        "keep_islands": model.keep_islands(),
+    });
+    let job = project
+        .plane_job(board, None)?
+        .ok_or_else(|| ToolError::internal("The board has no planes to fill."))?;
+    Ok(PlaneDiagnosticJob {
+        job,
+        plane,
+        metadata,
+        offset: args.offset,
+        limit,
+        probe: args.probe.map(PointMm::to_point).transpose()?,
+    })
+}
+
+pub fn run_plane_diagnostic(work: PlaneDiagnosticJob) -> ToolResult<ToolOutput> {
+    let PlaneDiagnosticJob {
+        job,
+        plane,
+        mut metadata,
+        offset,
+        limit,
+        probe,
+    } = work;
+    let mut fragments: Vec<_> = job
+        .diagnose(plane)?
+        .into_iter()
+        .map(|fragment| (fragment.area_mm2(), fragment))
+        .collect();
+    let status = |kind| match kind {
+        PlaneFragmentStatus::IslandDiscarded => (0, "island_discarded"),
+        PlaneFragmentStatus::IslandKept => (1, "island_kept"),
+        PlaneFragmentStatus::Connected => (2, "connected"),
+        PlaneFragmentStatus::Netless => (3, "netless"),
+    };
+    fragments.sort_by_key(|(_, fragment)| status(fragment.status).0);
+    let mut counts = [0; 4];
+    let mut areas = [0.0; 4];
+    for (area, fragment) in &fragments {
+        let index = status(fragment.status).0;
+        counts[index] += 1;
+        areas[index] += area;
+    }
+    let describe = |(area, fragment): &(f64, PlaneFragmentDiagnostic)| {
+        let vertices = fragment.outline.vertices();
+        json!({
+            "status": status(fragment.status).1,
+            "area_mm2": area,
+            "bounds": {
+                "min": {
+                    "x": vertices.iter().map(|v| mm(v.pos.x)).reduce(f64::min),
+                    "y": vertices.iter().map(|v| mm(v.pos.y)).reduce(f64::min),
+                },
+                "max": {
+                    "x": vertices.iter().map(|v| mm(v.pos.x)).reduce(f64::max),
+                    "y": vertices.iter().map(|v| mm(v.pos.y)).reduce(f64::max),
+                },
+            },
+        })
+    };
+    metadata["fragment_count"] = json!(fragments.len());
+    metadata["totals"] = json!({
+        "island_discarded": { "count": counts[0], "area_mm2": areas[0] },
+        "island_kept": { "count": counts[1], "area_mm2": areas[1] },
+        "connected": { "count": counts[2], "area_mm2": areas[2] },
+        "netless": { "count": counts[3], "area_mm2": areas[3] },
+    });
+    metadata["fragments"] = json!(
+        fragments
+            .iter()
+            .skip(offset)
+            .take(limit)
+            .map(describe)
+            .collect::<Vec<_>>()
+    );
+    let next = offset.saturating_add(limit);
+    metadata["next_offset"] = json!((next < fragments.len()).then_some(next));
+    if let Some(point) = probe {
+        let hit = fragments
+            .iter()
+            .enumerate()
+            .find(|(_, (_, fragment))| fragment.contains(point));
+        metadata["probe"] = json!({
+            "point": views::point(point),
+            "fragment_offset": hit.map(|(index, _)| index),
+            "status": hit.map(|(_, (_, fragment))| status(fragment.status).1),
+        });
+    }
+    ToolOutput::new(
+        format!(
+            "Inspected {} fragments, {} discarded islands.",
+            fragments.len(),
+            counts[0]
+        ),
+        metadata,
+    )
+}
+
+pub fn finish_plane_diagnostic(session: &Session, report: ToolOutput) -> ToolResult<ToolOutput> {
+    let project = session.project()?.project();
+    if report.result["project"] != json!(project.uuid()) {
+        return Err(ToolError::new(
+            ErrorKind::StaleRevision,
+            "The open project changed during plane diagnosis.",
+        ));
+    }
+    super::write::check_revision(project, report.result["base_revision"].as_u64())?;
+    Ok(report)
 }
 
 /// `unrouted`.
