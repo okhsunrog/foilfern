@@ -37,7 +37,7 @@ use crate::outcome::ToolOutput;
 use crate::resolve;
 use crate::session::Session;
 use crate::tools::circuit::device_json;
-use crate::tools::layout::air_wires_json;
+use crate::tools::layout::{air_wires_json, air_wires_json_with_fill, current_plane_fill};
 use crate::tools::write::write;
 use crate::units::{PointMm, angle, length, mm};
 use crate::views;
@@ -1937,7 +1937,8 @@ pub fn finish_plane_diagnostic(session: &Session, report: ToolOutput) -> ToolRes
 pub fn unrouted(session: &Session, args: BoardArgs) -> ToolResult<ToolOutput> {
     let p = session.project()?.project();
     let (_, _, b) = resolve::board(p, args.board.as_deref())?;
-    let air_wires = air_wires_json(p, b);
+    let fill = current_plane_fill(p, b)?;
+    let air_wires = air_wires_json_with_fill(p, b, fill.as_ref());
     let unplaced: Vec<String> = p
         .circuit()
         .component_instances()

@@ -157,6 +157,25 @@ impl<'a> BoardAirWiresBuilder<'a> {
 
     /// Returns the air wires of a net (upstream `buildAirWires()`).
     pub fn build_air_wires(&self, net: NetSignalId) -> Vec<AirWire> {
+        self.build_air_wires_using(net, |plane| self.board.derived().fragments_of(plane))
+    }
+
+    /// Uses a detached fill result without updating the board's derived cache.
+    pub fn build_air_wires_with_fragments(
+        &self,
+        net: NetSignalId,
+        fragments: &BTreeMap<PlaneId, Vec<Path>>,
+    ) -> Vec<AirWire> {
+        self.build_air_wires_using(net, |plane| {
+            fragments.get(&plane).map_or(&[], Vec::as_slice)
+        })
+    }
+
+    fn build_air_wires_using<'p>(
+        &self,
+        net: NetSignalId,
+        fragments: impl Fn(PlaneId) -> &'p [Path],
+    ) -> Vec<AirWire> {
         let Some(items) = self.nets.get(&net) else {
             return Vec::new();
         };
@@ -177,7 +196,7 @@ impl<'a> BoardAirWiresBuilder<'a> {
         // Connections made by planes.
         for (layer, plane) in &items.planes {
             let plane_layer = layer.copper_number();
-            for fragment in self.board.derived().fragments_of(*plane) {
+            for fragment in fragments(*plane) {
                 let path = PainterPathPx::from_paths([fragment as &Path]);
                 let mut last_id = None;
                 for (id, point) in items.points.iter().enumerate() {

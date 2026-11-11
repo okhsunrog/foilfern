@@ -66,6 +66,84 @@ fn board_value(session: &Session) -> Value {
 }
 
 #[test]
+fn builtin_candidate_cannot_break_another_nets_plane_connection() {
+    use librepcb_mcp::tools::layout::board_get;
+
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    for (net, pad, x, y) in [
+        ("A", "R1.1", 7.0, 9.025),
+        ("A", "R2.1", 14.0, 9.025),
+        ("B", "R1.2", 12.5, 7.0),
+        ("B", "R2.2", 12.5, 11.0),
+    ] {
+        let via = board_edit::via_add(
+            &mut session,
+            args(json!({
+                "position":{"x":x,"y":y},"net":net,"drill":0.3,"size":0.8
+            })),
+        )
+        .unwrap()
+        .result["uuid"]
+            .clone();
+        board_edit::trace_add(
+            &mut session,
+            args(json!({
+                "from":pad,"to":via,"layer":"top","width":0.2
+            })),
+        )
+        .unwrap();
+    }
+    board_edit::plane_add(
+        &mut session,
+        args(json!({
+            "net":"A","layer":"bottom","connect_style":"solid","outline":[
+                {"x":6.0,"y":8.5},{"x":15.0,"y":8.5},{"x":15.0,"y":9.5},{"x":6.0,"y":9.5}
+            ]
+        })),
+    )
+    .unwrap();
+    let revision = session.project().unwrap().project().revision();
+    let gaps = board_edit::unrouted(&session, Default::default())
+        .unwrap()
+        .result["air_wires"]
+        .clone();
+    assert_eq!(gaps.as_array().unwrap().len(), 1, "{gaps}");
+    assert_eq!(gaps[0]["net"], "B");
+    assert_eq!(
+        board_get(&session, Default::default()).unwrap().result["air_wires"],
+        gaps
+    );
+    assert_eq!(session.project().unwrap().project().revision(), revision);
+
+    let candidate = routing::routing_prepare(
+        &mut session,
+        args(json!({
+            "nets":["B"],"layers":["bottom"],"grid_pitch":0.2,"trace_width":0.2
+        })),
+    )
+    .unwrap()
+    .result;
+    let validation = &candidate["validation"];
+    assert_eq!(validation["new_copper_error_count"], 0, "{candidate:#}");
+    assert_eq!(
+        validation["unrouted_regressions"].as_array().unwrap().len(),
+        1,
+        "{candidate:#}"
+    );
+    assert_eq!(validation["acceptable"], false, "{candidate:#}");
+    let rejected = routing::routing_apply(
+        &mut session,
+        args(json!({
+            "candidate":candidate["candidate"]
+        })),
+    )
+    .unwrap_err();
+    assert_eq!(rejected.kind, ErrorKind::Refused);
+    assert_eq!(session.project().unwrap().project().revision(), revision);
+}
+
+#[test]
 fn reference_coverage_finds_a_hole_and_previews_a_reroute_with_no_air_wires() {
     use librepcb_core::geometry::ZoneRules;
     use librepcb_core::types::{Layer, Point};

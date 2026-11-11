@@ -121,7 +121,7 @@ impl RoutingCandidateDetails {
             _ => true,
         };
         let mut validation = RoutingValidation::compare(before, after);
-        if !matches!(self, Self::Builtin { .. }) && !validation.unrouted_regressions.is_empty() {
+        if !validation.unrouted_regressions.is_empty() {
             validation.acceptable = false;
         }
         validation.acceptable &= improves;

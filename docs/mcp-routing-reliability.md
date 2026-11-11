@@ -132,6 +132,20 @@ DRC and connectivity, power-path widths, ground coverage, total length,
 via count and manual interventions. Report the original layout metrics
 alongside the new ones.
 
+The first two builtin trials reduced open connections from 169 to 162
+and then to 40, with zero new non-connectivity DRC errors. The power
+trial regressed `VMOS` and `GND`. The signal trial regressed `VBUS` and
+`GND`. In both cases the previous candidate gate allowed the change
+because it relied on the non-connectivity DRC comparison. The checked
+builtin path now rejects increased air-wire counts on any net. A replay
+of the power trial showed the same regressions and refused apply.
+
+Immediately after opening the imported board, `unrouted` previously
+reported 266 open connections until a separate plane rebuild brought it
+to 169. `unrouted` and `board_get` now calculate a detached fill when
+needed. Both report 169 on the reopened project without requiring
+`planes_rebuild` or changing the project revision.
+
 ## Applied-result contract
 
 `autoroute` (both backends) and `specctra_import` return `result.validation`:

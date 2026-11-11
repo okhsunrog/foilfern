@@ -108,8 +108,8 @@ Use `trace_update` to change existing widths in one undo step, for example
 It preserves trace identities, anchors and layers. Inspect its before/after
 validation: increasing width can remove width errors while adding clearance
 errors. Undo a regressing change rather than assuming wider copper is valid.
-Check `unrouted` after routing; a completed tool call does not establish
-that every connection was routed.
+Check `unrouted` after routing. It measures current air wires with rebuilt
+planes even immediately after opening a project.
 
 Routing and SES import return `validation` from full before/after DRC on
 the applied project. Inspect actual `unrouted_after`, `new_error_count`,

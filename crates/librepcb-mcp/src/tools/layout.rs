@@ -2,7 +2,7 @@
 //! `board_get`.
 
 use librepcb_core::geometry::{NetLineAnchor, Text, TraceAnchor};
-use librepcb_core::project::board::{Board, BoardAirWiresBuilder};
+use librepcb_core::project::board::{Board, BoardAirWiresBuilder, PlaneFragments};
 use librepcb_core::project::schematic::Schematic;
 use librepcb_core::project::{ComponentInstanceId, NetSegmentId, Project, SymbolId};
 use librepcb_core::types::Point;
@@ -230,10 +230,34 @@ pub(crate) fn trace_anchor(
 /// The unrouted connections (air wires) of a board, computed without
 /// changing the model (the stored air wires may be outdated).
 pub fn air_wires_json(p: &Project, b: &Board) -> Vec<Value> {
+    air_wires_json_with_fill(p, b, None)
+}
+
+pub(crate) fn current_plane_fill(p: &Project, b: &Board) -> ToolResult<Option<PlaneFragments>> {
+    if b.derived().dirty_plane_layers().is_empty() {
+        return Ok(None);
+    }
+    let Some(job) = p.plane_job(b.id(), None)? else {
+        return Ok(None);
+    };
+    let fill = job.run();
+    fill.check()?;
+    Ok(Some(fill))
+}
+
+pub(crate) fn air_wires_json_with_fill(
+    p: &Project,
+    b: &Board,
+    fill: Option<&PlaneFragments>,
+) -> Vec<Value> {
     let builder = BoardAirWiresBuilder::new(b, p.library(), p.circuit());
     let mut air_wires = Vec::new();
     for net in p.circuit().net_signals().keys() {
-        for aw in builder.build_air_wires(*net) {
+        let wires = match fill {
+            Some(fill) => builder.build_air_wires_with_fragments(*net, &fill.planes),
+            None => builder.build_air_wires(*net),
+        };
+        for aw in wires {
             air_wires.push(json!({
                 "net": resolve::net_name(p, *net),
                 "from": trace_anchor(p, b, Some(aw.p1_position()), aw.p1()),
@@ -312,6 +336,7 @@ pub fn board_get(session: &Session, args: BoardGetArgs) -> ToolResult<ToolOutput
         }
     }
 
+    let fill = current_plane_fill(p, b)?;
     let planes: Vec<Value> = b
         .planes()
         .values()
@@ -326,15 +351,15 @@ pub fn board_get(session: &Session, args: BoardGetArgs) -> ToolResult<ToolOutput
                 "connect_style": pl.connect_style().to_str(),
                 "priority": pl.priority(),
                 "keep_islands": pl.keep_islands(),
-                "fragments": b.derived().fragments_of(pl.id()).len(),
+                "fragments": match &fill {
+                    Some(fill) => fill.planes.get(&pl.id()).map_or(0, Vec::len),
+                    None => b.derived().fragments_of(pl.id()).len(),
+                },
             })
         })
         .collect();
 
-    // Air wires, computed without changing the model (the stored air
-    // wires may be outdated). Plane fragments are only up to date after a
-    // plane rebuild (e.g. by export_fabrication).
-    let air_wires = air_wires_json(p, b);
+    let air_wires = air_wires_json_with_fill(p, b, fill.as_ref());
 
     let summary = format!(
         "Board {index} \"{}\": {} copper layers, {} device(s), {} trace(s), {} via(s), {} plane(s), \

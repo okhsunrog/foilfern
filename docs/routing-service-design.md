@@ -205,8 +205,10 @@ attribute values without sharing the source filesystem. Closing/dropping the
 open project drops its candidate store. A reopened project
 with the same UUID/revision cannot reuse the previous service's candidate.
 
-Apply requires `validation.acceptable`: full checks completed, netlist preserved
-and no new non-connectivity DRC errors. A candidate which still has missing
+Apply requires `validation.acceptable`: full checks completed, netlist preserved,
+no new non-connectivity DRC errors and no increase in air wires on any net.
+Evaluate air wires after rebuilding planes, including nets outside the routing
+selection. A candidate which still has missing
 connections can be acceptable and remains explicitly partial. Existing DRC
 errors remain visible; `acceptable` does not mean `drc_clean`. Failed gate or
 stale/foreign identity checks leave the live model and history unchanged.
