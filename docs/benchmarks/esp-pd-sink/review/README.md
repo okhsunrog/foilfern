@@ -44,6 +44,7 @@ renders and performance evidence are described in [REPORT.md](REPORT.md).
 The next batch completed [OLED RESET placement and routing](reset/REPORT.md).
 Use its compact native project for continued layout work.
 
-[U2 VDD/VCONN decoupling](u2/REPORT.md) and [U6/R17 Kelvin routing](kelvin/REPORT.md)
-are completed. The Kelvin report links the current selected native project.
-Next are the ADC C4 placement alternatives and SW5 schematic-mode review.
+[U2 VDD/VCONN decoupling](u2/REPORT.md), [U6/R17 Kelvin routing](kelvin/REPORT.md)
+and [ADC C4 alternatives/SW5 review](adc/REPORT.md) are completed. The ADC report
+links the current selected native project. Q1/D2/R20 gate-clamp placement and
+the power corridor are next.

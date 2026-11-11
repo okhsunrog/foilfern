@@ -1,0 +1,105 @@
+{
+  "baseline": {
+    "trace_segments": 979,
+    "vias": 144,
+    "trace_length_mm": 1523.6889623666261,
+    "c4_ground_lead": {
+      "length_mm": 2.2301270694137822,
+      "via": "9f46de8f-9aac-43b5-8724-b4903a4d581e",
+      "via_position": {
+        "x": 110.063,
+        "y": -127.18
+      },
+      "traces": [
+        "c2aefcc2-bf3a-46f2-af76-cf98223331d9",
+        "51c2c696-072d-474a-bdb2-21efa8cf647e",
+        "30dcc12a-5b0d-448c-a9a0-d8fdf615a6d2"
+      ],
+      "scope": "Shortest explicit C4 ground lead to a via; plane return to MCU is excluded."
+    }
+  },
+  "selected": {
+    "trace_segments": 975,
+    "vias": 145,
+    "trace_length_mm": 1520.23900499879,
+    "c4_ground_lead": {
+      "length_mm": 0.6171709649683769,
+      "via": "18727367-69b3-470d-be18-494d726c7ed1",
+      "via_position": {
+        "x": 112.95,
+        "y": -117.2
+      },
+      "traces": [
+        "ae2aab64-197f-4c42-a538-390cefb94650"
+      ],
+      "scope": "Shortest explicit C4 ground lead to a via; plane return to MCU is excluded."
+    }
+  },
+  "whole_rejected_preview": {
+    "trace_segments": 960,
+    "vias": 144,
+    "trace_length_mm": 1512.9562838892753,
+    "c4_ground_lead": {
+      "length_mm": 1.358823020117034,
+      "via": "337778d3-30de-4082-beb3-20d8d2317cd6",
+      "via_position": {
+        "x": 112.0,
+        "y": -114.4
+      },
+      "traces": [
+        "34425b0e-f95a-45bc-b4e4-6b84ceac09ea"
+      ],
+      "scope": "Shortest explicit C4 ground lead to a via; plane return to MCU is excluded."
+    }
+  },
+  "traces": {
+    "removed": [
+      "0520f6a1-7dcd-4791-ba5d-d6534583548d",
+      "087d926b-aa1d-4579-9f78-906cb4528d28",
+      "6d52bab4-5d85-4136-a403-af7177c93c6e",
+      "82b09d9a-0a47-43e6-a5af-d9eca9653e09",
+      "89af15b1-5908-4c69-868e-4cfc484aeaf2",
+      "bdb46979-f10d-4e7f-bd3c-6b6e4671ab23",
+      "c2aefcc2-bf3a-46f2-af76-cf98223331d9",
+      "c6bf5532-203e-4429-959b-0c946aeddcdb"
+    ],
+    "added": [
+      "2fd80463-4814-4cbc-a0b6-9868113acaef",
+      "ae2aab64-197f-4c42-a538-390cefb94650",
+      "d648cd86-8547-421d-a022-da5bc117e3c1",
+      "fd271256-aa2b-4e2c-b026-86598147a0a3"
+    ],
+    "retained_geometry_preserved": true
+  },
+  "vias": {
+    "removed": [],
+    "added": [
+      "18727367-69b3-470d-be18-494d726c7ed1"
+    ],
+    "retained_geometry_preserved": true
+  },
+  "placements": [
+    {
+      "component": "C4",
+      "before": {
+        "position": {
+          "x": 111.8,
+          "y": -128.0
+        },
+        "rotation": 90.0,
+        "side": "top"
+      },
+      "after": {
+        "position": {
+          "x": 113.5,
+          "y": -117.0
+        },
+        "rotation": 90.0,
+        "side": "top"
+      }
+    }
+  ],
+  "mechanical_and_plane_settings_preserved": true,
+  "netlist_byte_identical": true,
+  "drc_messages_identical": true
+}

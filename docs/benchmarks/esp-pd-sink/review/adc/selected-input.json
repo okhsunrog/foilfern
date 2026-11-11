@@ -1,0 +1,60 @@
+{
+  "placements": [
+    {
+      "component": "C4",
+      "position": {
+        "x": 113.5,
+        "y": -117.0
+      },
+      "rotation": 90
+    }
+  ],
+  "remove_traces": [
+    "6d52bab4-5d85-4136-a403-af7177c93c6e",
+    "bdb46979-f10d-4e7f-bd3c-6b6e4671ab23",
+    "0520f6a1-7dcd-4791-ba5d-d6534583548d",
+    "89af15b1-5908-4c69-868e-4cfc484aeaf2",
+    "c6bf5532-203e-4429-959b-0c946aeddcdb",
+    "087d926b-aa1d-4579-9f78-906cb4528d28",
+    "82b09d9a-0a47-43e6-a5af-d9eca9653e09",
+    "c2aefcc2-bf3a-46f2-af76-cf98223331d9"
+  ],
+  "vias": [
+    {
+      "label": "adc-ground",
+      "net": "GND",
+      "position": {
+        "x": 112.95,
+        "y": -117.2
+      },
+      "drill": 0.3,
+      "size": 0.6
+    }
+  ],
+  "traces": [
+    {
+      "from": "U1.8",
+      "to": "C4.2",
+      "layer": "top",
+      "width": 0.18,
+      "points": [
+        {
+          "x": 114.45,
+          "y": -115.2
+        },
+        {
+          "x": 113.5,
+          "y": -116.15
+        }
+      ]
+    },
+    {
+      "from": "C4.1",
+      "to": {
+        "via": "adc-ground"
+      },
+      "layer": "top",
+      "width": 0.25
+    }
+  ]
+}

@@ -1,0 +1,534 @@
+{
+  "format": "foilfern-review-prototype-v1",
+  "groups": [
+    {
+      "id": "oled-pump",
+      "components": [
+        "OLED1",
+        "C23",
+        "C24"
+      ],
+      "pins": [
+        "OLED1.2",
+        "OLED1.3",
+        "OLED1.4",
+        "OLED1.5",
+        "C23.1",
+        "C23.2",
+        "C24.1",
+        "C24.2"
+      ]
+    },
+    {
+      "id": "oled-analog",
+      "components": [
+        "OLED1",
+        "C21",
+        "C22",
+        "R21"
+      ],
+      "pins": [
+        "OLED1.26",
+        "OLED1.27",
+        "OLED1.28",
+        "OLED1.29",
+        "C21.1",
+        "C21.2",
+        "C22.1",
+        "C22.2",
+        "R21.2"
+      ]
+    },
+    {
+      "id": "oled-reset",
+      "components": [
+        "OLED1",
+        "R22",
+        "C27",
+        "D4"
+      ],
+      "pins": [
+        "OLED1.14",
+        "R22.2",
+        "C27.1",
+        "D4.2"
+      ]
+    },
+    {
+      "id": "u5-feedback",
+      "components": [
+        "U5",
+        "R14",
+        "R16",
+        "R30"
+      ],
+      "pins": [
+        "U5.5",
+        "R14.1",
+        "R16.2",
+        "U5.4",
+        "R30.2"
+      ]
+    },
+    {
+      "id": "u5-input",
+      "components": [
+        "U5",
+        "C15",
+        "C16"
+      ],
+      "pins": [
+        "U5.3",
+        "U5.1",
+        "C15.1",
+        "C15.2",
+        "C16.1",
+        "C16.2"
+      ]
+    },
+    {
+      "id": "kelvin",
+      "components": [
+        "R17",
+        "U6",
+        "C19"
+      ],
+      "pins": [
+        "R17.2",
+        "R17.3",
+        "U6.9",
+        "U6.10"
+      ]
+    },
+    {
+      "id": "power-output",
+      "components": [
+        "R17",
+        "Q1",
+        "Q2",
+        "J3"
+      ],
+      "pins": []
+    },
+    {
+      "id": "u2-vdd",
+      "components": [
+        "U2",
+        "C29"
+      ],
+      "pins": [
+        "U2.3",
+        "U2.4",
+        "U2.15",
+        "C29.1",
+        "C29.2"
+      ]
+    },
+    {
+      "id": "u2-vconn",
+      "components": [
+        "U2",
+        "C30"
+      ],
+      "pins": [
+        "U2.12",
+        "U2.13",
+        "U2.8",
+        "U2.9",
+        "U2.15",
+        "C30.1",
+        "C30.2"
+      ]
+    },
+    {
+      "id": "adc-vbus",
+      "components": [
+        "R10",
+        "R11",
+        "C4",
+        "U1",
+        "U2",
+        "SW5"
+      ],
+      "pins": [
+        "SW5.1",
+        "SW5.2",
+        "U2.2",
+        "R10.1",
+        "R10.2",
+        "R11.1",
+        "R11.2",
+        "C4.1",
+        "C4.2",
+        "U1.8"
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "id": "vcomh-length",
+      "group": "oled-analog",
+      "kind": "trace_path",
+      "from": "OLED1.27",
+      "to": "C22.1",
+      "max_length_mm": 4.32,
+      "max_vias": 0,
+      "priority": "preference",
+      "source": "HANDOFF.md: original KiCad measured comparison; an optimization target, not an electrical rating"
+    },
+    {
+      "id": "oled-vcc-length",
+      "group": "oled-analog",
+      "kind": "trace_path",
+      "from": "OLED1.28",
+      "to": "C21.1",
+      "max_length_mm": 4.69,
+      "max_vias": 0,
+      "priority": "preference",
+      "source": "HANDOFF.md: original KiCad measured comparison; an optimization target, not an electrical rating"
+    },
+    {
+      "id": "OLED1.2-C23.2",
+      "kind": "trace_path",
+      "from": "OLED1.2",
+      "to": "C23.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified"
+    },
+    {
+      "id": "OLED1.3-C23.1",
+      "kind": "trace_path",
+      "from": "OLED1.3",
+      "to": "C23.1",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified"
+    },
+    {
+      "id": "OLED1.4-C24.2",
+      "kind": "trace_path",
+      "from": "OLED1.4",
+      "to": "C24.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified"
+    },
+    {
+      "id": "OLED1.5-C24.1",
+      "kind": "trace_path",
+      "from": "OLED1.5",
+      "to": "C24.1",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified"
+    },
+    {
+      "id": "OLED1.14-R22.2",
+      "kind": "trace_path",
+      "from": "OLED1.14",
+      "to": "R22.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified"
+    },
+    {
+      "id": "OLED1.14-C27.1",
+      "kind": "trace_path",
+      "from": "OLED1.14",
+      "to": "C27.1",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified"
+    },
+    {
+      "id": "OLED1.14-D4.2",
+      "kind": "trace_path",
+      "from": "OLED1.14",
+      "to": "D4.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified"
+    },
+    {
+      "id": "U5.3-C15.2",
+      "kind": "trace_path",
+      "from": "U5.3",
+      "to": "C15.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified"
+    },
+    {
+      "id": "U5.3-C16.2",
+      "kind": "trace_path",
+      "from": "U5.3",
+      "to": "C16.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified"
+    },
+    {
+      "id": "U5.1-C16.1",
+      "kind": "trace_path",
+      "from": "U5.1",
+      "to": "C16.1",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified"
+    },
+    {
+      "id": "U5.5-R14.1",
+      "kind": "trace_path",
+      "from": "U5.5",
+      "to": "R14.1",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified"
+    },
+    {
+      "id": "U5.5-R16.2",
+      "kind": "trace_path",
+      "from": "U5.5",
+      "to": "R16.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified"
+    },
+    {
+      "id": "U5.4-R30.2",
+      "kind": "trace_path",
+      "from": "U5.4",
+      "to": "R30.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified"
+    },
+    {
+      "id": "U6.9-R17.2",
+      "kind": "trace_path",
+      "from": "U6.9",
+      "to": "R17.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified"
+    },
+    {
+      "id": "U6.10-R17.3",
+      "kind": "trace_path",
+      "from": "U6.10",
+      "to": "R17.3",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified"
+    },
+    {
+      "id": "U1.8-C4.2",
+      "kind": "trace_path",
+      "from": "U1.8",
+      "to": "C4.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md: placement measurement pairs; no electrical limit specified"
+    },
+    {
+      "id": "fpc-fixed",
+      "kind": "fixed_placement",
+      "component": "OLED1",
+      "priority": "required",
+      "source": "HANDOFF.md: preserve FPC position and cutout"
+    },
+    {
+      "id": "reference-preserved",
+      "kind": "reference_copper",
+      "priority": "required",
+      "source": "HANDOFF.md: compare USB and RF ground reference coverage",
+      "status": "not_checked",
+      "reason": "Requires rebuilt plane coverage and return-transition review; centerline graph cannot establish it."
+    },
+    {
+      "id": "R22.2-C27.1",
+      "kind": "trace_path",
+      "from": "R22.2",
+      "to": "C27.1",
+      "priority": "measurement",
+      "source": "OLED RESET review: compare local RC, discharge diode, VCC-feed and decoupling geometry; no electrical limit specified."
+    },
+    {
+      "id": "C27.1-D4.2",
+      "kind": "trace_path",
+      "from": "C27.1",
+      "to": "D4.2",
+      "priority": "measurement",
+      "source": "OLED RESET review: compare local RC, discharge diode, VCC-feed and decoupling geometry; no electrical limit specified."
+    },
+    {
+      "id": "R22.1-D4.1",
+      "kind": "trace_path",
+      "from": "R22.1",
+      "to": "D4.1",
+      "priority": "measurement",
+      "source": "OLED RESET review: compare local RC, discharge diode, VCC-feed and decoupling geometry; no electrical limit specified."
+    },
+    {
+      "id": "OLED1.15-R22.1",
+      "kind": "trace_path",
+      "from": "OLED1.15",
+      "to": "R22.1",
+      "priority": "measurement",
+      "source": "OLED RESET review: compare local RC, discharge diode, VCC-feed and decoupling geometry; no electrical limit specified."
+    },
+    {
+      "id": "OLED1.15-C26.2",
+      "kind": "trace_path",
+      "from": "OLED1.15",
+      "to": "C26.2",
+      "priority": "measurement",
+      "source": "OLED RESET review: compare local RC, discharge diode, VCC-feed and decoupling geometry; no electrical limit specified."
+    },
+    {
+      "id": "OLED1.9-C26.2",
+      "kind": "trace_path",
+      "from": "OLED1.9",
+      "to": "C26.2",
+      "priority": "measurement",
+      "source": "OLED RESET review: compare local RC, discharge diode, VCC-feed and decoupling geometry; no electrical limit specified."
+    },
+    {
+      "id": "OLED1.11-C26.2",
+      "kind": "trace_path",
+      "from": "OLED1.11",
+      "to": "C26.2",
+      "priority": "measurement",
+      "source": "OLED RESET review: compare local RC, discharge diode, VCC-feed and decoupling geometry; no electrical limit specified."
+    },
+    {
+      "id": "U2.3-C29.2",
+      "kind": "trace_path",
+      "from": "U2.3",
+      "to": "C29.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md U2 decoupling review; domains verified by U2 pin mapping; INT comparison records the local routing tradeoff. No electrical limit specified."
+    },
+    {
+      "id": "U2.4-C29.2",
+      "kind": "trace_path",
+      "from": "U2.4",
+      "to": "C29.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md U2 decoupling review; domains verified by U2 pin mapping; INT comparison records the local routing tradeoff. No electrical limit specified."
+    },
+    {
+      "id": "U2.12-C30.2",
+      "kind": "trace_path",
+      "from": "U2.12",
+      "to": "C30.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md U2 decoupling review; domains verified by U2 pin mapping; INT comparison records the local routing tradeoff. No electrical limit specified."
+    },
+    {
+      "id": "U2.13-C30.2",
+      "kind": "trace_path",
+      "from": "U2.13",
+      "to": "C30.2",
+      "priority": "measurement",
+      "source": "HANDOFF.md U2 decoupling review; domains verified by U2 pin mapping; INT comparison records the local routing tradeoff. No electrical limit specified."
+    },
+    {
+      "id": "U2.15-C29.1",
+      "kind": "trace_path",
+      "from": "U2.15",
+      "to": "C29.1",
+      "priority": "measurement",
+      "source": "HANDOFF.md U2 decoupling review; domains verified by U2 pin mapping; INT comparison records the local routing tradeoff. No electrical limit specified."
+    },
+    {
+      "id": "U2.15-C30.1",
+      "kind": "trace_path",
+      "from": "U2.15",
+      "to": "C30.1",
+      "priority": "measurement",
+      "source": "HANDOFF.md U2 decoupling review; domains verified by U2 pin mapping; INT comparison records the local routing tradeoff. No electrical limit specified."
+    },
+    {
+      "id": "U2.5-U1.6",
+      "kind": "trace_path",
+      "from": "U2.5",
+      "to": "U1.6",
+      "priority": "measurement",
+      "source": "HANDOFF.md U2 decoupling review; domains verified by U2 pin mapping; INT comparison records the local routing tradeoff. No electrical limit specified."
+    },
+    {
+      "id": "U6.6-C19.2",
+      "kind": "trace_path",
+      "from": "U6.6",
+      "to": "C19.2",
+      "priority": "measurement",
+      "source": "U6/R17 review: local decoupling comparison; no electrical limit specified."
+    },
+    {
+      "id": "U6.7-C19.1",
+      "kind": "trace_path",
+      "from": "U6.7",
+      "to": "C19.1",
+      "priority": "measurement",
+      "source": "U6/R17 review: local decoupling comparison; no electrical limit specified."
+    },
+    {
+      "id": "U6.4-U2.7",
+      "kind": "trace_path",
+      "from": "U6.4",
+      "to": "U2.7",
+      "priority": "measurement",
+      "source": "U6/R17 review: I2C routing tradeoff; no electrical limit specified."
+    },
+    {
+      "id": "U6.5-U2.6",
+      "kind": "trace_path",
+      "from": "U6.5",
+      "to": "U2.6",
+      "priority": "measurement",
+      "source": "U6/R17 review: I2C routing tradeoff; no electrical limit specified."
+    },
+    {
+      "id": "R10.2-U1.8",
+      "kind": "trace_path",
+      "from": "R10.2",
+      "to": "U1.8",
+      "priority": "measurement",
+      "source": "ADC C4 alternatives and SW5 schematic-mode review; no electrical limit specified."
+    },
+    {
+      "id": "R11.1-U1.8",
+      "kind": "trace_path",
+      "from": "R11.1",
+      "to": "U1.8",
+      "priority": "measurement",
+      "source": "ADC C4 alternatives and SW5 schematic-mode review; no electrical limit specified."
+    },
+    {
+      "id": "R10.2-R11.1",
+      "kind": "trace_path",
+      "from": "R10.2",
+      "to": "R11.1",
+      "priority": "measurement",
+      "source": "ADC C4 alternatives and SW5 schematic-mode review; no electrical limit specified."
+    },
+    {
+      "id": "R10.2-C4.2",
+      "kind": "trace_path",
+      "from": "R10.2",
+      "to": "C4.2",
+      "priority": "measurement",
+      "source": "ADC C4 alternatives and SW5 schematic-mode review; no electrical limit specified."
+    },
+    {
+      "id": "R11.1-C4.2",
+      "kind": "trace_path",
+      "from": "R11.1",
+      "to": "C4.2",
+      "priority": "measurement",
+      "source": "ADC C4 alternatives and SW5 schematic-mode review; no electrical limit specified."
+    },
+    {
+      "id": "U2.2-R10.1",
+      "kind": "trace_path",
+      "from": "U2.2",
+      "to": "R10.1",
+      "priority": "measurement",
+      "source": "ADC C4 alternatives and SW5 schematic-mode review; no electrical limit specified."
+    },
+    {
+      "id": "SW5.1-R10.1",
+      "kind": "trace_path",
+      "from": "SW5.1",
+      "to": "R10.1",
+      "priority": "measurement",
+      "source": "ADC C4 alternatives and SW5 schematic-mode review; no electrical limit specified."
+    }
+  ]
+}

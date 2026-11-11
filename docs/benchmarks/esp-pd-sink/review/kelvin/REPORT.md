@@ -1,5 +1,8 @@
 # U6/R17 Kelvin routing review
 
+Subsequent [ADC C4 alternatives and SW5 review](../adc/REPORT.md) are completed
+and link the latest native continuation project. Q1/D2/R20 review is next.
+
 2026-11-11. Continues the [U2 decoupling board](../u2/REPORT.md) at `75ae37a`.
 The selected variant brings U6/C19 1.3 mm nearer R17 and routes both INA238
 inputs on Top from the shunt's dedicated sense pads. It has **0 unrouted

@@ -1,0 +1,121 @@
+{
+  "scope": "Ideal linear divider, ideal closed/open SPST, ideal voltage source and unloaded ADC/U2 inputs. Values/tolerances, leakage, parasitics, sampling dynamics and protection not simulated. No electrical ratings inferred.",
+  "values_from_component_get": {
+    "R10": "100K",
+    "R11": "4.7k",
+    "C4": "0.1 uF"
+  },
+  "pins": {
+    "SW5.1": {
+      "component_uuid": "fdc41404-a2bd-4dde-8ff9-a0bb1504f374",
+      "footprint_pad_uuid": "84433c6e-4a31-4497-8363-b922758ea4d0",
+      "signal": "1",
+      "net": "Net-(U2-VBUS)"
+    },
+    "SW5.2": {
+      "component_uuid": "fdc41404-a2bd-4dde-8ff9-a0bb1504f374",
+      "footprint_pad_uuid": "d10907ba-b69e-4b9a-881b-a7c73dcb85a9",
+      "signal": "2",
+      "net": "VBUS"
+    },
+    "U2.2": {
+      "component_uuid": "2ec6de79-0d3b-4fe5-ab17-76668d268977",
+      "footprint_pad_uuid": "7a372eef-af52-451d-a311-cb4ef5a25b77",
+      "signal": "VBUS",
+      "net": "Net-(U2-VBUS)"
+    },
+    "R10.1": {
+      "component_uuid": "03bbc3bc-1962-4a4a-a273-16eae2f839dc",
+      "footprint_pad_uuid": "7e82cd01-24c6-420e-9b47-0a11f2786768",
+      "signal": "1",
+      "net": "Net-(U2-VBUS)"
+    },
+    "R10.2": {
+      "component_uuid": "03bbc3bc-1962-4a4a-a273-16eae2f839dc",
+      "footprint_pad_uuid": "bc6b746d-4b33-4e7b-ba66-4c610dc6898d",
+      "signal": "2",
+      "net": "ADC_VBUS"
+    },
+    "R11.1": {
+      "component_uuid": "7bfb1db6-500b-4f4f-b045-00ae24062682",
+      "footprint_pad_uuid": "2af54b68-3ac0-4543-8ffa-d3eb8ec9daf2",
+      "signal": "1",
+      "net": "ADC_VBUS"
+    },
+    "R11.2": {
+      "component_uuid": "7bfb1db6-500b-4f4f-b045-00ae24062682",
+      "footprint_pad_uuid": "fcd659b5-1752-41b3-8a94-bb59c71f6c2c",
+      "signal": "2",
+      "net": "GND"
+    },
+    "C4.1": {
+      "component_uuid": "26860204-3d88-4402-b703-2057c69b85fd",
+      "footprint_pad_uuid": "0c230005-e1c9-4a19-9c8b-fd92b41bfea6",
+      "signal": "1",
+      "net": "GND"
+    },
+    "C4.2": {
+      "component_uuid": "26860204-3d88-4402-b703-2057c69b85fd",
+      "footprint_pad_uuid": "263fb1d4-e5de-4b92-9a96-6f095e16dfa4",
+      "signal": "2",
+      "net": "ADC_VBUS"
+    },
+    "U1.8": {
+      "component_uuid": "23f6f6e2-e598-4832-b465-ab76521587c1",
+      "footprint_pad_uuid": "9c2127e0-64c6-4696-a0eb-62bf55361613",
+      "signal": "GPIO3",
+      "net": "ADC_VBUS"
+    }
+  },
+  "closed": {
+    "connection": "VBUS -> SW5.2 -> closed contact -> SW5.1 -> U2.2 and R10.1",
+    "ratio": 0.044890162368672396,
+    "thevenin_ohm": 4489.01623686724,
+    "tau_seconds": 0.000448901623686724,
+    "pole_hz": 354.54303280258387,
+    "five_tau_seconds": 0.0022445081184336198,
+    "examples": [
+      {
+        "VBUS_V": 5,
+        "ADC_V": 0.22445081184336196,
+        "divider_current_A": 4.775549188156638e-05,
+        "R10_V": 4.7755491881566385,
+        "R10_W": 0.00022805870048503527,
+        "R11_W": 1.0718758922796658e-05
+      },
+      {
+        "VBUS_V": 20,
+        "ADC_V": 0.8978032473734479,
+        "divider_current_A": 0.00019102196752626553,
+        "R10_V": 19.102196752626554,
+        "R10_W": 0.0036489392077605643,
+        "R11_W": 0.00017150014276474653
+      },
+      {
+        "VBUS_V": 28,
+        "ADC_V": 1.2569245463228271,
+        "divider_current_A": 0.00026743075453677175,
+        "R10_V": 26.74307545367717,
+        "R10_W": 0.007151920847210707,
+        "R11_W": 0.0003361402798189032
+      },
+      {
+        "VBUS_V": 48,
+        "ADC_V": 2.154727793696275,
+        "divider_current_A": 0.00045845272206303727,
+        "R10_V": 45.845272206303726,
+        "R10_W": 0.02101788983670085,
+        "R11_W": 0.00098784082232494
+      }
+    ],
+    "FUSB302B_VBUS_absolute_max_V": 28,
+    "rating_source": "HANDOFF.md and https://www.onsemi.com/pdf/datasheet/fusb302b-d.pdf; absolute maximum is not an operating target."
+  },
+  "open": {
+    "connection": "Main VBUS disconnected from U2.2/R10.1; R11 remains between ADC and GND. ADC does not measure main VBUS in this mode.",
+    "ideal_steady_state_ADC_V": 0,
+    "ideal_steady_state_U2_VBUS_V": 0,
+    "ideal_C4_discharge_tau_seconds": 0.00047,
+    "qualification": "Zero assumes no other injection or input bias. Real U2/ADC leakage, switch leakage, power sequencing and transient voltage require validation; SW5 open is not a complete 48 V qualification."
+  }
+}
