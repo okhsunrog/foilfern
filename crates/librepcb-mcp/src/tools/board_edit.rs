@@ -478,6 +478,9 @@ pub struct DevicePlaceArgs {
     /// UUID of the footprint (default: the first footprint).
     #[serde(default)]
     pub footprint: Option<String>,
+    /// Include the device's pad geometry in the response (default true).
+    #[serde(default)]
+    pub include_pads: Option<bool>,
     /// Fail with `stale_revision` if the project revision differs.
     #[serde(default)]
     pub expected_revision: Option<u64>,
@@ -564,7 +567,7 @@ pub fn device_place(session: &mut Session, args: DevicePlaceArgs) -> ToolResult<
     let device = b
         .device(component)
         .ok_or_else(|| ToolError::internal("the device is missing after placing it"))?;
-    let result = device_json(p, b, device)?;
+    let result = device_json(p, b, device, args.include_pads.unwrap_or(true))?;
     done.output(
         open,
         format!(

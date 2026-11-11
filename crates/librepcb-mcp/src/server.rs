@@ -795,7 +795,7 @@ impl LibrePcbMcp {
     #[tool(
         description = "Place (or move) the device of a component on a board: position (mm), \
                        rotation (deg), side top/bottom, optional device/footprint UUID to \
-                       change the footprint."
+                       change the footprint. Set include_pads=false to omit pad geometry."
     )]
     async fn device_place(
         &self,

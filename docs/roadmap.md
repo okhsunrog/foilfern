@@ -30,7 +30,7 @@ because its tools exist or one board has zero air wires.
 
 | Stage | Result | Dependencies | State |
 | --- | --- | --- | --- |
-| P0 | Identifiable builds, concise responses and measured operation costs | Existing API | In progress; build identity implemented |
+| P0 | Identifiable builds, concise responses and measured operation costs | Existing API | In progress; build identity and compact placement responses implemented |
 | P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation first | Planned |
 | P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | Planned; external review prototypes only |
 | P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | Planned; router callback only |
@@ -55,9 +55,10 @@ Done when:
   reading a checkout at runtime. Builds outside Git report unknown provenance
   explicitly. See the [MCP contract](mcp-design.md#tool-surface) for the scope of
   the tracked-source check and Cargo profile label.
-- Moving one device can return identity, placement, revision, warnings and a
-  short change summary without its complete pad list. Detailed read-back remains
-  available; schema/dispatch tests exercise both response modes.
+- **Implemented.** `device_place` accepts `include_pads: false` and returns
+  identity, placement, revision, warnings and a change summary. `component_get`
+  provides detailed read-back. Schema and stdio tests cover the option and the
+  default full response.
 - Reports identify the board snapshot, request, binary and profile. Cold and
   repeated `prepare`, `preview` and `apply` are measured separately, with at least
   five samples per compared condition and the full validation results retained.

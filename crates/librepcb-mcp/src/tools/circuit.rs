@@ -178,7 +178,7 @@ pub fn component_detail(p: &Project, id: ComponentInstanceId) -> ToolResult<(Str
     let mut devices = Vec::new();
     for board in p.boards() {
         if let Some(d) = board.device(id) {
-            devices.push(device_json(p, board, d)?);
+            devices.push(device_json(p, board, d, true)?);
         }
     }
     v["devices"] = Value::Array(devices);
@@ -194,13 +194,31 @@ pub fn component_detail(p: &Project, id: ComponentInstanceId) -> ToolResult<(Str
     Ok((summary, v))
 }
 
-/// A placed device with its pads (absolute positions).
+/// A placed device, optionally including pads in absolute coordinates.
 pub fn device_json(
     p: &Project,
     board: &librepcb_core::project::board::Board,
     d: &librepcb_core::project::board::BoardDevice,
+    include_pads: bool,
 ) -> ToolResult<Value> {
     let designator = resolve::designator(p, d.component());
+    let lib_dev = p.library().device(&d.lib_device());
+    let package = lib_dev.and_then(|x| p.library().package(&x.package_uuid()));
+    let mut result = json!({
+        "designator": designator,
+        "component": d.component().0,
+        "board": board.name().as_str(),
+        "device": { "uuid": d.lib_device(), "name": lib_dev.map(|x| x.metadata().name().as_str()) },
+        "package": package.map(|x| json!({ "uuid": x.metadata().uuid(), "name": x.metadata().name().as_str() })),
+        "footprint": d.lib_footprint(),
+        "position": views::point(d.position()),
+        "rotation": deg(d.rotation()),
+        "side": if d.mirrored() { "bottom" } else { "top" },
+        "locked": d.locked(),
+    });
+    if !include_pads {
+        return Ok(result);
+    }
     let pads: Vec<Value> = d
         .pads(p.library(), p.circuit())?
         .iter()
@@ -222,21 +240,8 @@ pub fn device_json(
             v
         })
         .collect();
-    let lib_dev = p.library().device(&d.lib_device());
-    let package = lib_dev.and_then(|x| p.library().package(&x.package_uuid()));
-    Ok(json!({
-        "designator": designator,
-        "component": d.component().0,
-        "board": board.name().as_str(),
-        "device": { "uuid": d.lib_device(), "name": lib_dev.map(|x| x.metadata().name().as_str()) },
-        "package": package.map(|x| json!({ "uuid": x.metadata().uuid(), "name": x.metadata().name().as_str() })),
-        "footprint": d.lib_footprint(),
-        "position": views::point(d.position()),
-        "rotation": deg(d.rotation()),
-        "side": if d.mirrored() { "bottom" } else { "top" },
-        "locked": d.locked(),
-        "pads": pads,
-    }))
+    result["pads"] = Value::Array(pads);
+    Ok(result)
 }
 
 /// Pins (component signals) per net, sorted by label.

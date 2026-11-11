@@ -87,7 +87,8 @@ requirements, automatic diagnosis-to-repair planner, MCP progress/cancellation
 workflow or desktop candidate overlay. The router's cancellation callback is
 not yet wired through the editor/MCP preparation path. `server_info` now reports
 build-time commit, tracked-source state, Cargo profile label and API capability
-version. Compact responses and the timing protocol remain open in P0.
+version. `device_place` supports compact responses with `include_pads: false`.
+The timing protocol remains open in P0.
 
 ## Evidence and continuation points
 

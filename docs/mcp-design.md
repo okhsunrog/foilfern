@@ -165,7 +165,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `1`). Its `build` object contains
+`api_capability_version` (currently `2`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -238,7 +238,7 @@ Board:
 `board_add`, `board_get` (outline, devices with pads and positions,
 traces, vias, planes, unrouted air wires), `board_set_outline` (rectangle
 with optional corner radius, or polygon), `device_place` (designator,
-position, rotation, side, optional device/footprint choice),
+position, rotation, side, optional device/footprint choice and `include_pads`),
 `device_auto_place` (all unplaced devices inside the outline, placed by
 connectivity),
 `trace_add` (net or pads, layer, width, list of points; endpoints snap to
@@ -248,6 +248,12 @@ with before/after DRC evidence), `via_add`, `trace_remove`,
 `plane_add` (net, layer, outline or whole board, clearance, connect style),
 `design_rules_set`, `planes_rebuild`, `autoroute` (built-in router for
 simple boards, see below), `unrouted` (air wires).
+
+`device_place` returns full pad geometry by default. With `include_pads: false`
+it returns the placed device's identity and placement, with the usual revision,
+warnings and journal summary. The compact response omits the `pads` field and
+skips resolving pad geometry. Use `component_get` for a read-only view of a
+component's placements and pads, or `board_get` for board-wide detail.
 
 Checks and outputs:
 `erc_run`, `drc_run`, `export_fabrication` (Gerber + Excellon),

@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 1);
+    assert_eq!(info["api_capability_version"], 2);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -148,6 +148,36 @@ async fn stdio_connects_selected_device_pads_before_placement() {
             .iter()
             .any(|pad| { pad["name"] == "1" && pad["signal"] == "G" && pad["net"] == "GATE" })
     );
+
+    let position = json!({"x":25.0,"y":12.0});
+    let response = call(
+        &client,
+        "device_place",
+        json!({"component":"Q2","position":position,"rotation":90,"include_pads":false}),
+    )
+    .await;
+    assert_ne!(response.is_error, Some(true));
+    let envelope = response.structured_content.unwrap();
+    assert_eq!(envelope["outcome"], "complete");
+    assert_eq!(envelope["warnings"], json!([]));
+    let moved = &envelope["result"];
+    assert!(moved.get("pads").is_none());
+    assert_eq!(moved["component"], placed["component"]);
+    assert_eq!(moved["device"], placed["device"]);
+    assert_eq!(moved["position"], position);
+    assert_eq!(moved["rotation"], 90.0);
+    assert!(envelope["revision"].as_u64().unwrap() > moved["revision_before"].as_u64().unwrap());
+    assert!(moved["change_count"].as_u64().unwrap() > 0);
+    let read_back = call_ok(&client, "component_get", json!({"component":"Q2"})).await;
+    let full = call_ok(
+        &client,
+        "device_place",
+        json!({"component":"Q2","include_pads":true}),
+    )
+    .await;
+    assert_eq!(read_back["devices"][0]["position"], position);
+    assert_eq!(full["pads"], read_back["devices"][0]["pads"]);
+    assert_ne!(full["pads"], placed["pads"]);
     client.cancel().await.unwrap();
 }
 
@@ -501,6 +531,12 @@ async fn stdio_end_to_end() {
             .get("properties")
             .unwrap()
             .get("query")
+            .is_some()
+    );
+    let placement = tools.iter().find(|t| t.name == "device_place").unwrap();
+    assert!(
+        placement.input_schema["properties"]
+            .get("include_pads")
             .is_some()
     );
 

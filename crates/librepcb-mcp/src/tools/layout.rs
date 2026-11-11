@@ -298,11 +298,7 @@ pub fn board_get(session: &Session, args: BoardGetArgs) -> ToolResult<ToolOutput
 
     let mut devices = Vec::new();
     for d in b.devices().values() {
-        let mut v = device_json(p, b, d)?;
-        if !include_pads && let Some(o) = v.as_object_mut() {
-            o.remove("pads");
-        }
-        devices.push(v);
+        devices.push(device_json(p, b, d, include_pads)?);
     }
 
     let mut traces = Vec::new();

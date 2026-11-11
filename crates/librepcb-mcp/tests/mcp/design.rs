@@ -389,6 +389,7 @@ fn design_rc_circuit_with_populated_library() {
             side: None,
             device: None,
             footprint: None,
+            include_pads: None,
             expected_revision: None,
         },
     )
