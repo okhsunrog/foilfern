@@ -47,4 +47,6 @@ Use its compact native project for continued layout work.
 [U2 VDD/VCONN decoupling](u2/REPORT.md), [U6/R17 Kelvin routing](kelvin/REPORT.md)
 and [ADC C4 alternatives/SW5 review](adc/REPORT.md) are completed.
 [Q1/D2/R20 gate-clamp placement](gate/REPORT.md) now links the current selected
-native project. Guarded routing-baseline reuse profiling is next.
+native project. [Guarded routing-baseline reuse](performance/REPORT.md) is now
+implemented in Rust and measured on that project. Next, improve atomic side
+changes for connected footprints and the explicit-copper API using the saved cases.

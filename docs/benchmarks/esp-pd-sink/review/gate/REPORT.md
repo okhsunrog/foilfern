@@ -1,5 +1,9 @@
 # Q1 gate-clamp and power-corridor review
 
+Subsequent [Foilfern baseline-reuse work](../performance/REPORT.md) implements
+the repeated source-check optimization. The native board below remains the
+current layout continuation point.
+
 2026-11-11. Continues the [ADC C4 board](../adc/REPORT.md) at `69209d2`.
 That input is the same ESP-PD-Sink PCB, saved after moving C4 beside the MCU.
 

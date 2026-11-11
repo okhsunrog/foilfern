@@ -1,0 +1,15 @@
+{
+  "source_code_before": "c331f1761ad1bb1ccae634c72add04fe79beea9b",
+  "source_code_after": "eab619106160c3b51a0596ff6c40095d28af06c8",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "profile_package_opt_level": {
+    "librepcb-core": 2,
+    "clipper": 2,
+    "librepcb-editor": 2,
+    "librepcb-autoroute": 2
+  },
+  "native_input_tree_sha256": "248718f86df5d6925cc2d50a3f699218ac07f636a6131e0d200f2edf9ce3a310",
+  "native_files_unchanged_after_both_runs": true,
+  "native_file_count": 482,
+  "method": "Serial fresh process per binary; one cold and two repeated prepares; each candidate previewed, last non-empty candidate applied and independently DRC-checked. No concurrent build or other benchmark. Single observations, not statistical distributions."
+}

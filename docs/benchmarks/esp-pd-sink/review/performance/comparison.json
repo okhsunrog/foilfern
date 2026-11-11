@@ -1,0 +1,37 @@
+{
+  "source_commit": "eab619106160c3b51a0596ff6c40095d28af06c8",
+  "before_prepare_seconds": [
+    28.427281293003034,
+    28.6845581460002,
+    31.248977521001507
+  ],
+  "after_prepare_seconds": [
+    28.035232082998846,
+    15.517502673999843,
+    14.632254056999955
+  ],
+  "repeated_prepare_mean_before_seconds": 29.966767833500853,
+  "repeated_prepare_mean_after_seconds": 15.074878365499899,
+  "repeated_prepare_speedup": 1.9878613350594105,
+  "repeated_prepare_reduction_percent": 49.694680289653434,
+  "before_apply_seconds": 13.563072982000449,
+  "after_apply_seconds": 13.475248824001028,
+  "baseline_reused_after": [
+    false,
+    true,
+    true
+  ],
+  "drc_execution_counts": {
+    "before": 8,
+    "after": 6
+  },
+  "final_geometry_sha256": "f9d5cc3aa2f8567ea2a2a4ef57889127fdc6fa2689525098e233746a05a8b993",
+  "full_validations_equal": true,
+  "applied_validations_equal": true,
+  "independent_drc_equal": true,
+  "final_geometry_equal": true,
+  "drc_errors": 3,
+  "drc_warnings": 9,
+  "before_binary_sha256": "6e434559c25c5403141c3b3ab2d216c6e29601ce01e20a2a6ecf62567ea6db95",
+  "after_binary_sha256": "a1a173b0d2db797187e8bd74bdb54e97d577fd117757b845370fbfc0c4578846"
+}
