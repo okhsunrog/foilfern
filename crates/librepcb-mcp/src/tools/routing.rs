@@ -44,6 +44,9 @@ pub struct RoutingPrepareArgs {
     /// Include samples of rejected grid steps for failed requests.
     #[serde(default)]
     pub search_evidence: bool,
+    /// Try extra exact-checked exits from nearby pads.
+    #[serde(default)]
+    pub pad_escape: bool,
     #[serde(default)]
     /// Reject if the current live revision differs.
     pub expected_revision: Option<u64>,
@@ -111,6 +114,7 @@ pub fn prepare_job(session: &Session, args: RoutingPrepareArgs) -> ToolResult<Ro
     };
     let mut command = board_edit::builtin_command(open.project(), board, &options)?;
     command.search_evidence = args.search_evidence;
+    command.pad_escape = args.pad_escape;
     open.routing
         .prepare(&open.editor, command)
         .map_err(routing_error)
@@ -253,6 +257,9 @@ pub struct RoutingDiagnoseArgs {
     pub layers: Vec<String>,
     /// Length of each straight clearance probe in mm (default 0.6, max 5).
     pub probe_length: Option<f64>,
+    /// Include exact-checked local pad exits in the access report.
+    #[serde(default)]
+    pub pad_escape: bool,
     /// Attach one focused PNG for a selected endpoint and copper layer.
     pub image: Option<RoutingDiagnoseImageArgs>,
 }
@@ -280,7 +287,7 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
         return Err(ToolError::invalid("probe_length must be at most 5 mm."));
     }
     let reach = board_edit::positive(reach, "probe_length")?;
-    let options = board_edit::builtin_command(
+    let mut options = board_edit::builtin_command(
         p,
         board,
         &board_edit::AutorouteArgs {
@@ -292,6 +299,7 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
             ..Default::default()
         },
     )?;
+    options.pad_escape = args.pad_escape;
     let extracted = extract_problem(p, board, &options, Some(&[net].into_iter().collect()))?;
     let problem = &extracted.problem;
     let mm = crate::units::mm;
@@ -360,6 +368,7 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
         json!({
             "anchor":anchor(id), "grid_pitch_mm":mm(report.grid_pitch),"width_mm":mm(*report.width),
             "access_count":report.access_count,
+            "escape_count":report.escape_count,
             "access_points":report.access_points.iter().map(|(layer, point)|
                 json!({"layer":layer.id(),"position":crate::views::point(*point)})).collect::<Vec<_>>(),
             "straight_probes":probes,
@@ -473,6 +482,9 @@ pub struct RoutingEditRouteArgs {
     /// Include samples of rejected grid steps for failed requests.
     #[serde(default)]
     pub search_evidence: bool,
+    /// Try extra exact-checked exits from nearby pads.
+    #[serde(default)]
+    pub pad_escape: bool,
 }
 
 impl RoutingEditRouteArgs {
@@ -495,6 +507,7 @@ impl RoutingEditRouteArgs {
             },
         )?;
         command.search_evidence = self.search_evidence;
+        command.pad_escape = self.pad_escape;
         Ok(command)
     }
 }

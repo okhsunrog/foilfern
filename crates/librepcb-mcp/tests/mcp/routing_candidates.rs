@@ -471,6 +471,23 @@ fn diagnostics_report_grid_access_and_local_blockers_without_edits() {
     assert_eq!(report.images.len(), 1);
     assert!(report.images[0].starts_with(b"\x89PNG\r\n\x1a\n"));
     assert_eq!(&report.images[0][16..24], &[0, 0, 2, 128, 0, 0, 2, 128]);
+    let escape = routing::routing_diagnose(
+        &session,
+        args(json!({"net":"A","grid_pitch":0.1,"trace_width":0.2,"pad_escape":true})),
+    )
+    .unwrap();
+    for (with, baseline) in escape.result["endpoints"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .zip(report.result["endpoints"].as_array().unwrap())
+    {
+        assert_eq!(with["anchor"], baseline["anchor"]);
+        assert!(with["escape_count"].as_u64().unwrap() > 0);
+        assert!(
+            with["access_count"].as_u64().unwrap() > baseline["access_count"].as_u64().unwrap()
+        );
+    }
     assert_eq!(open.project().revision(), revision);
     assert_eq!(board_value(&session), before);
 }

@@ -5,7 +5,7 @@
 //! problem does not know about the project model; the caller extracts it from
 //! a board and applies the [`RoutingResult`](crate::RoutingResult).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use librepcb_core::types::{Layer, Length, Point, PositiveLength, Uuid};
 
@@ -200,6 +200,8 @@ pub struct RoutingRules {
     pub max_rip_ups: u32,
     /// Collect bounded rejected-move samples for failed strict searches.
     pub search_evidence: bool,
+    /// Add exact-checked exits from pads to nearby grid nodes.
+    pub pad_escape: bool,
 }
 
 impl Default for RoutingRules {
@@ -220,6 +222,7 @@ impl Default for RoutingRules {
             grid_pitch: None,
             max_rip_ups: 3,
             search_evidence: false,
+            pad_escape: false,
         }
     }
 }
@@ -280,6 +283,8 @@ pub struct RoutingProblem {
     pub holes: Vec<Hole>,
     /// Terminals, referenced by [`TerminalId`] (index in this list).
     pub terminals: Vec<Terminal>,
+    /// Terminals representing pads, eligible for extra local escapes.
+    pub pad_terminals: BTreeSet<TerminalId>,
     /// The connections to route.
     pub connections: Vec<Connection>,
     /// Design rules and settings.

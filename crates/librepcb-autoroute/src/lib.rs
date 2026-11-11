@@ -121,6 +121,8 @@ pub struct TerminalAccess {
     pub grid_pitch: librepcb_core::types::Length,
     pub width: librepcb_core::types::PositiveLength,
     pub access_count: usize,
+    /// Extra checked grid entries reachable by a short pad escape.
+    pub escape_count: usize,
     pub access_points: Vec<(librepcb_core::types::Layer, librepcb_core::types::Point)>,
     pub probes: Vec<AccessProbe>,
 }

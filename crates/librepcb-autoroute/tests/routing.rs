@@ -515,6 +515,36 @@ fn regional_search_cannot_escape_around_a_wall() {
 }
 
 #[test]
+fn checked_pad_escape_crosses_a_gap_hidden_by_the_coarse_grid() {
+    let mut p = RoutingProblem::new(
+        rect_outline(12.0, 10.0),
+        vec![Layer::TOP_COPPER],
+        RoutingRules {
+            grid_pitch: Some(pos(0.25)),
+            trace_width: pos(0.2),
+            ..Default::default()
+        },
+    );
+    let a = smd(&mut p, net(1), 4.5, 5.015, 0.5, 0.3);
+    let b = smd(&mut p, net(1), 8.0, 5.0, 0.5, 0.3);
+    p.pad_terminals.extend([a, b]);
+    for (low, high) in [(-1.0, 4.675), (5.325, 11.0)] {
+        p.add_obstacle(Obstacle::keepout(
+            Shape::rect(pt(5.0, (low + high) / 2.0), mm(0.1), mm(high - low)),
+            LayerScope::All,
+        ));
+    }
+    p.connect(a, b);
+    let baseline = route(&p).unwrap();
+    assert_eq!(baseline.unrouted[0].reason, UnroutedReason::NoPath);
+    p.rules.pad_escape = true;
+    let improved = route(&p).unwrap();
+    assert!(improved.is_complete(), "{improved:?}");
+    assert_eq!(improved.stats.grid_pitch, baseline.stats.grid_pitch);
+    assert_clean(&p, &improved);
+}
+
+#[test]
 fn inaccessible_terminal_is_reported() {
     // Bottom pad, but only the top layer may be used.
     let rules = RoutingRules {

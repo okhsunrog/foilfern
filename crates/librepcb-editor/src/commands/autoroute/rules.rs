@@ -341,6 +341,7 @@ impl<'a> Inputs<'a> {
             allowed_layers: self.options.layers.clone(),
             grid_pitch: self.options.grid_pitch,
             search_evidence: self.options.search_evidence,
+            pad_escape: self.options.pad_escape,
             ..default
         }
     }

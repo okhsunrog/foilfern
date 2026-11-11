@@ -305,10 +305,15 @@ recreating unrelated copper.
 
 ### R3 — pad escape and planned local rerouting
 
-Add multiple geometrically checked pad access/fanout candidates, group neighboring
-LQFP pads where their escape choices interfere, and refine grids locally instead
-of shrinking the grid across the entire board. Prioritize constrained exits and
-mandatory critical nets, not only short connections.
+The first pad escape strategy adds exact-checked local paths from a pad
+to several nearby nodes outside its copper. Off-grid pads can use a
+45° elbow. The main search keeps its configured grid and expansion budget.
+The option is available to reviewed builtin and regional routing.
+See [pad escape trials](mcp-routing-reliability.md#pad-escape-trials).
+
+Group neighboring LQFP pads where their escape choices interfere and add
+local grid refinement for paths that need more than one bend. Prioritize
+constrained exits and mandatory critical nets.
 
 The first regional workflow accepts a rectangular routing area, named nets,
 and an explicit rip-up list of trace and via UUIDs. It verifies protected

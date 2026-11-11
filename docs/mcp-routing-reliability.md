@@ -361,3 +361,16 @@ mm. The stdio preview left the live revision unchanged. Apply and native
 save/reopen preserved all other trace and via UUIDs and geometry, with
 zero remaining air wires and zero new DRC errors. Upstream LibrePCB 2.1.1
 reported only the two existing silkscreen warnings.
+
+## Pad escape trials
+
+Set `pad_escape: true` in `routing_prepare`, in a nested builtin `route`,
+or in `routing_diagnose`. The router adds nearby entries outside the pad,
+retains up to four per direction and layer, and checks the entire path
+from the pad center. A path can include one off-grid 45° elbow. The grid
+pitch and the per-search expansion limit stay the same. The diagnostic
+reports the number of added entries as `escape_count`.
+
+A fixed test uses a 0.65 mm gap, 0.2 mm trace width, 0.2 mm clearance
+and a 0.25 mm grid. The baseline reports `no_path`. With pad escape
+enabled the same grid routes the connection and passes the geometric checks.

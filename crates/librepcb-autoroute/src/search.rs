@@ -53,7 +53,7 @@ const NONE: u32 = u32::MAX;
 /// Cost of a straight step.
 pub(crate) const STEP: u32 = 100;
 const DIAG: u32 = 141;
-const TURN_45: u32 = 30;
+pub(crate) const TURN_45: u32 = 30;
 const TURN_90: u32 = 90;
 /// Penalty for using a node occupied by another route (soft mode).
 const CONFLICT: u32 = 3000;

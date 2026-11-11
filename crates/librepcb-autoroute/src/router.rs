@@ -18,7 +18,7 @@ use crate::result::{
     Endpoint, FrontierBlocker, FrontierSample, Progress, Route, RoutingResult, RoutingStats,
     Segment, Unrouted, UnroutedReason, Via,
 };
-use crate::search::{DirFactors, NEUTRAL, Query, STEP, Search, SearchFailure};
+use crate::search::{DirFactors, NEUTRAL, Query, STEP, Search, SearchFailure, TURN_45};
 
 /// Default grid pitch (0.1 mm).
 const DEFAULT_PITCH: i64 = 100_000;
@@ -40,13 +40,21 @@ struct Wire {
 /// Where a path starts or ends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Ep {
-    Terminal(usize),
+    Terminal(usize, Option<P>),
     /// On a route: on a trace of routing layer `Some(l)`, or on a via.
     Route {
         route: RouteId,
         layer: Option<usize>,
         p: P,
     },
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Access {
+    node: usize,
+    cost: u32,
+    elbow: Option<P>,
+    escape: bool,
 }
 
 /// A sequence of points on one routing layer.
@@ -481,8 +489,13 @@ impl<'p> Router<'p> {
             }
         };
         for t in (0..self.problem.terminals.len()).filter(|&t| comps[t] == comp) {
-            for (node, cost) in self.terminal_access(t, wire.net, h) {
-                add(&mut out, node, cost, Ep::Terminal(t));
+            for access in self.terminal_access(t, wire.net, h) {
+                add(
+                    &mut out,
+                    access.node,
+                    access.cost,
+                    Ep::Terminal(t, access.elbow),
+                );
             }
         }
         let route_ids: Vec<RouteId> = self
@@ -568,7 +581,7 @@ impl<'p> Router<'p> {
 
     /// Access nodes of a terminal with the cost of the stub from the
     /// terminal position.
-    fn terminal_access(&self, t: usize, net: u32, h: i64) -> Vec<(usize, u32)> {
+    fn terminal_access(&self, t: usize, net: u32, h: i64) -> Vec<Access> {
         let terminal = &self.problem.terminals[t];
         let pos = P::from(terminal.position);
         if self
@@ -591,66 +604,116 @@ impl<'p> Router<'p> {
                 .filter(|&i| i < 64)
                 .fold(0, |acc, i| acc | 1u64 << i),
         };
-        let cost_of = |p: P| -> u32 {
-            let (dx, dy) = ((p.x - pos.x) as f64, (p.y - pos.y) as f64);
+        let cost_of = |a: P, b: P| -> u32 {
+            let (dx, dy) = ((b.x - a.x) as f64, (b.y - a.y) as f64);
             ((dx * dx + dy * dy).sqrt() / pitch * f64::from(STEP)).round() as u32
         };
         let (lo, hi) = core.bounds();
         let r = radius.ceil() as i64;
-        let collect = |inside: &dyn Fn(P) -> bool, lo: P, hi: P| -> Vec<(usize, u32)> {
-            let g = &self.grid;
-            let i0 = ((lo.x - g.x0) as f64 / pitch).ceil().max(0.0) as usize;
-            let j0 = ((lo.y - g.y0) as f64 / pitch).ceil().max(0.0) as usize;
-            let i1 = (((hi.x - g.x0) as f64 / pitch).floor().max(-1.0) as i64).min(g.nx as i64 - 1);
-            let j1 = (((hi.y - g.y0) as f64 / pitch).floor().max(-1.0) as i64).min(g.ny as i64 - 1);
-            let mut out = Vec::new();
-            for (l, &cu) in self.routing.iter().enumerate() {
-                if scope_bits & (1u64 << cu) == 0 {
-                    continue;
-                }
-                for j in j0 as i64..=j1 {
-                    for i in i0 as i64..=i1 {
-                        let c = j as usize * g.nx + i as usize;
-                        let node = l * cells + c;
-                        if !usable(map.fixed[node], owner) || !usable(map.routes[node], owner) {
-                            continue;
-                        }
-                        let p = g.point(c);
-                        if !inside(p) {
-                            continue;
-                        }
-                        let ok = self
-                            .items
-                            .check_segment((pos, p), cu, net, h as f64, None, &mut |_| false)
-                            .is_ok();
-                        if ok {
-                            out.push((node, cost_of(p)));
+        let collect =
+            |stub: &dyn Fn(P, usize) -> Option<Option<P>>, lo: P, hi: P, escape| -> Vec<Access> {
+                let g = &self.grid;
+                let i0 = ((lo.x - g.x0) as f64 / pitch).ceil().max(0.0) as usize;
+                let j0 = ((lo.y - g.y0) as f64 / pitch).ceil().max(0.0) as usize;
+                let i1 =
+                    (((hi.x - g.x0) as f64 / pitch).floor().max(-1.0) as i64).min(g.nx as i64 - 1);
+                let j1 =
+                    (((hi.y - g.y0) as f64 / pitch).floor().max(-1.0) as i64).min(g.ny as i64 - 1);
+                let mut out = Vec::new();
+                for (l, &cu) in self.routing.iter().enumerate() {
+                    if scope_bits & (1u64 << cu) == 0 {
+                        continue;
+                    }
+                    for j in j0 as i64..=j1 {
+                        for i in i0 as i64..=i1 {
+                            let c = j as usize * g.nx + i as usize;
+                            let node = l * cells + c;
+                            if !usable(map.fixed[node], owner) || !usable(map.routes[node], owner) {
+                                continue;
+                            }
+                            let p = g.point(c);
+                            if let Some(elbow) = stub(p, cu) {
+                                let cost = elbow.map_or_else(
+                                    || cost_of(pos, p),
+                                    |e| cost_of(pos, e) + TURN_45 + cost_of(e, p),
+                                );
+                                out.push(Access {
+                                    node,
+                                    cost,
+                                    elbow,
+                                    escape,
+                                });
+                            }
                         }
                     }
                 }
-            }
-            out
+                out
+            };
+        let clear = |a, b, cu| {
+            self.items
+                .check_segment((a, b), cu, net, h as f64, None, &mut |_| false)
+                .is_ok()
         };
         let inside_copper = |p: P| core.distance_to_segment(p, p) <= radius;
-        let out = collect(
-            &inside_copper,
+        let mut out = collect(
+            &|p, cu| (inside_copper(p) && clear(pos, p, cu)).then_some(None),
             P::new(lo.x - r, lo.y - r),
             P::new(hi.x + r, hi.y + r),
+            false,
         );
-        if !out.is_empty() {
-            return out;
-        }
-        // Small or off-grid terminal: nodes near the position.
         let reach = 2 * self.grid.pitch;
-        let near = |p: P| {
-            let (dx, dy) = ((p.x - pos.x) as f64, (p.y - pos.y) as f64);
-            (dx * dx + dy * dy).sqrt() <= reach as f64
-        };
-        collect(
-            &near,
-            P::new(pos.x - reach, pos.y - reach),
-            P::new(pos.x + reach, pos.y + reach),
-        )
+        if out.is_empty() {
+            // Small or off-grid terminal: nodes near the position.
+            out = collect(
+                &|p, cu| {
+                    let (dx, dy) = ((p.x - pos.x) as f64, (p.y - pos.y) as f64);
+                    ((dx * dx + dy * dy).sqrt() <= reach as f64 && clear(pos, p, cu))
+                        .then_some(None)
+                },
+                P::new(pos.x - reach, pos.y - reach),
+                P::new(pos.x + reach, pos.y + reach),
+                false,
+            );
+        }
+        if self.problem.rules.pad_escape && self.problem.pad_terminals.contains(&TerminalId(t)) {
+            let existing: BTreeSet<_> = out.iter().map(|a| a.node).collect();
+            let escapes = collect(
+                &|p, cu| {
+                    if inside_copper(p) || core.distance_to_segment(p, p) > radius + reach as f64 {
+                        return None;
+                    }
+                    if is_octilinear(pos, p) {
+                        return clear(pos, p, cu).then_some(None);
+                    }
+                    escape_elbows(pos, p)
+                        .into_iter()
+                        .find(|&elbow| {
+                            self.problem.region.is_none_or(|region| {
+                                region.contains(elbow.to_point(), Length::new(h + 1))
+                            }) && clear(pos, elbow, cu)
+                                && clear(elbow, p, cu)
+                        })
+                        .map(Some)
+                },
+                P::new(lo.x - r - reach, lo.y - r - reach),
+                P::new(hi.x + r + reach, hi.y + r + reach),
+                true,
+            );
+            // Keep the nearest options in each direction on each layer.
+            let mut by_direction: BTreeMap<_, Vec<Access>> = BTreeMap::new();
+            for access in escapes.into_iter().filter(|a| !existing.contains(&a.node)) {
+                let p = self.grid.point(access.node % cells);
+                by_direction
+                    .entry((access.node / cells, p.x.cmp(&pos.x), p.y.cmp(&pos.y)))
+                    .or_default()
+                    .push(access);
+            }
+            for mut exits in by_direction.into_values() {
+                exits.sort_unstable_by_key(|a| (a.cost, a.node));
+                out.extend(exits.into_iter().take(4));
+            }
+        }
+        out
     }
 
     pub(crate) fn diagnose_access(
@@ -676,10 +739,10 @@ impl<'p> Router<'p> {
         let access_points = nodes
             .iter()
             .take(16)
-            .map(|(node, _)| {
+            .map(|access| {
                 (
-                    self.problem.copper_layers[self.routing[node / cells]],
-                    point(self.grid.point(node % cells)),
+                    self.problem.copper_layers[self.routing[access.node / cells]],
+                    point(self.grid.point(access.node % cells)),
                 )
             })
             .collect();
@@ -732,6 +795,7 @@ impl<'p> Router<'p> {
             grid_pitch: Length::new(self.grid.pitch),
             width,
             access_count: nodes.len(),
+            escape_count: nodes.iter().filter(|access| access.escape).count(),
             access_points,
             probes,
         })
@@ -846,15 +910,19 @@ impl<'p> Router<'p> {
                 }),
             }
         }
-        if let Ep::Terminal(t) = start {
+        if let Ep::Terminal(t, elbow) = start {
             let pos = P::from(self.problem.terminals[t].position);
+            if let Some(elbow) = elbow {
+                runs[0].points.insert(0, elbow);
+            }
             if runs[0].points[0] != pos {
                 runs[0].points.insert(0, pos);
             }
         }
-        if let Ep::Terminal(t) = end {
+        if let Ep::Terminal(t, elbow) = end {
             let pos = P::from(self.problem.terminals[t].position);
             let run = runs.last_mut().expect("path has at least one node");
+            run.points.extend(elbow);
             if run.points.last() != Some(&pos) {
                 run.points.push(pos);
             }
@@ -1281,7 +1349,7 @@ impl<'p> Router<'p> {
             let wire = self.wires[route.wire];
             let own_via = |p: P| route.vias.contains(&p);
             let endpoint = |ep: Ep| match ep {
-                Ep::Terminal(t) => Endpoint::Terminal(TerminalId(t)),
+                Ep::Terminal(t, _) => Endpoint::Terminal(TerminalId(t)),
                 Ep::Route { layer: None, p, .. } => Endpoint::Via(p.to_point()),
                 Ep::Route { p, .. } if own_via(p) => Endpoint::Via(p.to_point()),
                 Ep::Route {
@@ -1353,6 +1421,17 @@ impl<'p> Router<'p> {
 fn is_octilinear(a: P, b: P) -> bool {
     let (dx, dy) = (b.x - a.x, b.y - a.y);
     dx == 0 || dy == 0 || dx.abs() == dy.abs()
+}
+
+/// Both ways to join an off-grid anchor and a grid node with one 45° bend.
+fn escape_elbows(a: P, b: P) -> [P; 2] {
+    let (dx, dy) = (b.x - a.x, b.y - a.y);
+    let diagonal = dx.abs().min(dy.abs());
+    let offset = P::new(dx.signum() * diagonal, dy.signum() * diagonal);
+    [
+        P::new(a.x + offset.x, a.y + offset.y),
+        P::new(b.x - offset.x, b.y - offset.y),
+    ]
 }
 
 /// Removes duplicate points and interior points of straight lines.

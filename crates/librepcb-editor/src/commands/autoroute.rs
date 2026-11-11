@@ -116,6 +116,9 @@ pub struct Autoroute {
     /// Collect rejected grid steps for failed strict searches.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub search_evidence: bool,
+    /// Check additional ways to reach the grid from pads.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pad_escape: bool,
     /// Limits new copper to a rectangular region.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub region: Option<RoutingBounds>,
@@ -598,6 +601,7 @@ impl Builder<'_> {
                 layers: self.layer_scope(layers.iter().copied()),
                 clearance,
             });
+            self.problem.pad_terminals.insert(id);
             self.terminal_anchors.push(anchor);
             self.terminals_by_anchor.insert(anchor, id);
             for (layer, shapes) in &shapes_per_layer {
