@@ -324,8 +324,15 @@ impl Command for Autoroute {
             ),
             None => None,
         };
+        let started = std::time::Instant::now();
         let extracted = extract_problem(tx.project(), board, &self, nets.as_ref())?;
+        log::debug!(
+            "routing_stage extraction {} us",
+            started.elapsed().as_micros()
+        );
+        let started = std::time::Instant::now();
         let result = librepcb_autoroute::route(&extracted.problem)?;
+        log::debug!("routing_stage search {} us", started.elapsed().as_micros());
         let (traces, vias) = apply_result(tx, board, &extracted, &result)?;
 
         let p = tx.project();

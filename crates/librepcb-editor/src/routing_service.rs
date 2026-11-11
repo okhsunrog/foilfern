@@ -8,6 +8,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
+use std::time::Instant;
 
 use librepcb_core::fileio::FilePath;
 use librepcb_core::project::{BoardId, Mutation, Project};
@@ -249,7 +250,14 @@ impl RoutingJob {
             RoutingWork::PlaneStitch(request) => Some(request.board),
         };
         let board = crate::commands::resolve_board(self.source.sandbox.project(), requested)?.id();
+        let started = Instant::now();
         let before = self.source.capture_before(board)?;
+        log::debug!(
+            "routing_stage source_checks {} us reused={}",
+            started.elapsed().as_micros(),
+            self.source.baseline_reused
+        );
+        let started = Instant::now();
         let sandbox = &mut self.source.sandbox;
         let existing = |editor: &ProjectEditor| {
             let p = editor.project();
@@ -322,7 +330,16 @@ impl RoutingJob {
                 }
             }
         };
+        log::debug!(
+            "routing_stage candidate_work {} us",
+            started.elapsed().as_micros()
+        );
+        let started = Instant::now();
         let after = capture_routing_state(sandbox, board)?;
+        log::debug!(
+            "routing_stage candidate_checks {} us",
+            started.elapsed().as_micros()
+        );
         if let RoutingCandidateDetails::LocalVia { via_connection, .. } = &details {
             let target = BTreeSet::from([via_connection.net]);
             if after.unrouted_on(&target) >= before.unrouted_on(&target) {
@@ -552,9 +569,14 @@ impl RoutingService {
         }
         self.check_capacity(slots)?;
         let project = editor.project();
+        let started = Instant::now();
         let sandbox = ProjectEditor::with_source(
             project.snapshot().map_err(crate::Error::from)?,
             Arc::clone(editor.source()),
+        );
+        log::debug!(
+            "routing_stage snapshot {} us",
+            started.elapsed().as_micros()
         );
         Ok(RoutingSource {
             owner: self.owner,
@@ -668,7 +690,13 @@ impl RoutingService {
             // check instead of publishing derived-only live revisions for a no-op.
             return Ok(info);
         }
-        match capture_routing_state(editor, info.board) {
+        let started = Instant::now();
+        let applied = capture_routing_state(editor, info.board);
+        log::debug!(
+            "routing_stage apply_checks {} us",
+            started.elapsed().as_micros()
+        );
+        match applied {
             Ok(after) => info.validation = info.details.validate(candidate.before, after),
             Err(error) => {
                 // Copper has committed. Report the incomplete post-check honestly
