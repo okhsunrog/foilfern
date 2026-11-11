@@ -144,5 +144,10 @@ migrations, library checks, exports. Tests take it from `LIBREPCB_CLI` or the
 - Commit and push each completed logical step to the current branch's upstream
   by default. Parallel porting agents work in separate git worktrees and
   leave their changes for the coordinating agent to review.
+- For this repository, use `okhsunrog <me@okhsunrog.dev>` as both Git author
+  and committer, as explicitly requested by the repository owner. Set
+  repository-local `user.name` and `user.email`; do not inherit a different
+  identity from the environment's global Git config. Push immediately after
+  each commit and verify that the push succeeded.
 - Prefer focused tests of the affected code. Run expensive suites when the
   scope or evidence calls for them.
