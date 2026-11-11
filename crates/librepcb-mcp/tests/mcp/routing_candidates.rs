@@ -476,6 +476,116 @@ fn diagnostics_report_grid_access_and_local_blockers_without_edits() {
 }
 
 #[test]
+fn diagnostics_report_rule_precedence_and_effective_dimensions() {
+    use librepcb_core::types::{Length, UnsignedLength};
+
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    board_edit::design_rules_set(
+        &mut session,
+        args(json!({
+            "default_trace_width":0.42, "min_copper_width":0.2, "min_copper_clearance":0.21,
+            "default_via_drill":0.3, "min_drill_diameter":0.35, "min_annular_ring":0.23
+        })),
+    )
+    .unwrap();
+    schematic_edit::net_class_set(
+        &mut session,
+        args(json!({
+            "net_class":"Signal", "nets":["A"], "default_trace_width":0.15, "default_via_drill":0.7
+        })),
+    )
+    .unwrap();
+    schematic_edit::net_class_set(
+        &mut session,
+        args(json!({"net_class":"Power", "nets":["B"]})),
+    )
+    .unwrap();
+    let circuit = session.project().unwrap().project().circuit();
+    let mut signal = circuit.net_class_by_name("Signal").unwrap().1.clone();
+    let mut power = circuit.net_class_by_name("Power").unwrap().1.clone();
+    let signal_id = signal.uuid();
+    let power_id = power.uuid();
+    let unsigned = |nm| UnsignedLength::new(Length::new(nm)).unwrap();
+    signal.set_min_copper_width(unsigned(350_000));
+    signal.set_min_via_drill_diameter(unsigned(450_000));
+    power.set_min_copper_copper_clearance(unsigned(330_000));
+    session
+        .project_mut()
+        .unwrap()
+        .editor
+        .apply_mutations(
+            "Set net class limits",
+            vec![
+                Mutation::UpdateNetClass(signal),
+                Mutation::UpdateNetClass(power),
+            ],
+        )
+        .unwrap();
+
+    let diagnose = |args| routing::routing_diagnose(&session, args).unwrap().result;
+    let automatic = diagnose(args(json!({"net":"A"})));
+    let rule = &automatic["rules"];
+    assert_eq!(
+        rule["trace_width"]["base"]["source"],
+        json!({
+            "kind":"net_class","uuid":signal_id,"field":"default_trace_width"
+        })
+    );
+    assert_eq!(rule["trace_width"]["base"]["mm"], 0.15);
+    assert_eq!(rule["trace_width"]["effective_mm"], 0.2);
+    assert_eq!(rule["trace_width"]["clamped"], true);
+    assert_eq!(
+        automatic["endpoints"][0]["width_mm"],
+        rule["trace_width"]["effective_mm"]
+    );
+    assert_eq!(rule["net_class_drc"]["min_copper_width_mm"], 0.35);
+    assert_eq!(rule["net_class_drc"]["min_via_drill_diameter_mm"], 0.45);
+    assert_eq!(rule["via_drill"]["base"]["source"]["kind"], "board_design");
+    assert_eq!(rule["via_drill"]["effective_mm"], 0.35);
+    assert_eq!(
+        rule["via_diameter"]["base"]["source"]["field"],
+        "via_annular_ring"
+    );
+    assert_eq!(rule["via_diameter"]["effective_mm"], 0.81);
+    assert_eq!(rule["via_storage"]["inherited_drill"]["mm"], 0.7);
+    assert_eq!(rule["via_storage"]["explicit"], true);
+    assert_eq!(rule["board_copper_minimum"]["mm"], 0.21);
+    assert_eq!(
+        rule["copper_clearance"]["base"]["source"]["uuid"],
+        json!(power_id)
+    );
+    assert_eq!(rule["copper_clearance"]["margin_mm"], 0.01);
+    assert_eq!(rule["copper_clearance"]["effective_mm"], 0.34);
+    assert_eq!(rule["grid_pitch"]["source"]["kind"], "builtin_auto");
+    assert_eq!(
+        rule["grid_pitch"]["effective_mm"],
+        automatic["endpoints"][0]["grid_pitch_mm"]
+    );
+    assert_eq!(
+        diagnose(args(json!({"net":"B"})))["rules"]["trace_width"]["effective_mm"],
+        0.42
+    );
+
+    let requested = diagnose(args(json!({
+        "net":"A","trace_width":0.32,"via_drill":0.2,"via_size":0.5,"grid_pitch":0.15,"layers":["top"]
+    })));
+    let rule = &requested["rules"];
+    for (key, effective) in [
+        ("trace_width", 0.32),
+        ("via_drill", 0.35),
+        ("via_diameter", 0.81),
+        ("grid_pitch", 0.15),
+    ] {
+        assert_eq!(rule[key]["effective_mm"], effective);
+    }
+    assert_eq!(rule["trace_width"]["base"]["source"]["kind"], "request");
+    assert_eq!(rule["via_drill"]["base"]["mm"], 0.2);
+    assert_eq!(rule["via_diameter"]["base"]["mm"], 0.5);
+    assert_eq!(rule["trace_layers"]["effective"], json!(["top_cu"]));
+}
+
+#[test]
 fn candidate_preserves_failed_request_and_unchanged_air_wire() {
     let temp = tempfile::tempdir().unwrap();
     let mut session = board_session(temp.path());

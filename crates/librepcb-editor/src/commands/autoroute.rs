@@ -31,14 +31,14 @@ pub use librepcb_autoroute::{
     TerminalId as RoutingTerminalId, diagnose_access,
 };
 use librepcb_autoroute::{
-    Hole, LayerScope, NetId, Obstacle, RoutingProblem, RoutingResult, RoutingRules, Shape,
-    Terminal, TerminalId, UnroutedReason,
+    Hole, LayerScope, NetId, Obstacle, RoutingProblem, RoutingResult, Shape, Terminal, TerminalId,
+    UnroutedReason,
 };
 use librepcb_core::geometry::{
     NonEmptyPath, PadGeometry, Path, TraceAnchor, Via, ZoneLayers, ZoneRules,
 };
 use librepcb_core::project::board::drc::{BoardDrcData, DrcHole, DrcPad, DrcStrokeText};
-use librepcb_core::project::board::{AirWire, BoardAirWiresBuilder};
+use librepcb_core::project::board::{AirWire, Board, BoardAirWiresBuilder};
 use librepcb_core::project::{BoardId, ComponentInstanceId, NetSignalId, Project};
 use librepcb_core::types::{Layer, Length, MaskConfig, Point, PositiveLength, Uuid};
 use librepcb_core::utils::transform::Transform;
@@ -48,6 +48,8 @@ use super::board::{AddTrace, TraceEndpoint, add_via_connected};
 use super::{NetRef, resolve};
 use crate::editor::{Command, Transaction};
 use crate::error::{Error, Result};
+
+mod rules;
 
 /// Safety margin added to all clearances of the routing problem (10 µm).
 pub const CLEARANCE_MARGIN: Length = Length::new(10_000);
@@ -319,6 +321,21 @@ pub struct ExtractedProblem {
     /// Drill and size of new vias per net if they differ from the
     /// automatic values of the via (`None`: automatic).
     pub via_sizes: BTreeMap<NetSignalId, (Option<PositiveLength>, Option<PositiveLength>)>,
+}
+
+impl ExtractedProblem {
+    /// Explains the effective builtin rules for one net using the same board
+    /// snapshot and options used to extract this problem.
+    pub fn rule_report(
+        &self,
+        p: &Project,
+        board: &Board,
+        options: &Autoroute,
+        net: NetSignalId,
+        grid_pitch: Option<Length>,
+    ) -> impl serde::Serialize {
+        rules::Inputs::new(p, board, options).report(self, net, grid_pitch)
+    }
 }
 
 /// Converts a path to polygons (arcs flattened, closing vertex removed).
@@ -623,77 +640,25 @@ pub fn extract_problem(
     let settings = b.settings().drc_settings.clone();
     let data = BoardDrcData::new(p, board, &settings, true)
         .map_err(|e| Error::InvalidArgument(e.to_string()))?;
-    let rules = b.design_rules();
 
     // Copper layers, top to bottom.
     let mut copper_layers: Vec<Layer> = data.copper_layers.iter().copied().collect();
     copper_layers.sort_by_key(|l| l.copper_number());
 
-    // Rules.
-    let max_class = |f: &dyn Fn(&librepcb_core::project::board::drc::DrcNetClass) -> Length| {
-        data.net_classes
-            .values()
-            .map(f)
-            .max()
-            .unwrap_or(Length::ZERO)
-    };
-    let clearance = (*settings.min_copper_copper_clearance())
-        .max(max_class(&|c| *c.min_copper_copper_clearance));
-    let min_width = *settings.min_copper_width();
-    let clamp_width = |w: PositiveLength| positive((*w).max(min_width)).unwrap_or(w);
-    let trace_width = clamp_width(options.trace_width.unwrap_or(rules.default_trace_width()));
-    let mut net_trace_widths = BTreeMap::new();
-    if options.trace_width.is_none() {
-        for net in p.circuit().net_signals().values() {
-            let width = p
-                .circuit()
-                .net_class(net.net_class())
-                .and_then(|c| c.default_trace_width());
-            if let Some(width) = width {
-                net_trace_widths.insert(net.uuid(), clamp_width(width));
-            }
-        }
-    }
-    let min_drill = *settings.min_pth_drill_diameter();
-    let via_drill = options
-        .via_drill
-        .unwrap_or_else(|| rules.default_via_drill_diameter());
-    let via_drill = positive((*via_drill).max(min_drill)).unwrap_or(via_drill);
-    let min_via_size = *via_drill + *settings.min_pth_annular_ring() * 2;
-    let via_size = options
-        .via_size
-        .unwrap_or_else(|| Via::calc_size_from_rules(via_drill, &rules.via_annular_ring()));
-    let via_size = positive((*via_size).max(min_via_size)).unwrap_or(via_size);
-    let routing_rules = RoutingRules {
-        trace_width,
-        net_trace_widths,
-        clearance: clearance + CLEARANCE_MARGIN,
-        board_clearance: *settings.min_copper_board_clearance() + CLEARANCE_MARGIN,
-        npth_clearance: *settings.min_copper_npth_clearance() + CLEARANCE_MARGIN,
-        drill_clearance: *settings.min_drill_drill_clearance() + CLEARANCE_MARGIN,
-        drill_board_clearance: *settings.min_drill_board_clearance() + CLEARANCE_MARGIN,
-        via_drill,
-        via_diameter: via_size,
-        via_cost: options.via_cost.unwrap_or(RoutingRules::default().via_cost),
-        allowed_layers: options.layers.clone(),
-        grid_pitch: options.grid_pitch,
-        ..RoutingRules::default()
-    };
+    let inputs = rules::Inputs::new(p, b, options);
+    let routing_rules = inputs.routing_rules();
+    let trace_width = routing_rules.trace_width;
 
     // Vias: keep both dimensions automatic only when they reproduce the
     // routing geometry. An explicit size requires an explicit drill, even
     // when that drill equals the inherited value (Via's file-format invariant).
     let mut via_sizes = BTreeMap::new();
     for net in p.circuit().net_signals().values() {
-        let auto_drill = p
-            .circuit()
-            .net_class(net.net_class())
-            .and_then(|c| c.default_via_drill())
-            .unwrap_or_else(|| rules.default_via_drill_diameter());
-        let auto_size = Via::calc_size_from_rules(auto_drill, &rules.via_annular_ring());
-        let explicit = auto_drill != via_drill || auto_size != via_size;
-        let drill = explicit.then_some(via_drill);
-        let size = explicit.then_some(via_size);
+        let (auto_drill, auto_size) = inputs.inherited_via(net.net_class());
+        let explicit =
+            auto_drill != routing_rules.via_drill || auto_size != routing_rules.via_diameter;
+        let drill = explicit.then_some(routing_rules.via_drill);
+        let size = explicit.then_some(routing_rules.via_diameter);
         via_sizes.insert(NetSignalId(net.uuid()), (drill, size));
     }
 

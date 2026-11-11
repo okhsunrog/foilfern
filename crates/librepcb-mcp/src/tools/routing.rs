@@ -240,6 +240,10 @@ pub struct RoutingDiagnoseArgs {
     pub trace_width: Option<f64>,
     /// Routing grid in mm. Omit to use builtin defaults.
     pub grid_pitch: Option<f64>,
+    /// Via drill in mm, with the same default and minimum as routing_prepare.
+    pub via_drill: Option<f64>,
+    /// Via outer diameter in mm, with the same default and minimum as routing_prepare.
+    pub via_size: Option<f64>,
     /// Copper layers allowed for routing. Empty means all.
     #[serde(default)]
     pub layers: Vec<String>,
@@ -279,6 +283,8 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
             layers: args.layers,
             trace_width: args.trace_width,
             grid_pitch: args.grid_pitch,
+            via_drill: args.via_drill,
+            via_size: args.via_size,
             ..Default::default()
         },
     )?;
@@ -309,27 +315,40 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
         diagnose_access(problem, &selected, reach).map_err(librepcb_editor::Error::from)?
     };
     let obstacle_net = |id| crate::resolve::net_name(p, librepcb_core::project::NetSignalId(id));
+    let clearance = |pad: Option<librepcb_core::types::Length>| match pad
+        .filter(|value| *value > problem.rules.clearance)
+    {
+        Some(value) => (mm(value), "pad_copper_clearance"),
+        None => (mm(problem.rules.clearance), "copper_clearance"),
+    };
     let endpoints: Vec<_> = selected.iter().copied().zip(&access).map(|(id, report)| {
         let probes: Vec<_> = report.probes.iter().map(|probe| {
             let blocker = match probe.blocker {
                 None => serde_json::Value::Null,
-                Some(AccessBlocker::BoardEdge) => json!({"kind":"board_edge"}),
+                Some(AccessBlocker::BoardEdge) => json!({
+                    "kind":"board_edge","clearance_mm":mm(problem.rules.board_clearance),
+                    "clearance_source":"copper_board_clearance",
+                }),
                 Some(AccessBlocker::Hole(index)) => json!({
                     "kind":"hole","index":index,"object":extracted.hole_objects[index],
+                    "clearance_mm":mm(problem.rules.npth_clearance),
+                    "clearance_source":"copper_npth_clearance",
                 }),
                 Some(AccessBlocker::Terminal(id)) => {
                     let terminal = &problem.terminals[id.0];
+                    let (clearance_mm, source) = clearance(terminal.clearance);
                     json!({"kind":"terminal","anchor":anchor(id),"net":obstacle_net(terminal.net),
                         "object":RoutingObject::from_anchor(extracted.terminal_anchors[id.0]),
-                        "clearance_mm":mm(problem.rules.clearance.max(terminal.clearance.unwrap_or_default()))})
+                        "clearance_mm":clearance_mm,"clearance_source":source})
                 }
                 Some(AccessBlocker::Obstacle(index)) => {
                     let item = &problem.obstacles[index];
                     let object = extracted.obstacle_objects[index];
+                    let (clearance_mm, source) = clearance(item.clearance);
                     json!({"kind":"obstacle","index":index,"object":object,
                         "trace_uuid":(object.kind == RoutingObjectKind::Trace).then_some(object.uuid),
                         "net":item.net.map(obstacle_net),
-                        "clearance_mm":mm(problem.rules.clearance.max(item.clearance.unwrap_or_default()))})
+                        "clearance_mm":clearance_mm,"clearance_source":source})
                 }
             };
             json!({"layer":probe.layer.id(),"end":crate::views::point(probe.end),"blocker":blocker})
@@ -342,9 +361,17 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
             "straight_probes":probes,
         })
     }).collect();
-    let mut out = ToolOutput::new("Inspected builtin terminal access and local clearance.", json!({
+    let rules = extracted.rule_report(
+        p,
+        b,
+        &options,
+        net,
+        access.first().map(|report| report.grid_pitch),
+    );
+    let mut out = ToolOutput::new("Inspected builtin routing rules, terminal access and local clearance.", json!({
         "net":args.net,"board":board,"clearance_mm":mm(problem.rules.clearance),
         "clearance_source":"maximum board and net-class clearance plus builtin margin",
+        "rules":rules,
         "probe_length_mm":mm(*reach),"unsupported_air_wires":extracted.unsupported.len(),
         "endpoint_count":ids.len(),"endpoints":endpoints,
     }))?.warn("Straight probes show local clearance only. A blocked probe does not rule out another path.");

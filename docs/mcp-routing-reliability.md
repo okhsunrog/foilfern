@@ -193,6 +193,37 @@ A follow-up `routing_edit_prepare` on a separate STM32 copy moved the
 mutation with zero new copper errors. The attached traces followed the via.
 The `V3V3` connection still remained open.
 
+## Effective builtin rules
+
+`routing_diagnose` returns `result.rules` in millimeters. For trace width,
+via drill and via diameter it reports `effective_mm`, the original `base`
+value with its source, the board DRC `minimum`, and whether the minimum
+raised the value. `via_drill` and `via_size` accept the same overrides as
+`routing_prepare`. The diameter floor is the effective drill plus twice
+the DRC annular-ring minimum. `via_storage` records whether new vias
+would store explicit dimensions and shows their inherited dimensions.
+
+`copper_clearance` uses the largest board or project net-class minimum
+plus the 0.01 mm builtin margin. A board tie uses the board setting.
+The report includes the board and largest class inputs, the other
+clearance types, and the effective trace layers. `grid_pitch` reports the
+actual pitch when endpoint access was computed, otherwise
+`effective_mm` is null. Probe blockers indicate which clearance applied,
+including when the pad's own clearance exceeded the routing baseline.
+
+Builtin uses the selected net class's default trace width when there is
+no request override. Its width and drill floors come from the board DRC
+settings. `net_class_drc` shows the selected class's width and drill
+minima, which full DRC can enforce on a candidate. A net-class default
+via drill affects the inherited via dimensions used when deciding
+whether to store explicit dimensions.
+
+On the saved STM32 retry board, stdio diagnostics for `V3V3` reported
+0.2 mm from the net class, 0.21 mm copper clearance (0.2 mm board minimum
+plus margin), and 0.3/0.7 mm via dimensions with automatic storage.
+An explicit 0.3/0.6 mm request met the board minimum and switched the
+reported storage to explicit. Both calls left the project revision intact.
+
 ## Builtin search evidence
 
 `routing_prepare` and `routing_preview` expose `routing.failed_requests` and
