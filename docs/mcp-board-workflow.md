@@ -128,10 +128,36 @@ to commit an acceptable candidate as a single undo step.
 
 Leave unused islands discarded. Use a stitch when the recovered copper
 serves a specific connection or return path. Inspect both layers around a
-critical signal before and after the edit. The current stitch check confirms
-the fill at the via center. The
-[planned ground coverage check](routing-service-design.md#ground-reference-coverage-and-targeted-stitching)
-will report the affected trace intervals and compare them across candidates.
+critical signal before and after the edit. The stitch check confirms the
+fill at the via center.
+
+Use `reference_coverage` to measure selected signals over a reference pour.
+For the STM32 board, the request is
+
+```json
+{
+  "reference": {
+    "signal_nets": ["SWCLK", "SWDIO"],
+    "reference_net": "GND",
+    "reference_layer": "bottom"
+  }
+}
+```
+
+The report gives the checked length, uncovered intervals in board mm and
+the trace count on unchecked layers. A null `covered_fraction` means there
+are no checked traces on adjacent copper layers for that net. The check
+uses the rebuilt pour and the trace centerlines. It includes gaps from holes
+and clearances, including around signal vias.
+
+Pass the same `reference` object to `routing_preview` for a fresh candidate.
+The `reference_coverage` section shows before and after measurements and
+the resolved and new intervals per signal. A shorter gap can have a
+resolved interval alongside its remaining uncovered portion. Gap lists
+have separate `gap_offset` and `gap_limit` fields inside `reference`.
+Length totals cover the full lists. Keep using the candidate's DRC and
+connectivity checks when deciding whether to apply. See the
+[ground coverage and stitch workflow](routing-service-design.md#ground-reference-coverage-and-targeted-stitching).
 
 ## Save and deliver
 

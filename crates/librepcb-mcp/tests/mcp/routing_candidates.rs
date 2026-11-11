@@ -66,6 +66,113 @@ fn board_value(session: &Session) -> Value {
 }
 
 #[test]
+fn reference_coverage_finds_a_hole_and_previews_a_reroute_with_no_air_wires() {
+    use librepcb_core::geometry::ZoneRules;
+    use librepcb_core::types::{Layer, Point};
+    use librepcb_editor::commands::{AddZone, closed_path};
+    use librepcb_mcp::tools::ground_reference;
+
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let signal = board_edit::trace_add(
+        &mut session,
+        args(json!({"from":"R1.1","to":"R2.1","layer":"top","width":0.2})),
+    )
+    .unwrap()
+    .result["traces"][0]["uuid"]
+        .clone();
+    board_edit::plane_add(
+        &mut session,
+        args(json!({"net":"B","layer":"bottom","keep_islands":true})),
+    )
+    .unwrap();
+    let reference = json!({
+        "signal_nets":["A"], "reference_net":"B", "reference_layer":"bottom"
+    });
+    let check = |session: &Session| {
+        ground_reference::run(
+            ground_reference::prepare(session, args(json!({"reference":reference}))).unwrap(),
+        )
+        .unwrap()
+        .result["coverage"]
+            .clone()
+    };
+    let floating = check(&session);
+    assert_eq!(floating["connected_reference_fragments"], 0);
+    assert_eq!(floating["nets"][0]["covered_fraction"], 0.0);
+
+    let via = board_edit::via_add(
+        &mut session,
+        args(json!({"position":{"x":17,"y":10.975},"net":"B","drill":0.3,"size":0.8})),
+    )
+    .unwrap()
+    .result["uuid"]
+        .clone();
+    board_edit::trace_add(
+        &mut session,
+        args(json!({"from":"R2.2","to":via,"layer":"top","width":0.2})),
+    )
+    .unwrap();
+    board_edit::trace_add(
+        &mut session,
+        args(json!({"from":"R1.2","to":"R2.2","layer":"top","width":0.2})),
+    )
+    .unwrap();
+    assert_eq!(check(&session)["nets"][0]["covered_fraction"], 1.0);
+
+    let outline = closed_path(&[
+        Point::from_nm(9_000_000, 8_500_000),
+        Point::from_nm(11_000_000, 8_500_000),
+        Point::from_nm(11_000_000, 9_500_000),
+        Point::from_nm(9_000_000, 9_500_000),
+    ]);
+    session
+        .project_mut()
+        .unwrap()
+        .editor
+        .execute(AddZone {
+            board: None,
+            layers: [Layer::BOT_COPPER].into_iter().collect(),
+            rules: ZoneRules::NO_PLANES,
+            outline,
+        })
+        .unwrap();
+    let before = check(&session);
+    let gap = &before["nets"][0]["gaps"]["items"][0];
+    assert_eq!(gap["trace"], signal);
+    assert_eq!(gap["from"], json!({"x":9.0,"y":9.025}));
+    assert_eq!(gap["to"], json!({"x":11.0,"y":9.025}));
+    assert_eq!(gap["length_mm"], 2.0);
+    let revision = session.project().unwrap().project().revision();
+    let job = routing::prepare_edit_job(
+        &session,
+        args(json!({
+            "replacements":[{"traces":[signal],"points":[{"x":8,"y":7},{"x":12,"y":7}]}]
+        })),
+    )
+    .unwrap();
+    let candidate = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
+        .unwrap()
+        .result;
+    assert_eq!(candidate["validation"]["before"]["unrouted"], 0);
+    assert_eq!(candidate["validation"]["acceptable"], true, "{candidate:#}");
+    let key = &candidate["candidate"];
+    let preview = routing::routing_preview(
+        &session,
+        args(json!({"candidate":key, "reference":reference})),
+    )
+    .unwrap()
+    .result;
+    let coverage = &preview["reference_coverage"];
+    assert_eq!(coverage["before"], before);
+    assert_eq!(coverage["changes"][0]["resolved_gaps"]["length_mm"], 2.0);
+    assert_eq!(coverage["changes"][0]["new_gaps"]["count"], 0);
+    assert_eq!(session.project().unwrap().project().revision(), revision);
+    routing::routing_apply(&mut session, args(json!({"candidate":key}))).unwrap();
+    assert_eq!(check(&session), coverage["after"]);
+}
+
+#[test]
 fn plane_diagnostic_distinguishes_discarded_and_kept_islands_without_editing() {
     let temp = tempfile::tempdir().unwrap();
     let mut session = board_session(temp.path());

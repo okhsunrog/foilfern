@@ -1,7 +1,7 @@
 //! Builtin reviewed routing: detached preparation, paginated exact preview,
 //! single-transaction apply and explicit disposal. No upstream counterpart.
 
-use librepcb_core::project::{PlaneId, Project};
+use librepcb_core::project::{Mutation, PlaneId, Project};
 use librepcb_core::types::Uuid;
 use librepcb_editor::commands::{
     Autoroute, ConnectLocalVia, NetRef, PadNeckDown, RoutingOrder, StitchPlaneIsland,
@@ -14,7 +14,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::json;
 
-use super::{board_edit, write};
+use super::{board_edit, ground_reference, write};
 use crate::error::{ErrorKind, ToolError, ToolResult};
 use crate::outcome::ToolOutput;
 use crate::session::Session;
@@ -132,6 +132,8 @@ pub struct RoutingPreviewArgs {
     pub offset: usize,
     #[serde(default)]
     pub limit: Option<usize>,
+    /// Compare coverage of these signals on the candidate's original snapshot.
+    pub reference: Option<ground_reference::ReferenceArgs>,
 }
 
 fn routing_error(error: RoutingError) -> ToolError {
@@ -402,6 +404,81 @@ fn candidate_output(summary: &str, info: &RoutingCandidateInfo) -> ToolResult<To
 
 /// Read-only exact patch preview. Stale candidates remain inspectable.
 pub fn routing_preview(session: &Session, args: RoutingPreviewArgs) -> ToolResult<ToolOutput> {
+    if args.reference.is_some() {
+        let work = prepare_reference_preview(session, args)?;
+        return finish_reference_preview(session, run_reference_preview(work)?);
+    }
+    patch_preview(session, args)
+}
+
+pub struct ReferencePreviewJob {
+    id: Uuid,
+    preview: ToolOutput,
+    reference: ground_reference::ReferenceJob,
+    patch: Vec<Mutation>,
+}
+
+pub fn prepare_reference_preview(
+    session: &Session,
+    mut args: RoutingPreviewArgs,
+) -> ToolResult<ReferencePreviewJob> {
+    let reference = args
+        .reference
+        .take()
+        .ok_or_else(|| ToolError::invalid("Reference selection is required."))?;
+    let id = candidate_id(&args.candidate)?;
+    let preview = patch_preview(session, args)?;
+    let open = session.project()?;
+    let board = open
+        .routing
+        .candidate(id)
+        .map_err(routing_error)?
+        .info()
+        .board;
+    let (snapshot, patch) = open
+        .routing
+        .preview_snapshot(open.project(), id)
+        .map_err(routing_error)?;
+    let reference =
+        ground_reference::ReferenceJob::new(open.project(), snapshot, board, reference)?;
+    Ok(ReferencePreviewJob {
+        id,
+        preview,
+        reference,
+        patch,
+    })
+}
+
+pub fn run_reference_preview(work: ReferencePreviewJob) -> ToolResult<(Uuid, ToolOutput)> {
+    let ReferencePreviewJob {
+        id,
+        mut preview,
+        reference,
+        patch,
+    } = work;
+    preview.result["reference_coverage"] = reference.compare(patch)?;
+    Ok((id, preview))
+}
+
+pub fn finish_reference_preview(
+    session: &Session,
+    (id, preview): (Uuid, ToolOutput),
+) -> ToolResult<ToolOutput> {
+    let open = session.project()?;
+    if open
+        .routing
+        .is_stale(open.project(), id)
+        .map_err(routing_error)?
+    {
+        return Err(ToolError::new(
+            ErrorKind::StaleRevision,
+            "The routing candidate became stale during reference analysis.",
+        ));
+    }
+    Ok(preview)
+}
+
+fn patch_preview(session: &Session, args: RoutingPreviewArgs) -> ToolResult<ToolOutput> {
     let limit = args.limit.unwrap_or(100);
     if !(1..=200).contains(&limit) {
         return Err(ToolError::invalid("limit must be between 1 and 200."));

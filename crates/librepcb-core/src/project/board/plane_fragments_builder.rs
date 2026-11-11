@@ -41,7 +41,7 @@ use crate::utils::transform::Transform;
 /// Returns the maximum allowed arc tolerance when flattening arcs. Do not
 /// change this if you don't know exactly what you're doing (it affects all
 /// planes in all existing boards)!
-fn max_arc_tolerance() -> PositiveLength {
+pub(super) fn max_arc_tolerance() -> PositiveLength {
     PositiveLength::new(Length::new(5000)).expect("constant is positive")
 }
 
@@ -491,7 +491,7 @@ impl PlaneJob {
     /// Like [`run()`](Self::run), but stops early (with
     /// [`PlaneFragments::finished`] = `false`) once `abort` is set.
     pub fn run_with_abort(self, abort: &AtomicBool) -> PlaneFragments {
-        self.run_inner(abort, None).0
+        self.run_inner(abort, &|_| false).0
     }
 
     /// Inspect one plane's actual island filter, with all pour priorities intact.
@@ -503,15 +503,34 @@ impl PlaneJob {
             }
             .into());
         }
-        let (result, diagnostics) = self.run_inner(&AtomicBool::new(false), Some(plane));
+        let (result, diagnostics) =
+            self.run_inner(&AtomicBool::new(false), &|data| data.uuid == plane.0);
         result.check()?;
         Ok(diagnostics)
+    }
+
+    /// Rebuilds the selected layer and extracts all connected fills of the net.
+    pub(super) fn reference_fragments(
+        mut self,
+        layer: Layer,
+        net: NetSignalId,
+    ) -> BoardExportResult<Vec<Path>> {
+        self.layers.retain(|candidate| *candidate == layer);
+        let (result, diagnostics) = self.run_inner(&AtomicBool::new(false), &|plane| {
+            plane.layer == layer && plane.net == Some(net)
+        });
+        result.check()?;
+        Ok(diagnostics
+            .into_iter()
+            .filter(|fragment| fragment.status == PlaneFragmentStatus::Connected)
+            .map(|fragment| fragment.outline)
+            .collect())
     }
 
     fn run_inner(
         mut self,
         abort: &AtomicBool,
-        inspect: Option<PlaneId>,
+        inspect: &(impl Fn(&PlaneData) -> bool + Sync),
     ) -> (PlaneFragments, Vec<PlaneFragmentDiagnostic>) {
         log::debug!(
             "Start calculating areas of {} plane(s) on {} layer(s)...",
@@ -629,7 +648,7 @@ impl PlaneJob {
         layer: Layer,
         board_area: &ClipperPaths,
         abort: &AtomicBool,
-        inspect: Option<PlaneId>,
+        inspect: &impl Fn(&PlaneData) -> bool,
     ) -> LayerResult {
         let mut result = LayerResult::default();
         for (index, plane) in self.planes.iter().enumerate() {
@@ -644,7 +663,7 @@ impl PlaneJob {
                 &self.planes[..index],
                 board_area,
                 &result,
-                inspect == Some(PlaneId(plane.uuid)),
+                inspect(plane),
             ) {
                 Ok((fragments, diagnostics)) => {
                     result.planes.insert(plane.uuid, fragments);

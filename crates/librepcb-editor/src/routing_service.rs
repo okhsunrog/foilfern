@@ -475,6 +475,21 @@ impl RoutingService {
         Ok(self.check_source(project, self.candidate(id)?).is_err())
     }
 
+    /// Captures the original model and frozen patch for additional preview
+    /// checks. A stale patch stays inspectable, but cannot be replayed here.
+    pub fn preview_snapshot(
+        &self,
+        project: &Project,
+        id: Uuid,
+    ) -> Result<(ProjectEditor, Vec<Mutation>), RoutingError> {
+        let candidate = self.candidate(id)?;
+        self.check_source(project, candidate)?;
+        Ok((
+            ProjectEditor::new(project.snapshot().map_err(crate::Error::from)?),
+            candidate.mutations.clone(),
+        ))
+    }
+
     /// Explicitly frees storage without modifying the board or its revision.
     pub fn discard(&mut self, id: Uuid) -> Result<(), RoutingError> {
         self.candidates

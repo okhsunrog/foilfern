@@ -963,6 +963,22 @@ impl LibrePcbMcp {
     }
 
     #[tool(
+        description = "Measure selected signal trace centerlines over the freshly rebuilt reference +                       pour on an adjacent copper layer. Returns gaps and lengths without editing."
+    )]
+    async fn reference_coverage(
+        &self,
+        Parameters(args): Parameters<crate::tools::ground_reference::ReferenceCoverageArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        use crate::tools::ground_reference;
+        self.run_detached(
+            move |s| ground_reference::prepare(s, args),
+            ground_reference::run,
+            |s, report| ground_reference::finish(s, report),
+        )
+        .await
+    }
+
+    #[tool(
         description = "Compare two or three builtin routing orders on one unchanged board snapshot with common options. Returns ranked candidate IDs, DRC, open connections, via counts and total trace length. Preview and apply the chosen ID separately."
     )]
     async fn routing_compare(
@@ -1024,14 +1040,23 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Preview exact frozen routing mutations and validation, without changing the board. Paginated: offset and limit (1..200). Reports stale candidates."
+        description = "Preview exact frozen routing mutations and validation, without changing the +                       board. Supply reference to compare ground coverage before and after. +                       Paginated: offset and limit (1..200). Reports stale candidates."
     )]
     async fn routing_preview(
         &self,
         Parameters(args): Parameters<crate::tools::routing::RoutingPreviewArgs>,
     ) -> Result<CallToolResult, McpError> {
-        self.run(move |s| crate::tools::routing::routing_preview(s, args))
-            .await
+        use crate::tools::routing;
+        if args.reference.is_some() {
+            return self
+                .run_detached(
+                    move |s| routing::prepare_reference_preview(s, args),
+                    routing::run_reference_preview,
+                    |s, result| routing::finish_reference_preview(s, result),
+                )
+                .await;
+        }
+        self.run(move |s| routing::routing_preview(s, args)).await
     }
 
     #[tool(

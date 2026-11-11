@@ -47,8 +47,8 @@ diffing outputs against the official `librepcb-cli`.
   not a new GUI overlay. `routing_compare` compares builtin orders on the same
   snapshot by DRC, connectivity, via count and trace length. See the design
   for replay evidence and current operational limits.
-- Next, [check ground coverage under selected signal traces](routing-service-design.md#ground-reference-coverage-and-targeted-stitching)
-  and compare that coverage before and after a reviewed reroute or stitch.
+- [Ground coverage under selected signal traces](routing-service-design.md#ground-reference-coverage-and-targeted-stitching)
+  can be checked and compared before and after a reviewed reroute or stitch.
   Preserve continuous ground where the selected signals need it and leave
   unused islands discarded. The STM32G474 buck board is the first replay.
 - Use the [reproductions and acceptance contract](mcp-routing-reliability.md)

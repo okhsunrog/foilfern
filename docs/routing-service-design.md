@@ -311,8 +311,9 @@ locates discarded fragments and can probe a point. A stitch candidate checks
 that a proposed through via and a lead to an existing same-net anchor bring
 the fragment at the via center into the fill. The
 [STM32G474 buck replay](mcp-routing-reliability.md#stm32g474-with-buck-converter-and-bottom-gnd-pour)
-demonstrated recovered copper and unchanged DRC and air-wire counts. Ground
-coverage under individual signal traces is the next step.
+demonstrated recovered copper and unchanged DRC and air-wire counts.
+`reference_coverage` now measures individual signal traces, and
+`routing_preview` accepts the same reference selection for a fresh candidate.
 
 **Find the gap.** The caller selects signal nets and the reference net and
 layer. Start with straight trace segments on a signal layer next to the

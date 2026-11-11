@@ -50,6 +50,7 @@ mod pick_place_generator;
 mod plane;
 mod plane_fragments_builder;
 mod polygon_data;
+mod reference_coverage;
 mod specctra_export;
 mod stroke_text_data;
 mod via;
@@ -83,6 +84,9 @@ pub use plane_fragments_builder::{
     PlaneFragmentDiagnostic, PlaneFragmentStatus, PlaneFragments, PlaneJob,
 };
 pub use polygon_data::BoardPolygonData;
+pub use reference_coverage::{
+    ReferenceCoverage, ReferenceGap, ReferenceNetCoverage, ReferenceSelection,
+};
 pub use specctra_export::{
     ANONYMOUS_NET_PREFIX, BoardSpecctraExport, SPECCTRA_HOST_CAD, SPECCTRA_HOST_VERSION,
     segment_net_name, via_padstack_id,

@@ -85,6 +85,20 @@ live board before apply, undo/redo, and save/reopen. Upstream LibrePCB
 opened the saved copy with zero ERC or DRC errors and the same 17
 silkscreen warnings.
 
+### Reference coverage on the STM32G474 buck board
+
+The bottom `GND` pour was measured under the top segments of `SWCLK` and
+`SWDIO`. Removing and restoring the via at `C2.2` changed the connected
+pour by 70.30 mm². Uncovered centerline length stayed at 1.244 mm for
+`SWCLK` and 3.544 mm for `SWDIO`.
+
+A bottom-layer plane keepout from (35.2, 29.7) to (35.6, 30.1) mm
+introduced a 0.543 mm gap under `SWDIO` with zero air wires. A reviewed
+replacement detoured the top trace around the gap. The preview reported
+0.543 mm resolved and zero new gaps on the two selected nets. Apply,
+undo/redo and save/reopen reproduced the measured states. DRC found no
+new errors. This replay measures geometric centerline coverage.
+
 ## Applied-result contract
 
 `autoroute` (both backends) and `specctra_import` return `result.validation`:

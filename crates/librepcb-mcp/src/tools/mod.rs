@@ -4,6 +4,7 @@
 
 pub mod board_edit;
 pub mod circuit;
+pub mod ground_reference;
 pub mod import;
 pub mod layout;
 pub mod library;
