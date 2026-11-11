@@ -3,7 +3,7 @@
 
 use librepcb_core::types::Uuid;
 use librepcb_editor::routing_service::{
-    RoutingCandidate, RoutingCandidateInfo, RoutingError, RoutingJob,
+    RegionalRoutingRequest, RoutingCandidate, RoutingCandidateInfo, RoutingError, RoutingJob,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -453,7 +453,7 @@ pub struct RoutingTraceReplacementArgs {
     pub points: Vec<crate::units::PointMm>,
 }
 
-/// Optional builtin trial on the edited board.
+/// Builtin settings for a regional or post-edit trial.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RoutingEditRouteArgs {
@@ -473,6 +473,79 @@ pub struct RoutingEditRouteArgs {
     /// Include samples of rejected grid steps for failed requests.
     #[serde(default)]
     pub search_evidence: bool,
+}
+
+impl RoutingEditRouteArgs {
+    fn command(
+        self,
+        project: &librepcb_core::project::Project,
+        board: librepcb_core::project::BoardId,
+    ) -> ToolResult<librepcb_editor::commands::Autoroute> {
+        let mut command = board_edit::builtin_command(
+            project,
+            board,
+            &board_edit::AutorouteArgs {
+                nets: self.nets,
+                layers: self.layers,
+                trace_width: self.trace_width,
+                via_drill: self.via_drill,
+                via_size: self.via_size,
+                grid_pitch: self.grid_pitch,
+                ..Default::default()
+            },
+        )?;
+        command.search_evidence = self.search_evidence;
+        Ok(command)
+    }
+}
+
+/// Rectangular bounds for new copper, in board millimeters.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RoutingRegionArgs {
+    pub min: crate::units::PointMm,
+    pub max: crate::units::PointMm,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RoutingRegionPrepareArgs {
+    pub board: Option<String>,
+    pub region: RoutingRegionArgs,
+    pub route: RoutingEditRouteArgs,
+    /// UUIDs of existing traces and vias authorized for rip-up.
+    #[serde(default)]
+    pub rip_up: Vec<String>,
+    pub expected_revision: Option<u64>,
+}
+
+pub fn prepare_regional_job(
+    session: &Session,
+    args: RoutingRegionPrepareArgs,
+) -> ToolResult<RoutingJob> {
+    use librepcb_editor::commands::RoutingBounds;
+
+    let open = session.project()?;
+    let project = open.project();
+    write::check_revision(project, args.expected_revision)?;
+    let board = board_edit::board_id(project, args.board.as_deref())?;
+    let mut request = args.route.command(project, board)?;
+    let min = args.region.min.to_point()?;
+    let max = args.region.max.to_point()?;
+    if min.x >= max.x || min.y >= max.y {
+        return Err(ToolError::invalid(
+            "The routing region must have positive width and height.",
+        ));
+    }
+    request.region = Some(RoutingBounds { min, max });
+    let rip_up = args
+        .rip_up
+        .iter()
+        .map(|uuid| crate::resolve::required_uuid(uuid, "trace or via"))
+        .collect::<ToolResult<_>>()?;
+    open.routing
+        .prepare_regional(&open.editor, RegionalRoutingRequest { request, rip_up })
+        .map_err(routing_error)
 }
 
 /// Prepare one atomic connected edit for preview and validation.
@@ -551,20 +624,7 @@ pub fn prepare_edit_job(session: &Session, args: RoutingEditArgs) -> ToolResult<
         replacements,
     };
     let job = if let Some(route) = args.route {
-        let mut command = board_edit::builtin_command(
-            open.project(),
-            board,
-            &board_edit::AutorouteArgs {
-                nets: route.nets,
-                layers: route.layers,
-                trace_width: route.trace_width,
-                via_drill: route.via_drill,
-                via_size: route.via_size,
-                grid_pitch: route.grid_pitch,
-                ..Default::default()
-            },
-        )?;
-        command.search_evidence = route.search_evidence;
+        let command = route.command(open.project(), board)?;
         open.routing
             .prepare_edit_and_route(&open.editor, edit, command)
     } else {

@@ -1188,6 +1188,7 @@ pub(crate) fn builtin_command(
             .transpose()?,
         via_cost: None,
         search_evidence: false,
+        region: None,
     })
 }
 

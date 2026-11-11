@@ -18,6 +18,8 @@
 use crate::geometry::Core;
 use crate::geometry::{P, capsule_row_interval, polygon_edges, polygon_row_crossings};
 use crate::items::{Item, NO_NET};
+use crate::problem::RoutingRegion;
+use librepcb_core::types::Length;
 
 /// Node usable by every net.
 pub(crate) const FREE: u32 = 0;
@@ -173,6 +175,14 @@ impl Grid {
         let d = keep + half_width;
         let p = self.pitch as f64;
         (d * d + p * p / 2.0).sqrt() + 2.0
+    }
+
+    pub fn block_outside_region(&self, cells: &mut [u32], region: RoutingRegion, radius: Length) {
+        for (i, cell) in cells.iter_mut().enumerate() {
+            if !region.contains(self.point(i).to_point(), radius) {
+                *cell = BLOCKED;
+            }
+        }
     }
 }
 

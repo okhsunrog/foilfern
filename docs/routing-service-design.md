@@ -310,9 +310,14 @@ LQFP pads where their escape choices interfere, and refine grids locally instead
 of shrinking the grid across the entire board. Prioritize constrained exits and
 mandatory critical nets, not only short connections.
 
-Add regional reroute permissions, protected traces and corridors. Extend the
-existing rip-up/reroute with accumulated congestion costs, alternative route
-orders and retention of the best valid result. Compare candidates using hard
+The first regional workflow accepts a rectangular routing area, named nets,
+and an explicit rip-up list of trace and via UUIDs. It verifies protected
+copper and uses the existing candidate, preview, apply and undo path.
+See [regional builtin routing](mcp-routing-reliability.md#regional-builtin-routing).
+
+Add corridors. Extend the existing rip-up/reroute with accumulated congestion
+costs, alternative route orders and retention of the best valid result.
+Compare candidates using hard
 validity first, then required connectivity, critical constraints, via/length
 cost and disturbance of existing routing. Track connected copper islands per net
 as well as air wires, since an air-wire tree can change during routing.

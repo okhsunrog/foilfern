@@ -32,7 +32,7 @@ pub use librepcb_autoroute::{
 };
 use librepcb_autoroute::{
     FrontierBlocker, FrontierSample, Hole, LayerScope, NetId, Obstacle, RoutingProblem,
-    RoutingResult, Shape, Terminal, TerminalId, UnroutedReason,
+    RoutingRegion, RoutingResult, Shape, Terminal, TerminalId, UnroutedReason,
 };
 use librepcb_core::geometry::{
     NonEmptyPath, PadGeometry, Path, TraceAnchor, Via, ZoneLayers, ZoneRules,
@@ -59,6 +59,21 @@ const ARC_TOLERANCE: Length = Length::new(5_000);
 
 fn positive(length: Length) -> Option<PositiveLength> {
     PositiveLength::new(length).ok()
+}
+
+/// Rectangular area of a regional routing request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct RoutingBounds {
+    pub min: Point,
+    pub max: Point,
+}
+
+impl RoutingBounds {
+    pub(crate) fn region(self) -> Result<RoutingRegion> {
+        RoutingRegion::new(self.min, self.max).ok_or_else(|| {
+            Error::InvalidArgument("The routing region must have positive width and height.".into())
+        })
+    }
 }
 
 /// Autoroutes the air wires of a board (see the [module docs](self)).
@@ -101,6 +116,9 @@ pub struct Autoroute {
     /// Collect rejected grid steps for failed strict searches.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub search_evidence: bool,
+    /// Limits new copper to a rectangular region.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub region: Option<RoutingBounds>,
 }
 
 /// An air wire which was not routed.
@@ -295,6 +313,7 @@ pub struct RoutingObject {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum RoutingSearchBlocker {
     BoardEdge,
+    RegionBoundary,
     Existing { object: RoutingObject },
     Generated { request: usize, net: NetSignalId },
 }
@@ -360,6 +379,7 @@ pub struct ExtractedProblem {
 impl ExtractedProblem {
     fn search_sample(&self, sample: &FrontierSample) -> RoutingSearchSample {
         let blocker = sample.blocker.map(|blocker| match blocker {
+            FrontierBlocker::RegionBoundary => RoutingSearchBlocker::RegionBoundary,
             FrontierBlocker::Existing(AccessBlocker::BoardEdge) => RoutingSearchBlocker::BoardEdge,
             FrontierBlocker::Existing(blocker) => {
                 let object = match blocker {
@@ -711,6 +731,7 @@ pub fn extract_problem(
     let inputs = rules::Inputs::new(p, b, options);
     let routing_rules = inputs.routing_rules();
     let trace_width = routing_rules.trace_width;
+    let region = options.region.map(RoutingBounds::region).transpose()?;
 
     // Vias: keep both dimensions automatic only when they reproduce the
     // routing geometry. An explicit size requires an explicit drill, even
@@ -750,6 +771,7 @@ pub fn extract_problem(
         hole_objects: Vec::new(),
         copper_layers: &copper_layers,
     };
+    builder.problem.region = region;
 
     // Board items.
     for polygon in &data.polygons {
@@ -844,6 +866,12 @@ pub fn extract_problem(
     let mut air_wires = Vec::new();
     for net in &routed_nets {
         for wire in air_wire_builder.build_air_wires(*net) {
+            if region.is_some_and(|area| {
+                !area.contains(wire.p1_position(), Length::ZERO)
+                    || !area.contains(wire.p2_position(), Length::ZERO)
+            }) {
+                continue;
+            }
             for anchor in [wire.p1(), wire.p2()] {
                 if let TraceAnchor::Junction(j) = anchor {
                     junction_terminals.insert(j);

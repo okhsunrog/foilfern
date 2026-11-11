@@ -18,6 +18,9 @@ use crate::ProjectEditor;
 use crate::commands::{Autoroute, AutorouteResult, EditRoutingGeometry};
 use crate::routing_validation::{RoutingSnapshot, RoutingValidation, capture_routing_state};
 
+mod region;
+pub use region::RegionalRoutingRequest;
+
 /// Bounded session-local storage; callers explicitly discard unwanted candidates.
 pub const MAX_CANDIDATES: usize = 8;
 /// Maximum frozen patch size. Oversized proposals are refused, never truncated.
@@ -68,6 +71,10 @@ pub enum RoutingCandidateDetails {
         #[serde(skip_serializing_if = "Option::is_none")]
         route: Option<Box<RoutingEditTrial>>,
     },
+    Regional {
+        regional: Box<RegionalRoutingRequest>,
+        routing: Box<AutorouteResult>,
+    },
 }
 
 /// Result of routing selected nets on the edited snapshot.
@@ -80,7 +87,7 @@ pub struct RoutingEditTrial {
 impl RoutingCandidateDetails {
     fn validate(&self, before: RoutingSnapshot, after: RoutingSnapshot) -> RoutingValidation {
         let mut validation = RoutingValidation::compare(before, after);
-        if matches!(self, Self::Edit { .. }) && !validation.unrouted_regressions.is_empty() {
+        if !matches!(self, Self::Builtin { .. }) && !validation.unrouted_regressions.is_empty() {
             validation.acceptable = false;
         }
         validation
@@ -94,6 +101,7 @@ enum RoutingWork {
         edit: EditRoutingGeometry,
         route: Option<Autoroute>,
     },
+    Regional(RegionalRoutingRequest),
 }
 
 /// Date and path placeholders affect physical board text without necessarily
@@ -155,6 +163,7 @@ impl RoutingJob {
         let requested = match &self.work {
             RoutingWork::Builtin(request) => request.board,
             RoutingWork::Edit { edit, .. } => Some(edit.board),
+            RoutingWork::Regional(regional) => regional.request.board,
         };
         let board = crate::commands::resolve_board(self.sandbox.project(), requested)?.id();
         let before = capture_routing_state(&mut self.sandbox, board)?;
@@ -181,6 +190,13 @@ impl RoutingJob {
                     None
                 };
                 RoutingCandidateDetails::Edit { edit, route }
+            }
+            RoutingWork::Regional(regional) => {
+                let routing = regional.run(&mut self.sandbox, board)?;
+                RoutingCandidateDetails::Regional {
+                    regional: Box::new(regional),
+                    routing: Box::new(routing),
+                }
             }
         };
         let after = capture_routing_state(&mut self.sandbox, board)?;
@@ -281,6 +297,21 @@ impl RoutingService {
         )
     }
 
+    /// Captures a builtin trial with explicit copper and region permissions.
+    pub fn prepare_regional(
+        &self,
+        editor: &ProjectEditor,
+        regional: RegionalRoutingRequest,
+    ) -> Result<RoutingJob, RoutingError> {
+        if regional.request.nets.as_ref().is_none_or(Vec::is_empty) {
+            return Err(crate::Error::InvalidArgument(
+                "Regional routing requires at least one target net.".into(),
+            )
+            .into());
+        }
+        self.prepare_work(editor, RoutingWork::Regional(regional))
+    }
+
     fn prepare_work(
         &self,
         editor: &ProjectEditor,
@@ -355,7 +386,8 @@ impl RoutingService {
         }
         editor.apply_mutations(
             match candidate.info.details {
-                RoutingCandidateDetails::Builtin { .. } => {
+                RoutingCandidateDetails::Builtin { .. }
+                | RoutingCandidateDetails::Regional { .. } => {
                     librepcb_i18n::tr!("Autorouter", "Autoroute Board")
                 }
                 RoutingCandidateDetails::Edit { .. } => {

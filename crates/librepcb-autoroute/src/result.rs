@@ -101,6 +101,7 @@ pub enum UnroutedReason {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrontierBlocker {
     Existing(crate::AccessBlocker),
+    RegionBoundary,
     Generated { request: usize, net: NetId },
 }
 

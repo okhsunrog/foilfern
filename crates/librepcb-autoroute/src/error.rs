@@ -12,6 +12,9 @@ pub enum Error {
     /// No copper layer may be used for routing.
     #[error("{}", tr!("Autorouter", "No copper layer is available for routing."))]
     NoRoutingLayers,
+    /// The region and the board bounds have no common area.
+    #[error("{}", tr!("Autorouter", "The routing region does not overlap the board bounds."))]
+    RegionOutsideBoard,
     /// A connection references a terminal which does not exist.
     #[error("{}", tr!("Autorouter", "Connection references unknown terminal {0}.", .0))]
     UnknownTerminal(usize),

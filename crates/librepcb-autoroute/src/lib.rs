@@ -69,7 +69,7 @@ use std::ops::ControlFlow;
 pub use error::{Error, Result};
 pub use problem::{
     Connection, Hole, LayerScope, NetId, Obstacle, PreferredDirection, RoutingProblem,
-    RoutingRules, Shape, Terminal, TerminalId,
+    RoutingRegion, RoutingRules, Shape, Terminal, TerminalId,
 };
 pub use result::{
     Endpoint, FrontierBlocker, FrontierSample, Progress, Route, RoutingResult, RoutingStats,

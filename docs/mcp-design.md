@@ -375,5 +375,10 @@ is allowed and remains explicit. `routing_discard` frees a candidate without an
 edit. Closing the project clears candidates. Storage refuses more than eight
 candidates or a patch over 100,000 mutations; existing candidates are not evicted.
 
+`routing_region_prepare` takes a rectangle in board millimeters, explicit
+target nets under `route` and an optional `rip_up` list of trace and via UUIDs.
+The rectangle limits new copper. The candidate preserves the geometry and
+UUIDs of copper outside the list and uses the shared preview and apply tools.
+
 See [routing service design](routing-service-design.md) for subsequent stages.
 The existing `autoroute` compatibility path continues to apply directly.

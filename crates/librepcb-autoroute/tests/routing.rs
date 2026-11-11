@@ -493,6 +493,28 @@ fn blocked_path_is_reported_as_unrouted() {
 }
 
 #[test]
+fn regional_search_cannot_escape_around_a_wall() {
+    let mut p = RoutingProblem::new(
+        rect_outline(20.0, 10.0),
+        two_layers(),
+        RoutingRules::default(),
+    );
+    let a = smd(&mut p, net(1), 3.0, 5.0, 1.0, 1.0);
+    let b = smd(&mut p, net(1), 17.0, 5.0, 1.0, 1.0);
+    p.connect(a, b);
+    p.add_obstacle(Obstacle::keepout(
+        Shape::rect(pt(10.0, 5.0), mm(1.0), mm(4.0)),
+        LayerScope::All,
+    ));
+    let full = route(&p).unwrap();
+    assert!(full.is_complete());
+    p.region = librepcb_autoroute::RoutingRegion::new(pt(2.0, 4.0), pt(18.0, 6.0));
+    let regional = route(&p).unwrap();
+    assert_eq!(regional.unrouted[0].reason, UnroutedReason::NoPath);
+    assert!(regional.routes.is_empty());
+}
+
+#[test]
 fn inaccessible_terminal_is_reported() {
     // Bottom pad, but only the top layer may be used.
     let rules = RoutingRules {

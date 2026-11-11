@@ -892,6 +892,19 @@ impl LibrePcbMcp {
     }
 
     #[tool(
+        description = "Prepare builtin routing within a rectangle in board millimeters. Select target nets and optionally authorize rip-up of specific trace or via UUIDs. Review with routing_preview and apply with routing_apply."
+    )]
+    async fn routing_region_prepare(
+        &self,
+        Parameters(args): Parameters<crate::tools::routing::RoutingRegionPrepareArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.prepare_routing_candidate(move |s| {
+            crate::tools::routing::prepare_regional_job(s, args)
+        })
+        .await
+    }
+
+    #[tool(
         description = "Prepare checked via, junction, or trace path edits and optionally try builtin routing of selected nets on the edited board. Use routing_preview then routing_apply. Positions and dimensions are in millimeters."
     )]
     async fn routing_edit_prepare(

@@ -239,6 +239,33 @@ fn positive(nm: i64) -> PositiveLength {
     PositiveLength::new(Length::new(nm)).expect("constant is positive")
 }
 
+/// Axis-aligned bounds on new copper.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RoutingRegion {
+    min: Point,
+    max: Point,
+}
+
+impl RoutingRegion {
+    pub fn new(min: Point, max: Point) -> Option<Self> {
+        (min.x < max.x && min.y < max.y).then_some(Self { min, max })
+    }
+
+    pub fn bounds(self) -> (Point, Point) {
+        (self.min, self.max)
+    }
+
+    /// Whether a disk with this center and radius fits in the region.
+    pub fn contains(self, point: Point, radius: Length) -> bool {
+        let radius = i128::from(radius.to_nm());
+        let inside = |p: Length, min: Length, max: Length| {
+            let p = i128::from(p.to_nm());
+            p - radius >= i128::from(min.to_nm()) && p + radius <= i128::from(max.to_nm())
+        };
+        inside(point.x, self.min.x, self.max.x) && inside(point.y, self.min.y, self.max.y)
+    }
+}
+
 /// The complete description of a routing task.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct RoutingProblem {
@@ -257,6 +284,8 @@ pub struct RoutingProblem {
     pub connections: Vec<Connection>,
     /// Design rules and settings.
     pub rules: RoutingRules,
+    /// Optional bounds for new copper. Existing geometry still affects clearance.
+    pub region: Option<RoutingRegion>,
 }
 
 impl RoutingProblem {

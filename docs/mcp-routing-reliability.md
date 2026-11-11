@@ -292,7 +292,8 @@ Each original failed request can include up to 32 samples in
 layer, move coordinates in nanometers, and whether generated copper
 blocked the grid step. The exact geometry check can report a board
 object UUID, the board edge, or a generated route's request index and
-net UUID. A null blocker means the sampled step had no exact hit.
+net UUID. Regional routing can also identify the region boundary.
+A null blocker means the sampled step had no exact hit.
 The samples describe the attempted search and can guide a local trial.
 
 `routing_prepare` and `routing_preview` expose `routing.failed_requests` and
@@ -326,3 +327,37 @@ reported `no_path` for both attempts. It retained the original junction and
 `U1.21` anchors and proposed zero mutations. The one missing connection
 remained open. This run exhausted the heuristic frontier on existing copper
 with the specified rules and grid.
+
+## Regional builtin routing
+
+`routing_region_prepare` takes `region.min` and `region.max` points in board
+millimeters and a `route` object with named `nets`. The same object accepts
+the builtin layer, grid, width, via, and `search_evidence` options. An optional
+`rip_up` list authorizes specific existing traces and vias. Each selected
+object must belong to a target net and fit entirely within the rectangle.
+Selecting a via requires listing every trace attached to it.
+
+On the detached board, the service removes authorized copper, rebuilds
+planes, and routes eligible air wires whose two anchors lie in the region.
+Existing copper still affects clearance. New trace caps and via copper
+must fit inside the rectangle. The service checks the final anchors,
+positions, dimensions and UUIDs of protected traces and vias. Net segment
+IDs can change when splitting and reconnecting copper. Apply uses the exact
+reviewed patch and requires completed DRC and no increased air-wire count
+on any net.
+
+On the saved STM32 retry board, the failed strict search for `V3V3`
+reported 16 rejected moves. Exact checks identified two bottom-layer
+`GPIO_J4_1` traces, `ce92b034-7398-43b9-abd7-e01f1c57a228` and
+`e54fbac9-c00e-40c2-b1a8-ab0eeb3e6423`, in 11 samples. A regional trial
+authorized both traces in (24.55, 16.7)–(28.2, 20.2) mm and targeted
+`GPIO_J4_1` and `V3V3`. It reconnected `GPIO_J4_1` with zero new DRC
+errors, and `V3V3` stayed open. The candidate was discarded.
+
+On a copy of the STM32 board completed by the earlier via-move trial,
+a top-layer candidate replaced GND trace
+`e70299f9-1f47-4590-896f-67a5755f171a` in (25.35, 17.28)–(27.15, 17.72)
+mm. The stdio preview left the live revision unchanged. Apply and native
+save/reopen preserved all other trace and via UUIDs and geometry, with
+zero remaining air wires and zero new DRC errors. Upstream LibrePCB 2.1.1
+reported only the two existing silkscreen warnings.

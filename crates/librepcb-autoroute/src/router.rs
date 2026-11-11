@@ -187,6 +187,19 @@ impl<'p> Router<'p> {
         if lo.x >= hi.x || lo.y >= hi.y {
             return Err(Error::NoOutline);
         }
+        let (lo, hi) = if let Some(region) = problem.region {
+            let (min, max) = region.bounds();
+            let min = P::from(min);
+            let max = P::from(max);
+            let lo = P::new(lo.x.max(min.x), lo.y.max(min.y));
+            let hi = P::new(hi.x.min(max.x), hi.y.min(max.y));
+            if lo.x >= hi.x || lo.y >= hi.y {
+                return Err(Error::RegionOutsideBoard);
+            }
+            (lo, hi)
+        } else {
+            (lo, hi)
+        };
         let layers = routing.len() as u64;
         let states = |g: &Grid| g.cells() as u64 * layers * 9;
         let grid = match r.grid_pitch {
@@ -350,6 +363,13 @@ impl<'p> Router<'p> {
 
         let mut via_map = Layered::new(grid.cells());
         grid.block_outside(&mut via_map.fixed, items.outline());
+        if let Some(region) = problem.region {
+            grid.block_outside_region(
+                &mut via_map.fixed,
+                region,
+                Length::new(rules.via_radius.ceil() as i64),
+            );
+        }
         for item in items.iter() {
             rasterize_via_item(&grid, &mut via_map.fixed, item);
         }
@@ -393,11 +413,13 @@ impl<'p> Router<'p> {
         }
         let cells = self.grid.cells();
         let mut map = Layered::new(cells * self.routing.len());
-        for l in 0..self.routing.len() {
-            self.grid.block_outside(
-                &mut map.fixed[l * cells..(l + 1) * cells],
-                self.items.outline(),
-            );
+        for layer in map.fixed.chunks_exact_mut(cells) {
+            self.grid.block_outside(layer, self.items.outline());
+            if let Some(region) = self.problem.region {
+                // Round the possibly half-nanometer trace radius outward.
+                self.grid
+                    .block_outside_region(layer, region, Length::new(h + 1));
+            }
         }
         for item in self.items.iter() {
             let target = if item.route.is_some() {
@@ -549,6 +571,13 @@ impl<'p> Router<'p> {
     fn terminal_access(&self, t: usize, net: u32, h: i64) -> Vec<(usize, u32)> {
         let terminal = &self.problem.terminals[t];
         let pos = P::from(terminal.position);
+        if self
+            .problem
+            .region
+            .is_some_and(|region| !region.contains(terminal.position, Length::new(h + 1)))
+        {
+            return Vec::new();
+        }
         let (core, radius) = core_of(&terminal.shape);
         let cells = self.grid.cells();
         let map = &self.trace_maps[&h];
@@ -941,30 +970,47 @@ impl<'p> Router<'p> {
             let from = self.grid.point(step.from % cells);
             let to = self.grid.point(step.to % cells);
             let copper = self.routing[step.to / cells];
-            let hit = if step.via && step.from == step.to {
-                self.items.check_via(to, net, None, &mut |_| false)
+            let via_site = step.via && step.from == step.to;
+            let radius = if via_site {
+                self.rules.via_radius.ceil() as i64
             } else {
-                self.items.check_segment(
-                    (from, to),
-                    copper,
-                    net,
-                    half_width as f64,
-                    None,
-                    &mut |_| false,
-                )
+                half_width + 1
             };
-            let blocker = match hit {
-                Ok(()) => None,
-                Err(Violation::Static(index)) => Some(FrontierBlocker::Existing(
-                    index.map_or(crate::AccessBlocker::BoardEdge, |i| self.blocker(i)),
-                )),
-                Err(Violation::Route(id)) => {
-                    self.routes[id]
-                        .as_ref()
-                        .map(|route| FrontierBlocker::Generated {
-                            request: self.wires[route.wire].request,
-                            net: self.nets[route.net as usize],
-                        })
+            let blocker = if self
+                .problem
+                .region
+                .is_some_and(|r| !r.contains(to.to_point(), Length::new(radius)))
+            {
+                Some(FrontierBlocker::RegionBoundary)
+            } else {
+                let mut allow_generated = |_| !step.generated;
+                let hit = if via_site {
+                    self.items.check_via(to, net, None, &mut allow_generated)
+                } else {
+                    self.items.check_segment(
+                        (from, to),
+                        copper,
+                        net,
+                        half_width as f64,
+                        None,
+                        &mut allow_generated,
+                    )
+                };
+                match hit {
+                    Err(Violation::Static(index)) if !step.generated => {
+                        Some(FrontierBlocker::Existing(
+                            index.map_or(crate::AccessBlocker::BoardEdge, |i| self.blocker(i)),
+                        ))
+                    }
+                    Err(Violation::Route(id)) => {
+                        self.routes[id]
+                            .as_ref()
+                            .map(|route| FrontierBlocker::Generated {
+                                request: self.wires[route.wire].request,
+                                net: self.nets[route.net as usize],
+                            })
+                    }
+                    _ => None,
                 }
             };
             out.push(FrontierSample {

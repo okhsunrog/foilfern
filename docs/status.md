@@ -220,8 +220,9 @@ Gerber export — and the official `librepcb-cli` reports ERC 0, DRC 0.
    changes. Reviewed candidates support connected via and junction edits,
    trace path replacements and builtin trials after an edit. Physical pin
    resolution before placement and reports of effective routing rules
-   are available. Next are more detailed search blockers and planned
-   regional rerouting ([details and reproductions](mcp-routing-reliability.md)).
+   are available. Failed searches can report sampled blockers, and regional
+   candidates use an explicit list of copper authorized for rip-up. Next are
+   pad escape and congestion handling ([details and reproductions](mcp-routing-reliability.md)).
    Templates, design-intent storage and a separate Freerouting MCP mode
    come later.
 2. M3c/M4c polish (see COMPAT.md "app"): scene highlight colors and the
