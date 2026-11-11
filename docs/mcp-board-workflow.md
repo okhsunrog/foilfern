@@ -136,6 +136,22 @@ changing its revision. Apply preserves the reviewed geometry and is one undo.
 Candidates are session-local and disappear on closing the project. This first
 stage supports builtin only and returns data previews, without a GUI overlay.
 
+Use `routing_compare` to try several initial orders with the same settings:
+
+```json
+{
+  "options": {"pad_escape": true, "grid_pitch": 0.1},
+  "orders": ["shortest_first", "longest_first", "constrained_first"]
+}
+```
+
+`options` accepts the same fields as `routing_prepare`, including
+`critical_nets` and `expected_revision`. Omit `orders` to try all three.
+Compare the ranked candidates' DRC, open connections, via count and total
+trace length. Preview the recommended ID or choose another. Applying a
+candidate that changes the board makes the other IDs stale; discard them
+to free their slots.
+
 Use `routing_diagnose` with `net` to inspect remaining endpoint access and
 local clearance blockers. It accepts the builtin `grid_pitch`,
 `trace_width`, and `layers` options. `probe_length` sets the length in mm

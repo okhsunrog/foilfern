@@ -48,6 +48,18 @@ pub struct RoutingSnapshot {
     nets: BTreeSet<NetSignalId>,
 }
 
+impl RoutingSnapshot {
+    pub(crate) fn non_connectivity_errors(&self) -> usize {
+        self.errors.len()
+    }
+
+    pub(crate) fn unrouted_on(&self, nets: &BTreeSet<NetSignalId>) -> usize {
+        nets.iter()
+            .map(|net| self.unrouted_by_net.get(net).copied().unwrap_or(0))
+            .sum()
+    }
+}
+
 /// Comparison of the applied result with the pre-routing board.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RoutingValidation {

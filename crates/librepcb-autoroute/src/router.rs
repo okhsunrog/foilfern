@@ -12,7 +12,8 @@ use crate::geometry::{Core, P, bounds_of};
 use crate::grid::{Grid, Layered, owner_of, rasterize_trace_item, rasterize_via_item, usable};
 use crate::items::{Item, Items, NO_NET, RouteId, Violation};
 use crate::problem::{
-    Connection, LayerScope, NetId, PreferredDirection, RoutingProblem, Shape, TerminalId,
+    Connection, LayerScope, NetId, PreferredDirection, RoutingOrder, RoutingProblem, Shape,
+    TerminalId,
 };
 use crate::result::{
     Endpoint, FrontierBlocker, FrontierSample, Progress, Route, RoutingResult, RoutingStats,
@@ -1266,12 +1267,9 @@ impl<'p> Router<'p> {
             .contains(&self.nets[net as usize])
     }
 
-    /// Rank the marked pads by exclusive and total exterior entries on the
-    /// initial board. A node shared with another net is a weaker option.
+    /// Rank marked pads by exclusive and total grid entries on the initial
+    /// board. With pad escape enabled count only exterior entries.
     fn pad_access_pressure(&mut self) -> BTreeMap<usize, (usize, usize)> {
-        if !self.problem.rules.pad_escape {
-            return BTreeMap::new();
-        }
         let terminals: BTreeMap<_, _> = self
             .wires
             .iter()
@@ -1286,7 +1284,7 @@ impl<'p> Router<'p> {
             let nodes: Vec<_> = self
                 .terminal_access(t, net, h)
                 .into_iter()
-                .filter(|a| a.escape)
+                .filter(|a| !self.problem.rules.pad_escape || a.escape)
                 .map(|a| a.node)
                 .collect();
             for &node in &nodes {
@@ -1308,7 +1306,16 @@ impl<'p> Router<'p> {
 
     pub fn run(mut self, progress: &mut dyn FnMut(Progress) -> ControlFlow<()>) -> RoutingResult {
         let problem = self.problem;
-        let pressure = self.pad_access_pressure();
+        let policy = match problem.rules.order {
+            RoutingOrder::Auto if problem.rules.pad_escape => RoutingOrder::ConstrainedFirst,
+            RoutingOrder::Auto => RoutingOrder::ShortestFirst,
+            explicit => explicit,
+        };
+        let pressure = if policy == RoutingOrder::ConstrainedFirst {
+            self.pad_access_pressure()
+        } else {
+            BTreeMap::new()
+        };
         let mut order: Vec<usize> = (0..self.wires.len()).collect();
         let rank = |w: &Wire| {
             let (a, b) = (
@@ -1335,7 +1342,10 @@ impl<'p> Router<'p> {
             critical_x
                 .cmp(&critical_y)
                 .then_with(|| access_x.cmp(&access_y))
-                .then_with(|| length_x.total_cmp(&length_y))
+                .then_with(|| match policy {
+                    RoutingOrder::LongestFirst => length_y.total_cmp(&length_x),
+                    _ => length_x.total_cmp(&length_y),
+                })
                 .then_with(|| x.cmp(&y))
         });
 

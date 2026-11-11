@@ -421,3 +421,35 @@ ordering; this comparison does not isolate their individual effects.
 Giving a net explicit priority can trade overall completion for that
 net's connectivity, so compare a trial with and without priority before
 applying it.
+
+### STM32 comparison of initial orders
+
+One stdio `routing_compare` call started from the same unrouted copy (57
+air wires). All three trials used the same settings, including pad escape:
+
+```json
+{
+  "options": {
+    "grid_pitch": 0.1,
+    "trace_width": 0.2,
+    "via_drill": 0.3,
+    "via_size": 0.6,
+    "pad_escape": true
+  }
+}
+```
+
+| Rank | Order | New DRC errors | Open air wires | Vias | Trace length, mm |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 1 | `constrained_first` | 0 | 0 | 47 | 765.493 |
+| 2 | `longest_first` | 0 | 0 | 56 | 741.532 |
+| 3 | `shortest_first` | 0 | 1 (`V3V3`) | 40 | 719.540 |
+
+All previews reported the same baseline, and the live board and revision
+stayed unchanged until apply. The recommendation favors nine fewer vias
+over about 24 mm less trace length among the two complete candidates.
+Applying it reproduced the preview validation, board metrics and netlist.
+The other IDs became stale. Saving and reopening preserved the geometry,
+and the upstream CLI reported only the two pre-existing silkscreen-to-mask
+warnings. This run took about 63 s in the local debug build for the full
+three-order comparison.

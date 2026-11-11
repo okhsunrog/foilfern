@@ -330,6 +330,125 @@ fn candidate_arguments_are_strict_and_revision_is_checked_before_preparation() {
 }
 
 #[test]
+fn comparison_previews_independent_patches_and_applies_only_the_chosen_order() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let before = board_value(&session);
+    let open = session.project().unwrap();
+    let revision = open.project().revision();
+    let history = open.editor.undo_stack().index();
+    let job = routing::prepare_comparison_job(
+        &session,
+        args(json!({"options":{"pad_escape":true, "expected_revision":revision}})),
+    )
+    .unwrap();
+    let result =
+        routing::finish_comparison(&mut session, routing::run_comparison_job(job).unwrap())
+            .unwrap()
+            .result;
+    assert_eq!(result["before"]["unrouted"], 2);
+    assert_eq!(result["base_revision"], revision);
+    let entries = result["candidates"].as_array().unwrap();
+    assert_eq!(entries.len(), 3);
+    assert_eq!(result["recommended"], entries[0]["candidate"]);
+    for entry in entries {
+        assert_eq!(entry["after"]["unrouted"], 0);
+        assert_eq!(entry["new_error_count"], 0);
+        let preview =
+            routing::routing_preview(&session, args(json!({"candidate":entry["candidate"]})))
+                .unwrap()
+                .result;
+        assert_eq!(preview["request"]["order"], entry["order"]);
+        assert_eq!(preview["request"]["pad_escape"], true);
+        assert_eq!(preview["validation"]["before"], result["before"]);
+        assert_eq!(preview["stale"], false);
+        assert!(!preview["mutations"].as_array().unwrap().is_empty());
+    }
+    assert_eq!(board_value(&session), before);
+    assert_eq!(session.project().unwrap().project().revision(), revision);
+    assert_eq!(
+        session.project().unwrap().editor.undo_stack().index(),
+        history
+    );
+
+    // A caller can select an alternative even when it is not recommended.
+    let chosen = &entries[1];
+    routing::routing_apply(&mut session, args(json!({"candidate":chosen["candidate"]}))).unwrap();
+    assert_eq!(
+        session.project().unwrap().editor.undo_stack().index(),
+        history + 1
+    );
+    let board = librepcb_mcp::tools::layout::board_get(&session, Default::default())
+        .unwrap()
+        .result;
+    assert_eq!(board["air_wires"], json!([]));
+    assert_eq!(
+        board["vias"].as_array().unwrap().len(),
+        chosen["vias"].as_u64().unwrap() as usize
+    );
+    let traces = board["traces"].as_array().unwrap();
+    let length: f64 = traces
+        .iter()
+        .map(|trace| {
+            let from = &trace["from"]["position"];
+            let to = &trace["to"]["position"];
+            let dx = from["x"].as_f64().unwrap() - to["x"].as_f64().unwrap();
+            let dy = from["y"].as_f64().unwrap() - to["y"].as_f64().unwrap();
+            dx.hypot(dy)
+        })
+        .sum();
+    assert!(length > 0.0);
+    assert!(
+        (length - chosen["trace_length_mm"].as_f64().unwrap()).abs()
+            < traces.len() as f64 * 0.000001
+    );
+    assert_eq!(
+        routing::routing_apply(
+            &mut session,
+            args(json!({"candidate":result["recommended"]}))
+        )
+        .unwrap_err()
+        .kind,
+        ErrorKind::StaleRevision
+    );
+}
+
+#[test]
+fn comparison_publication_is_atomic_when_capacity_changes() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let orders = || args(json!({"orders":["longest_first","shortest_first"]}));
+    let invalid = routing::prepare_comparison_job(
+        &session,
+        args(json!({"orders":["shortest_first","shortest_first"]})),
+    )
+    .unwrap_err();
+    assert_eq!(invalid.kind, ErrorKind::InvalidArgument);
+    let trials =
+        routing::run_comparison_job(routing::prepare_comparison_job(&session, orders()).unwrap())
+            .unwrap();
+    let mut last = Value::Null;
+    for _ in 0..7 {
+        last = routing::routing_prepare(&mut session, args(json!({})))
+            .unwrap()
+            .result["candidate"]
+            .clone();
+    }
+    assert_eq!(
+        routing::finish_comparison(&mut session, trials)
+            .unwrap_err()
+            .kind,
+        ErrorKind::Refused
+    );
+    routing::routing_discard(&mut session, args(json!({"candidate":last}))).unwrap();
+    let job = routing::prepare_comparison_job(&session, orders()).unwrap();
+    let result =
+        routing::finish_comparison(&mut session, routing::run_comparison_job(job).unwrap())
+            .unwrap();
+    assert_eq!(result.result["candidates"].as_array().unwrap().len(), 2);
+}
+
+#[test]
 fn detached_job_completion_rejects_concurrent_edits_without_publishing_candidate() {
     let temp = tempfile::tempdir().unwrap();
     let mut session = board_session(temp.path());

@@ -44,9 +44,9 @@ diffing outputs against the official `librepcb-cli`.
   `routing_preview`, `routing_apply` and `routing_discard`. Candidates use a
   detached model, preserve the exact mutations and are limited to eight retained
   proposals; full capacity refuses instead of evicting. Preview is data only,
-  not a new GUI overlay. Candidate lifecycle and actual MCP save/reopen tests
-  cover this stage; later stages remain planned. See the design for evidence
-  and current operational limits.
+  not a new GUI overlay. `routing_compare` compares builtin orders on the same
+  snapshot by DRC, connectivity, via count and trace length. See the design
+  for replay evidence and current operational limits.
 - Use the [reproductions and acceptance contract](mcp-routing-reliability.md)
   as correctness gates. Additional routing engines, durable intent storage,
   circuit templates, calculators and 3D work do not precede the routing path.

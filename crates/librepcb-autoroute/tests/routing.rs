@@ -6,8 +6,9 @@ use std::ops::ControlFlow;
 use std::time::Instant;
 
 use librepcb_autoroute::{
-    Connection, Error, Hole, LayerScope, NetId, Obstacle, RoutingProblem, RoutingResult,
-    RoutingRules, Shape, Terminal, TerminalId, UnroutedReason, route, route_with_progress,
+    Connection, Error, Hole, LayerScope, NetId, Obstacle, RoutingOrder, RoutingProblem,
+    RoutingResult, RoutingRules, Shape, Terminal, TerminalId, UnroutedReason, route,
+    route_with_progress,
 };
 use librepcb_core::types::{Layer, Length, Point, PositiveLength};
 
@@ -500,6 +501,18 @@ fn constrained_pad_escape_routes_before_a_shorter_crossing() {
     assert_eq!(prioritized.routes.len(), 1);
     assert_eq!(prioritized.routes[0].net, constrained);
     assert_clean(&p, &prioritized);
+    // Vary the initial order without changing geometry or pad access.
+    for (order, expected) in [
+        (RoutingOrder::ShortestFirst, short),
+        (RoutingOrder::LongestFirst, constrained),
+        (RoutingOrder::ConstrainedFirst, constrained),
+    ] {
+        p.rules.order = order;
+        let trial = route(&p).unwrap();
+        assert_eq!(trial.routes.len(), 1);
+        assert_eq!(trial.routes[0].net, expected);
+        assert_clean(&p, &trial);
+    }
 }
 
 #[test]

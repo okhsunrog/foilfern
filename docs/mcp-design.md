@@ -360,6 +360,25 @@ the host locks, runs builtin search and before/after DRC, and retains the exact
 mutation candidate only if its source project session and revision still match.
 It does not edit the live board or its revision, dirty state, undo/redo or files.
 
+`routing_compare` uses one detached baseline and a fresh copy of it for
+each of two or three distinct builtin initial orders. Pass common
+`routing_prepare` settings under `options` and optional `orders` at the
+top level. The default orders are `shortest_first`, `longest_first`, and
+`constrained_first`. Each still honors the same critical tier and geometry
+options. The constrained order estimates pressure using exterior pad escapes
+when enabled and ordinary grid entries otherwise.
+
+The batch is published together after the same source checks as single
+preparation, provided there is room for all candidates. The response contains
+the shared baseline DRC, per-candidate final DRC and costs, and a nullable
+`recommended` ID. Ranking compares acceptance, new and remaining
+non-connectivity errors, nets whose air-wire count regressed, remaining
+critical and total air wires, via count, then total trace centerline length
+in mm. Metrics describe the resulting whole board; existing copper is common
+to all trials. Caller order breaks ties. A candidate with unacceptable
+validation or a connectivity regression is never recommended. Inspect any
+candidate with `routing_preview`; there is no automatic apply.
+
 `routing_preview` reads candidate metadata and exact mutations with `offset` and
 `limit` (1–200, default 100), `next_offset` and a `stale` flag. This is a data
 preview; GUI overlays and candidate PNG rendering are future work. Retained storage bounds do not limit

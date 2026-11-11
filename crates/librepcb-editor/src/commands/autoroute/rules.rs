@@ -342,6 +342,7 @@ impl<'a> Inputs<'a> {
             grid_pitch: self.options.grid_pitch,
             search_evidence: self.options.search_evidence,
             pad_escape: self.options.pad_escape,
+            order: self.options.order.map(Into::into).unwrap_or_default(),
             ..default
         }
     }

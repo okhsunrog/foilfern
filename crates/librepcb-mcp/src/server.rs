@@ -67,7 +67,7 @@ connect (net + pins, e.g. net \"VCC\", pins [\"J1.1\",\"R1.1\"]; supply symbols 
 force their net name and unconnected ones of the same name are attached automatically) -> \
 schematic_tidy (re-arranges the page by connectivity for readability) -> erc_run -> \
 board_set_outline (width/height mm) -> device_auto_place (or device_place) -> \
-routing_prepare -> routing_preview -> routing_apply (reviewed builtin; autoroute is direct) -> \
+routing_prepare or routing_compare -> routing_preview -> routing_apply (reviewed builtin; autoroute is direct) -> \
 plane_add (net \"GND\", bottom) -> drc_run -> export_fabrication / jobs_run -> project_save.\n\
 Addressing: designators (\"R1\"), pins \"R1.1\" (pad name) or \"U1.VCC\" (signal name) or a \
 designator alone for single-pin parts (\"GND1\"), net names, schematic/board names or indices; \
@@ -205,24 +205,34 @@ impl LibrePcbMcp {
         + Send
         + 'static,
     ) -> Result<CallToolResult, McpError> {
+        self.prepare_routing_work(
+            prepare,
+            crate::tools::routing::run_job,
+            crate::tools::routing::finish_prepare,
+        )
+        .await
+    }
+
+    async fn prepare_routing_work<J: Send + 'static, P: Send + 'static>(
+        &self,
+        prepare: impl FnOnce(&mut Session) -> ToolResult<J> + Send + 'static,
+        run: impl FnOnce(J) -> ToolResult<P> + Send + 'static,
+        finish: impl FnOnce(&mut Session, P) -> ToolResult<ToolOutput> + Send + 'static,
+    ) -> Result<CallToolResult, McpError> {
         let job = match self.blocking(prepare).await {
             Ok(job) => job,
             Err(e) => return self.run(move |_| Err(e)).await,
         };
-        let candidate =
-            match tokio::task::spawn_blocking(move || crate::tools::routing::run_job(job)).await {
-                Ok(Ok(candidate)) => candidate,
-                Ok(Err(e)) => return self.run(move |_| Err(e)).await,
-                Err(e) => {
-                    return self
-                        .run(move |_| {
-                            Err(ToolError::internal(format!("Routing worker failed: {e}")))
-                        })
-                        .await;
-                }
-            };
-        self.run(move |s| crate::tools::routing::finish_prepare(s, candidate))
-            .await
+        let candidate = match tokio::task::spawn_blocking(move || run(job)).await {
+            Ok(Ok(candidate)) => candidate,
+            Ok(Err(e)) => return self.run(move |_| Err(e)).await,
+            Err(e) => {
+                return self
+                    .run(move |_| Err(ToolError::internal(format!("Routing worker failed: {e}"))))
+                    .await;
+            }
+        };
+        self.run(move |s| finish(s, candidate)).await
     }
 
     /// Asks the host in a blocking thread (no lock held).
@@ -889,6 +899,21 @@ impl LibrePcbMcp {
     ) -> Result<CallToolResult, McpError> {
         self.prepare_routing_candidate(move |s| crate::tools::routing::prepare_job(s, args))
             .await
+    }
+
+    #[tool(
+        description = "Compare two or three builtin routing orders on one unchanged board snapshot with common options. Returns ranked candidate IDs, DRC, open connections, via counts and total trace length. Preview and apply the chosen ID separately."
+    )]
+    async fn routing_compare(
+        &self,
+        Parameters(args): Parameters<crate::tools::routing::RoutingCompareArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.prepare_routing_work(
+            move |s| crate::tools::routing::prepare_comparison_job(s, args),
+            crate::tools::routing::run_comparison_job,
+            crate::tools::routing::finish_comparison,
+        )
+        .await
     }
 
     #[tool(

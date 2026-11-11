@@ -22,7 +22,7 @@
 //!    width (plus a margin that makes moves between free nodes safe), with
 //!    the net that may still use them. A via map does the same for via
 //!    centers (clearance + via radius, drill clearances, board edge).
-//! 3. **Search.** Air wires are routed shortest first with A* over
+//! 3. **Search.** Air wires are routed in a deterministic order with A* over
 //!    `(node, layer, direction)` states: 8 directions (45° routing), bend
 //!    costs, no acute angles, preferred layer directions, and vias as layer
 //!    changes with a configurable cost. A search runs from all copper already
@@ -52,8 +52,7 @@
 //! - Grid-based: gaps narrower than the grid pitch may be missed, and
 //!   off-grid terminals are reached with a short stub from their position.
 //! - No via-in-pad; no length matching, differential pairs or plane
-//!   connections; nets are routed independently of each other's
-//!   criticality.
+//!   connections.
 
 mod error;
 mod geometry;
@@ -68,8 +67,8 @@ use std::ops::ControlFlow;
 
 pub use error::{Error, Result};
 pub use problem::{
-    Connection, Hole, LayerScope, NetId, Obstacle, PreferredDirection, RoutingProblem,
-    RoutingRegion, RoutingRules, Shape, Terminal, TerminalId,
+    Connection, Hole, LayerScope, NetId, Obstacle, PreferredDirection, RoutingOrder,
+    RoutingProblem, RoutingRegion, RoutingRules, Shape, Terminal, TerminalId,
 };
 pub use result::{
     Endpoint, FrontierBlocker, FrontierSample, Progress, Route, RoutingResult, RoutingStats,

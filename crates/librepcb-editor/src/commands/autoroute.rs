@@ -119,12 +119,45 @@ pub struct Autoroute {
     /// Check additional ways to reach the grid from pads.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pad_escape: bool,
+    /// Initial order within each priority tier; omitted keeps builtin defaults.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order: Option<RoutingOrder>,
     /// Nets routed first and protected from rip-up by other nets.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub critical_nets: Vec<NetRef>,
     /// Limits new copper to a rectangular region.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub region: Option<RoutingBounds>,
+}
+
+/// Explicit builtin trial order, independent of the pad escape setting.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum RoutingOrder {
+    ShortestFirst,
+    LongestFirst,
+    ConstrainedFirst,
+}
+
+impl From<RoutingOrder> for librepcb_autoroute::RoutingOrder {
+    fn from(order: RoutingOrder) -> Self {
+        match order {
+            RoutingOrder::ShortestFirst => Self::ShortestFirst,
+            RoutingOrder::LongestFirst => Self::LongestFirst,
+            RoutingOrder::ConstrainedFirst => Self::ConstrainedFirst,
+        }
+    }
+}
+
+impl Autoroute {
+    pub(crate) fn critical_net_ids(&self, project: &Project) -> Result<BTreeSet<NetSignalId>> {
+        self.critical_nets
+            .iter()
+            .map(|net| resolve::required_net(project, net))
+            .collect()
+    }
 }
 
 /// An air wire which was not routed.
@@ -739,10 +772,10 @@ pub fn extract_problem(
     let inputs = rules::Inputs::new(p, b, options);
     let mut routing_rules = inputs.routing_rules();
     routing_rules.critical_nets = options
-        .critical_nets
-        .iter()
-        .map(|net| resolve::required_net(p, net).map(|id| id.0))
-        .collect::<Result<_>>()?;
+        .critical_net_ids(p)?
+        .into_iter()
+        .map(|id| id.0)
+        .collect();
     let trace_width = routing_rules.trace_width;
     let region = options.region.map(RoutingBounds::region).transpose()?;
 

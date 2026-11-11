@@ -190,6 +190,7 @@ The MCP interface for this stage is:
 | Tool | Contract |
 |---|---|
 | `routing_prepare` | Prepare one candidate using built-in parameters only; return the candidate identity and checked result metadata. |
+| `routing_compare` | Prepare two or three builtin order variants from one snapshot; return ranked metrics and previewable candidate IDs. |
 | `routing_preview` | Inspect `candidate`, with `offset`/`limit` pagination (at most 200 mutations per page); return exact mutations and validation/request/result metadata. |
 | `routing_apply` | Apply `candidate` with optional caller `expected_revision`; source binding is always checked even if the caller omits that field. |
 | `routing_discard` | Release a retained candidate without changing the project or undo history. |
@@ -329,12 +330,15 @@ and an explicit rip-up list of trace and via UUIDs. It verifies protected
 copper and uses the existing candidate, preview, apply and undo path.
 See [regional builtin routing](mcp-routing-reliability.md#regional-builtin-routing).
 
-Add corridors. Extend the existing rip-up/reroute with accumulated congestion
-costs, alternative route orders and retention of the best valid result.
-Compare candidates using hard
-validity first, then required connectivity, critical constraints, via/length
-cost and disturbance of existing routing. Track connected copper islands per net
-as well as air wires, since an air-wire tree can change during routing.
+The first multi-order comparison keeps options, placement and source revision
+fixed. It ranks initial orders by DRC, connectivity (including critical nets),
+via count and total trace length, retains exact candidates, and recommends a
+candidate without applying it. See [routing_compare](mcp-design.md#reviewed-builtin-routing).
+
+Add corridors and extend the existing rip-up/reroute with accumulated
+congestion costs. Track connected copper islands per net as well as air wires,
+since an air-wire tree can change during routing. Add a disturbance metric
+when comparing alternatives that can change existing copper.
 
 Acceptance: improve fixed pad-access and congestion cases without DRC regressions;
 measure against unchanged baseline placements, rules and budgets. Include the

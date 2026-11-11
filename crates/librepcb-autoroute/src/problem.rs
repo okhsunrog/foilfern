@@ -200,6 +200,8 @@ pub struct RoutingRules {
     pub max_rip_ups: u32,
     /// Collect bounded rejected-move samples for failed strict searches.
     pub search_evidence: bool,
+    /// Initial air-wire order within each priority tier.
+    pub order: RoutingOrder,
     /// Add exact-checked exits from pads to nearby grid nodes.
     pub pad_escape: bool,
     /// Route these nets first and protect their new copper from lower priority nets.
@@ -224,10 +226,22 @@ impl Default for RoutingRules {
             grid_pitch: None,
             max_rip_ups: 3,
             search_evidence: false,
+            order: RoutingOrder::Auto,
             pad_escape: false,
             critical_nets: BTreeSet::new(),
         }
     }
+}
+
+/// Deterministic initial order. Critical nets come first in every order.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum RoutingOrder {
+    /// Constrained first with pad escape enabled, otherwise shortest first.
+    #[default]
+    Auto,
+    ShortestFirst,
+    LongestFirst,
+    ConstrainedFirst,
 }
 
 impl RoutingRules {

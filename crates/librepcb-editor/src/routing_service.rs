@@ -18,7 +18,9 @@ use crate::ProjectEditor;
 use crate::commands::{Autoroute, AutorouteResult, EditRoutingGeometry};
 use crate::routing_validation::{RoutingSnapshot, RoutingValidation, capture_routing_state};
 
+mod comparison;
 mod region;
+pub use comparison::{RoutingComparison, RoutingComparisonJob, RoutingTrials};
 pub use region::RegionalRoutingRequest;
 
 /// Bounded session-local storage; callers explicitly discard unwanted candidates.
@@ -85,6 +87,20 @@ pub struct RoutingEditTrial {
 }
 
 impl RoutingCandidateDetails {
+    fn run_builtin(
+        sandbox: &mut ProjectEditor,
+        board: BoardId,
+        mut request: Autoroute,
+    ) -> Result<Self, RoutingError> {
+        request.board = Some(board);
+        let routing = sandbox.execute(request.clone())?;
+        Ok(Self::Builtin {
+            backend: "builtin",
+            request,
+            routing: Box::new(routing),
+        })
+    }
+
     fn validate(&self, before: RoutingSnapshot, after: RoutingSnapshot) -> RoutingValidation {
         let mut validation = RoutingValidation::compare(before, after);
         if !matches!(self, Self::Builtin { .. }) && !validation.unrouted_regressions.is_empty() {
@@ -148,12 +164,17 @@ impl RoutingCandidate {
 /// Detached work, safe to move to a worker thread after releasing editor locks.
 #[derive(Debug)]
 pub struct RoutingJob {
+    source: RoutingSource,
+    work: RoutingWork,
+}
+
+#[derive(Debug)]
+struct RoutingSource {
     owner: Uuid,
     project: Uuid,
     base_revision: u64,
     source_context: SourceContext,
     sandbox: ProjectEditor,
-    work: RoutingWork,
 }
 
 impl RoutingJob {
@@ -165,26 +186,21 @@ impl RoutingJob {
             RoutingWork::Edit { edit, .. } => Some(edit.board),
             RoutingWork::Regional(regional) => regional.request.board,
         };
-        let board = crate::commands::resolve_board(self.sandbox.project(), requested)?.id();
-        let before = capture_routing_state(&mut self.sandbox, board)?;
+        let board = crate::commands::resolve_board(self.source.sandbox.project(), requested)?.id();
+        let before = capture_routing_state(&mut self.source.sandbox, board)?;
+        let sandbox = &mut self.source.sandbox;
         let details = match self.work {
-            RoutingWork::Builtin(mut request) => {
-                request.board = Some(board);
-                let routing = self.sandbox.execute(request.clone())?;
-                RoutingCandidateDetails::Builtin {
-                    backend: "builtin",
-                    request,
-                    routing: Box::new(routing),
-                }
+            RoutingWork::Builtin(request) => {
+                RoutingCandidateDetails::run_builtin(sandbox, board, request)?
             }
             RoutingWork::Edit { edit, route } => {
-                self.sandbox.execute(edit.clone())?;
+                sandbox.execute(edit.clone())?;
                 let route = if let Some(mut request) = route {
                     request.board = Some(board);
-                    self.sandbox
+                    sandbox
                         .update_derived_data(|project| project.rebuild_planes(board, None))?
                         .map_err(crate::Error::from_export)?;
-                    let routing = self.sandbox.execute(request.clone())?;
+                    let routing = sandbox.execute(request.clone())?;
                     Some(Box::new(RoutingEditTrial { request, routing }))
                 } else {
                     None
@@ -192,21 +208,40 @@ impl RoutingJob {
                 RoutingCandidateDetails::Edit { edit, route }
             }
             RoutingWork::Regional(regional) => {
-                let routing = regional.run(&mut self.sandbox, board)?;
+                let routing = regional.run(sandbox, board)?;
                 RoutingCandidateDetails::Regional {
                     regional: Box::new(regional),
                     routing: Box::new(routing),
                 }
             }
         };
-        let after = capture_routing_state(&mut self.sandbox, board)?;
+        let after = capture_routing_state(sandbox, board)?;
+        self.source.freeze(board, details, before, after)
+    }
+}
+
+impl RoutingSource {
+    fn freeze(
+        self,
+        board: BoardId,
+        details: RoutingCandidateDetails,
+        before: RoutingSnapshot,
+        after: RoutingSnapshot,
+    ) -> Result<RoutingCandidate, RoutingError> {
+        let RoutingSource {
+            owner,
+            project,
+            base_revision,
+            source_context,
+            mut sandbox,
+        } = self;
         let validation = details.validate(before.clone(), after);
         // Undo on the private sandbox exposes exact forward mutations.
         // An edit followed by routing can produce two entries.
         let mut groups = Vec::new();
         let mut count = 0;
-        while self.sandbox.undo()? {
-            let group = self.sandbox.undo_stack().redo_mutations()?;
+        while sandbox.undo()? {
+            let group = sandbox.undo_stack().redo_mutations()?;
             count += group.len();
             groups.push(group);
         }
@@ -217,12 +252,12 @@ impl RoutingJob {
         }
         let mutations: Vec<_> = groups.into_iter().rev().flatten().collect();
         Ok(RoutingCandidate {
-            owner: self.owner,
-            source_context: self.source_context,
+            owner,
+            source_context,
             info: RoutingCandidateInfo {
                 candidate: Uuid::new_random(),
-                project: self.project,
-                base_revision: self.base_revision,
+                project,
+                base_revision,
                 board,
                 details,
                 mutation_count: mutations.len(),
@@ -317,22 +352,32 @@ impl RoutingService {
         editor: &ProjectEditor,
         work: RoutingWork,
     ) -> Result<RoutingJob, RoutingError> {
+        Ok(RoutingJob {
+            source: self.capture_source(editor, 1)?,
+            work,
+        })
+    }
+
+    fn capture_source(
+        &self,
+        editor: &ProjectEditor,
+        slots: usize,
+    ) -> Result<RoutingSource, RoutingError> {
         if editor.undo_stack().is_group_active() {
             return Err(crate::Error::GroupActive.into());
         }
-        self.check_capacity()?;
+        self.check_capacity(slots)?;
         let project = editor.project();
         let sandbox = ProjectEditor::with_source(
             project.snapshot().map_err(crate::Error::from)?,
             Arc::clone(editor.source()),
         );
-        Ok(RoutingJob {
+        Ok(RoutingSource {
             owner: self.owner,
             project: project.uuid(),
             base_revision: project.revision(),
             source_context: SourceContext::of(project),
             sandbox,
-            work,
         })
     }
 
@@ -344,7 +389,7 @@ impl RoutingService {
         candidate: RoutingCandidate,
     ) -> Result<RoutingCandidateInfo, RoutingError> {
         self.check_source(project, &candidate)?;
-        self.check_capacity()?;
+        self.check_capacity(1)?;
         let info = candidate.info.clone();
         self.candidates.insert(info.candidate, candidate);
         Ok(info)
@@ -421,11 +466,11 @@ impl RoutingService {
         Ok(info)
     }
 
-    fn check_capacity(&self) -> Result<(), RoutingError> {
-        if self.candidates.len() >= MAX_CANDIDATES {
-            Err(RoutingError::Refused(
-                "Candidate storage is full; discard a candidate before preparing another.".into(),
-            ))
+    fn check_capacity(&self, slots: usize) -> Result<(), RoutingError> {
+        if slots > MAX_CANDIDATES - self.candidates.len() {
+            Err(RoutingError::Refused(format!(
+                "Candidate storage needs {slots} free slot(s); discard existing candidates and retry."
+            )))
         } else {
             Ok(())
         }

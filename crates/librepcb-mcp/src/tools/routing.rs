@@ -3,9 +3,10 @@
 
 use librepcb_core::project::Project;
 use librepcb_core::types::Uuid;
-use librepcb_editor::commands::NetRef;
+use librepcb_editor::commands::{Autoroute, NetRef, RoutingOrder};
 use librepcb_editor::routing_service::{
-    RegionalRoutingRequest, RoutingCandidate, RoutingCandidateInfo, RoutingError, RoutingJob,
+    RegionalRoutingRequest, RoutingCandidate, RoutingCandidateInfo, RoutingComparisonJob,
+    RoutingError, RoutingJob, RoutingTrials,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -57,6 +58,34 @@ pub struct RoutingPrepareArgs {
     pub expected_revision: Option<u64>,
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RoutingOrderArg {
+    ShortestFirst,
+    LongestFirst,
+    ConstrainedFirst,
+}
+
+impl From<RoutingOrderArg> for RoutingOrder {
+    fn from(order: RoutingOrderArg) -> Self {
+        match order {
+            RoutingOrderArg::ShortestFirst => Self::ShortestFirst,
+            RoutingOrderArg::LongestFirst => Self::LongestFirst,
+            RoutingOrderArg::ConstrainedFirst => Self::ConstrainedFirst,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RoutingCompareArgs {
+    /// Common builtin settings, including optional expected_revision.
+    #[serde(default)]
+    pub options: RoutingPrepareArgs,
+    /// Two or three distinct initial orders. Omit to compare all three.
+    pub orders: Option<Vec<RoutingOrderArg>>,
+}
+
 /// A candidate ID is opaque, session-local and consumed by successful apply.
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -97,8 +126,9 @@ fn routing_error(error: RoutingError) -> ToolError {
 }
 
 fn candidate_id(id: &str) -> ToolResult<Uuid> {
-    id.parse()
-        .map_err(|_| ToolError::invalid("candidate must be a UUID returned by routing_prepare."))
+    id.parse().map_err(|_| {
+        ToolError::invalid("candidate must be a UUID returned by a routing preparation tool.")
+    })
 }
 
 fn critical_nets(project: &Project, keys: &[String]) -> ToolResult<Vec<NetRef>> {
@@ -107,11 +137,9 @@ fn critical_nets(project: &Project, keys: &[String]) -> ToolResult<Vec<NetRef>> 
         .collect()
 }
 
-/// Snapshot under the session lock; the returned job needs no live handles.
-pub fn prepare_job(session: &Session, args: RoutingPrepareArgs) -> ToolResult<RoutingJob> {
-    let open = session.project()?;
-    write::check_revision(open.project(), args.expected_revision)?;
-    let board = board_edit::board_id(open.project(), args.board.as_deref())?;
+fn builtin_request(project: &Project, args: RoutingPrepareArgs) -> ToolResult<Autoroute> {
+    write::check_revision(project, args.expected_revision)?;
+    let board = board_edit::board_id(project, args.board.as_deref())?;
     let options = board_edit::AutorouteArgs {
         backend: board_edit::RouterBackend::Builtin,
         board: args.board,
@@ -123,10 +151,17 @@ pub fn prepare_job(session: &Session, args: RoutingPrepareArgs) -> ToolResult<Ro
         grid_pitch: args.grid_pitch,
         ..Default::default()
     };
-    let mut command = board_edit::builtin_command(open.project(), board, &options)?;
+    let mut command = board_edit::builtin_command(project, board, &options)?;
     command.search_evidence = args.search_evidence;
     command.pad_escape = args.pad_escape;
-    command.critical_nets = critical_nets(open.project(), &args.critical_nets)?;
+    command.critical_nets = critical_nets(project, &args.critical_nets)?;
+    Ok(command)
+}
+
+/// Snapshot under the session lock; the returned job needs no live handles.
+pub fn prepare_job(session: &Session, args: RoutingPrepareArgs) -> ToolResult<RoutingJob> {
+    let open = session.project()?;
+    let command = builtin_request(open.project(), args)?;
     open.routing
         .prepare(&open.editor, command)
         .map_err(routing_error)
@@ -157,6 +192,61 @@ pub fn finish_prepare(
 pub fn routing_prepare(session: &mut Session, args: RoutingPrepareArgs) -> ToolResult<ToolOutput> {
     let job = prepare_job(session, args)?;
     finish_prepare(session, run_job(job)?)
+}
+
+pub fn prepare_comparison_job(
+    session: &Session,
+    args: RoutingCompareArgs,
+) -> ToolResult<RoutingComparisonJob> {
+    let open = session.project()?;
+    let command = builtin_request(open.project(), args.options)?;
+    let orders = args.orders.map_or_else(
+        || {
+            vec![
+                RoutingOrder::ShortestFirst,
+                RoutingOrder::LongestFirst,
+                RoutingOrder::ConstrainedFirst,
+            ]
+        },
+        |orders| orders.into_iter().map(Into::into).collect(),
+    );
+    open.routing
+        .prepare_comparison(&open.editor, command, orders)
+        .map_err(routing_error)
+}
+
+pub fn run_comparison_job(job: RoutingComparisonJob) -> ToolResult<RoutingTrials> {
+    job.run().map_err(routing_error)
+}
+
+pub fn finish_comparison(session: &mut Session, trials: RoutingTrials) -> ToolResult<ToolOutput> {
+    let open = session.project_mut()?;
+    let comparison = open
+        .routing
+        .retain_comparison(open.editor.project(), trials)
+        .map_err(routing_error)?;
+    let recommended = comparison.recommended.and_then(|id| {
+        comparison
+            .candidates
+            .iter()
+            .find(|entry| entry.candidate == id)
+    });
+    let mut output = ToolOutput::new(
+        "Compared builtin routing orders; live board unchanged.",
+        &comparison,
+    )?;
+    if let Some(entry) = recommended {
+        if entry.after.unrouted > 0 {
+            output = output
+                .partial()
+                .warn("Recommended candidate leaves open connections.");
+        }
+    } else {
+        output = output
+            .partial()
+            .warn("No acceptable candidate without connectivity regressions.");
+    }
+    Ok(output)
 }
 
 fn candidate_output(summary: &str, info: &RoutingCandidateInfo) -> ToolResult<ToolOutput> {
