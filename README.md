@@ -47,9 +47,28 @@ From the repository root, use a recent stable Rust toolchain. On Debian or
 Ubuntu, [the setup script](scripts/cloud-setup.sh) installs the development
 dependencies and prepares the upstream LibrePCB checkout used by the tests.
 
+On Linux with Nix, enter the development shell:
+
 ```sh
-cargo run --locked -p librepcb-app -- --project /path/to/board.lpp
-cargo run --locked -p librepcb-cli -- open-project /path/to/board.lpp --erc --drc
+nix develop
+```
+
+The lock file pins Rust (including Cargo, rustfmt and Clippy), native build and
+desktop libraries, and the upstream sources with their test data and stroke
+fonts. `LIBREPCB_UPSTREAM_DIR` defaults to those read-only sources in the Nix
+store; set it before entering the shell to use your own upstream checkout.
+Normal Cargo output and cache settings remain in effect. The shell supports
+Wayland/X11 and supplies the Vulkan loader; GPU rendering uses the host's
+graphics driver and still requires a supported adapter.
+
+The upstream CLI oracle and Freerouting are optional external tools. Set
+`LIBREPCB_CLI` to the upstream CLI and configure Freerouting separately if you
+want their integration comparisons; the development shell does not install
+either or enable otherwise skipped comparisons automatically.
+
+```sh
+cargo run --locked --release -p librepcb-app -- --project /path/to/board.lpp
+cargo run --locked --release -p librepcb-cli -- open-project /path/to/board.lpp --erc --drc
 ```
 
 Add `--tab board3d` to the desktop command to open the 3D view.

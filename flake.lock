@@ -1,0 +1,117 @@
+{
+  "nodes": {
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1794042290,
+        "narHash": "sha256-ziZn2PvCJE5JEEpqTdxXwJpPB+L3YqoCpTAMCzyaP3U=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "f4a03c008967841f2a0b3cb7c436fc6fc31671f6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "nixpkgs": "nixpkgs",
+        "upstream": "upstream",
+        "upstream-data": "upstream-data",
+        "upstream-fontobene-qt": "upstream-fontobene-qt",
+        "upstream-fonts": "upstream-fonts",
+        "upstream-i18n": "upstream-i18n"
+      }
+    },
+    "upstream": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1790441616,
+        "narHash": "sha256-Zbcq4ykOYZf4nqF+Wg58o5jdNJkSzmSUQEJ3PSaXM64=",
+        "owner": "LibrePCB",
+        "repo": "LibrePCB",
+        "rev": "7f1b548abb61bd59b2b9c1166eca3e6557480c17",
+        "type": "github"
+      },
+      "original": {
+        "owner": "LibrePCB",
+        "repo": "LibrePCB",
+        "rev": "7f1b548abb61bd59b2b9c1166eca3e6557480c17",
+        "type": "github"
+      }
+    },
+    "upstream-data": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1780772485,
+        "narHash": "sha256-ysvbbJN9qjnP+aH8KFOrS9aTt0YwVsacqv3bIex0JLc=",
+        "owner": "LibrePCB",
+        "repo": "librepcb-test-data",
+        "rev": "b0724e58b6755354d93c60f3ed3afdf109069927",
+        "type": "github"
+      },
+      "original": {
+        "owner": "LibrePCB",
+        "repo": "librepcb-test-data",
+        "rev": "b0724e58b6755354d93c60f3ed3afdf109069927",
+        "type": "github"
+      }
+    },
+    "upstream-fontobene-qt": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1711562487,
+        "narHash": "sha256-KZ9hXRxTQMg/m4qpTc5QcnlaJ+L/K1O/l3CYQsfQHiU=",
+        "owner": "fontobene",
+        "repo": "fontobene-qt",
+        "rev": "c3404d0b56327258120a4beb121101d6706296e6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "fontobene",
+        "repo": "fontobene-qt",
+        "rev": "c3404d0b56327258120a4beb121101d6706296e6",
+        "type": "github"
+      }
+    },
+    "upstream-fonts": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1553432285,
+        "narHash": "sha256-tFnu8F2TRI0SlSYvmRfMw/fnLAPTiKr/nyNuyeSSar4=",
+        "owner": "LibrePCB",
+        "repo": "fontobene-fonts",
+        "rev": "f197bc5157bec6770af06601894ee4d40d93796a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "LibrePCB",
+        "repo": "fontobene-fonts",
+        "rev": "f197bc5157bec6770af06601894ee4d40d93796a",
+        "type": "github"
+      }
+    },
+    "upstream-i18n": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786205730,
+        "narHash": "sha256-ZMYC8gayJ8InT4ziUnL2a92kqqJwi5mU3CC6ZFMM9gM=",
+        "owner": "LibrePCB",
+        "repo": "librepcb-i18n",
+        "rev": "ad2aa345e8030393bc166249236b42f388a9149e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "LibrePCB",
+        "repo": "librepcb-i18n",
+        "rev": "ad2aa345e8030393bc166249236b42f388a9149e",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

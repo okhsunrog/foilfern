@@ -257,6 +257,12 @@ Gerber export — and the official `librepcb-cli` reports ERC 0, DRC 0.
 
 ## Environment
 
+On Linux with Nix, run `nix develop` from the repository root. The locked
+shell provides Rust, native development libraries and the pinned upstream
+source/test resources through `LIBREPCB_UPSTREAM_DIR`; a pre-existing value
+overrides that default. See [the build instructions](../README.md#build-from-source)
+for the separate upstream CLI and Freerouting setup.
+
 Run `scripts/cloud-setup.sh` on a fresh machine. It sets up the pinned
 upstream checkout next to the repository and the official `librepcb-cli`
 behind Xvfb, and Freerouting 2.4.1 with Java 25; after that,
