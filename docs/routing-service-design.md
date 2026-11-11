@@ -448,6 +448,10 @@ Record the origin of proposed engineering constraints. Durable design-intent
 storage and circuit templates remain deferred until concrete workflows justify
 them; this plan does not change the native file format.
 
+See the [Foilfern agent PCB workflow](agent-pcb-workflow.md) for the staged
+placement, mechanical and silkscreen checks, evidence requirements and
+real-board benchmark sequence.
+
 Acceptance: an agent resolves a blocked local region using diagnosed alternatives,
 while preserving protected geometry and reporting all placement or pin changes.
 

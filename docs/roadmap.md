@@ -60,6 +60,10 @@ diffing outputs against the official `librepcb-cli`.
   routing gap needed an explicit via site. Use that geometry to test local
   via-site guidance, and improve inspection and correction of imported
   footprint silkscreen against the board's rules.
+- The [Foilfern agent PCB workflow](agent-pcb-workflow.md) defines the
+  evidence contract, bounded placement and mechanical experiments, and
+  acceptance for real boards. Finish ESP-PD-Sink, then benchmark Cheap FOCer 2
+  under comparable electrical, thermal and manufacturing constraints.
 
 ## M2 — viewer
 
