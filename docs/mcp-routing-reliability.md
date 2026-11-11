@@ -146,6 +146,31 @@ to 169. `unrouted` and `board_get` now calculate a detached fill when
 needed. Both report 169 on the reopened project without requiring
 `planes_rebuild` or changing the project revision.
 
+The power-first Foilfern replay closed the power rails, GND, USB data,
+the crystal and antenna paths before the broader signal pass. The
+reopened 20-gap checkpoint has 763 trace segments, 1,033.762 mm of trace
+centerlines and 101 vias. Its ERC is empty. Both Foilfern and upstream
+LibrePCB report 20 missing connections, the same three non-connectivity
+errors as the import, and nine warnings. The OLED pin-30 legend was moved
+away from mask openings without moving its footprint.
+
+The broad trial exposed specific plane contacts near the ADC divider,
+the OLED and the power connector. Reporting air-wire endpoint positions
+made it possible to seed local plane contacts and to preserve a useful
+candidate while repairing the copper that divided GND. The two zero-length
+gaps at the data USB connector came from coincident pad identities on
+the same net; small solid fills limited to the existing pad footprints
+connected the native model for this replay. A durable import solution
+should preserve the pin mapping and represent shared physical copper
+without adding such fills by hand.
+
+The main unresolved routing group is the ESP32-C3 escape to the header
+and surrounding circuits. Compare a fixed-placement escape and a local
+placement alternative on the same board. The USB return coverage report
+locates the launch and via antipad gaps; it does not verify 90 ohm
+differential impedance. The unfinished checkpoint is not a basis for
+comparing completed layout quality or starting fabrication.
+
 ## Applied-result contract
 
 `autoroute` (both backends) and `specctra_import` return `result.validation`:
