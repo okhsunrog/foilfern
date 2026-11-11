@@ -22,8 +22,10 @@ use crate::commands::{
 use crate::routing_validation::{RoutingSnapshot, RoutingValidation, capture_routing_state};
 
 mod comparison;
+mod copper;
 mod region;
 pub use comparison::{RoutingComparison, RoutingComparisonJob, RoutingTrials};
+pub use copper::{CopperEndpoint, CopperPlan, PlannedTrace};
 pub use region::RegionalRoutingRequest;
 
 /// Bounded session-local storage; callers explicitly discard unwanted candidates.
@@ -76,6 +78,9 @@ pub enum RoutingCandidateDetails {
         #[serde(skip_serializing_if = "Option::is_none")]
         route: Option<Box<RoutingEditTrial>>,
     },
+    Copper {
+        copper: CopperAddition,
+    },
     Regional {
         regional: Box<RegionalRoutingRequest>,
         routing: Box<AutorouteResult>,
@@ -88,6 +93,12 @@ pub enum RoutingCandidateDetails {
         stitch_request: Box<StitchPlaneIsland>,
         plane_stitch: PlaneStitch,
     },
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CopperAddition {
+    pub vias: usize,
+    pub trace_segments: usize,
 }
 
 /// Result of routing selected nets on the edited snapshot.
@@ -137,6 +148,7 @@ enum RoutingWork {
         route: Option<Autoroute>,
     },
     Regional(RegionalRoutingRequest),
+    Copper(CopperPlan),
     LocalVia(ConnectLocalVia),
     PlaneStitch(StitchPlaneIsland),
 }
@@ -206,6 +218,7 @@ impl RoutingJob {
             RoutingWork::Builtin(request) => request.board,
             RoutingWork::Edit { edit, .. } => Some(edit.board),
             RoutingWork::Regional(regional) => regional.request.board,
+            RoutingWork::Copper(plan) => Some(plan.board),
             RoutingWork::LocalVia(request) => Some(request.board),
             RoutingWork::PlaneStitch(request) => Some(request.board),
         };
@@ -239,6 +252,15 @@ impl RoutingJob {
                 RoutingCandidateDetails::Regional {
                     regional: Box::new(regional),
                     routing: Box::new(routing),
+                }
+            }
+            RoutingWork::Copper(plan) => {
+                let (vias, trace_segments) = plan.run(sandbox)?;
+                RoutingCandidateDetails::Copper {
+                    copper: CopperAddition {
+                        vias,
+                        trace_segments,
+                    },
                 }
             }
             RoutingWork::LocalVia(request) => {
@@ -379,6 +401,15 @@ impl RoutingService {
         edit: EditRoutingGeometry,
     ) -> Result<RoutingJob, RoutingError> {
         self.prepare_work(editor, RoutingWork::Edit { edit, route: None })
+    }
+
+    /// Captures explicit vias and traces for checked preview and apply.
+    pub fn prepare_copper(
+        &self,
+        editor: &ProjectEditor,
+        plan: CopperPlan,
+    ) -> Result<RoutingJob, RoutingError> {
+        self.prepare_work(editor, RoutingWork::Copper(plan))
     }
 
     /// Captures a connected edit and a builtin trial on the edited board.
@@ -525,6 +556,7 @@ impl RoutingService {
                 RoutingCandidateDetails::Edit { .. } => {
                     librepcb_i18n::tr!("librepcb::editor::CmdBoardNetLineEdit", "Edit trace")
                 }
+                RoutingCandidateDetails::Copper { .. } => "Add routed copper".into(),
                 RoutingCandidateDetails::PlaneStitch { .. } => "Stitch copper plane island".into(),
             },
             candidate.mutations.clone(),

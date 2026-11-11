@@ -967,6 +967,17 @@ impl LibrePcbMcp {
     }
 
     #[tool(
+        description = "Prepare explicit traces and through vias together as a checked routing candidate. Traces can refer to new vias by label. Coordinates and dimensions are in millimeters. Review with routing_preview and apply in one undo step with routing_apply."
+    )]
+    async fn routing_copper_prepare(
+        &self,
+        Parameters(args): Parameters<crate::tools::routing::RoutingCopperArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.prepare_routing_candidate(move |s| crate::tools::routing::prepare_copper_job(s, args))
+            .await
+    }
+
+    #[tool(
         description = "Measure selected signal trace centerlines over the freshly rebuilt reference pour on an adjacent copper layer. Returns gaps and lengths without editing."
     )]
     async fn reference_coverage(

@@ -66,6 +66,47 @@ fn board_value(session: &Session) -> Value {
 }
 
 #[test]
+fn explicit_copper_resolves_via_labels_and_applies_as_one_step() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let before = board_value(&session);
+    let revision = session.project().unwrap().project().revision();
+    let plan = json!({
+        "expected_revision": revision,
+        "vias":[
+            {"label":"entry","net":"A","position":{"x":7,"y":9.025},"size":0.75,"drill":0.3},
+            {"label":"exit","net":"A","position":{"x":13,"y":9.025},"size":0.75,"drill":0.3}
+        ],
+        "traces":[
+            {"from":"R1.1","to":{"via":"entry"},"layer":"top","width":0.2},
+            {"from":{"via":"entry"},"to":{"via":"exit"},"layer":"bottom","width":0.2},
+            {"from":{"via":"exit"},"to":"R2.1","layer":"top","width":0.2}
+        ]
+    });
+    let mut invalid = plan.clone();
+    invalid["traces"][1]["to"]["via"] = json!("absent");
+    assert!(routing::prepare_copper_job(&session, args(invalid)).is_err());
+    let job = routing::prepare_copper_job(&session, args(plan)).unwrap();
+    let candidate = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
+        .unwrap()
+        .result;
+    assert_eq!(candidate["copper"], json!({"vias":2,"trace_segments":3}));
+    assert_eq!(candidate["validation"]["acceptable"], true, "{candidate}");
+    assert_eq!(candidate["validation"]["before"]["unrouted"], 2);
+    assert_eq!(candidate["validation"]["after"]["unrouted"], 1);
+    assert_eq!(session.project().unwrap().project().revision(), revision);
+    assert_eq!(board_value(&session), before);
+    routing::routing_apply(
+        &mut session,
+        args(json!({"candidate":candidate["candidate"]})),
+    )
+    .unwrap();
+    assert_ne!(board_value(&session), before);
+    assert!(session.project_mut().unwrap().editor.undo().unwrap());
+    assert_eq!(board_value(&session), before);
+}
+
+#[test]
 fn builtin_candidate_cannot_break_another_nets_plane_connection() {
     use librepcb_mcp::tools::layout::board_get;
 

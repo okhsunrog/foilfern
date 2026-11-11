@@ -365,6 +365,12 @@ sampled air-wire endpoints in mm in `unrouted_regression_details`. These
 endpoints describe the rebuilt connection tree and help locate lost plane
 contacts. The sample covers up to 20 nets and eight air wires per net.
 
+`routing_copper_prepare` previews an explicit batch of vias and trace paths.
+Give each new via a label and use `{"via":"label"}` as a trace endpoint;
+pad names, existing anchor UUIDs and coordinates also work. The whole batch
+is checked against the board as one candidate and applies in one undo step.
+It supports up to 512 vias, paths and intermediate points combined.
+
 `routing_compare` uses one detached baseline and a fresh copy of it for
 each of two or three distinct builtin initial orders. Pass common
 `routing_prepare` settings under `options` and optional `orders` at the

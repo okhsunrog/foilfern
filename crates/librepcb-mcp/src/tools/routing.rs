@@ -21,6 +21,8 @@ use crate::session::Session;
 use crate::units::PointMm;
 
 mod diagnose_image;
+mod explicit_copper;
+pub use explicit_copper::{RoutingCopperArgs, prepare_copper_job};
 
 /// Builtin-only options; external backends are deliberately not accepted.
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
