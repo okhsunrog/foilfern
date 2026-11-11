@@ -164,12 +164,29 @@ connected the native model for this replay. A durable import solution
 should preserve the pin mapping and represent shared physical copper
 without adding such fills by hand.
 
-The main unresolved routing group is the ESP32-C3 escape to the header
-and surrounding circuits. Compare a fixed-placement escape and a local
-placement alternative on the same board. The USB return coverage report
-locates the launch and via antipad gaps; it does not verify 90 ohm
-differential impedance. The unfinished checkpoint is not a basis for
-comparing completed layout quality or starting fabrication.
+The continuation started from the 19-gap checkpoint. Part of the top-layer
+VCC distribution enclosed the ESP32-C3 pads on two sides. Moving the
+distribution off the top opened up sites for staggered through vias.
+A fixed-placement candidate reached six gaps. Moving C11 by 1.4 mm
+away from the south row opened an escape for the remaining pins. The
+completed routing also moved the local VCC branch by U2 to escape INT
+and added ground connections after checking the rebuilt plane fragments.
+The circuit and schematic files were byte-identical to the 19-gap checkpoint.
+
+The reopened four-layer result reports zero missing connections in
+Foilfern and upstream LibrePCB, zero ERC findings, the three inherited
+non-connectivity errors and nine inherited warnings. It has 1,009 trace
+segments, 1,529.788 mm of trace centerlines and 145 vias. No trace runs on
+`In1`, which serves as the ground reference.
+
+The USB pair kept its path lengths and its projected ground coverage on
+`In1` (91.1% for D+ and 91.6% for D−). On the bottom layer the 19-gap
+checkpoint measured 86.2% and 86.9%. A parallel SCL run reduced those
+figures to 61.1% and 67.3%. A local SCL reroute recovered coverage to
+72.9% and 73.9% with the same via count. These figures measure projected
+overlap with ground copper. Differential impedance requires the
+dielectric stack and a separate check. The inherited hole-clearance and
+antenna keepout findings still require a fabrication review.
 
 ## Applied-result contract
 
