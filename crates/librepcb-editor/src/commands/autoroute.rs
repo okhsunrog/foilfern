@@ -553,7 +553,9 @@ pub fn extract_problem(
         ..RoutingRules::default()
     };
 
-    // Vias: explicit drill/size only where the automatic values differ.
+    // Vias: keep both dimensions automatic only when they reproduce the
+    // routing geometry. An explicit size requires an explicit drill, even
+    // when that drill equals the inherited value (Via's file-format invariant).
     let mut via_sizes = BTreeMap::new();
     for net in p.circuit().net_signals().values() {
         let auto_drill = p
@@ -562,8 +564,9 @@ pub fn extract_problem(
             .and_then(|c| c.default_via_drill())
             .unwrap_or_else(|| rules.default_via_drill_diameter());
         let auto_size = Via::calc_size_from_rules(auto_drill, &rules.via_annular_ring());
-        let drill = (auto_drill != via_drill).then_some(via_drill);
-        let size = (auto_size != via_size || drill.is_some()).then_some(via_size);
+        let explicit = auto_drill != via_drill || auto_size != via_size;
+        let drill = explicit.then_some(via_drill);
+        let size = explicit.then_some(via_size);
         via_sizes.insert(NetSignalId(net.uuid()), (drill, size));
     }
 

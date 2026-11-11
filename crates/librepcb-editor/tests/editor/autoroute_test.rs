@@ -1,10 +1,14 @@
 //! Autorouting of boards built with the editor commands, checked by our
 //! DRC, the air wires and the official `librepcb-cli`.
 
-use librepcb_core::project::board::BoardAirWiresBuilder;
+use librepcb_core::geometry::Via;
+use librepcb_core::project::board::{BoardAirWiresBuilder, ViaView};
 use librepcb_core::project::{BoardId, Project};
 use librepcb_core::rule_check::Severity;
-use librepcb_core::types::{Angle, CircuitIdentifier, ElementName, Layer};
+use librepcb_core::types::{
+    Angle, CircuitIdentifier, ElementName, Layer, Length, MaskConfig, Point, PositiveLength,
+    UnsignedLength, Uuid,
+};
 use librepcb_editor::ProjectEditor;
 use librepcb_editor::commands::*;
 
@@ -16,6 +20,159 @@ fn name(s: &str) -> ElementName {
 
 fn ident(s: &str) -> CircuitIdentifier {
     CircuitIdentifier::new(s).unwrap()
+}
+
+fn positive(mm: f64) -> PositiveLength {
+    PositiveLength::new(Length::from_mm(mm).unwrap()).unwrap()
+}
+
+fn set_via_rules(editor: &mut ProjectEditor, board: BoardId, clamped: bool) {
+    let b = editor.project().board(board).unwrap();
+    let mut rules = b.design_rules().clone();
+    rules.set_default_via_drill_diameter(positive(0.3));
+    let mut drc = b.settings().drc_settings.clone();
+    drc.set_min_pth_drill_diameter(
+        UnsignedLength::new(*positive(if clamped { 0.5 } else { 0.3 })).unwrap(),
+    );
+    drc.set_min_pth_annular_ring(
+        UnsignedLength::new(*positive(if clamped { 0.2 } else { 0.15 })).unwrap(),
+    );
+    editor
+        .execute(EditBoardSettings {
+            board: Some(board),
+            settings: None,
+            design_rules: Some(rules),
+            drc_settings: Some(drc),
+            inner_layer_count: None,
+        })
+        .unwrap();
+}
+
+#[test]
+fn test_autoroute_via_dimensions_match_applied_model() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut editor = create_editor(&tmp.path().join("project"));
+    let board = build_unrouted(&mut editor);
+    let class = editor
+        .project()
+        .circuit()
+        .net_signals()
+        .values()
+        .next()
+        .unwrap()
+        .net_class();
+    for class_drill in [None, Some(positive(0.45))] {
+        editor
+            .execute(EditNetClass {
+                net_class: class,
+                name: None,
+                default_trace_width: None,
+                default_via_drill: class_drill,
+                inherit_defaults: true,
+            })
+            .unwrap();
+        for clamped in [false, true] {
+            set_via_rules(&mut editor, board, clamped);
+            for (drill, size) in [
+                (None, None),
+                (Some(0.3), Some(0.6)),
+                (None, Some(0.6)),
+                (Some(0.4), None),
+                (Some(0.3), None),
+                (Some(0.4), Some(0.9)),
+                (Some(0.1), Some(0.2)),
+            ] {
+                let options = Autoroute {
+                    via_drill: drill.map(positive),
+                    via_size: size.map(positive),
+                    ..Default::default()
+                };
+                let p = editor.project();
+                let extracted = autoroute::extract_problem(p, board, &options, None).unwrap();
+                let b = p.board(board).unwrap();
+                for (net, (drill, size)) in &extracted.via_sizes {
+                    let via = Via::new(
+                        Uuid::new_random(),
+                        Layer::TOP_COPPER,
+                        Layer::BOT_COPPER,
+                        Point::ORIGIN,
+                        *drill,
+                        *size,
+                        MaskConfig::Off,
+                    )
+                    .unwrap_or_else(|e| {
+                        panic!("{options:?}, class {class_drill:?}, clamped {clamped}: {e}")
+                    });
+                    let view = ViaView::new(&via, b, Some(*net), p.circuit()).unwrap();
+                    assert_eq!(view.drill_diameter(), extracted.problem.rules.via_drill);
+                    assert_eq!(view.size(), extracted.problem.rules.via_diameter);
+                    let auto_drill =
+                        class_drill.unwrap_or(b.design_rules().default_via_drill_diameter());
+                    let auto_size =
+                        Via::calc_size_from_rules(auto_drill, &b.design_rules().via_annular_ring());
+                    if view.drill_diameter() == auto_drill && view.size() == auto_size {
+                        assert!(drill.is_none() && size.is_none());
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn test_autoroute_explicit_via_size_with_default_drill() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().join("project");
+    let mut editor = create_editor(&dir);
+    let board = build_unrouted(&mut editor);
+    set_via_rules(&mut editor, board, false);
+    editor
+        .execute(MoveDevice {
+            component: "R2".into(),
+            board: Some(board),
+            position: None,
+            rotation: None,
+            mirrored: Some(true),
+            locked: None,
+        })
+        .unwrap();
+    let result = editor
+        .execute(Autoroute {
+            via_drill: Some(positive(0.3)),
+            via_size: Some(positive(0.6)),
+            ..Default::default()
+        })
+        .unwrap();
+    assert!(result.vias > 0, "{result:?}");
+    assert_eq!(result.unrouted, 0, "{result:?}");
+    let p = editor.project();
+    let b = p.board(board).unwrap();
+    for segment in b.net_segments().values() {
+        for via in segment.vias().values() {
+            let view = ViaView::new(via, b, segment.net(), p.circuit()).unwrap();
+            assert_eq!(view.drill_diameter(), positive(0.3));
+            assert_eq!(view.size(), positive(0.6));
+        }
+    }
+    editor.undo().unwrap();
+    assert!(
+        editor
+            .project()
+            .board(board)
+            .unwrap()
+            .net_segments()
+            .is_empty()
+    );
+    editor.redo().unwrap();
+    editor.save().unwrap();
+    let messages = run_drc(&mut editor.into_project(), board);
+    assert!(
+        messages
+            .iter()
+            .all(|(severity, _)| *severity != Severity::Error),
+        "{messages:#?}"
+    );
+    check_cli_without_errors(&dir, &["--drc"]);
 }
 
 /// Returns the number of air wires of a board (computed from the model).

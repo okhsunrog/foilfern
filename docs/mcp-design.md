@@ -310,6 +310,13 @@ and exports the generated project as well. This scenario does not need
 separately installed official libraries; its internal copper layers remain
 unused by the simple routed circuit.
 
+The editor routing regression suite checks the geometry actually represented
+by each generated via, including automatic/explicit dimensions, net-class
+inheritance and DRC clamping. In particular, a 0.3 mm drill with a 0.6 mm
+outer diameter must not turn into the invalid combination of automatic
+drill and explicit size. A forced layer transition exercises application,
+undo/redo, full DRC and upstream CLI acceptance.
+
 The stroke fonts new projects get (`resources/fontobene/*.bene`, like
 upstream's `Project::create()` copies them from `share/librepcb`) and the
 default font for rendering come from `librepcb_scene::resources`: a
