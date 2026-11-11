@@ -68,6 +68,23 @@ adjacent same-net `U1.20` did not reduce the air-wire count, since it was
 already in the same connected segment. The remaining routing-access case
 is preserved; a grid or endpoint-conversion root cause has not been proven.
 
+### STM32G474 with buck converter and bottom GND pour
+
+On a copy of the routed board, removing the existing stitch at C2.2 left
+one connected fragment and nine discarded islands. Both versions of the
+board had zero air wires. Probing (34.2, 25.0) mm identified the largest
+discarded island, 70.30 mm², with bounds from (28.44, 21.35) to
+(47.44, 27.95) mm.
+
+`plane_stitch_prepare` checked a 0.30 mm drill, 0.60 mm via and 0.35 mm
+top lead from C2.2. Preview showed the same 70.30 mm² fragment as
+connected at the proposed via. After apply, the connected fragment count
+rose from one to two, connected area from 1805.27 to 1875.57 mm², and
+discarded islands fell from nine to eight. The MCP replay checked the
+live board before apply, undo/redo, and save/reopen. Upstream LibrePCB
+opened the saved copy with zero ERC or DRC errors and the same 17
+silkscreen warnings.
+
 ## Applied-result contract
 
 `autoroute` (both backends) and `specctra_import` return `result.validation`:

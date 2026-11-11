@@ -17,6 +17,7 @@ use serde::Serialize;
 use crate::ProjectEditor;
 use crate::commands::{
     Autoroute, AutorouteResult, ConnectLocalVia, EditRoutingGeometry, LocalViaConnection,
+    PlaneStitch, StitchPlaneIsland,
 };
 use crate::routing_validation::{RoutingSnapshot, RoutingValidation, capture_routing_state};
 
@@ -83,6 +84,10 @@ pub enum RoutingCandidateDetails {
         via_request: Box<ConnectLocalVia>,
         via_connection: LocalViaConnection,
     },
+    PlaneStitch {
+        stitch_request: Box<StitchPlaneIsland>,
+        plane_stitch: PlaneStitch,
+    },
 }
 
 /// Result of routing selected nets on the edited snapshot.
@@ -133,6 +138,7 @@ enum RoutingWork {
     },
     Regional(RegionalRoutingRequest),
     LocalVia(ConnectLocalVia),
+    PlaneStitch(StitchPlaneIsland),
 }
 
 /// Date and path placeholders affect physical board text without necessarily
@@ -201,10 +207,15 @@ impl RoutingJob {
             RoutingWork::Edit { edit, .. } => Some(edit.board),
             RoutingWork::Regional(regional) => regional.request.board,
             RoutingWork::LocalVia(request) => Some(request.board),
+            RoutingWork::PlaneStitch(request) => Some(request.board),
         };
         let board = crate::commands::resolve_board(self.source.sandbox.project(), requested)?.id();
         let before = capture_routing_state(&mut self.source.sandbox, board)?;
         let sandbox = &mut self.source.sandbox;
+        let existing = |editor: &ProjectEditor| {
+            let p = editor.project();
+            region::copper(p, crate::commands::resolve_board(p, Some(board))?)
+        };
         let details = match self.work {
             RoutingWork::Builtin(request) => {
                 RoutingCandidateDetails::run_builtin(sandbox, board, request)?
@@ -231,16 +242,21 @@ impl RoutingJob {
                 }
             }
             RoutingWork::LocalVia(request) => {
-                let existing = |editor: &ProjectEditor| {
-                    let p = editor.project();
-                    region::copper(p, crate::commands::resolve_board(p, Some(board))?)
-                };
                 let protected = existing(sandbox)?;
                 let connection = sandbox.execute(request.clone())?;
                 region::ensure_preserved_copper(&protected, &existing(sandbox)?, &BTreeSet::new())?;
                 RoutingCandidateDetails::LocalVia {
                     via_request: Box::new(request),
                     via_connection: connection,
+                }
+            }
+            RoutingWork::PlaneStitch(request) => {
+                let protected = existing(sandbox)?;
+                let plane_stitch = sandbox.execute(request.clone())?;
+                region::ensure_preserved_copper(&protected, &existing(sandbox)?, &BTreeSet::new())?;
+                RoutingCandidateDetails::PlaneStitch {
+                    stitch_request: Box::new(request),
+                    plane_stitch,
                 }
             }
         };
@@ -345,6 +361,15 @@ impl RoutingService {
         request: ConnectLocalVia,
     ) -> Result<RoutingJob, RoutingError> {
         self.prepare_work(editor, RoutingWork::LocalVia(request))
+    }
+
+    /// Captures a plane island stitch for the same preview and checked apply.
+    pub fn prepare_plane_stitch(
+        &self,
+        editor: &ProjectEditor,
+        request: StitchPlaneIsland,
+    ) -> Result<RoutingJob, RoutingError> {
+        self.prepare_work(editor, RoutingWork::PlaneStitch(request))
     }
 
     /// Captures a checked connected edit for the same preview/apply path.
@@ -485,6 +510,7 @@ impl RoutingService {
                 RoutingCandidateDetails::Edit { .. } => {
                     librepcb_i18n::tr!("librepcb::editor::CmdBoardNetLineEdit", "Edit trace")
                 }
+                RoutingCandidateDetails::PlaneStitch { .. } => "Stitch copper plane island".into(),
             },
             candidate.mutations.clone(),
         )?;

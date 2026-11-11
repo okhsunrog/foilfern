@@ -1,9 +1,11 @@
 //! Builtin reviewed routing: detached preparation, paginated exact preview,
 //! single-transaction apply and explicit disposal. No upstream counterpart.
 
-use librepcb_core::project::Project;
+use librepcb_core::project::{PlaneId, Project};
 use librepcb_core::types::Uuid;
-use librepcb_editor::commands::{Autoroute, ConnectLocalVia, NetRef, PadNeckDown, RoutingOrder};
+use librepcb_editor::commands::{
+    Autoroute, ConnectLocalVia, NetRef, PadNeckDown, RoutingOrder, StitchPlaneIsland,
+};
 use librepcb_editor::routing_service::{
     RegionalRoutingRequest, RoutingCandidate, RoutingCandidateInfo, RoutingComparisonJob,
     RoutingError, RoutingJob, RoutingTrials,
@@ -16,6 +18,7 @@ use super::{board_edit, write};
 use crate::error::{ErrorKind, ToolError, ToolResult};
 use crate::outcome::ToolOutput;
 use crate::session::Session;
+use crate::units::PointMm;
 
 mod diagnose_image;
 
@@ -243,6 +246,59 @@ pub fn prepare_via_job(session: &Session, args: RoutingViaPrepareArgs) -> ToolRe
     };
     open.routing
         .prepare_local_via(&open.editor, request)
+        .map_err(routing_error)
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlaneStitchPrepareArgs {
+    /// UUID of the plane with a discarded island, from plane_diagnose.
+    pub plane: String,
+    /// Existing same-net pad, via or junction.
+    pub from: String,
+    /// Copper layer of the lead, different from the plane layer.
+    pub from_layer: String,
+    /// Through-via center strictly inside the discarded copper, in board mm.
+    pub position: PointMm,
+    /// Optional intermediate points for the lead, in board mm.
+    #[serde(default)]
+    pub points: Vec<PointMm>,
+    /// Lead width in mm. Defaults to the normal trace-add width.
+    pub trace_width: Option<f64>,
+    /// Via drill in mm. Omit for the board's automatic drill.
+    pub via_drill: Option<f64>,
+    /// Via outer diameter in mm. Omit for the automatic size.
+    pub via_size: Option<f64>,
+    pub board: Option<String>,
+    pub expected_revision: Option<u64>,
+}
+
+pub fn prepare_plane_stitch_job(
+    session: &Session,
+    args: PlaneStitchPrepareArgs,
+) -> ToolResult<RoutingJob> {
+    let open = session.project()?;
+    let project = open.project();
+    write::check_revision(project, args.expected_revision)?;
+    let board = board_edit::board_id(project, args.board.as_deref())?;
+    let dim = |value: Option<f64>, name| value.map(|v| board_edit::positive(v, name)).transpose();
+    let request = StitchPlaneIsland {
+        board,
+        plane: PlaneId(crate::resolve::required_uuid(&args.plane, "plane")?),
+        from: board_edit::endpoint(project, board, &board_edit::EndpointArg::Ref(args.from))?,
+        from_layer: board_edit::copper_layer(&args.from_layer)?,
+        position: args.position.to_point()?,
+        points: args
+            .points
+            .into_iter()
+            .map(PointMm::to_point)
+            .collect::<ToolResult<Vec<_>>>()?,
+        trace_width: dim(args.trace_width, "trace_width")?,
+        via_drill: dim(args.via_drill, "via_drill")?,
+        via_size: dim(args.via_size, "via_size")?,
+    };
+    open.routing
+        .prepare_plane_stitch(&open.editor, request)
         .map_err(routing_error)
 }
 

@@ -888,6 +888,19 @@ impl LibrePcbMcp {
         .await
     }
 
+    #[tool(
+        description = "Prepare a checked through-via and lead from an existing same-net anchor +                       to a discarded plane island. Verify the fill at the via center on a +                       snapshot, then use routing_preview and routing_apply."
+    )]
+    async fn plane_stitch_prepare(
+        &self,
+        Parameters(args): Parameters<crate::tools::routing::PlaneStitchPrepareArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.prepare_routing_candidate(move |s| {
+            crate::tools::routing::prepare_plane_stitch_job(s, args)
+        })
+        .await
+    }
+
     #[tool(description = "The unrouted connections (air wires) and unplaced devices of a board.")]
     async fn unrouted(
         &self,

@@ -106,6 +106,100 @@ fn plane_diagnostic_distinguishes_discarded_and_kept_islands_without_editing() {
 }
 
 #[test]
+fn plane_stitch_previews_and_restores_discarded_copper_with_one_undo() {
+    use librepcb_mcp::tools::layout::board_get;
+
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let plane = board_edit::plane_add(&mut session, args(json!({"net":"A", "layer":"bottom"})))
+        .unwrap()
+        .result["uuid"]
+        .clone();
+    let board = board_get(&session, Default::default()).unwrap().result;
+    let pads = board["devices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|device| device["designator"] == "R1")
+        .unwrap()["pads"]
+        .as_array()
+        .unwrap();
+    let pad_y = pads.iter().find(|pad| pad["net"] == "A").unwrap()["position"]["y"].clone();
+    let foreign_pad = pads.iter().find(|pad| pad["net"] == "B").unwrap();
+    let position = json!({"x":8, "y":pad_y});
+    let diagnose = |session: &Session| {
+        board_edit::run_plane_diagnostic(
+            board_edit::prepare_plane_diagnostic(
+                session,
+                args(json!({"plane":plane, "probe":position})),
+            )
+            .unwrap(),
+        )
+        .unwrap()
+        .result["probe"]["status"]
+            .clone()
+    };
+    assert_eq!(diagnose(&session), "island_discarded");
+    let before = board_value(&session);
+    let revision = session.project().unwrap().project().revision();
+    let request = json!({
+        "plane":plane, "from":"R1.1", "from_layer":"top", "position":position,
+        "trace_width":0.2, "via_drill":0.3, "via_size":0.8, "expected_revision":revision
+    });
+    let mut blocked = request.clone();
+    blocked["position"] = foreign_pad["position"].clone();
+    let job = routing::prepare_plane_stitch_job(&session, args(blocked)).unwrap();
+    let rejected = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
+        .unwrap()
+        .result;
+    assert_eq!(rejected["validation"]["acceptable"], false);
+    assert!(
+        rejected["validation"]["new_copper_error_count"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+    assert_eq!(
+        routing::routing_apply(
+            &mut session,
+            args(json!({"candidate":rejected["candidate"]}))
+        )
+        .unwrap_err()
+        .kind,
+        ErrorKind::Refused
+    );
+
+    let job = routing::prepare_plane_stitch_job(&session, args(request)).unwrap();
+    let candidate = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
+        .unwrap()
+        .result;
+    assert_eq!(candidate["validation"]["acceptable"], true, "{candidate:#}");
+    assert_eq!(candidate["validation"]["new_copper_error_count"], 0);
+    assert_eq!(candidate["plane_stitch"]["net_name"], "A");
+    assert!(
+        candidate["plane_stitch"]["connected_fragment_area_after_mm2"]
+            .as_f64()
+            .unwrap()
+            > 0.0
+    );
+    let selected = candidate["candidate"].clone();
+    let preview = routing::routing_preview(&session, args(json!({"candidate":selected})))
+        .unwrap()
+        .result;
+    assert_eq!(preview["plane_stitch"], candidate["plane_stitch"]);
+    assert_eq!(session.project().unwrap().project().revision(), revision);
+    assert_eq!(board_value(&session), before);
+    let applied = routing::routing_apply(&mut session, args(json!({"candidate":selected})))
+        .unwrap()
+        .result;
+    assert_eq!(applied["validation"], candidate["validation"]);
+    assert_eq!(diagnose(&session), "connected");
+    write::undo_redo(&mut session, Default::default(), false).unwrap();
+    assert_eq!(board_value(&session), before);
+    assert_eq!(diagnose(&session), "island_discarded");
+}
+
+#[test]
 fn local_via_rejects_blocked_site_and_applies_a_checked_alternative() {
     let temp = tempfile::tempdir().unwrap();
     let mut session = board_session(temp.path());

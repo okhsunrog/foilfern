@@ -116,6 +116,16 @@ listed first. Pass `probe: {"x": 34.2, "y": 25}` to test whether a point is
 inside any fragment, including discarded ones. Use `offset` and `limit`
 to page through the report and `expected_revision` to pin it to your read.
 
+For a discarded island, choose a via center using `probe` and an existing
+same-net anchor on another copper layer. Pass `plane`, `position`,
+`from` and `from_layer` to `plane_stitch_prepare`. Supply `points` for
+intermediate lead vertices and `trace_width`, `via_drill`, or `via_size` to
+override the editor defaults. The candidate requires the via center to
+belong to a connected fragment after fill. Its report gives the fragment
+areas at the site before and after, plus full DRC and connectivity checks.
+Use `routing_preview` to inspect the exact copper edits and `routing_apply`
+to commit an acceptable candidate as a single undo step.
+
 ## Save and deliver
 
 After the final edits, rerun ERC, DRC and `unrouted`. Export fabrication

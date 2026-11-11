@@ -43,8 +43,10 @@ use crate::editor::{Command, Transaction};
 use crate::error::{Error, Result};
 
 mod local_via;
+mod plane_stitch;
 mod trace_replacement;
 pub use local_via::{ConnectLocalVia, LocalViaConnection};
+pub use plane_stitch::{PlaneStitch, StitchPlaneIsland};
 pub use trace_replacement::TraceReplacement;
 
 fn brd(m: BoardMutation) -> Mutation {
