@@ -48,5 +48,7 @@ Use its compact native project for continued layout work.
 and [ADC C4 alternatives/SW5 review](adc/REPORT.md) are completed.
 [Q1/D2/R20 gate-clamp placement](gate/REPORT.md) now links the current selected
 native project. [Guarded routing-baseline reuse](performance/REPORT.md) is now
-implemented in Rust and measured on that project. Next, improve atomic side
-changes for connected footprints and the explicit-copper API using the saved cases.
+implemented in Rust. [Release validation on the original fixture](performance/release/REPORT.md)
+confirms faster repeated preparation with equivalent DRC, connectivity and geometry.
+The current handoff prioritizes bounded builtin profiling, then the read-only
+MCP path measurement API. Connected-footprint side changes remain later work.

@@ -1,0 +1,20 @@
+{
+  "profile": "release",
+  "cargo_command": "cargo build --locked --release -p librepcb-mcp --bin librepcb-mcp",
+  "package_optimization_overrides": null,
+  "before_commit": "8cb635e4b30bfdfc8ea95d997e453aba88ef5b40",
+  "after_commit": "e321b4d2d8a2a0f55a53aba2f109e6ae97ef584b",
+  "compiler": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+  "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "cpu": "INTEL(R) XEON(R) PLATINUM 8573C",
+  "cpu_count": "5",
+  "source_archive": "docs/benchmarks/esp-pd-sink/inputs.tar.gz",
+  "source_archive_sha256": "3a74dd46af84f76a59828e2e2a0b63ab695dea81142c7e7bde557e5d3247ccc0",
+  "source_archive_files": 482,
+  "native_source_matches_archive": true,
+  "oled_request": "docs/benchmarks/esp-pd-sink/review/candidates/oled.json",
+  "oled_request_sha256": "af609a5ad69c954521ab3cd8168a2a49fbc3f14d5dbb7d7e3d7de126a5aacc14",
+  "execution": "Serial fresh processes, three identical prepare/preview/discard cycles, fourth prepare+checked apply+independent full DRC; no concurrent builds; no native save.",
+  "build_environment": {}
+}

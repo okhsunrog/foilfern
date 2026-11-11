@@ -1,5 +1,9 @@
 # Reuse full routing baseline checks on unchanged sources
 
+This report uses optimized dev builds. See the subsequent
+[release validation on the original OLED fixture](release/REPORT.md) for the
+release-profile comparison required by the current handoff.
+
 The Rust change in [`eab6191`](https://github.com/okhsunrog/foilfern/commit/eab6191)
 retains one complete source DRC result in `RoutingService`. Repeated preparation
 on this ESP-PD-Sink fixture improves from **29.967 to 15.075 seconds on average**

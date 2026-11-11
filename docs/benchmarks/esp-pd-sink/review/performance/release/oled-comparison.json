@@ -1,0 +1,1358 @@
+{
+  "before": {
+    "prepare_drc_seconds": [
+      [
+        12.298,
+        12.093
+      ],
+      [
+        12.258,
+        12.3
+      ],
+      [
+        11.816,
+        13.024
+      ],
+      [
+        11.57,
+        11.899
+      ]
+    ],
+    "label": "oled-before",
+    "binary": "/workspace/esp-pd-sink/release-review/before/librepcb-mcp",
+    "binary_sha256": "0fc5bb5173ada88f218f98fe5f45c379c59b5e4ec0f71dd25f1a1ebaf7d0056d",
+    "prepare_seconds": [
+      25.35605830499844,
+      25.43736647499827,
+      25.758829196998704
+    ],
+    "baseline_reused": [
+      false,
+      false,
+      false
+    ],
+    "base_revisions": [
+      0,
+      0,
+      0
+    ],
+    "verification_prepare_seconds": 24.33520654199674,
+    "verification_baseline_reused": false,
+    "apply_seconds": 13.273656933000893,
+    "validations": [
+      {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 3,
+          "errors": 3,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 9
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 3,
+          "errors": 3,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 9
+        },
+        "connectivity_progress": "unchanged",
+        "drc_clean": false,
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0
+      },
+      {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 3,
+          "errors": 3,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 9
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 3,
+          "errors": 3,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 9
+        },
+        "connectivity_progress": "unchanged",
+        "drc_clean": false,
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0
+      },
+      {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 3,
+          "errors": 3,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 9
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 3,
+          "errors": 3,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 9
+        },
+        "connectivity_progress": "unchanged",
+        "drc_clean": false,
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0
+      }
+    ],
+    "applied_validation": {
+      "acceptable": true,
+      "after": {
+        "check_failures": [],
+        "complete": true,
+        "copper_errors": 3,
+        "errors": 3,
+        "ran": true,
+        "unrouted": 0,
+        "warnings": 9
+      },
+      "before": {
+        "check_failures": [],
+        "complete": true,
+        "copper_errors": 3,
+        "errors": 3,
+        "ran": true,
+        "unrouted": 0,
+        "warnings": 9
+      },
+      "connectivity_progress": "unchanged",
+      "drc_clean": false,
+      "netlist_preserved": true,
+      "new_copper_error_count": 0,
+      "new_error_count": 0,
+      "new_errors": [],
+      "resolved_error_count": 0
+    },
+    "final_drc": {
+      "approved": 0,
+      "check_errors": [],
+      "errors": 3,
+      "hints": 0,
+      "messages": [
+        {
+          "approved": false,
+          "description": "The clearance between a non-plated hole and copper objects is smaller than the hole clearance configured in the DRC settings. Depending on the capabilities of the PCB manufacturer, this could cause higher costs or even serious troubles during production, leading to a possibly non-functional PCB.\n\nCheck the DRC settings and move the copper objects away from the hole if needed.",
+          "kind": "CopperHoleClearanceViolation",
+          "locations": [
+            [
+              {
+                "x": 106.255577,
+                "y": -116.962473
+              },
+              {
+                "x": 106.205,
+                "y": -116.840369
+              },
+              {
+                "x": 106.205,
+                "y": -116.95
+              },
+              {
+                "x": 106.216418,
+                "y": -117.007403
+              },
+              {
+                "x": 106.248934,
+                "y": -117.056066
+              },
+              {
+                "x": 106.269728,
+                "y": -117.06996
+              },
+              {
+                "x": 106.255577,
+                "y": -116.962473
+              }
+            ]
+          ],
+          "message": "Clearance copper \u2194 hole < 0.25 mm",
+          "severity": "error"
+        },
+        {
+          "approved": false,
+          "description": "The clearance between a non-plated hole and copper objects is smaller than the hole clearance configured in the DRC settings. Depending on the capabilities of the PCB manufacturer, this could cause higher costs or even serious troubles during production, leading to a possibly non-functional PCB.\n\nCheck the DRC settings and move the copper objects away from the hole if needed.",
+          "kind": "CopperHoleClearanceViolation",
+          "locations": [
+            [
+              {
+                "x": 106.255577,
+                "y": -123.037527
+              },
+              {
+                "x": 106.269728,
+                "y": -122.93004
+              },
+              {
+                "x": 106.248934,
+                "y": -122.943934
+              },
+              {
+                "x": 106.216418,
+                "y": -122.992597
+              },
+              {
+                "x": 106.205,
+                "y": -123.05
+              },
+              {
+                "x": 106.205,
+                "y": -123.159631
+              },
+              {
+                "x": 106.255577,
+                "y": -123.037527
+              }
+            ]
+          ],
+          "message": "Clearance copper \u2194 hole < 0.25 mm",
+          "severity": "error"
+        },
+        {
+          "approved": false,
+          "description": "There is a copper object within a copper keepout zone.\n\nMove the object to outside the keepout zone.",
+          "kind": "CopperInKeepoutZone",
+          "locations": [
+            [
+              {
+                "x": 103.7,
+                "y": -103.5
+              },
+              {
+                "arc_deg": -90.0,
+                "x": 103.0,
+                "y": -103.5
+              },
+              {
+                "x": 102.75,
+                "y": -103.25
+              },
+              {
+                "arc_deg": -90.0,
+                "x": 102.75,
+                "y": -101.95
+              },
+              {
+                "x": 103.0,
+                "y": -101.7
+              },
+              {
+                "arc_deg": -90.0,
+                "x": 103.7,
+                "y": -101.7
+              },
+              {
+                "x": 103.95,
+                "y": -101.95
+              },
+              {
+                "arc_deg": -90.0,
+                "x": 103.95,
+                "y": -103.25
+              },
+              {
+                "x": 103.7,
+                "y": -103.5
+              }
+            ]
+          ],
+          "message": "Pad in copper keepout zone: 'AE1:2'",
+          "severity": "error"
+        },
+        {
+          "approved": false,
+          "description": "The board outline polygon is not manufacturable with the minimum tool diameter configured in the DRC settings due to edges with a smaller radius. Thus the actually produced board outline might contain larger edge radii and too small cutouts might even be missing completely.\n\nCheck the DRC settings and add/increase the radius of inner board edges if needed.",
+          "kind": "MinimumBoardOutlineInnerRadiusViolation",
+          "locations": [
+            [
+              {
+                "x": 162.0,
+                "y": -100.609625
+              },
+              {
+                "x": 161.99005,
+                "y": -100.708751
+              },
+              {
+                "x": 161.930996,
+                "y": -100.899572
+              },
+              {
+                "x": 161.835194,
+                "y": -101.074849
+              },
+              {
+                "x": 161.706467,
+                "y": -101.227589
+              },
+              {
+                "x": 161.549951,
+                "y": -101.351696
+              },
+              {
+                "x": 161.371891,
+                "y": -101.44222
+              },
+              {
+                "x": 161.179392,
+                "y": -101.495549
+              },
+              {
+                "x": 161.127218,
+                "y": -101.5
+              },
+              {
+                "x": 162.0,
+                "y": -101.5
+              },
+              {
+                "x": 162.0,
+                "y": -100.609625
+              }
+            ],
+            [
+              {
+                "x": 149.791249,
+                "y": -101.49005
+              },
+              {
+                "x": 149.600428,
+                "y": -101.430996
+              },
+              {
+                "x": 149.425151,
+                "y": -101.335194
+              },
+              {
+                "x": 149.272411,
+                "y": -101.206467
+              },
+              {
+                "x": 149.148304,
+                "y": -101.049951
+              },
+              {
+                "x": 149.05778,
+                "y": -100.871891
+              },
+              {
+                "x": 149.004451,
+                "y": -100.679392
+              },
+              {
+                "x": 149.0,
+                "y": -100.627218
+              },
+              {
+                "x": 149.0,
+                "y": -101.5
+              },
+              {
+                "x": 149.890375,
+                "y": -101.5
+              },
+              {
+                "x": 149.791249,
+                "y": -101.49005
+              }
+            ]
+          ],
+          "message": "Board outline inner radius < 1.0 mm",
+          "severity": "warning"
+        },
+        {
+          "approved": false,
+          "description": "The width of the plated slot is smaller than the minimum plated slot width configured in the DRC settings.\n\nCheck the DRC settings and increase the slot width if needed.",
+          "kind": "MinimumSlotWidthViolation",
+          "locations": [
+            [
+              {
+                "x": 106.755,
+                "y": -124.62
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 105.655,
+                "y": -124.62
+              },
+              {
+                "x": 105.655,
+                "y": -124.02
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 106.755,
+                "y": -124.02
+              },
+              {
+                "x": 106.755,
+                "y": -124.62
+              }
+            ]
+          ],
+          "message": "Plated slot width: 0.6 < 0.7 mm",
+          "severity": "warning"
+        },
+        {
+          "approved": false,
+          "description": "The width of the plated slot is smaller than the minimum plated slot width configured in the DRC settings.\n\nCheck the DRC settings and increase the slot width if needed.",
+          "kind": "MinimumSlotWidthViolation",
+          "locations": [
+            [
+              {
+                "x": 102.425,
+                "y": -115.98
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 101.625,
+                "y": -115.98
+              },
+              {
+                "x": 101.625,
+                "y": -115.38
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 102.425,
+                "y": -115.38
+              },
+              {
+                "x": 102.425,
+                "y": -115.98
+              }
+            ]
+          ],
+          "message": "Plated slot width: 0.6 < 0.7 mm",
+          "severity": "warning"
+        },
+        {
+          "approved": false,
+          "description": "The width of the plated slot is smaller than the minimum plated slot width configured in the DRC settings.\n\nCheck the DRC settings and increase the slot width if needed.",
+          "kind": "MinimumSlotWidthViolation",
+          "locations": [
+            [
+              {
+                "x": 106.755,
+                "y": -115.98
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 105.655,
+                "y": -115.98
+              },
+              {
+                "x": 105.655,
+                "y": -115.38
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 106.755,
+                "y": -115.38
+              },
+              {
+                "x": 106.755,
+                "y": -115.98
+              }
+            ]
+          ],
+          "message": "Plated slot width: 0.6 < 0.7 mm",
+          "severity": "warning"
+        },
+        {
+          "approved": false,
+          "description": "The width of the plated slot is smaller than the minimum plated slot width configured in the DRC settings.\n\nCheck the DRC settings and increase the slot width if needed.",
+          "kind": "MinimumSlotWidthViolation",
+          "locations": [
+            [
+              {
+                "x": 102.425,
+                "y": -124.62
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 101.625,
+                "y": -124.62
+              },
+              {
+                "x": 101.625,
+                "y": -124.02
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 102.425,
+                "y": -124.02
+              },
+              {
+                "x": 102.425,
+                "y": -124.62
+              }
+            ]
+          ],
+          "message": "Plated slot width: 0.6 < 0.7 mm",
+          "severity": "warning"
+        },
+        {
+          "approved": false,
+          "description": "The width of the plated slot is smaller than the minimum plated slot width configured in the DRC settings.\n\nCheck the DRC settings and increase the slot width if needed.",
+          "kind": "MinimumSlotWidthViolation",
+          "locations": [
+            [
+              {
+                "x": 106.13,
+                "y": -141.62
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 105.53,
+                "y": -141.62
+              },
+              {
+                "x": 105.53,
+                "y": -141.02
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 106.13,
+                "y": -141.02
+              },
+              {
+                "x": 106.13,
+                "y": -141.62
+              }
+            ]
+          ],
+          "message": "Plated slot width: 0.6 < 0.7 mm",
+          "severity": "warning"
+        },
+        {
+          "approved": false,
+          "description": "The width of the plated slot is smaller than the minimum plated slot width configured in the DRC settings.\n\nCheck the DRC settings and increase the slot width if needed.",
+          "kind": "MinimumSlotWidthViolation",
+          "locations": [
+            [
+              {
+                "x": 102.33,
+                "y": -141.62
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 101.73,
+                "y": -141.62
+              },
+              {
+                "x": 101.73,
+                "y": -141.02
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 102.33,
+                "y": -141.02
+              },
+              {
+                "x": 102.33,
+                "y": -141.62
+              }
+            ]
+          ],
+          "message": "Plated slot width: 0.6 < 0.7 mm",
+          "severity": "warning"
+        },
+        {
+          "approved": false,
+          "description": "The width of the plated slot is smaller than the minimum plated slot width configured in the DRC settings.\n\nCheck the DRC settings and increase the slot width if needed.",
+          "kind": "MinimumSlotWidthViolation",
+          "locations": [
+            [
+              {
+                "x": 106.13,
+                "y": -132.98
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 105.53,
+                "y": -132.98
+              },
+              {
+                "x": 105.53,
+                "y": -132.38
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 106.13,
+                "y": -132.38
+              },
+              {
+                "x": 106.13,
+                "y": -132.98
+              }
+            ]
+          ],
+          "message": "Plated slot width: 0.6 < 0.7 mm",
+          "severity": "warning"
+        },
+        {
+          "approved": false,
+          "description": "The width of the plated slot is smaller than the minimum plated slot width configured in the DRC settings.\n\nCheck the DRC settings and increase the slot width if needed.",
+          "kind": "MinimumSlotWidthViolation",
+          "locations": [
+            [
+              {
+                "x": 102.33,
+                "y": -132.98
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 101.73,
+                "y": -132.98
+              },
+              {
+                "x": 101.73,
+                "y": -132.38
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 102.33,
+                "y": -132.38
+              },
+              {
+                "x": 102.33,
+                "y": -132.98
+              }
+            ]
+          ],
+          "message": "Plated slot width: 0.6 < 0.7 mm",
+          "severity": "warning"
+        }
+      ],
+      "ran": true,
+      "warnings": 9
+    },
+    "geometry_sha256": "62e45833f97cc2fa84f6dbe5f626ddf1b90ece9a93007c7273baa87637bbada3",
+    "peak_process": "VmHWM:\t  167920 kB",
+    "native_unchanged": true,
+    "trace_count": 996,
+    "via_count": 143,
+    "drc_core_seconds": [
+      12.298,
+      12.093,
+      12.258,
+      12.3,
+      11.816,
+      13.024,
+      11.57,
+      11.899,
+      12.841,
+      12.416
+    ]
+  },
+  "after": {
+    "prepare_drc_seconds": [
+      [
+        12.085,
+        12.98
+      ],
+      [
+        12.339
+      ],
+      [
+        13.764
+      ],
+      [
+        13.388
+      ]
+    ],
+    "label": "oled-after",
+    "binary": "/workspace/esp-pd-sink/release-review/after/librepcb-mcp",
+    "binary_sha256": "fef407a4006b1d934a5a231df6e6b54f0d71fa40f5405b62344b41493d92121a",
+    "prepare_seconds": [
+      25.919067643000744,
+      13.22442599200076,
+      14.606088392996753
+    ],
+    "baseline_reused": [
+      false,
+      true,
+      true
+    ],
+    "base_revisions": [
+      0,
+      0,
+      0
+    ],
+    "verification_prepare_seconds": 14.25646352700278,
+    "verification_baseline_reused": true,
+    "apply_seconds": 16.308766728998307,
+    "validations": [
+      {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 3,
+          "errors": 3,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 9
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 3,
+          "errors": 3,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 9
+        },
+        "connectivity_progress": "unchanged",
+        "drc_clean": false,
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0
+      },
+      {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 3,
+          "errors": 3,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 9
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 3,
+          "errors": 3,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 9
+        },
+        "connectivity_progress": "unchanged",
+        "drc_clean": false,
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0
+      },
+      {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 3,
+          "errors": 3,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 9
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 3,
+          "errors": 3,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 9
+        },
+        "connectivity_progress": "unchanged",
+        "drc_clean": false,
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0
+      }
+    ],
+    "applied_validation": {
+      "acceptable": true,
+      "after": {
+        "check_failures": [],
+        "complete": true,
+        "copper_errors": 3,
+        "errors": 3,
+        "ran": true,
+        "unrouted": 0,
+        "warnings": 9
+      },
+      "before": {
+        "check_failures": [],
+        "complete": true,
+        "copper_errors": 3,
+        "errors": 3,
+        "ran": true,
+        "unrouted": 0,
+        "warnings": 9
+      },
+      "connectivity_progress": "unchanged",
+      "drc_clean": false,
+      "netlist_preserved": true,
+      "new_copper_error_count": 0,
+      "new_error_count": 0,
+      "new_errors": [],
+      "resolved_error_count": 0
+    },
+    "final_drc": {
+      "approved": 0,
+      "check_errors": [],
+      "errors": 3,
+      "hints": 0,
+      "messages": [
+        {
+          "approved": false,
+          "description": "The clearance between a non-plated hole and copper objects is smaller than the hole clearance configured in the DRC settings. Depending on the capabilities of the PCB manufacturer, this could cause higher costs or even serious troubles during production, leading to a possibly non-functional PCB.\n\nCheck the DRC settings and move the copper objects away from the hole if needed.",
+          "kind": "CopperHoleClearanceViolation",
+          "locations": [
+            [
+              {
+                "x": 106.255577,
+                "y": -116.962473
+              },
+              {
+                "x": 106.205,
+                "y": -116.840369
+              },
+              {
+                "x": 106.205,
+                "y": -116.95
+              },
+              {
+                "x": 106.216418,
+                "y": -117.007403
+              },
+              {
+                "x": 106.248934,
+                "y": -117.056066
+              },
+              {
+                "x": 106.269728,
+                "y": -117.06996
+              },
+              {
+                "x": 106.255577,
+                "y": -116.962473
+              }
+            ]
+          ],
+          "message": "Clearance copper \u2194 hole < 0.25 mm",
+          "severity": "error"
+        },
+        {
+          "approved": false,
+          "description": "The clearance between a non-plated hole and copper objects is smaller than the hole clearance configured in the DRC settings. Depending on the capabilities of the PCB manufacturer, this could cause higher costs or even serious troubles during production, leading to a possibly non-functional PCB.\n\nCheck the DRC settings and move the copper objects away from the hole if needed.",
+          "kind": "CopperHoleClearanceViolation",
+          "locations": [
+            [
+              {
+                "x": 106.255577,
+                "y": -123.037527
+              },
+              {
+                "x": 106.269728,
+                "y": -122.93004
+              },
+              {
+                "x": 106.248934,
+                "y": -122.943934
+              },
+              {
+                "x": 106.216418,
+                "y": -122.992597
+              },
+              {
+                "x": 106.205,
+                "y": -123.05
+              },
+              {
+                "x": 106.205,
+                "y": -123.159631
+              },
+              {
+                "x": 106.255577,
+                "y": -123.037527
+              }
+            ]
+          ],
+          "message": "Clearance copper \u2194 hole < 0.25 mm",
+          "severity": "error"
+        },
+        {
+          "approved": false,
+          "description": "There is a copper object within a copper keepout zone.\n\nMove the object to outside the keepout zone.",
+          "kind": "CopperInKeepoutZone",
+          "locations": [
+            [
+              {
+                "x": 103.7,
+                "y": -103.5
+              },
+              {
+                "arc_deg": -90.0,
+                "x": 103.0,
+                "y": -103.5
+              },
+              {
+                "x": 102.75,
+                "y": -103.25
+              },
+              {
+                "arc_deg": -90.0,
+                "x": 102.75,
+                "y": -101.95
+              },
+              {
+                "x": 103.0,
+                "y": -101.7
+              },
+              {
+                "arc_deg": -90.0,
+                "x": 103.7,
+                "y": -101.7
+              },
+              {
+                "x": 103.95,
+                "y": -101.95
+              },
+              {
+                "arc_deg": -90.0,
+                "x": 103.95,
+                "y": -103.25
+              },
+              {
+                "x": 103.7,
+                "y": -103.5
+              }
+            ]
+          ],
+          "message": "Pad in copper keepout zone: 'AE1:2'",
+          "severity": "error"
+        },
+        {
+          "approved": false,
+          "description": "The board outline polygon is not manufacturable with the minimum tool diameter configured in the DRC settings due to edges with a smaller radius. Thus the actually produced board outline might contain larger edge radii and too small cutouts might even be missing completely.\n\nCheck the DRC settings and add/increase the radius of inner board edges if needed.",
+          "kind": "MinimumBoardOutlineInnerRadiusViolation",
+          "locations": [
+            [
+              {
+                "x": 162.0,
+                "y": -100.609625
+              },
+              {
+                "x": 161.99005,
+                "y": -100.708751
+              },
+              {
+                "x": 161.930996,
+                "y": -100.899572
+              },
+              {
+                "x": 161.835194,
+                "y": -101.074849
+              },
+              {
+                "x": 161.706467,
+                "y": -101.227589
+              },
+              {
+                "x": 161.549951,
+                "y": -101.351696
+              },
+              {
+                "x": 161.371891,
+                "y": -101.44222
+              },
+              {
+                "x": 161.179392,
+                "y": -101.495549
+              },
+              {
+                "x": 161.127218,
+                "y": -101.5
+              },
+              {
+                "x": 162.0,
+                "y": -101.5
+              },
+              {
+                "x": 162.0,
+                "y": -100.609625
+              }
+            ],
+            [
+              {
+                "x": 149.791249,
+                "y": -101.49005
+              },
+              {
+                "x": 149.600428,
+                "y": -101.430996
+              },
+              {
+                "x": 149.425151,
+                "y": -101.335194
+              },
+              {
+                "x": 149.272411,
+                "y": -101.206467
+              },
+              {
+                "x": 149.148304,
+                "y": -101.049951
+              },
+              {
+                "x": 149.05778,
+                "y": -100.871891
+              },
+              {
+                "x": 149.004451,
+                "y": -100.679392
+              },
+              {
+                "x": 149.0,
+                "y": -100.627218
+              },
+              {
+                "x": 149.0,
+                "y": -101.5
+              },
+              {
+                "x": 149.890375,
+                "y": -101.5
+              },
+              {
+                "x": 149.791249,
+                "y": -101.49005
+              }
+            ]
+          ],
+          "message": "Board outline inner radius < 1.0 mm",
+          "severity": "warning"
+        },
+        {
+          "approved": false,
+          "description": "The width of the plated slot is smaller than the minimum plated slot width configured in the DRC settings.\n\nCheck the DRC settings and increase the slot width if needed.",
+          "kind": "MinimumSlotWidthViolation",
+          "locations": [
+            [
+              {
+                "x": 106.755,
+                "y": -124.62
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 105.655,
+                "y": -124.62
+              },
+              {
+                "x": 105.655,
+                "y": -124.02
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 106.755,
+                "y": -124.02
+              },
+              {
+                "x": 106.755,
+                "y": -124.62
+              }
+            ]
+          ],
+          "message": "Plated slot width: 0.6 < 0.7 mm",
+          "severity": "warning"
+        },
+        {
+          "approved": false,
+          "description": "The width of the plated slot is smaller than the minimum plated slot width configured in the DRC settings.\n\nCheck the DRC settings and increase the slot width if needed.",
+          "kind": "MinimumSlotWidthViolation",
+          "locations": [
+            [
+              {
+                "x": 102.425,
+                "y": -115.98
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 101.625,
+                "y": -115.98
+              },
+              {
+                "x": 101.625,
+                "y": -115.38
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 102.425,
+                "y": -115.38
+              },
+              {
+                "x": 102.425,
+                "y": -115.98
+              }
+            ]
+          ],
+          "message": "Plated slot width: 0.6 < 0.7 mm",
+          "severity": "warning"
+        },
+        {
+          "approved": false,
+          "description": "The width of the plated slot is smaller than the minimum plated slot width configured in the DRC settings.\n\nCheck the DRC settings and increase the slot width if needed.",
+          "kind": "MinimumSlotWidthViolation",
+          "locations": [
+            [
+              {
+                "x": 106.755,
+                "y": -115.98
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 105.655,
+                "y": -115.98
+              },
+              {
+                "x": 105.655,
+                "y": -115.38
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 106.755,
+                "y": -115.38
+              },
+              {
+                "x": 106.755,
+                "y": -115.98
+              }
+            ]
+          ],
+          "message": "Plated slot width: 0.6 < 0.7 mm",
+          "severity": "warning"
+        },
+        {
+          "approved": false,
+          "description": "The width of the plated slot is smaller than the minimum plated slot width configured in the DRC settings.\n\nCheck the DRC settings and increase the slot width if needed.",
+          "kind": "MinimumSlotWidthViolation",
+          "locations": [
+            [
+              {
+                "x": 102.425,
+                "y": -124.62
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 101.625,
+                "y": -124.62
+              },
+              {
+                "x": 101.625,
+                "y": -124.02
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 102.425,
+                "y": -124.02
+              },
+              {
+                "x": 102.425,
+                "y": -124.62
+              }
+            ]
+          ],
+          "message": "Plated slot width: 0.6 < 0.7 mm",
+          "severity": "warning"
+        },
+        {
+          "approved": false,
+          "description": "The width of the plated slot is smaller than the minimum plated slot width configured in the DRC settings.\n\nCheck the DRC settings and increase the slot width if needed.",
+          "kind": "MinimumSlotWidthViolation",
+          "locations": [
+            [
+              {
+                "x": 106.13,
+                "y": -141.62
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 105.53,
+                "y": -141.62
+              },
+              {
+                "x": 105.53,
+                "y": -141.02
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 106.13,
+                "y": -141.02
+              },
+              {
+                "x": 106.13,
+                "y": -141.62
+              }
+            ]
+          ],
+          "message": "Plated slot width: 0.6 < 0.7 mm",
+          "severity": "warning"
+        },
+        {
+          "approved": false,
+          "description": "The width of the plated slot is smaller than the minimum plated slot width configured in the DRC settings.\n\nCheck the DRC settings and increase the slot width if needed.",
+          "kind": "MinimumSlotWidthViolation",
+          "locations": [
+            [
+              {
+                "x": 102.33,
+                "y": -141.62
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 101.73,
+                "y": -141.62
+              },
+              {
+                "x": 101.73,
+                "y": -141.02
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 102.33,
+                "y": -141.02
+              },
+              {
+                "x": 102.33,
+                "y": -141.62
+              }
+            ]
+          ],
+          "message": "Plated slot width: 0.6 < 0.7 mm",
+          "severity": "warning"
+        },
+        {
+          "approved": false,
+          "description": "The width of the plated slot is smaller than the minimum plated slot width configured in the DRC settings.\n\nCheck the DRC settings and increase the slot width if needed.",
+          "kind": "MinimumSlotWidthViolation",
+          "locations": [
+            [
+              {
+                "x": 106.13,
+                "y": -132.98
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 105.53,
+                "y": -132.98
+              },
+              {
+                "x": 105.53,
+                "y": -132.38
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 106.13,
+                "y": -132.38
+              },
+              {
+                "x": 106.13,
+                "y": -132.98
+              }
+            ]
+          ],
+          "message": "Plated slot width: 0.6 < 0.7 mm",
+          "severity": "warning"
+        },
+        {
+          "approved": false,
+          "description": "The width of the plated slot is smaller than the minimum plated slot width configured in the DRC settings.\n\nCheck the DRC settings and increase the slot width if needed.",
+          "kind": "MinimumSlotWidthViolation",
+          "locations": [
+            [
+              {
+                "x": 102.33,
+                "y": -132.98
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 101.73,
+                "y": -132.98
+              },
+              {
+                "x": 101.73,
+                "y": -132.38
+              },
+              {
+                "arc_deg": -180.0,
+                "x": 102.33,
+                "y": -132.38
+              },
+              {
+                "x": 102.33,
+                "y": -132.98
+              }
+            ]
+          ],
+          "message": "Plated slot width: 0.6 < 0.7 mm",
+          "severity": "warning"
+        }
+      ],
+      "ran": true,
+      "warnings": 9
+    },
+    "geometry_sha256": "62e45833f97cc2fa84f6dbe5f626ddf1b90ece9a93007c7273baa87637bbada3",
+    "peak_process": "VmHWM:\t  177096 kB",
+    "native_unchanged": true,
+    "trace_count": 996,
+    "via_count": 143,
+    "drc_core_seconds": [
+      12.085,
+      12.98,
+      12.339,
+      13.764,
+      13.388,
+      15.725,
+      12.785
+    ]
+  },
+  "equivalence": {
+    "validations": true,
+    "applied_validation": true,
+    "final_drc": true,
+    "geometry_sha256": true
+  },
+  "mean_repeated_before_seconds": 25.598097835998487,
+  "mean_repeated_after_seconds": 13.915257192498757,
+  "repeated_speedup": 1.8395705865787053,
+  "repeated_time_reduction_percent": 45.63948742734394
+}
