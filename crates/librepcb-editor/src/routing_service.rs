@@ -57,6 +57,9 @@ pub struct RoutingCandidateInfo {
     pub project: Uuid,
     pub base_revision: u64,
     pub board: BoardId,
+    /// A complete check of this unchanged source was retained by this session.
+    /// Candidate and applied-model checks always run afresh.
+    pub baseline_reused: bool,
     #[serde(flatten)]
     pub details: RoutingCandidateDetails,
     pub mutation_count: usize,
@@ -218,6 +221,19 @@ struct RoutingSource {
     base_revision: u64,
     source_context: SourceContext,
     sandbox: ProjectEditor,
+    baseline: Option<RoutingBaseline>,
+    baseline_reused: bool,
+}
+
+/// One bounded, session-owned baseline, published only after freshness checks.
+/// Native snapshots omit derived copper: reuse never skips rebuilding it.
+#[derive(Debug, Clone)]
+struct RoutingBaseline {
+    project: Uuid,
+    revision: u64,
+    context: SourceContext,
+    board: BoardId,
+    snapshot: RoutingSnapshot,
 }
 
 impl RoutingJob {
@@ -233,7 +249,7 @@ impl RoutingJob {
             RoutingWork::PlaneStitch(request) => Some(request.board),
         };
         let board = crate::commands::resolve_board(self.source.sandbox.project(), requested)?.id();
-        let before = capture_routing_state(&mut self.source.sandbox, board)?;
+        let before = self.source.capture_before(board)?;
         let sandbox = &mut self.source.sandbox;
         let existing = |editor: &ProjectEditor| {
             let p = editor.project();
@@ -320,6 +336,29 @@ impl RoutingJob {
 }
 
 impl RoutingSource {
+    fn capture_before(&mut self, board: BoardId) -> Result<RoutingSnapshot, RoutingError> {
+        let cached = self.baseline.take().filter(|baseline| {
+            baseline.project == self.project
+                && baseline.revision == self.base_revision
+                && baseline.context == self.source_context
+                && baseline.board == board
+        });
+        if let Some(baseline) = cached {
+            self.sandbox
+                .update_derived_data(|project| project.rebuild_planes(board, None))?
+                .map_err(crate::Error::from_export)?;
+            self.sandbox.update_derived_data(|project| {
+                project
+                    .force_air_wires_rebuild(board)
+                    .map_err(crate::Error::from)
+            })??;
+            self.baseline_reused = true;
+            Ok(baseline.snapshot)
+        } else {
+            Ok(capture_routing_state(&mut self.sandbox, board)?)
+        }
+    }
+
     fn freeze(
         self,
         board: BoardId,
@@ -333,6 +372,8 @@ impl RoutingSource {
             base_revision,
             source_context,
             mut sandbox,
+            baseline_reused,
+            ..
         } = self;
         let validation = details.validate(before.clone(), after);
         // Undo on the private sandbox exposes exact forward mutations.
@@ -358,6 +399,7 @@ impl RoutingSource {
                 project,
                 base_revision,
                 board,
+                baseline_reused,
                 details,
                 mutation_count: mutations.len(),
                 validation,
@@ -374,6 +416,7 @@ impl RoutingSource {
 pub struct RoutingService {
     owner: Uuid,
     candidates: BTreeMap<Uuid, RoutingCandidate>,
+    baseline: Option<RoutingBaseline>,
 }
 
 impl Default for RoutingService {
@@ -381,6 +424,7 @@ impl Default for RoutingService {
         Self {
             owner: Uuid::new_random(),
             candidates: BTreeMap::new(),
+            baseline: None,
         }
     }
 }
@@ -518,6 +562,8 @@ impl RoutingService {
             base_revision: project.revision(),
             source_context: SourceContext::of(project),
             sandbox,
+            baseline: self.baseline.clone(),
+            baseline_reused: false,
         })
     }
 
@@ -530,9 +576,22 @@ impl RoutingService {
     ) -> Result<RoutingCandidateInfo, RoutingError> {
         self.check_source(project, &candidate)?;
         self.check_capacity(1)?;
+        self.remember_baseline(&candidate);
         let info = candidate.info.clone();
         self.candidates.insert(info.candidate, candidate);
         Ok(info)
+    }
+
+    fn remember_baseline(&mut self, candidate: &RoutingCandidate) {
+        if candidate.before.checks.ran && candidate.before.checks.complete {
+            self.baseline = Some(RoutingBaseline {
+                project: candidate.info.project,
+                revision: candidate.info.base_revision,
+                context: candidate.source_context.clone(),
+                board: candidate.info.board,
+                snapshot: candidate.before.clone(),
+            });
+        }
     }
 
     pub fn candidate(&self, id: Uuid) -> Result<&RoutingCandidate, RoutingError> {
@@ -661,6 +720,154 @@ mod tests {
     use crate::commands::AddBoard;
     use librepcb_core::fileio::{FileSystem, TransactionalDirectory};
     use librepcb_core::types::ElementName;
+
+    fn baseline_fixture() -> (ProjectEditor, RoutingService, BoardId) {
+        let directory = TransactionalDirectory::new_temporary().unwrap();
+        let project = Project::create(directory, "test.lpp", Uuid::new_random).unwrap();
+        let mut editor = ProjectEditor::new(project);
+        let board = editor
+            .execute(AddBoard::new(ElementName::new("Board").unwrap()))
+            .unwrap()
+            .board;
+        (editor, RoutingService::default(), board)
+    }
+
+    fn prepare_board(
+        service: &RoutingService,
+        editor: &ProjectEditor,
+        board: BoardId,
+    ) -> RoutingCandidate {
+        service
+            .prepare(
+                editor,
+                Autoroute {
+                    board: Some(board),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+            .run()
+            .unwrap()
+    }
+
+    #[test]
+    fn retained_baseline_reuses_only_the_source_check_without_live_changes() {
+        let (editor, mut service, board) = baseline_fixture();
+        let first = prepare_board(&service, &editor, board);
+        assert!(!first.info.baseline_reused);
+        let validation = first.info.validation.clone();
+        let id = first.info.candidate;
+        service.retain(editor.project(), first).unwrap();
+        // Discarding a proposal does not discard a still-current source check.
+        service.discard(id).unwrap();
+        let revision = editor.project().revision();
+        let files = editor.project().directory().file_system().save_state();
+        let history = editor.undo_stack().history();
+        let second = prepare_board(&service, &editor, board);
+        assert!(second.info.baseline_reused);
+        assert_eq!(second.info.validation, validation);
+        assert_eq!(editor.project().revision(), revision);
+        assert_eq!(editor.undo_stack().history(), history);
+        assert_eq!(
+            editor.project().directory().file_system().save_state(),
+            files
+        );
+    }
+
+    #[test]
+    fn baseline_does_not_cross_boards_or_model_revisions() {
+        let (mut editor, mut service, first) = baseline_fixture();
+        let second = editor
+            .execute(AddBoard::new(ElementName::new("Other").unwrap()))
+            .unwrap()
+            .board;
+        let candidate = prepare_board(&service, &editor, first);
+        service.retain(editor.project(), candidate).unwrap();
+        assert!(
+            !prepare_board(&service, &editor, second)
+                .info
+                .baseline_reused
+        );
+        assert!(prepare_board(&service, &editor, first).info.baseline_reused);
+        let mut metadata = editor.project().metadata().clone();
+        metadata.author.push_str(" changed");
+        editor
+            .apply_mutations("Edit author", vec![Mutation::SetProjectMetadata(metadata)])
+            .unwrap();
+        assert!(!prepare_board(&service, &editor, first).info.baseline_reused);
+    }
+
+    #[test]
+    fn incomplete_and_stale_completions_cannot_seed_a_baseline() {
+        let (mut editor, mut service, board) = baseline_fixture();
+        let mut candidate = prepare_board(&service, &editor, board);
+        candidate.before.checks.complete = false;
+        service.retain(editor.project(), candidate).unwrap();
+        assert!(!prepare_board(&service, &editor, board).info.baseline_reused);
+        let candidate = prepare_board(&service, &editor, board);
+        editor
+            .execute(AddBoard::new(ElementName::new("Other").unwrap()))
+            .unwrap();
+        assert!(matches!(
+            service.retain(editor.project(), candidate),
+            Err(RoutingError::StaleRevision { .. })
+        ));
+        assert!(!prepare_board(&service, &editor, board).info.baseline_reused);
+    }
+
+    #[test]
+    fn save_context_and_project_paths_invalidate_the_baseline() {
+        let (mut editor, mut service, board) = baseline_fixture();
+        let candidate = prepare_board(&service, &editor, board);
+        service.retain(editor.project(), candidate).unwrap();
+        let baseline = service.baseline.clone().unwrap();
+        service.baseline.as_mut().unwrap().context.file =
+            Some(FilePath::new(std::env::temp_dir().join("other-project.lpp")).unwrap());
+        assert!(!prepare_board(&service, &editor, board).info.baseline_reused);
+        service.baseline = Some(baseline.clone());
+        service.baseline.as_mut().unwrap().context.directory =
+            Some(FilePath::new(std::env::temp_dir().join("other-project")).unwrap());
+        assert!(!prepare_board(&service, &editor, board).info.baseline_reused);
+        service.baseline = Some(baseline);
+        let job = service.prepare(&editor, Autoroute::default()).unwrap();
+        let revision = editor.project().revision();
+        // Save updates DATE/TIME text context even without a model mutation.
+        editor
+            .update_derived_data(|project| project.save().map_err(crate::Error::from))
+            .unwrap()
+            .unwrap();
+        assert_eq!(editor.project().revision(), revision);
+        let stale = job.run().unwrap();
+        assert!(matches!(
+            service.retain(editor.project(), stale),
+            Err(RoutingError::StaleContext)
+        ));
+        assert!(!prepare_board(&service, &editor, board).info.baseline_reused);
+    }
+
+    #[test]
+    fn baseline_is_owned_by_one_service_and_comparison_can_share_it() {
+        use crate::commands::RoutingOrder;
+        let (editor, mut service, board) = baseline_fixture();
+        let candidate = prepare_board(&service, &editor, board);
+        service.retain(editor.project(), candidate).unwrap();
+        let other = RoutingService::default();
+        assert!(!prepare_board(&other, &editor, board).info.baseline_reused);
+        let orders = vec![RoutingOrder::ShortestFirst, RoutingOrder::LongestFirst];
+        let trials = service
+            .prepare_comparison(&editor, Autoroute::default(), orders)
+            .unwrap()
+            .run()
+            .unwrap();
+        let comparison = service.retain_comparison(editor.project(), trials).unwrap();
+        assert!(comparison.candidates.iter().all(|entry| {
+            service
+                .candidate(entry.candidate)
+                .unwrap()
+                .info
+                .baseline_reused
+        }));
+    }
 
     #[test]
     fn unsafe_and_incomplete_candidates_refuse_without_live_changes() {

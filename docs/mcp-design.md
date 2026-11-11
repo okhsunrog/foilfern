@@ -389,6 +389,16 @@ Candidate validation reports new DRC warnings by identity as well as errors.
 Review warnings such as undersized drills before applying; warnings alone
 do not block a candidate.
 
+Preparation retains one complete source DRC result per open project session.
+Later candidates may reuse it only for the same project, board, revision and
+save-time/path context. `baseline_reused` reports whether this happened.
+The detached copy still rebuilds planes and air wires before routing. Every
+candidate receives a fresh full after-check, and a non-empty applied patch
+receives a fresh full live-model check. Incomplete checks and stale worker
+completions cannot populate the cache. Discarding a candidate preserves the
+still-current baseline; closing the project drops it. Comparison trials share
+the same mechanism and report `baseline_reused` at the comparison level.
+
 `routing_compare` uses one detached baseline and a fresh copy of it for
 each of two or three distinct builtin initial orders. Pass common
 `routing_prepare` settings under `options` and optional `orders` at the

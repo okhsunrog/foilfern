@@ -1187,6 +1187,10 @@ fn save_time_change_invalidates_physical_text_context_without_a_model_edit() {
     let temp = tempfile::tempdir().unwrap();
     let mut session = board_session(temp.path());
     let prepared = routing::routing_prepare(&mut session, Default::default()).unwrap();
+    assert_eq!(prepared.result["baseline_reused"], false);
+    let cached = routing::routing_prepare(&mut session, Default::default()).unwrap();
+    assert_eq!(cached.result["baseline_reused"], true);
+    assert_eq!(cached.result["validation"], prepared.result["validation"]);
     let id = prepared.result["candidate"].clone();
     let revision = session.project().unwrap().project().revision();
     project::project_save(&mut session, args(json!({}))).unwrap();
@@ -1202,6 +1206,8 @@ fn save_time_change_invalidates_physical_text_context_without_a_model_edit() {
         session.project().unwrap().editor.undo_stack().history(),
         history
     );
+    let fresh = routing::routing_prepare(&mut session, Default::default()).unwrap();
+    assert_eq!(fresh.result["baseline_reused"], false);
 }
 
 #[test]
@@ -1883,6 +1889,8 @@ fn reviewed_edit_rejects_losing_a_plane_connection() {
         })),
     )
     .unwrap();
+    let baseline = routing::routing_prepare(&mut session, args(json!({"nets":["A"]}))).unwrap();
+    assert_eq!(baseline.result["baseline_reused"], false);
     let job = routing::prepare_edit_job(
         &session,
         args(json!({
@@ -1893,6 +1901,7 @@ fn reviewed_edit_rejects_losing_a_plane_connection() {
     let prepared = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
         .unwrap()
         .result;
+    assert_eq!(prepared["baseline_reused"], true);
     let validation = &prepared["validation"];
     assert_eq!(validation["before"]["unrouted"], 1, "{prepared:#}");
     assert_eq!(validation["after"]["unrouted"], 2, "{prepared:#}");

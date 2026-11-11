@@ -33,6 +33,7 @@ pub struct RoutingComparison {
     pub project: Uuid,
     pub board: BoardId,
     pub base_revision: u64,
+    pub baseline_reused: bool,
     pub before: RoutingCheckSummary,
     pub recommended: Option<Uuid>,
     pub candidates: Vec<ComparisonEntry>,
@@ -101,6 +102,7 @@ impl RoutingService {
             self.check_source(project, candidate)?;
         }
         self.check_capacity(trials.candidates.len())?;
+        self.remember_baseline(&trials.candidates[0].0);
         let info = trials.candidates[0].0.info();
         let recommended = trials
             .candidates
@@ -112,6 +114,7 @@ impl RoutingService {
             project: info.project,
             board: info.board,
             base_revision: info.base_revision,
+            baseline_reused: info.baseline_reused,
             before: trials.before,
             recommended,
             candidates: trials
@@ -133,7 +136,7 @@ impl RoutingComparisonJob {
         let source = &mut self.source;
         let board = resolve_board(source.sandbox.project(), self.request.board)?.id();
         let critical = self.request.critical_net_ids(source.sandbox.project())?;
-        let before = capture_routing_state(&mut source.sandbox, board)?;
+        let before = source.capture_before(board)?;
         let mut candidates = Vec::with_capacity(self.orders.len());
         for order in self.orders {
             let mut trial = RoutingSource {
@@ -141,6 +144,8 @@ impl RoutingComparisonJob {
                 project: source.project,
                 base_revision: source.base_revision,
                 source_context: source.source_context.clone(),
+                baseline: None,
+                baseline_reused: source.baseline_reused,
                 sandbox: ProjectEditor::with_source(
                     source.sandbox.project().snapshot().map_err(Error::from)?,
                     Arc::clone(source.sandbox.source()),
