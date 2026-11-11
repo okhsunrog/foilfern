@@ -25,7 +25,7 @@ mod comparison;
 mod copper;
 mod region;
 pub use comparison::{RoutingComparison, RoutingComparisonJob, RoutingTrials};
-pub use copper::{CopperEndpoint, CopperPlan, PlannedTrace};
+pub use copper::{CopperEndpoint, CopperPlan, PlannedPlacement, PlannedTrace};
 pub use region::RegionalRoutingRequest;
 
 /// Bounded session-local storage; callers explicitly discard unwanted candidates.
@@ -102,6 +102,8 @@ pub struct CopperAddition {
     pub removed_traces: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub removed_vias: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub placements: Option<usize>,
     pub vias: usize,
     pub trace_segments: usize,
 }
@@ -272,12 +274,14 @@ impl RoutingJob {
                 };
                 let removed_traces = plan.remove_traces.len();
                 let removed_vias = (!plan.remove_vias.is_empty()).then_some(plan.remove_vias.len());
+                let placements = (!plan.placements.is_empty()).then_some(plan.placements.len());
                 let (vias, trace_segments) = plan.run(sandbox)?;
                 RoutingCandidateDetails::Copper {
                     copper: CopperAddition {
                         base_candidate,
                         removed_traces,
                         removed_vias,
+                        placements,
                         vias,
                         trace_segments,
                     },

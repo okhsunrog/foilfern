@@ -138,6 +138,55 @@ fn explicit_copper_requires_authorization_for_via_attachments() {
 }
 
 #[test]
+fn placement_and_copper_share_preview_apply_and_undo() {
+    use librepcb_mcp::tools::layout::board_get;
+
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let trace = board_edit::trace_add(
+        &mut session,
+        args(json!({"from":"R1.1","to":"R2.1","layer":"top","width":0.2})),
+    )
+    .unwrap()
+    .result["traces"][0]["uuid"]
+        .clone();
+    let before = board_value(&session);
+    let mut plan = json!({"placements":[{"component":"R1","position":{"x":6,"y":10}}]});
+    let job = routing::prepare_copper_job(&session, args(plan.clone())).unwrap();
+    let error = routing::run_job(job).unwrap_err();
+    assert!(error.to_string().contains("protected copper"), "{error}");
+    plan["remove_traces"] = json!([trace]);
+    plan["traces"] = json!([{"from":"R1.1","to":"R2.1","layer":"top","width":0.2}]);
+    let job = routing::prepare_copper_job(&session, args(plan)).unwrap();
+    let trial = routing::run_job(job).unwrap();
+    assert!(trial.info().validation.acceptable);
+    assert_eq!(board_value(&session), before);
+    let candidate = routing::finish_prepare(&mut session, trial).unwrap().result;
+    assert_eq!(candidate["copper"]["placements"], 1);
+    routing::routing_apply(
+        &mut session,
+        args(json!({"candidate":candidate["candidate"]})),
+    )
+    .unwrap();
+    let board = board_get(&session, Default::default()).unwrap().result;
+    let r1 = board["devices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|device| device["designator"] == "R1")
+        .unwrap();
+    assert_eq!(r1["position"], json!({"x":6.0,"y":10.0}));
+    let trace = &board["traces"][0];
+    let moved_anchor = [&trace["from"], &trace["to"]]
+        .into_iter()
+        .find(|anchor| anchor["pad"] == "R1.1")
+        .unwrap();
+    assert_eq!(moved_anchor["position"]["x"], 6.0);
+    session.project_mut().unwrap().editor.undo().unwrap();
+    assert_eq!(board_value(&session), before);
+}
+
+#[test]
 fn explicit_copper_resolves_via_labels_and_applies_as_one_step() {
     let temp = tempfile::tempdir().unwrap();
     let mut session = board_session(temp.path());

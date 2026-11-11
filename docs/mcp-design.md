@@ -376,7 +376,12 @@ is checked against the board as one candidate and applies in one undo step.
 Use `remove_traces` to replace selected existing traces by UUID in the
 same candidate. Use `remove_vias` to replace selected vias by UUID and list
 all their attached traces in `remove_traces`. The other copper keeps its
-geometry and UUIDs. It supports up to 512 vias, paths, points and removals combined.
+geometry and UUIDs. `placements` adds explicit moves and rotations of unlocked
+devices to the same candidate. Each entry names a `component` and supplies an
+absolute `position` in mm and/or `rotation` in degrees. Include the traces that
+must change in `remove_traces` and provide their replacement paths. Unlisted
+traces and vias remain protected. The combined request allows up to 512
+placements, vias, paths, intermediate points and removals.
 Use `base_candidate` to add the explicit geometry to an earlier candidate,
 including a rejected route with a plane split. The combined patch is checked
 against the unchanged live board and remains independently previewable.

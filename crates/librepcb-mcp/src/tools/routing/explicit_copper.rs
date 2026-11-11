@@ -3,7 +3,9 @@
 use std::collections::BTreeMap;
 
 use librepcb_editor::commands::{AddVia, NetRef};
-use librepcb_editor::routing_service::{CopperEndpoint, CopperPlan, PlannedTrace, RoutingJob};
+use librepcb_editor::routing_service::{
+    CopperEndpoint, CopperPlan, PlannedPlacement, PlannedTrace, RoutingJob,
+};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
@@ -11,7 +13,7 @@ use super::{board_edit, candidate_id, routing_error, write};
 use crate::error::{ToolError, ToolResult};
 use crate::resolve;
 use crate::session::Session;
-use crate::units::PointMm;
+use crate::units::{PointMm, angle};
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -33,7 +35,21 @@ pub struct RoutingCopperArgs {
     /// UUIDs of existing vias to replace. List all their traces in remove_traces.
     #[serde(default)]
     pub remove_vias: Vec<String>,
+    /// Moves and rotations of explicitly selected, unlocked board devices.
+    #[serde(default)]
+    pub placements: Vec<PlannedPlacementArg>,
     pub expected_revision: Option<u64>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlannedPlacementArg {
+    /// Component designator or UUID.
+    pub component: String,
+    /// Absolute board position in mm.
+    pub position: Option<PointMm>,
+    /// Absolute board rotation in degrees.
+    pub rotation: Option<f64>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -79,6 +95,7 @@ pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolRes
         + args.traces.len()
         + args.remove_traces.len()
         + args.remove_vias.len()
+        + args.placements.len()
         + args
             .traces
             .iter()
@@ -86,7 +103,7 @@ pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolRes
             .sum::<usize>();
     if !(1..=512).contains(&total) {
         return Err(ToolError::invalid(
-            "Supply between 1 and 512 vias, traces, removals and intermediate points combined.",
+            "Supply between 1 and 512 placements, vias, traces, removals and intermediate points combined.",
         ));
     }
     let open = session.project()?;
@@ -107,6 +124,17 @@ pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolRes
         .remove_vias
         .iter()
         .map(|id| resolve::required_uuid(id, "via"))
+        .collect::<ToolResult<_>>()?;
+    let placements = args
+        .placements
+        .into_iter()
+        .map(|arg| {
+            Ok(PlannedPlacement {
+                component: resolve::component(project, &arg.component)?.0,
+                position: arg.position.map(PointMm::to_point).transpose()?,
+                rotation: arg.rotation.map(angle).transpose()?,
+            })
+        })
         .collect::<ToolResult<_>>()?;
     let net = |name: &str| resolve::net(project, name).map(|(id, _)| NetRef::Id(id));
     let mut labels = BTreeMap::new();
@@ -177,6 +205,7 @@ pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolRes
                 board,
                 remove_traces,
                 remove_vias,
+                placements,
                 vias,
                 traces,
             },

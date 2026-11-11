@@ -53,10 +53,11 @@ EMI performance, enclosure fit or hardware behavior.
   including nets outside the selected scope. Agents can already diagnose a
   local problem, try alternate routes and leave unrelated copper intact.
 - `device_place` moves, rotates and flips a footprint; `board_add` can
-  copy a board. These make trials possible, but placement, mechanical edits,
-  local reroute and checks are not yet one reviewed candidate. Add grouped
-  device moves with locks and affected-copper previews before treating
-  automatic relocation on a routed board as a routine fix.
+  copy a board. `routing_copper_prepare` can move or rotate explicitly selected,
+  unlocked devices and replace affected copper in a single checked candidate.
+  Each candidate takes exact coordinates and paths. Generating placement
+  alternatives within an allowed area and combining mechanical edits with
+  routing still require separate planning.
 - `board_set_outline` replaces the outline with a rectangle (optional corner
   radius) or a straight-edged polygon. A concave polygon can express an
   edge notch for the display cable. `board_polygon_add` can add an internal
