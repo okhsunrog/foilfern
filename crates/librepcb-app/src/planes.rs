@@ -17,8 +17,8 @@
 //!
 //! The input data is extracted under the project lock, the fragments are
 //! calculated without it and applied as derived data (no undo step, like
-//! upstream); a result of an outdated project revision is applied too, but
-//! the layers stay outdated (see `Project::apply_plane_job_result()`). The
+//! upstream). Failed, aborted and outdated results are discarded, keeping
+//! the layers scheduled for rebuild (see `Project::apply_plane_job_result()`). The
 //! air wires are rebuilt afterwards like upstream.
 
 use std::collections::{BTreeSet, HashMap};

@@ -66,6 +66,7 @@ pub type DrcProgressCallback<'a> = &'a (dyn Fn(DrcProgress<'_>) + Sync);
 /// `BoardDesignRuleCheck::Result`).
 #[derive(Debug, Clone, Default)]
 pub struct DrcResult {
+    snapshot: Option<super::job::DrcSnapshot>,
     /// All emitted messages (approved or not).
     pub messages: Vec<DrcMessage>,
     /// Errors of failed checks (empty on success).
@@ -74,6 +75,18 @@ pub struct DrcResult {
     pub quick: bool,
     /// Duration of the check.
     pub elapsed: Duration,
+}
+
+impl DrcResult {
+    /// Whether all full-check jobs finished successfully on an identified snapshot.
+    pub fn is_complete(&self) -> bool {
+        self.snapshot.is_some() && !self.quick && self.errors.is_empty()
+    }
+
+    /// Whether the result belongs to this board and the current project revision.
+    pub fn is_current(&self, project: &Project, board: BoardId) -> bool {
+        self.snapshot.is_some_and(|s| s.matches(project, board))
+    }
 }
 
 /// Returns the maximum allowed arc tolerance when flattening arcs.
@@ -242,6 +255,7 @@ pub fn run_drc(data: &BoardDrcData, progress: DrcProgressCallback<'_>) -> DrcRes
     checker.percent(20);
 
     let mut result = DrcResult {
+        snapshot: Some(data.snapshot),
         quick: data.quick,
         ..DrcResult::default()
     };
@@ -342,7 +356,7 @@ impl Project {
     /// For a full check (not `quick`), all planes and the air wires are
     /// rebuilt first.
     /// Errors of single checks are reported in [`DrcResult::errors`];
-    /// an error is returned only if the input data cannot be extracted.
+    /// an error is returned if preparation fails, including a failed plane rebuild.
     pub fn run_drc(
         &mut self,
         board: BoardId,
@@ -352,33 +366,13 @@ impl Project {
     ) -> Result<DrcResult> {
         progress(DrcProgress::Percent(1));
 
-        // Force rebuilding planes (upstream).
+        let job = self.drc_job(board, settings, quick)?;
         if !quick {
             progress(DrcProgress::Status(&tr!(CTX, "Rebuild planes...")));
-            // Like upstream, errors of single planes do not abort the check:
-            // the calculated fragments are applied anyway.
-            if let Some(job) = self.plane_job(board, None)? {
-                self.apply_plane_job_result(job.run())?;
-            }
         }
+        let prepared = job.run();
         progress(DrcProgress::Percent(7));
-
-        // The "checkForMissingConnections()" check requires up-to-date
-        // air wires.
-        if !quick {
-            self.force_air_wires_rebuild(board)?;
-        }
-        progress(DrcProgress::Percent(10));
-
-        // Copy all relevant data for thread-safe access.
-        let settings = match settings {
-            Some(s) => s.clone(),
-            None => self
-                .board(board)
-                .map(|b| b.settings().drc_settings.clone())
-                .unwrap_or_default(),
-        };
-        let data = BoardDrcData::new(self, board, &settings, quick)?;
+        let data = prepared.apply(self)?;
         progress(DrcProgress::Percent(12));
         Ok(run_drc(&data, progress))
     }
@@ -389,6 +383,7 @@ impl Project {
     /// (upstream modifies the board without undo command and marks the
     /// project as modified).
     ///
+    /// Failed, unidentified or outdated results never change approvals.
     /// Records the approvals of `result` as occurring in this session
     /// (derived data of the board). After a quick check nothing is removed,
     /// since messages of the skipped checks would lose their approvals.
@@ -409,6 +404,9 @@ impl Project {
                 kind: crate::project::EntityKind::Board,
                 uuid: board.0,
             })?;
+        if !result.is_current(self, board) || !result.errors.is_empty() {
+            return Ok(None);
+        }
         let b = &mut self.boards[index];
         let approvals: BTreeSet<_> = result
             .messages
@@ -418,7 +416,7 @@ impl Project {
         b.derived
             .supported_drc_approvals
             .extend(approvals.iter().cloned());
-        if result.quick {
+        if !result.is_complete() {
             return Ok(None);
         }
         let current = crate::application::file_format_version();

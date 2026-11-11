@@ -21,6 +21,7 @@ mod check;
 mod clipper_path_generator;
 mod data;
 mod error;
+mod job;
 mod messages;
 
 pub use check::{DrcProgress, DrcProgressCallback, DrcResult, run_drc};
@@ -31,4 +32,5 @@ pub use data::{
     DrcStrokeText, DrcTrace, DrcVia, DrcZone,
 };
 pub use error::{Error, Result};
+pub use job::{DrcJob, PreparedDrc};
 pub use messages::{DrcMessage, DrcMessageKind};

@@ -437,16 +437,15 @@ impl Project {
     /// [`apply_plane_fragments()`](Self::apply_plane_fragments)). Returns
     /// whether any plane was modified.
     ///
-    /// The processed layers are no longer scheduled for rebuild, unless the
-    /// job was aborted or the project was modified since the job was
-    /// created.
+    /// Failed, aborted or stale jobs are discarded without changing fragments
+    /// or dirty layers. Successful current jobs clear their processed layers.
     pub fn apply_plane_job_result(&mut self, result: PlaneFragments) -> BoardExportResult<bool> {
-        let unchanged = self.revision() == result.revision;
+        if self.revision() != result.revision || !result.finished || !result.errors.is_empty() {
+            return Ok(false);
+        }
         let before = self.revision();
         self.apply_plane_fragments(result.board, result.planes)?;
-        if result.finished && unchanged {
-            self.take_dirty_plane_layers(result.board, &result.layers)?;
-        }
+        self.take_dirty_plane_layers(result.board, &result.layers)?;
         Ok(self.revision() != before)
     }
 

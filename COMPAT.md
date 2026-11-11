@@ -677,6 +677,16 @@ Rendering only; no file is affected.
 
 ## project/board/drc
 
+- **Snapshot safety and failed checks:** preparation rejects changed project
+  revisions before applying planes and extracts data in the same exclusive
+  operation. Failed/incomplete plane rebuilds abort preparation instead of
+  silently checking partial copper. Approval cleanup requires a successful,
+  identified, current result; failed or outdated checks preserve approvals and
+  their version. GUI results from older revisions remain marked outdated.
+  Background plane rebuilds also discard failed, aborted or stale results
+  instead of replacing newer fragments or clearing dirty layers.
+  These reliability checks intentionally strengthen upstream behavior.
+
 - **Iteration order**: the input data keeps net segments, devices, pads,
   vias and junctions in `BTreeMap`s (UUID order) and layers in `BTreeSet`s;
   upstream iterates `QHash`es/`QSet`s. Approvals are identical (upstream

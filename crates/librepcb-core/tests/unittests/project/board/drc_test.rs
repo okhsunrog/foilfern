@@ -275,6 +275,7 @@ fn drc_approvals_update() {
             approvals: initial.clone(),
         }))
         .unwrap();
+    let full = project.run_drc(id, None, false, &no_progress).unwrap();
     let mut quick = full.clone();
     quick.quick = true;
     assert_eq!(project.drc_approvals_update(id, &quick).unwrap(), None);
@@ -314,4 +315,188 @@ fn drc_approvals_update_on_test_project() {
             }
         }
     }
+}
+
+#[test]
+fn incomplete_drc_preserves_approvals_and_version() {
+    use librepcb_core::project::{BoardMutation, Mutation};
+    for version in ["1", "2"] {
+        let mut project = open_project("DRC", "project.lpp");
+        let board = project.boards()[0].id();
+        let approvals = project.board(board).unwrap().drc_approvals().clone();
+        assert!(!approvals.is_empty());
+        project
+            .apply(Mutation::Board(BoardMutation::SetDrcApprovals {
+                board,
+                version: version.parse().unwrap(),
+                approvals: approvals.clone(),
+            }))
+            .unwrap();
+        let mut result = project.run_drc(board, None, false, &no_progress).unwrap();
+        // Register supported approvals without applying the suggested version upgrade.
+        let _ = project.drc_approvals_update(board, &result).unwrap();
+        let supported = project
+            .board(board)
+            .unwrap()
+            .derived()
+            .supported_drc_approvals()
+            .clone();
+        let revision = project.revision();
+        result.messages.clear();
+        result.errors.push("Injected failed check".into());
+        assert!(!result.is_complete());
+        assert_eq!(project.drc_approvals_update(board, &result).unwrap(), None);
+        assert_eq!(
+            project
+                .drc_approvals_update(board, &DrcResult::default())
+                .unwrap(),
+            None
+        );
+        let b = project.board(board).unwrap();
+        assert_eq!(b.drc_approvals(), &approvals);
+        assert_eq!(b.drc_approvals_version().to_string(), version);
+        assert_eq!(b.derived().supported_drc_approvals(), &supported);
+        assert_eq!(project.revision(), revision);
+    }
+}
+
+#[test]
+fn outdated_drc_cannot_clean_approvals() {
+    use librepcb_core::project::{BoardMutation, Mutation};
+    let mut project = open_project("DRC", "project.lpp");
+    let board = project.boards()[0].id();
+    let mut result = project.run_drc(board, None, false, &no_progress).unwrap();
+    let _ = project.drc_approvals_update(board, &result).unwrap();
+    assert!(result.is_complete() && result.is_current(&project, board));
+    let other_board = project.boards()[1].id();
+    assert!(!result.is_current(&project, other_board));
+    assert_eq!(
+        project.drc_approvals_update(other_board, &result).unwrap(),
+        None
+    );
+    let mut settings = project.board(board).unwrap().settings().clone();
+    settings.inner_layer_count += 1;
+    let inverse = project
+        .apply(Mutation::Board(BoardMutation::SetSettings {
+            board,
+            settings: Box::new(settings),
+        }))
+        .unwrap();
+    // Undoing the edit does not make the old revision current again.
+    project.apply(inverse).unwrap();
+    assert!(!result.is_current(&project, board));
+    result.messages.clear();
+    let before = project.board(board).unwrap().drc_approvals().clone();
+    assert_eq!(project.drc_approvals_update(board, &result).unwrap(), None);
+    assert_eq!(project.board(board).unwrap().drc_approvals(), &before);
+}
+
+#[test]
+fn drc_preparation_rejects_edit_during_plane_calculation() {
+    use librepcb_core::project::board::drc::{Error, run_drc};
+    use librepcb_core::project::{BoardMutation, Mutation};
+    use librepcb_core::types::Point;
+    let mut project = open_project("Nested Planes", "project.lpp");
+    let board = project.boards()[0].id();
+    project.run_drc(board, None, false, &no_progress).unwrap();
+    let job = project.drc_job(board, None, false).unwrap();
+    let mut plane = project
+        .board(board)
+        .unwrap()
+        .planes()
+        .values()
+        .next()
+        .unwrap()
+        .clone();
+    plane.set_outline(plane.outline().translated(Point::from_nm(1_000_000, 0)));
+    project
+        .apply(Mutation::Board(BoardMutation::UpdatePlane { board, plane }))
+        .unwrap();
+    let revision = project.revision();
+    let before = project
+        .board(board)
+        .unwrap()
+        .derived()
+        .plane_fragments()
+        .clone();
+    let dirty = project
+        .board(board)
+        .unwrap()
+        .derived()
+        .dirty_plane_layers()
+        .clone();
+    assert!(matches!(
+        job.run().apply(&mut project),
+        Err(Error::StaleSnapshot)
+    ));
+    assert_eq!(project.revision(), revision);
+    assert_eq!(
+        project.board(board).unwrap().derived().plane_fragments(),
+        &before
+    );
+    assert_eq!(
+        project.board(board).unwrap().derived().dirty_plane_layers(),
+        &dirty
+    );
+    let data = project
+        .drc_job(board, None, false)
+        .unwrap()
+        .run()
+        .apply(&mut project)
+        .unwrap();
+    let result = run_drc(&data, &no_progress);
+    assert!(result.is_complete() && result.is_current(&project, board));
+    // An edit after extraction must not authorize approval cleanup either.
+    let mut metadata = project.metadata().clone();
+    metadata.author.push_str(" changed");
+    project
+        .apply(Mutation::SetProjectMetadata(metadata))
+        .unwrap();
+    assert!(!result.is_current(&project, board));
+}
+
+#[test]
+fn drc_reports_failed_plane_calculation() {
+    use librepcb_core::geometry::{Path, Vertex};
+    use librepcb_core::project::board::drc::Error;
+    use librepcb_core::project::{BoardMutation, Mutation};
+    use librepcb_core::types::Point;
+    let mut project = open_project("Nested Planes", "project.lpp");
+    let board = project.boards()[0].id();
+    let mut plane = project
+        .board(board)
+        .unwrap()
+        .planes()
+        .values()
+        .next()
+        .unwrap()
+        .clone();
+    // Valid Length values outside Clipper's supported coordinate range.
+    let x = 5_000_000_000_000_000_000;
+    let mut path = Path::new(vec![
+        Vertex::at(Point::from_nm(x, 0)),
+        Vertex::at(Point::from_nm(x + 1_000_000, 0)),
+        Vertex::at(Point::from_nm(x, 1_000_000)),
+    ]);
+    path.close();
+    plane.set_outline(path);
+    project
+        .apply(Mutation::Board(BoardMutation::UpdatePlane { board, plane }))
+        .unwrap();
+    let revision = project.revision();
+    let before = project
+        .board(board)
+        .unwrap()
+        .derived()
+        .plane_fragments()
+        .clone();
+    assert!(matches!(
+        project.run_drc(board, None, false, &no_progress),
+        Err(Error::PlaneRebuild(_))
+    ));
+    assert_eq!(project.revision(), revision);
+    assert_eq!(
+        project.board(board).unwrap().derived().plane_fragments(),
+        &before
+    );
 }

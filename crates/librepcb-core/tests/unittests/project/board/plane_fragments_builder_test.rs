@@ -122,3 +122,86 @@ fn test_many_threads() {
         }
     }
 }
+
+#[test]
+fn stale_plane_result_preserves_newer_fragments() {
+    use librepcb_core::types::Point;
+    let mut project = open_project("Nested Planes", "project.lpp");
+    let board = project.boards()[0].id();
+    project.rebuild_planes(board, None).unwrap();
+    let old_job = project.plane_job(board, None).unwrap().unwrap();
+    let mut plane = project
+        .board(board)
+        .unwrap()
+        .planes()
+        .values()
+        .next()
+        .unwrap()
+        .clone();
+    plane.set_outline(plane.outline().translated(Point::from_nm(1_000_000, 0)));
+    project
+        .apply(Mutation::Board(BoardMutation::UpdatePlane { board, plane }))
+        .unwrap();
+    project.rebuild_planes(board, None).unwrap();
+    let revision = project.revision();
+    let before = project
+        .board(board)
+        .unwrap()
+        .derived()
+        .plane_fragments()
+        .clone();
+    let dirty = project
+        .board(board)
+        .unwrap()
+        .derived()
+        .dirty_plane_layers()
+        .clone();
+    assert!(!project.apply_plane_job_result(old_job.run()).unwrap());
+    assert_eq!(project.revision(), revision);
+    assert_eq!(
+        project.board(board).unwrap().derived().plane_fragments(),
+        &before
+    );
+    assert_eq!(
+        project.board(board).unwrap().derived().dirty_plane_layers(),
+        &dirty
+    );
+}
+
+#[test]
+fn aborted_and_failed_plane_results_preserve_dirty_layers() {
+    use std::sync::atomic::AtomicBool;
+    let mut project = open_project("Nested Planes", "project.lpp");
+    let board = project.boards()[0].id();
+    for aborted in [true, false] {
+        let job = project.plane_job(board, None).unwrap().unwrap();
+        let mut result = job.run_with_abort(&AtomicBool::new(aborted));
+        if !aborted {
+            result.errors.push("Injected plane failure".into());
+        }
+        let revision = project.revision();
+        let before = project
+            .board(board)
+            .unwrap()
+            .derived()
+            .plane_fragments()
+            .clone();
+        let dirty = project
+            .board(board)
+            .unwrap()
+            .derived()
+            .dirty_plane_layers()
+            .clone();
+        assert!(!dirty.is_empty());
+        assert!(!project.apply_plane_job_result(result).unwrap());
+        assert_eq!(project.revision(), revision);
+        assert_eq!(
+            project.board(board).unwrap().derived().plane_fragments(),
+            &before
+        );
+        assert_eq!(
+            project.board(board).unwrap().derived().dirty_plane_layers(),
+            &dirty
+        );
+    }
+}
