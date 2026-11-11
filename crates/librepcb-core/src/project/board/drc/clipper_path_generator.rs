@@ -1,9 +1,10 @@
 //! Port of libs/librepcb/core/project/board/drc/boardclipperpathgenerator.{h,cpp}.
 //!
 //! Builds Clipper paths (united areas) of the copper and stop mask openings
-//! of the DRC input data. The polygon operations are exactly those of
+//! of the DRC input data. Normal polygon operations are exactly those of
 //! upstream (same fill types and order), so the resulting paths are
-//! identical.
+//! identical. The optional `copper_operands()` comparison API captures inputs
+//! before layer-wide union for the experimental exact backend.
 
 use clipper::PolyFillType::{EvenOdd, NonZero};
 use clipper::{JoinType, PolyFillType};
@@ -21,6 +22,8 @@ use crate::utils::transform::Transform;
 pub struct BoardClipperPathGenerator {
     max_arc_tolerance: PositiveLength,
     paths: ClipperPaths,
+    #[cfg(feature = "experimental-exact-copper")]
+    operands: Option<Vec<crate::utils::rational_union::Operand>>,
 }
 
 impl BoardClipperPathGenerator {
@@ -29,6 +32,8 @@ impl BoardClipperPathGenerator {
         Self {
             max_arc_tolerance,
             paths: ClipperPaths::new(),
+            #[cfg(feature = "experimental-exact-copper")]
+            operands: None,
         }
     }
 
@@ -44,6 +49,13 @@ impl BoardClipperPathGenerator {
     }
 
     fn unite(&mut self, paths: &[ClipperPath], clip_fill: PolyFillType) -> Result<()> {
+        #[cfg(feature = "experimental-exact-copper")]
+        if let Some(operands) = &mut self.operands {
+            operands.push(crate::utils::rational_union::Operand::from_integer(
+                paths, clip_fill,
+            ));
+            return Ok(());
+        }
         clipper_helpers::unite_with(&mut self.paths, paths, EvenOdd, clip_fill)?;
         Ok(())
     }
@@ -156,6 +168,24 @@ impl BoardClipperPathGenerator {
             }
         }
         Ok(())
+    }
+
+    /// Captures the original copper operands and their fill rules, before any
+    /// layer-wide union. Experimental: shape construction/arc flattening itself
+    /// still follows the legacy integer geometry pipeline.
+    #[cfg(feature = "experimental-exact-copper")]
+    pub fn copper_operands(
+        data: &BoardDrcData,
+        layer: Layer,
+        max_arc_tolerance: PositiveLength,
+    ) -> Result<Vec<crate::utils::rational_union::Operand>> {
+        let mut collector = Self::new(max_arc_tolerance);
+        collector.operands = Some(Vec::new());
+        collector.add_copper(data, layer, &[], data.quick)?;
+        // add_copper() only appends to this collection; it cannot disable it.
+        Ok(collector
+            .operands
+            .expect("operand collection remains enabled"))
     }
 
     /// Adds the stop mask openings on the stop mask `layer`, expanded by

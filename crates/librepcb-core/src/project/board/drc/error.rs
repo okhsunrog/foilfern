@@ -11,6 +11,10 @@ use crate::utils::clipper_helpers;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// An experimental exact copper operation failed.
+    #[cfg(feature = "experimental-exact-copper")]
+    #[error(transparent)]
+    ExactCopper(#[from] crate::utils::rational_union::Error),
     /// The project changed while preparing or running the check.
     #[error("The project changed while preparing the DRC. Run the check again.")]
     StaleSnapshot,

@@ -579,3 +579,33 @@ fn drc_preparation_accepts_background_derived_updates() {
         assert!(result.is_current(&project, board));
     }
 }
+
+#[cfg(feature = "experimental-exact-copper")]
+#[test]
+fn experimental_copper_cannot_authorize_approval_cleanup() {
+    use librepcb_core::project::board::drc::run_drc_with_exact_copper;
+    let mut project = open_project("DRC", "project.lpp");
+    let board = project.boards()[0].id();
+    let data = project
+        .drc_job(board, None, false)
+        .unwrap()
+        .run()
+        .apply(&mut project)
+        .unwrap();
+    let approvals = project.board(board).unwrap().drc_approvals().clone();
+    let version = project
+        .board(board)
+        .unwrap()
+        .drc_approvals_version()
+        .clone();
+    let result = run_drc_with_exact_copper(&data, &no_progress);
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert!(!result.is_complete());
+    assert!(!result.is_current(&project, board));
+    assert_eq!(project.drc_approvals_update(board, &result).unwrap(), None);
+    assert_eq!(project.board(board).unwrap().drc_approvals(), &approvals);
+    assert_eq!(
+        project.board(board).unwrap().drc_approvals_version(),
+        &version
+    );
+}

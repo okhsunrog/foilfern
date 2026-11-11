@@ -144,6 +144,7 @@ type Stage2Check<'a> = fn(&Checker<'a>, &BoardDrcData, &CalculatedJobData) -> Me
 
 /// Runs the checks and reports progress.
 struct Checker<'a> {
+    copper: fn(&BoardDrcData, Layer) -> Result<ClipperPaths>,
     progress: DrcProgressCallback<'a>,
     /// Total weight and weight of the finished jobs.
     counter: Mutex<(u32, u32)>,
@@ -192,8 +193,44 @@ fn append(result: &mut DrcResult, other: DrcResult) {
 
 /// Runs the design rule check on `data` (upstream `BoardDesignRuleCheck::run()`).
 pub fn run_drc(data: &BoardDrcData, progress: DrcProgressCallback<'_>) -> DrcResult {
+    run_drc_impl(data, progress, legacy_copper)
+}
+
+fn legacy_copper(data: &BoardDrcData, layer: Layer) -> Result<ClipperPaths> {
+    let mut generator = BoardClipperPathGenerator::new(max_arc_tolerance());
+    generator.add_copper(data, layer, &[], data.quick)?;
+    Ok(generator.take_paths())
+}
+
+/// Research-only comparison using exact layer copper union, rounded once at the
+/// interface to the existing integer checks. Rounding can change topology and
+/// upstream results. This deliberately returns an unidentified result which
+/// cannot be considered complete/current or authorize approval cleanup.
+/// The regular DRC and all export geometry always use the legacy backend.
+#[cfg(feature = "experimental-exact-copper")]
+pub fn run_drc_with_exact_copper(
+    data: &BoardDrcData,
+    progress: DrcProgressCallback<'_>,
+) -> DrcResult {
+    fn exact_copper(data: &BoardDrcData, layer: Layer) -> Result<ClipperPaths> {
+        let operands =
+            BoardClipperPathGenerator::copper_operands(data, layer, max_arc_tolerance())?;
+        let (region, _) = crate::utils::rational_union::union(&operands)?;
+        Ok(region.rounded_paths()?)
+    }
+    let mut result = run_drc_impl(data, progress, exact_copper);
+    result.snapshot = None;
+    result
+}
+
+fn run_drc_impl(
+    data: &BoardDrcData,
+    progress: DrcProgressCallback<'_>,
+    copper: fn(&BoardDrcData, Layer) -> Result<ClipperPaths>,
+) -> DrcResult {
     let timer = Instant::now();
     let checker = Checker {
+        copper,
         progress,
         counter: Mutex::new((0, 0)),
     };
@@ -499,9 +536,7 @@ struct ZoneItem<'a> {
 impl Checker<'_> {
     fn prepare_copper_paths(&self, data: &BoardDrcData, layer: Layer) -> Result<ClipperPaths> {
         self.status(&tr!(CTX, "Prepare '{0}'...", layer.name_tr()));
-        let mut generator = BoardClipperPathGenerator::new(max_arc_tolerance());
-        generator.add_copper(data, layer, &[], data.quick)?;
-        Ok(generator.take_paths())
+        (self.copper)(data, layer)
     }
 
     fn check_copper_copper_clearances(&self, data: &BoardDrcData) -> Messages {

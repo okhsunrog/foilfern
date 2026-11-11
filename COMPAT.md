@@ -677,6 +677,16 @@ Rendering only; no file is affected.
 
 ## project/board/drc
 
+- **Experimental exact copper:** the optional `experimental-exact-copper` Cargo
+  feature exposes a separate comparison API. It unions copper operands using
+  `dashu-ratio` rational vertices, preserving each operand's fill rule and
+  delaying integer rounding until the interface to the existing DRC checks.
+  This changes upstream's intermediate rounding, and the final vertex rounding
+  does not preserve topology in general. Experimental results are deliberately
+  unidentified: they cannot be treated as complete/current or clean approvals.
+  Standard DRC, routing validation, GUI/MCP entry points and manufacturing
+  exports continue to use Clipper, even when the feature is compiled in.
+
 - **Snapshot safety and failed checks:** preparation rejects intervening model
   edits before applying planes and extracts data in the same exclusive operation.
   Concurrent air-wire/plane-fragment updates are allowed because they do not

@@ -34,3 +34,6 @@ pub use data::{
 pub use error::{Error, Result};
 pub use job::{DrcJob, PreparedDrc};
 pub use messages::{DrcMessage, DrcMessageKind};
+
+#[cfg(feature = "experimental-exact-copper")]
+pub use check::run_drc_with_exact_copper;
