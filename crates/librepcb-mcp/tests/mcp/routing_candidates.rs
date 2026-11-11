@@ -135,6 +135,8 @@ fn builtin_candidate_cannot_break_another_nets_plane_connection() {
 
     let temp = tempfile::tempdir().unwrap();
     let mut session = board_session(temp.path());
+    board_edit::design_rules_set(&mut session, args(json!({"inner_layers":1}))).unwrap();
+    let mut plane_contacts = Vec::new();
     for (net, pad, x, y) in [
         ("A", "R1.1", 7.0, 9.025),
         ("A", "R2.1", 14.0, 9.025),
@@ -150,6 +152,9 @@ fn builtin_candidate_cannot_break_another_nets_plane_connection() {
         .unwrap()
         .result["uuid"]
             .clone();
+        if net == "A" {
+            plane_contacts.push(via.clone());
+        }
         board_edit::trace_add(
             &mut session,
             args(json!({
@@ -214,6 +219,36 @@ fn builtin_candidate_cannot_break_another_nets_plane_connection() {
     .unwrap_err();
     assert_eq!(rejected.kind, ErrorKind::Refused);
     assert_eq!(session.project().unwrap().project().revision(), revision);
+
+    let job = routing::prepare_copper_job(
+        &session,
+        args(json!({
+            "base_candidate":candidate["candidate"],
+            "traces":[{"from":plane_contacts[0],"to":plane_contacts[1],"layer":"inner1","width":0.2}]
+        })),
+    )
+    .unwrap();
+    let repaired = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
+        .unwrap()
+        .result;
+    assert_eq!(repaired["copper"]["base_candidate"], candidate["candidate"]);
+    assert_eq!(repaired["validation"]["acceptable"], true, "{repaired}");
+    assert_eq!(repaired["validation"]["before"]["unrouted"], 1);
+    assert_eq!(repaired["validation"]["after"]["unrouted"], 0);
+    assert_eq!(session.project().unwrap().project().revision(), revision);
+    routing::routing_apply(
+        &mut session,
+        args(json!({"candidate":repaired["candidate"]})),
+    )
+    .unwrap();
+    assert!(
+        board_edit::unrouted(&session, Default::default())
+            .unwrap()
+            .result["air_wires"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[test]

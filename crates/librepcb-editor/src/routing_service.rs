@@ -97,6 +97,8 @@ pub enum RoutingCandidateDetails {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CopperAddition {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_candidate: Option<Uuid>,
     pub removed_traces: usize,
     pub vias: usize,
     pub trace_segments: usize,
@@ -149,7 +151,10 @@ enum RoutingWork {
         route: Option<Autoroute>,
     },
     Regional(RegionalRoutingRequest),
-    Copper(CopperPlan),
+    Copper {
+        plan: CopperPlan,
+        base: Option<(Uuid, Vec<Mutation>)>,
+    },
     LocalVia(ConnectLocalVia),
     PlaneStitch(StitchPlaneIsland),
 }
@@ -219,7 +224,7 @@ impl RoutingJob {
             RoutingWork::Builtin(request) => request.board,
             RoutingWork::Edit { edit, .. } => Some(edit.board),
             RoutingWork::Regional(regional) => regional.request.board,
-            RoutingWork::Copper(plan) => Some(plan.board),
+            RoutingWork::Copper { plan, .. } => Some(plan.board),
             RoutingWork::LocalVia(request) => Some(request.board),
             RoutingWork::PlaneStitch(request) => Some(request.board),
         };
@@ -255,11 +260,19 @@ impl RoutingJob {
                     routing: Box::new(routing),
                 }
             }
-            RoutingWork::Copper(plan) => {
+            RoutingWork::Copper { plan, base } => {
+                let base_candidate = match base {
+                    Some((id, mutations)) => {
+                        sandbox.apply_mutations("Replay routing candidate", mutations)?;
+                        Some(id)
+                    }
+                    None => None,
+                };
                 let removed_traces = plan.remove_traces.len();
                 let (vias, trace_segments) = plan.run(sandbox)?;
                 RoutingCandidateDetails::Copper {
                     copper: CopperAddition {
+                        base_candidate,
                         removed_traces,
                         vias,
                         trace_segments,
@@ -411,8 +424,22 @@ impl RoutingService {
         &self,
         editor: &ProjectEditor,
         plan: CopperPlan,
+        base_candidate: Option<Uuid>,
     ) -> Result<RoutingJob, RoutingError> {
-        self.prepare_work(editor, RoutingWork::Copper(plan))
+        let base = if let Some(id) = base_candidate {
+            let candidate = self.candidate(id)?;
+            self.check_source(editor.project(), candidate)?;
+            if candidate.info.board != plan.board {
+                return Err(crate::Error::InvalidArgument(
+                    "The base candidate belongs to a different board.".into(),
+                )
+                .into());
+            }
+            Some((id, candidate.mutations.clone()))
+        } else {
+            None
+        };
+        self.prepare_work(editor, RoutingWork::Copper { plan, base })
     }
 
     /// Captures a connected edit and a builtin trial on the edited board.

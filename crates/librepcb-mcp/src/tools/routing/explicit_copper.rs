@@ -7,7 +7,7 @@ use librepcb_editor::routing_service::{CopperEndpoint, CopperPlan, PlannedTrace,
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use super::{board_edit, routing_error, write};
+use super::{board_edit, candidate_id, routing_error, write};
 use crate::error::{ToolError, ToolResult};
 use crate::resolve;
 use crate::session::Session;
@@ -18,6 +18,9 @@ use crate::units::PointMm;
 pub struct RoutingCopperArgs {
     /// Board name, index or UUID; defaults to the primary board.
     pub board: Option<String>,
+    /// Refine an existing candidate on the same unchanged board, even if it
+    /// failed validation. Review and apply the combined patch separately.
+    pub base_candidate: Option<String>,
     /// Through vias. Labels may be used by traces in the same request.
     #[serde(default)]
     pub vias: Vec<PlannedViaArg>,
@@ -86,6 +89,11 @@ pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolRes
     let project = open.project();
     write::check_revision(project, args.expected_revision)?;
     let board = board_edit::board_id(project, args.board.as_deref())?;
+    let base_candidate = args
+        .base_candidate
+        .as_deref()
+        .map(candidate_id)
+        .transpose()?;
     let remove_traces = args
         .remove_traces
         .iter()
@@ -162,6 +170,7 @@ pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolRes
                 vias,
                 traces,
             },
+            base_candidate,
         )
         .map_err(routing_error)
 }
