@@ -154,3 +154,19 @@ and [session-owned update plans](https://github.com/tangency-labs/pcbcraft/blob/
 are references for grouped edits and reviewed candidates. Retain LibrePCB's
 shared model and existing intent-level tools rather than duplicating their
 project or schematic-to-board synchronization model.
+
+## Local access diagnostics
+
+`routing_diagnose` takes a net name or UUID, optional board, builtin grid/width
+and layer options, and a straight probe length (default 0.6 mm). It reports
+grid access points at up to 16 remaining endpoints, effective width and
+clearance, and the first blocker of each straight probe. Trace blockers include
+their UUIDs and terminal blockers include their board anchors. Straight probes
+are local geometry checks, so they do not establish path reachability.
+
+On the preserved STM32 retry board, `V3V3` at 0.1 mm grid and 0.2 mm width
+had 17 access nodes at `U1.21` and four at the other endpoint. With 0.21 mm
+builtin clearance, six of eight 0.6 mm straight probes from the pad were
+blocked by `GND` and `GPIO_J4_3` traces or a `GPIO_J4_3` via. The result
+establishes local obstruction and rules out an empty access set at either
+endpoint for these settings. It does not determine why the full search fails.

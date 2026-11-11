@@ -427,3 +427,36 @@ fn save_time_change_invalidates_physical_text_context_without_a_model_edit() {
         history
     );
 }
+
+#[test]
+fn diagnostics_report_grid_access_and_local_blockers_without_edits() {
+    let temp = tempfile::tempdir().unwrap();
+    let session = board_session(temp.path());
+    let open = session.project().unwrap();
+    let revision = open.project().revision();
+    let before = board_value(&session);
+    let report = routing::routing_diagnose(
+        &session,
+        args(json!({
+            "net":"A", "grid_pitch":0.1, "trace_width":0.2, "probe_length":2.0
+        })),
+    )
+    .unwrap();
+    assert_eq!(report.result["endpoint_count"], 2);
+    for endpoint in report.result["endpoints"].as_array().unwrap() {
+        assert!(endpoint["access_count"].as_u64().unwrap() > 0);
+        assert_eq!(endpoint["grid_pitch_mm"], 0.1);
+        assert_eq!(endpoint["width_mm"], 0.2);
+        assert!(
+            endpoint["straight_probes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|probe| probe["blocker"]["kind"] == "terminal"
+                    && probe["blocker"]["net"] == "B"),
+            "{endpoint:#}"
+        );
+    }
+    assert_eq!(open.project().revision(), revision);
+    assert_eq!(board_value(&session), before);
+}

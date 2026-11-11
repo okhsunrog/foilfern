@@ -96,3 +96,44 @@ pub fn route_with_progress(
 ) -> Result<RoutingResult> {
     Ok(router::Router::new(problem)?.run(&mut progress))
 }
+
+/// An indexed input object blocking a local clearance probe.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccessBlocker {
+    BoardEdge,
+    Obstacle(usize),
+    Hole(usize),
+    Terminal(TerminalId),
+}
+
+/// One straight-line clearance probe, independent of the path search.
+#[derive(Debug, Clone)]
+pub struct AccessProbe {
+    pub layer: librepcb_core::types::Layer,
+    pub end: librepcb_core::types::Point,
+    pub blocker: Option<AccessBlocker>,
+}
+
+/// Actual grid access points and local probes for a terminal.
+#[derive(Debug, Clone)]
+pub struct TerminalAccess {
+    pub grid_pitch: librepcb_core::types::Length,
+    pub width: librepcb_core::types::PositiveLength,
+    pub access_count: usize,
+    pub access_points: Vec<(librepcb_core::types::Layer, librepcb_core::types::Point)>,
+    pub probes: Vec<AccessProbe>,
+}
+
+/// Inspect the same terminal access rules used by builtin routing. Straight
+/// probes report the first clearance blocker; they do not prove reachability.
+pub fn diagnose_access(
+    problem: &RoutingProblem,
+    terminals: &[TerminalId],
+    reach: librepcb_core::types::PositiveLength,
+) -> Result<Vec<TerminalAccess>> {
+    let mut router = router::Router::new(problem)?;
+    terminals
+        .iter()
+        .map(|&id| router.diagnose_access(id, reach))
+        .collect()
+}

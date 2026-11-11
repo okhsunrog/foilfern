@@ -40,7 +40,7 @@ use crate::tools::write::write;
 use crate::units::{PointMm, angle, length, mm};
 use crate::views;
 
-fn positive(mm: f64, what: &str) -> ToolResult<PositiveLength> {
+pub(crate) fn positive(mm: f64, what: &str) -> ToolResult<PositiveLength> {
     PositiveLength::new(length(mm)?)
         .map_err(|_| ToolError::invalid(format!("{what} must be greater than zero")))
 }

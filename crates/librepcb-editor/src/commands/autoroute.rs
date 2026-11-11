@@ -26,6 +26,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+pub use librepcb_autoroute::{
+    AccessBlocker, Connection as RoutingConnection, TerminalId as RoutingTerminalId,
+    diagnose_access,
+};
 use librepcb_autoroute::{
     Hole, LayerScope, NetId, Obstacle, RoutingProblem, RoutingResult, RoutingRules, Shape,
     Terminal, TerminalId, UnroutedReason,
@@ -238,6 +242,8 @@ pub struct ExtractedProblem {
     pub problem: RoutingProblem,
     /// The anchor of each terminal (index = [`TerminalId`]).
     pub terminal_anchors: Vec<TraceAnchor>,
+    /// Existing trace UUIDs by obstacle index.
+    pub obstacle_traces: BTreeMap<usize, Uuid>,
     /// The nets whose air wires are routed.
     pub nets: BTreeSet<NetSignalId>,
     /// Air wires which could not be given to the router (anchors which are
@@ -684,6 +690,7 @@ pub fn extract_problem(
         }
     }
 
+    let mut obstacle_traces = BTreeMap::new();
     // Net segments.
     let mut junction_terminals: BTreeSet<Uuid> = BTreeSet::new();
     let air_wire_builder = BoardAirWiresBuilder::new(b, p.library(), p.circuit());
@@ -747,6 +754,7 @@ pub fn extract_problem(
             }
         }
         for trace in &seg.traces {
+            obstacle_traces.insert(builder.problem.obstacles.len(), trace.uuid);
             builder.problem.add_obstacle(Obstacle::copper(
                 Shape::Segment {
                     start: trace.p1,
@@ -808,6 +816,7 @@ pub fn extract_problem(
     Ok(ExtractedProblem {
         problem: builder.problem,
         terminal_anchors: builder.terminal_anchors,
+        obstacle_traces,
         nets: routed_nets,
         unsupported,
         via_sizes,

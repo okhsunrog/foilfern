@@ -226,3 +226,107 @@ pub fn routing_discard(
         json!({"candidate":id}),
     )
 }
+
+/// Read-only access diagnostics for one net's remaining air-wire endpoints.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RoutingDiagnoseArgs {
+    /// Net name or UUID.
+    pub net: String,
+    pub board: Option<String>,
+    /// Trace width in mm. Omit to use builtin defaults.
+    pub trace_width: Option<f64>,
+    /// Routing grid in mm. Omit to use builtin defaults.
+    pub grid_pitch: Option<f64>,
+    /// Copper layers allowed for routing. Empty means all.
+    #[serde(default)]
+    pub layers: Vec<String>,
+    /// Length of each straight clearance probe in mm (default 0.6, max 5).
+    pub probe_length: Option<f64>,
+}
+
+pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolResult<ToolOutput> {
+    use librepcb_editor::commands::autoroute::{
+        AccessBlocker, RoutingConnection, diagnose_access, extract_problem,
+    };
+
+    let p = session.project()?.project();
+    let (_, board, b) = crate::resolve::board(p, args.board.as_deref())?;
+    let (net, _) = crate::resolve::net(p, &args.net)?;
+    let reach = args.probe_length.unwrap_or(0.6);
+    if reach > 5.0 {
+        return Err(ToolError::invalid("probe_length must be at most 5 mm."));
+    }
+    let reach = board_edit::positive(reach, "probe_length")?;
+    let options = board_edit::builtin_command(
+        p,
+        board,
+        &board_edit::AutorouteArgs {
+            layers: args.layers,
+            trace_width: args.trace_width,
+            grid_pitch: args.grid_pitch,
+            ..Default::default()
+        },
+    )?;
+    let extracted = extract_problem(p, board, &options, Some(&[net].into_iter().collect()))?;
+    let problem = &extracted.problem;
+    let mm = crate::units::mm;
+    let anchor = |id: librepcb_editor::commands::autoroute::RoutingTerminalId| {
+        super::layout::trace_anchor(
+            p,
+            b,
+            Some(problem.terminals[id.0].position),
+            extracted.terminal_anchors[id.0],
+        )
+    };
+    let ids: std::collections::BTreeSet<_> = problem
+        .connections
+        .iter()
+        .filter_map(|connection| match connection {
+            RoutingConnection::Terminals(a, b) => Some([*a, *b]),
+            RoutingConnection::Net(_) => None,
+        })
+        .flatten()
+        .collect();
+    let selected: Vec<_> = ids.iter().copied().take(16).collect();
+    let access = if selected.is_empty() {
+        Vec::new()
+    } else {
+        diagnose_access(problem, &selected, reach).map_err(librepcb_editor::Error::from)?
+    };
+    let obstacle_net = |id| crate::resolve::net_name(p, librepcb_core::project::NetSignalId(id));
+    let endpoints: Vec<_> = selected.into_iter().zip(access).map(|(id, report)| {
+        let probes: Vec<_> = report.probes.iter().map(|probe| {
+            let blocker = match probe.blocker {
+                None => serde_json::Value::Null,
+                Some(AccessBlocker::BoardEdge) => json!({"kind":"board_edge"}),
+                Some(AccessBlocker::Hole(index)) => json!({"kind":"hole","index":index}),
+                Some(AccessBlocker::Terminal(id)) => {
+                    let terminal = &problem.terminals[id.0];
+                    json!({"kind":"terminal","anchor":anchor(id),"net":obstacle_net(terminal.net),
+                        "clearance_mm":mm(problem.rules.clearance.max(terminal.clearance.unwrap_or_default()))})
+                }
+                Some(AccessBlocker::Obstacle(index)) => {
+                    let item = &problem.obstacles[index];
+                    json!({"kind":"obstacle","index":index,"trace_uuid":extracted.obstacle_traces.get(&index),
+                        "net":item.net.map(obstacle_net),
+                        "clearance_mm":mm(problem.rules.clearance.max(item.clearance.unwrap_or_default()))})
+                }
+            };
+            json!({"layer":probe.layer.id(),"end":crate::views::point(probe.end),"blocker":blocker})
+        }).collect();
+        json!({
+            "anchor":anchor(id), "grid_pitch_mm":mm(report.grid_pitch),"width_mm":mm(*report.width),
+            "access_count":report.access_count,
+            "access_points":report.access_points.iter().map(|(layer, point)|
+                json!({"layer":layer.id(),"position":crate::views::point(*point)})).collect::<Vec<_>>(),
+            "straight_probes":probes,
+        })
+    }).collect();
+    ToolOutput::new("Inspected builtin terminal access and local clearance.", json!({
+        "net":args.net,"board":board,"clearance_mm":mm(problem.rules.clearance),
+        "clearance_source":"maximum board and net-class clearance plus builtin margin",
+        "probe_length_mm":mm(*reach),"unsupported_air_wires":extracted.unsupported.len(),
+        "endpoint_count":ids.len(),"endpoints":endpoints,
+    })).map(|out| out.warn("Straight probes show local clearance only. A blocked probe does not rule out another path."))
+}

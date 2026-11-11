@@ -5,12 +5,12 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::ops::ControlFlow;
 
 use librepcb_core::algorithm::AirWiresBuilder;
-use librepcb_core::types::{Layer, Length, PositiveLength};
+use librepcb_core::types::{Layer, Length, Point, PositiveLength};
 
 use crate::error::{Error, Result};
 use crate::geometry::{Core, P, bounds_of};
 use crate::grid::{Grid, Layered, owner_of, rasterize_trace_item, rasterize_via_item, usable};
-use crate::items::{Item, Items, NO_NET, RouteId};
+use crate::items::{Item, Items, NO_NET, RouteId, Violation};
 use crate::problem::{
     Connection, LayerScope, NetId, PreferredDirection, RoutingProblem, Shape, TerminalId,
 };
@@ -98,6 +98,7 @@ pub(crate) struct Router<'p> {
     factors: Vec<DirFactors>,
     items: Items,
     trace_maps: BTreeMap<i64, Layered>,
+    edge_count: usize,
     via_map: Layered,
     search: Search,
     wires: Vec<Wire>,
@@ -243,6 +244,7 @@ impl<'p> Router<'p> {
                 });
             }
         }
+        let edge_count = items.len();
         for o in &problem.obstacles {
             let (core, radius) = core_of(&o.shape);
             let cl = rules.clearance.max(o.clearance.map_or(0.0, nm));
@@ -364,6 +366,7 @@ impl<'p> Router<'p> {
             factors,
             items,
             trace_maps: BTreeMap::new(),
+            edge_count,
             via_map,
             search: Search::default(),
             wires,
@@ -618,6 +621,104 @@ impl<'p> Router<'p> {
             P::new(pos.x - reach, pos.y - reach),
             P::new(pos.x + reach, pos.y + reach),
         )
+    }
+
+    pub(crate) fn diagnose_access(
+        &mut self,
+        id: TerminalId,
+        reach: PositiveLength,
+    ) -> Result<crate::TerminalAccess> {
+        let t = self
+            .problem
+            .terminals
+            .get(id.0)
+            .ok_or(Error::UnknownTerminal(id.0))?;
+        let net = self
+            .nets
+            .binary_search(&t.net)
+            .map_err(|_| Error::UnknownTerminal(id.0))? as u32;
+        let width = self.width_of(net);
+        let h = (*width).to_nm() / 2;
+        self.ensure_trace_map(h);
+        let nodes = self.terminal_access(id.0, net, h);
+        let cells = self.grid.cells();
+        let point = |p: P| Point::new(Length::new(p.x), Length::new(p.y));
+        let access_points = nodes
+            .iter()
+            .take(16)
+            .map(|(node, _)| {
+                (
+                    self.problem.copper_layers[self.routing[node / cells]],
+                    point(self.grid.point(node % cells)),
+                )
+            })
+            .collect();
+        let mut probes = Vec::new();
+        for &cu in &self.routing {
+            let layer = self.problem.copper_layers[cu];
+            if matches!(&t.layers, LayerScope::Only(layers) if !layers.contains(&layer)) {
+                continue;
+            }
+            for (dx, dy) in [
+                (1, 0),
+                (1, 1),
+                (0, 1),
+                (-1, 1),
+                (-1, 0),
+                (-1, -1),
+                (0, -1),
+                (1, -1),
+            ] {
+                let origin = P::from(t.position);
+                let step = if dx != 0 && dy != 0 {
+                    (nm(*reach) * std::f64::consts::FRAC_1_SQRT_2).round() as i64
+                } else {
+                    (*reach).to_nm()
+                };
+                let end = P::new(
+                    origin.x.saturating_add(dx * step),
+                    origin.y.saturating_add(dy * step),
+                );
+                let blocker = match self.items.check_segment(
+                    (origin, end),
+                    cu,
+                    net,
+                    h as f64,
+                    None,
+                    &mut |_| false,
+                ) {
+                    Ok(()) => None,
+                    Err(Violation::Static(Some(index))) => Some(self.blocker(index)),
+                    Err(_) => Some(crate::AccessBlocker::BoardEdge),
+                };
+                probes.push(crate::AccessProbe {
+                    layer,
+                    end: point(end),
+                    blocker,
+                });
+            }
+        }
+        Ok(crate::TerminalAccess {
+            grid_pitch: Length::new(self.grid.pitch),
+            width,
+            access_count: nodes.len(),
+            access_points,
+            probes,
+        })
+    }
+
+    fn blocker(&self, index: usize) -> crate::AccessBlocker {
+        let Some(index) = index.checked_sub(self.edge_count) else {
+            return crate::AccessBlocker::BoardEdge;
+        };
+        if index < self.problem.obstacles.len() {
+            return crate::AccessBlocker::Obstacle(index);
+        }
+        let index = index - self.problem.obstacles.len();
+        if index < self.problem.holes.len() {
+            return crate::AccessBlocker::Hole(index);
+        }
+        crate::AccessBlocker::Terminal(TerminalId(index - self.problem.holes.len()))
     }
 
     fn check_segment_strict(&self, a: P, b: P, layer: usize, net: u32, h: i64) -> bool {

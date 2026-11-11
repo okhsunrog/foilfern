@@ -70,7 +70,7 @@ impl RTreeObject for Entry {
 pub(crate) enum Violation {
     /// With a static item (obstacle, terminal, hole, board edge), or outside
     /// the board.
-    Static,
+    Static(Option<usize>),
     /// With a route (which could be ripped up).
     Route(RouteId),
 }
@@ -156,12 +156,12 @@ impl Items {
         inside
     }
 
-    fn candidates(&self, lo: P, hi: P, extra: f64) -> impl Iterator<Item = &Item> {
+    fn candidates(&self, lo: P, hi: P, extra: f64) -> impl Iterator<Item = (usize, &Item)> {
         let e = (self.max_keep + extra).ceil() as i64 + 1;
         let env = AABB::from_corners([lo.x - e, lo.y - e], [hi.x + e, hi.y + e]);
         self.tree
             .locate_in_envelope_intersecting(env)
-            .map(|entry| &self.items[entry.index])
+            .map(|entry| (entry.index, &self.items[entry.index]))
     }
 
     /// Checks a trace segment of net `net` with half width `half_width` on
@@ -178,12 +178,12 @@ impl Items {
         on_route: &mut dyn FnMut(RouteId) -> bool,
     ) -> Result<(), Violation> {
         if !self.inside_board(a) || !self.inside_board(b) {
-            return Err(Violation::Static);
+            return Err(Violation::Static(None));
         }
         let bit = 1u64 << layer;
         let lo = P::new(a.x.min(b.x), a.y.min(b.y));
         let hi = P::new(a.x.max(b.x), a.y.max(b.y));
-        for item in self.candidates(lo, hi, half_width) {
+        for (index, item) in self.candidates(lo, hi, half_width) {
             if item.layers & bit == 0 || (item.net == net && net != NO_NET) {
                 continue;
             }
@@ -195,7 +195,7 @@ impl Items {
             };
             if item.core.distance_to_segment(a, b) < keep + half_width {
                 match item.route {
-                    None => return Err(Violation::Static),
+                    None => return Err(Violation::Static(Some(index))),
                     Some(route) => {
                         if !on_route(route) {
                             return Err(Violation::Route(route));
@@ -216,9 +216,9 @@ impl Items {
         on_route: &mut dyn FnMut(RouteId) -> bool,
     ) -> Result<(), Violation> {
         if !self.inside_board(p) {
-            return Err(Violation::Static);
+            return Err(Violation::Static(None));
         }
-        for item in self.candidates(p, p, 0.0) {
+        for (index, item) in self.candidates(p, p, 0.0) {
             if item.route.is_some() && item.route == skip_route {
                 continue;
             }
@@ -232,7 +232,7 @@ impl Items {
             };
             if item.core.distance_to_segment(p, p) < keep {
                 match item.route {
-                    None => return Err(Violation::Static),
+                    None => return Err(Violation::Static(Some(index))),
                     Some(route) => {
                         if !on_route(route) {
                             return Err(Violation::Route(route));

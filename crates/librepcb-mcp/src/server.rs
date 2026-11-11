@@ -885,6 +885,17 @@ impl LibrePcbMcp {
     }
 
     #[tool(
+        description = "Inspect builtin grid access and local clearance blockers at remaining endpoints of one net."
+    )]
+    async fn routing_diagnose(
+        &self,
+        Parameters(args): Parameters<crate::tools::routing::RoutingDiagnoseArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| crate::tools::routing::routing_diagnose(s, args))
+            .await
+    }
+
+    #[tool(
         description = "Preview exact frozen routing mutations and validation, without changing the board. Paginated: offset and limit (1..200). Reports stale candidates."
     )]
     async fn routing_preview(

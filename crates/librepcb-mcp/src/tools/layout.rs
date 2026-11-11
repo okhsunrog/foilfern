@@ -189,7 +189,12 @@ pub fn schematic_get(session: &Session, args: SchematicGetArgs) -> ToolResult<To
     )
 }
 
-fn trace_anchor(p: &Project, board: &Board, position: Option<Point>, anchor: TraceAnchor) -> Value {
+pub(crate) fn trace_anchor(
+    p: &Project,
+    board: &Board,
+    position: Option<Point>,
+    anchor: TraceAnchor,
+) -> Value {
     let position = position.map(views::point);
     match anchor {
         TraceAnchor::Junction(j) => json!({ "junction": j, "position": position }),
