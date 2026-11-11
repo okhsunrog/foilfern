@@ -11,17 +11,16 @@
 //! Costs are integers: 100 per straight step, 141 per diagonal step, scaled
 //! by the preferred direction factor of the layer. Layer changes (vias) cost
 //! the configured via cost. The heuristic is the octile distance to the
-//! bounding box of the targets, weighted by 1.5 (weighted A*: much fewer
-//! expansions, paths at most 1.5 times the optimal cost). States that cost
-//! more than a 90° turn above the best state of the same node are pruned.
+//! bounding box of the targets. It is weighted to reduce expansions.
+//! States sufficiently above the best cost at the same node are pruned.
 //!
 //! The search is multi-source and multi-target: sources and targets carry an
 //! initial/final cost (the stub from a terminal anchor to the grid node) and
 //! the search finishes when no open state can beat the best target reached.
 //!
 //! Soft mode (rip-up): nodes occupied only by routes of other nets are
-//! passable at a high penalty, so the search finds the path that conflicts
-//! with the fewest routes; those are then ripped up.
+//! passable at a high penalty. Optional history discourages crossing locations
+//! where previous paths already displaced other routes.
 //!
 //! The implementation is a hand-written A* over dense arrays (with a
 //! generation stamp instead of clearing them) because generic crates such as
@@ -32,6 +31,7 @@
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
+use crate::congestion::Congestion;
 use crate::grid::{Grid, usable};
 
 /// Direction deltas `(dx, dy)`, counter-clockwise starting east.
@@ -59,8 +59,7 @@ const TURN_90: u32 = 90;
 const CONFLICT: u32 = 3000;
 /// Upper bound of states expanded by one search.
 const MAX_EXPANSIONS: usize = 3_000_000;
-/// Weight of the heuristic in percent (weighted A*: faster, paths at most
-/// this much longer than optimal).
+/// Weight of the heuristic in percent.
 const HEURISTIC_WEIGHT: u32 = 200;
 /// States costing more than this above the best state of their node are
 /// pruned.
@@ -87,6 +86,8 @@ pub(crate) struct Query<'a> {
     pub via_cost: u32,
     pub factors: &'a [DirFactors],
     pub soft: bool,
+    /// Present only for a soft search after learning a conflict.
+    pub congestion: Option<&'a Congestion>,
     /// Source nodes (`layer * cells + cell`) with initial cost.
     pub sources: &'a [(u32, u32)],
     /// Target nodes with final cost.
@@ -231,7 +232,7 @@ impl Search {
             self.stamp[s] = generation;
             self.g[s] = cost;
             self.parent[s] = NONE;
-            let f = cost + heuristic(node as usize % cells);
+            let f = cost.saturating_add(heuristic(node as usize % cells));
             heap.push(Reverse((f, u32::MAX - cost, s as u32)));
         }
 
@@ -251,7 +252,7 @@ impl Search {
             // Dominance pruning: a state much worse than the best state of
             // the same node (in another direction) is not worth expanding.
             if self.node_stamp[node] == generation {
-                if g > self.node_g[node] + DOMINANCE {
+                if g > self.node_g[node].saturating_add(DOMINANCE) {
                     continue;
                 }
                 self.node_g[node] = self.node_g[node].min(g);
@@ -288,14 +289,20 @@ impl Search {
 
             let mut relax = |heap: &mut BinaryHeap<_>, ns: usize, ng: u32, nc: usize| {
                 let nn = ns / STATES_PER_NODE;
-                if self.node_stamp[nn] == generation && ng > self.node_g[nn] + DOMINANCE {
+                if self.node_stamp[nn] == generation
+                    && ng > self.node_g[nn].saturating_add(DOMINANCE)
+                {
                     return;
                 }
                 if self.stamp[ns] != generation || ng < self.g[ns] {
                     self.stamp[ns] = generation;
                     self.g[ns] = ng;
                     self.parent[ns] = s as u32;
-                    heap.push(Reverse((ng + heuristic(nc), u32::MAX - ng, ns as u32)));
+                    heap.push(Reverse((
+                        ng.saturating_add(heuristic(nc)),
+                        u32::MAX - ng,
+                        ns as u32,
+                    )));
                 }
             };
 
@@ -329,7 +336,10 @@ impl Search {
                     }
                     cost += CONFLICT;
                 }
-                let ng = g + cost + turn;
+                if let Some(history) = q.congestion {
+                    cost += history.cost(history.tile(layer, nc));
+                }
+                let ng = g.saturating_add(cost + turn);
                 relax(&mut heap, idx * STATES_PER_NODE + k, ng, nc);
             }
 
@@ -343,7 +353,10 @@ impl Search {
                     record_block(node, c, true, true);
                 } else {
                     if !via_free {
-                        cost += CONFLICT;
+                        cost = cost.saturating_add(CONFLICT);
+                    }
+                    if let Some(history) = q.congestion {
+                        cost = cost.saturating_add(history.cost(history.via_tile(c)));
                     }
                     for l in (0..q.layers).filter(|&l| l != layer) {
                         let idx = l * cells + c;
@@ -359,10 +372,13 @@ impl Search {
                             }
                             extra = CONFLICT;
                         }
+                        if let Some(history) = q.congestion {
+                            extra += history.cost(history.tile(l, c));
+                        }
                         relax(
                             &mut heap,
                             idx * STATES_PER_NODE + NO_DIR,
-                            g + cost + extra,
+                            g.saturating_add(cost).saturating_add(extra),
                             c,
                         );
                     }
@@ -411,6 +427,7 @@ mod tests {
             via_cost: 0,
             factors: &[NEUTRAL],
             soft: false,
+            congestion: None,
             sources: &[(0, 0)],
             targets: &HashMap::from([(2, 0)]),
         };
@@ -431,6 +448,56 @@ mod tests {
                 .map(|sample| sample.to)
                 .collect::<Vec<_>>(),
             [1]
+        );
+    }
+
+    #[test]
+    fn soft_search_switches_to_a_fresh_crossing_after_learning_contention() {
+        let grid = Grid::new(P::new(0, 0), P::new(16, 8), 1);
+        let cell = |x, y| y * grid.nx + x;
+        let (hot, alternative) = (cell(8, 3), cell(8, 5));
+        let mut fixed = vec![FREE; grid.cells()];
+        for y in 0..grid.ny {
+            let i = cell(8, y);
+            if i != hot && i != alternative {
+                fixed[i] = BLOCKED;
+            }
+        }
+        let mut routes = vec![FREE; grid.cells()];
+        routes[hot] = 2;
+        routes[alternative] = 3;
+        let vias = vec![FREE; grid.cells()];
+        let mut query = Query {
+            grid: &grid,
+            layers: 1,
+            trace_fixed: &fixed,
+            trace_routes: &routes,
+            via_fixed: &vias,
+            via_routes: &vias,
+            owner: 1,
+            via_cost: 0,
+            factors: &[NEUTRAL],
+            soft: true,
+            congestion: None,
+            sources: &[(cell(1, 3) as u32, 0)],
+            targets: &HashMap::from([(cell(15, 3) as u32, 0)]),
+        };
+        let mut search = Search::default();
+        let path = search.run(&query, false).unwrap();
+        assert!(path.nodes.contains(&(hot as u32)));
+        let mut history = Congestion::new(grid, 1);
+        for _ in 0..3 {
+            history.record(vec![history.tile(0, hot)]);
+        }
+        query.congestion = Some(&history);
+        let path = search.run(&query, false).unwrap();
+        assert!(path.nodes.contains(&(alternative as u32)));
+        assert!(!path.nodes.contains(&(hot as u32)));
+        query.soft = false;
+        query.congestion = None;
+        assert_eq!(
+            search.run(&query, false).unwrap_err(),
+            SearchFailure::Exhausted
         );
     }
 }

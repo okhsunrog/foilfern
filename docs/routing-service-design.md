@@ -335,8 +335,11 @@ fixed. It ranks initial orders by DRC, connectivity (including critical nets),
 via count and total trace length, retains exact candidates, and recommends a
 candidate without applying it. See [routing_compare](mcp-design.md#reviewed-builtin-routing).
 
-Add corridors and extend the existing rip-up/reroute with accumulated
-congestion costs. Track connected copper islands per net as well as air wires,
+The opt-in congestion history records contested grid tiles after successful
+rip-ups and raises their costs in later soft searches. See [the DC/DC replay](mcp-routing-reliability.md#congestion-history-and-stm32-with-a-buck-converter).
+
+Add corridors and evaluate which conflicts need joint replanning or finer
+local search. Track connected copper islands per net as well as air wires,
 since an air-wire tree can change during routing. Add a disturbance metric
 when comparing alternatives that can change existing copper.
 

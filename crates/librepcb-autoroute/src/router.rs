@@ -7,6 +7,7 @@ use std::ops::ControlFlow;
 use librepcb_core::algorithm::AirWiresBuilder;
 use librepcb_core::types::{Layer, Length, Point, PositiveLength};
 
+use crate::congestion::Congestion;
 use crate::error::{Error, Result};
 use crate::geometry::{Core, P, bounds_of};
 use crate::grid::{Grid, Layered, owner_of, rasterize_trace_item, rasterize_via_item, usable};
@@ -111,6 +112,7 @@ pub(crate) struct Router<'p> {
     edge_count: usize,
     via_map: Layered,
     search: Search,
+    congestion: Option<Congestion>,
     wires: Vec<Wire>,
     routes: Vec<Option<RouteState>>,
     wire_route: Vec<Option<RouteId>>,
@@ -399,6 +401,7 @@ impl<'p> Router<'p> {
             edge_count,
             via_map,
             search: Search::default(),
+            congestion: None,
             wires,
             routes: Vec::new(),
             wire_route: vec![None; n_wires],
@@ -865,6 +868,10 @@ impl<'p> Router<'p> {
             via_cost: self.via_cost,
             factors: &self.factors,
             soft,
+            congestion: self
+                .congestion
+                .as_ref()
+                .filter(|history| soft && history.used_tiles() > 0),
             sources: &source_list,
             targets: &target_costs,
         };
@@ -934,6 +941,7 @@ impl<'p> Router<'p> {
 
         // Soft mode: rip up the routes in the way.
         let mut ripped = Vec::new();
+        let mut contested = Vec::new();
         if soft {
             let mut conflicts = BTreeSet::new();
             let mut collect = |route: RouteId| {
@@ -985,6 +993,28 @@ impl<'p> Router<'p> {
             }
             if conflicts.is_empty() {
                 return (Err(UnroutedReason::NoRipUpConflict), ripped);
+            }
+            if self.problem.rules.congestion_history {
+                // Learn only after the exact check found generated copper to
+                // remove. The search maps locate contention along that path.
+                let history = self
+                    .congestion
+                    .get_or_insert_with(|| Congestion::new(self.grid, self.routing.len()));
+                let routes = &self.trace_maps[&h].routes;
+                for &node in &found.nodes {
+                    if !usable(routes[node as usize], owner_of(wire.net)) {
+                        contested
+                            .push(history.tile((node / cells) as usize, (node % cells) as usize));
+                    }
+                }
+                for pair in found.nodes.windows(2) {
+                    let cell = (pair[0] % cells) as usize;
+                    if pair[0] / cells != pair[1] / cells
+                        && !usable(self.via_map.routes[cell], owner_of(wire.net))
+                    {
+                        contested.push(history.via_tile(cell));
+                    }
+                }
             }
             for id in conflicts {
                 self.rip_up(id, &mut ripped);
@@ -1039,6 +1069,12 @@ impl<'p> Router<'p> {
         }
 
         self.commit(w, width, h, runs, vias, start, end);
+        if !contested.is_empty()
+            && let Some(history) = &mut self.congestion
+        {
+            history.record(contested);
+            self.stats.congestion_tiles = history.used_tiles();
+        }
         (Ok(()), ripped)
     }
 

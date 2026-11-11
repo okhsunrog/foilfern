@@ -148,6 +148,8 @@ pub struct RoutingStats {
     pub searches: usize,
     /// Number of routes ripped up for rerouting.
     pub rip_ups: usize,
+    /// Trace-layer and via tiles recorded as contested by successful rip-up.
+    pub congestion_tiles: usize,
 }
 
 /// Result of [`route()`](crate::route).

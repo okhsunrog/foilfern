@@ -50,6 +50,9 @@ pub struct RoutingPrepareArgs {
     /// Try extra exact-checked exits from nearby pads.
     #[serde(default)]
     pub pad_escape: bool,
+    /// Penalize tiles contested by earlier successful rip-ups in this trial.
+    #[serde(default)]
+    pub congestion_history: bool,
     /// Net names or UUIDs to route first and protect from lower priority nets.
     #[serde(default)]
     pub critical_nets: Vec<String>,
@@ -154,6 +157,7 @@ fn builtin_request(project: &Project, args: RoutingPrepareArgs) -> ToolResult<Au
     let mut command = board_edit::builtin_command(project, board, &options)?;
     command.search_evidence = args.search_evidence;
     command.pad_escape = args.pad_escape;
+    command.congestion_history = args.congestion_history;
     command.critical_nets = critical_nets(project, &args.critical_nets)?;
     Ok(command)
 }
@@ -587,6 +591,9 @@ pub struct RoutingEditRouteArgs {
     /// Try extra exact-checked exits from nearby pads.
     #[serde(default)]
     pub pad_escape: bool,
+    /// Penalize tiles contested by earlier successful rip-ups in this trial.
+    #[serde(default)]
+    pub congestion_history: bool,
     /// Net names or UUIDs to route first and protect from lower priority nets.
     #[serde(default)]
     pub critical_nets: Vec<String>,
@@ -613,6 +620,7 @@ impl RoutingEditRouteArgs {
         )?;
         command.search_evidence = self.search_evidence;
         command.pad_escape = self.pad_escape;
+        command.congestion_history = self.congestion_history;
         command.critical_nets = critical_nets(project, &self.critical_nets)?;
         Ok(command)
     }

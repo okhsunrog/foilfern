@@ -119,6 +119,9 @@ pub struct Autoroute {
     /// Check additional ways to reach the grid from pads.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pad_escape: bool,
+    /// Learn contested locations after successful rip-ups.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub congestion_history: bool,
     /// Initial order within each priority tier; omitted keeps builtin defaults.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub order: Option<RoutingOrder>,
@@ -218,12 +221,22 @@ pub struct AutorouteResult {
     pub vias: usize,
     /// Grid pitch used by the router (nanometers).
     pub grid_pitch: i64,
+    /// Work performed by the builtin search.
+    #[serde(default)]
+    pub effort: RoutingEffort,
     /// Original air wires left unresolved, with the router's attempt evidence.
     #[serde(default)]
     pub failed_requests: Vec<UnroutedAirWire>,
     /// The air wires of the routed nets which remain after routing
     /// (rebuilt from the new copper).
     pub remaining_air_wires: Vec<UnroutedAirWire>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct RoutingEffort {
+    pub searches: usize,
+    pub rip_ups: usize,
+    pub congestion_tiles: usize,
 }
 
 impl Command for Autoroute {
@@ -300,6 +313,11 @@ impl Command for Autoroute {
             traces,
             vias,
             grid_pitch: result.stats.grid_pitch,
+            effort: RoutingEffort {
+                searches: result.stats.searches,
+                rip_ups: result.stats.rip_ups,
+                congestion_tiles: result.stats.congestion_tiles,
+            },
             failed_requests,
             remaining_air_wires,
         })

@@ -453,3 +453,47 @@ The other IDs became stale. Saving and reopening preserved the geometry,
 and the upstream CLI reported only the two pre-existing silkscreen-to-mask
 warnings. This run took about 63 s in the local debug build for the full
 three-order comparison.
+
+### Congestion history and STM32 with a buck converter
+
+Set `congestion_history: true` in `routing_prepare`, in the common options
+of `routing_compare`, or in a nested builtin `route`. Once a soft search
+passes the exact checks and commits a path after displacing other generated
+copper, the router records contested locations along the path. A tile is
+four by four grid cells, with separate maps per trace layer and for via
+sites. Each accepted rip-up contributes at most one hit per tile, capped
+at four hits. A hit adds two straight steps of cost when a subsequent soft
+search enters the tile. Strict search, physical permissions, DRC and
+search limits stay the same. History is reset for each candidate.
+Candidate previews expose `routing.effort` with `searches`, `rip_ups` and
+`congestion_tiles`.
+
+A small regression has two contested crossings. Repeatedly using one
+crossing raises its cost enough for the next soft search to choose the
+other. Strict search still rejects both while they contain other nets'
+copper. A board-level test verifies that an actual rip-up records history
+and remains geometrically valid.
+
+On the STM32G474 copy with an AP63203 5 V to 3.3 V buck, the placed and
+routed power stage (including a local bottom GND polygon) was protected
+while 57 open connections went to the builtin router. Rules: 0.1 mm grid,
+0.2 mm trace width, 0.3/0.6 mm vias and pad escape enabled:
+
+| Order | History | Open air wires | New DRC errors | Vias | Trace length, mm | Rip-ups | History tiles |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `shortest_first` | off | 1 | 0 | 42 | 748.592 | 11 | 0 |
+| `shortest_first` | on | 1 | 0 | 42 | 748.592 | 11 | 14 |
+| `constrained_first` | off | 1 | 0 | 48 | 751.974 | 12 | 0 |
+| `constrained_first` | on | 1 | 0 | 48 | 751.974 | 12 | 16 |
+
+History did not change the outcome on this board. The last air wire
+was `V3V3` at `U1.21`, which remained open even in regional trials.
+A via explicitly placed at (26.0, 18.95) mm and connected on both
+layers closed it without changing the power stage. This is a useful
+case for exact local via-site exploration: learning where previous
+routes conflicted did not recover a missed legal transition.
+
+The portable `routing-baseline.zip` in the experiment deliverables has
+SHA-256 `47876d3e09a84f58d39eea5ff67aa29693467a00c52034a7e5d93e16dcc9619d`.
+It retains the benchmark placement. The separate finished project also
+shifts C10 and its local ground via for assembly clearance.

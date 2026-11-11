@@ -751,6 +751,13 @@ fn rip_up_and_reroute() {
     let rx = r.routes.iter().find(|r| r.net == x).unwrap();
     assert!(rx.segments.iter().any(|s| s.start.y > mm(15.0)));
     assert_clean(&p, &r);
+    assert_eq!(r.stats.congestion_tiles, 0);
+
+    p.rules.congestion_history = true;
+    let with_history = route(&p).unwrap();
+    assert!(with_history.is_complete());
+    assert!(with_history.stats.congestion_tiles > 0);
+    assert_clean(&p, &with_history);
 }
 
 #[test]

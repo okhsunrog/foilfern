@@ -34,7 +34,9 @@
 //!    in the way are ripped up (with routes attached to them) and queued
 //!    again. Each wire can be ripped up only
 //!    [`max_rip_ups`](RoutingRules::max_rip_ups) times, which guarantees
-//!    termination. Failed wires get a final retry at the end.
+//!    termination. Optional congestion history steers later soft searches
+//!    away from grid tiles contested by earlier successful rip-ups.
+//!    Failed wires get a final retry at the end.
 //! 5. **Simplification.** Collinear steps are merged, then points are
 //!    removed greedily where a direct 45°/90° segment is free (checked
 //!    exactly).
@@ -54,6 +56,7 @@
 //! - No via-in-pad; no length matching, differential pairs or plane
 //!   connections.
 
+mod congestion;
 mod error;
 mod geometry;
 mod grid;

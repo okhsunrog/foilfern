@@ -198,6 +198,8 @@ pub struct RoutingRules {
     /// How often a single connection may be ripped up to make room for
     /// another one (rip-up and reroute).
     pub max_rip_ups: u32,
+    /// Penalize previously contested locations in later soft searches.
+    pub congestion_history: bool,
     /// Collect bounded rejected-move samples for failed strict searches.
     pub search_evidence: bool,
     /// Initial air-wire order within each priority tier.
@@ -225,6 +227,7 @@ impl Default for RoutingRules {
             preferred_directions: BTreeMap::new(),
             grid_pitch: None,
             max_rip_ups: 3,
+            congestion_history: false,
             search_evidence: false,
             order: RoutingOrder::Auto,
             pad_escape: false,
