@@ -347,6 +347,12 @@ local search. Track connected copper islands per net as well as air wires,
 since an air-wire tree can change during routing. Add a disturbance metric
 when comparing alternatives that can change existing copper.
 
+`routing_via_prepare` connects two selected same-net anchors on different
+layers with one through via. It accepts an exact location or searches
+near the first anchor and checks both short leads. It preserves existing
+traces and vias and uses the usual candidate review, DRC and undo path.
+See [the STM32 local via replay](mcp-routing-reliability.md#local-via-search).
+
 Acceptance: improve fixed pad-access and congestion cases without DRC regressions;
 measure against unchanged baseline placements, rules and budgets. Include the
 preserved STM32 access case, without assuming a particular fix.

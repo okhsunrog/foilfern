@@ -41,13 +41,13 @@ impl Geometry {
     }
 }
 
-struct Copper {
+pub(super) struct Copper {
     segment: NetSegmentId,
     net: Option<NetSignalId>,
     geometry: Geometry,
 }
 
-fn copper(project: &Project, board: &Board) -> Result<BTreeMap<Uuid, Copper>> {
+pub(super) fn copper(project: &Project, board: &Board) -> Result<BTreeMap<Uuid, Copper>> {
     let mut items = BTreeMap::new();
     for (id, segment) in board.net_segments() {
         let mut record = |uuid: Uuid, geometry| {
@@ -95,6 +95,25 @@ fn copper(project: &Project, board: &Board) -> Result<BTreeMap<Uuid, Copper>> {
         }
     }
     Ok(items)
+}
+
+pub(super) fn ensure_preserved_copper(
+    before: &BTreeMap<Uuid, Copper>,
+    after: &BTreeMap<Uuid, Copper>,
+    selected: &BTreeSet<Uuid>,
+) -> std::result::Result<(), RoutingError> {
+    for (uuid, item) in before {
+        if !selected.contains(uuid)
+            && !after
+                .get(uuid)
+                .is_some_and(|next| next.net == item.net && next.geometry == item.geometry)
+        {
+            return Err(RoutingError::Refused(format!(
+                "Routing would change protected copper {uuid}."
+            )));
+        }
+    }
+    Ok(())
 }
 
 struct RipUp {
@@ -188,17 +207,7 @@ impl RegionalRoutingRequest {
         let project = editor.project();
         let board = crate::commands::resolve_board(project, Some(board_id))?;
         let after = copper(project, board)?;
-        for (uuid, item) in &before {
-            if !selected.contains(uuid)
-                && !after
-                    .get(uuid)
-                    .is_some_and(|next| next.net == item.net && next.geometry == item.geometry)
-            {
-                return Err(RoutingError::Refused(format!(
-                    "Regional routing would change protected copper {uuid}."
-                )));
-            }
-        }
+        ensure_preserved_copper(&before, &after, &selected)?;
         for (uuid, item) in after {
             if (!before.contains_key(&uuid) || selected.contains(&uuid))
                 && !item.geometry.fits(area)

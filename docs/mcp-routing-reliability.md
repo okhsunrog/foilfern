@@ -527,3 +527,28 @@ After routing the remaining nets in the power-first trial, upstream
 LibrePCB found one open GND connection at U1.23. The fixed-copper trial
 still had two open V3V3 connections, including U1.21. Both upstream checks
 reported zero ERC findings and no DRC errors other than the open connections.
+
+### Local via search
+
+On a copy of the completed STM32 buck board, removing the hand-placed
+via and its four lead segments restores the single V3V3 break at U1.21.
+Ordinary builtin routing at 0.1 mm with pad escape leaves it open.
+`routing_via_prepare` connects U1.21 on top to the existing V3V3
+junction at (27.8, 18.9) mm on bottom. The request uses 0.20 mm
+traces and a 0.30/0.60 mm through via.
+
+The exact-position request at (26.0, 18.95) mm and the automatic
+1 mm radius search both produce a checked candidate at that position.
+An exact request on the neighboring foreign-net pad is refused.
+Automatic search samples every 0.05 mm, up to 1.5 mm from the first
+anchor. Each lead is at most 4 mm and uses at most one bend. Exact
+checks keep the drill outside pad copper and allow the via annulus
+to touch copper of the same net. The full board DRC runs on the
+resulting patch, and apply requires improved connectivity on the
+target net and preservation of the existing traces and vias.
+
+Applying the automatic candidate closes the one open connection with
+zero new DRC errors. All existing trace and via UUIDs and geometry
+match the baseline. Undo and redo restore the two board states, and
+save/reopen with rebuilt planes preserves the repair. Upstream LibrePCB
+reports zero ERC findings and only the 17 existing silkscreen warnings.

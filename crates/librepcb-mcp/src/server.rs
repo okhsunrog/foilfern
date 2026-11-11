@@ -974,6 +974,17 @@ impl LibrePcbMcp {
     }
 
     #[tool(
+        description = "Prepare a checked local connection through one via between two existing same-net anchors on distinct copper layers. Search near the first anchor or supply an exact via position in mm. Review with routing_preview and apply with routing_apply."
+    )]
+    async fn routing_via_prepare(
+        &self,
+        Parameters(args): Parameters<crate::tools::routing::RoutingViaPrepareArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.prepare_routing_candidate(move |s| crate::tools::routing::prepare_via_job(s, args))
+            .await
+    }
+
+    #[tool(
         description = "Inspect effective builtin routing rules and their sources, grid access and local clearance blockers for one net. Optionally attach an annotated PNG for one endpoint and copper layer."
     )]
     async fn routing_diagnose(

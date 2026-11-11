@@ -66,6 +66,65 @@ fn board_value(session: &Session) -> Value {
 }
 
 #[test]
+fn local_via_rejects_blocked_site_and_applies_a_checked_alternative() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    board_edit::device_place(
+        &mut session,
+        args(json!({"component":"R2","position":{"x":8,"y":10},"side":"bottom","rotation":90})),
+    )
+    .unwrap();
+    let before = board_value(&session);
+    let revision = session.project().unwrap().project().revision();
+    let board = librepcb_mcp::tools::layout::board_get(&session, Default::default())
+        .unwrap()
+        .result;
+    let foreign_pad = board["devices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|dev| dev["designator"] == "R1")
+        .unwrap()["pads"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|pad| pad["net"] == "B")
+        .unwrap();
+    let request = json!({
+        "from":"R1.1", "from_layer":"top", "to":"R2.1", "to_layer":"bottom",
+        "trace_width":0.2, "via_drill":0.3, "via_size":0.6, "expected_revision":revision,
+    });
+    let mut blocked = request.clone();
+    blocked["position"] = foreign_pad["position"].clone();
+    let blocked = routing::prepare_via_job(&session, args(blocked)).unwrap();
+    assert_eq!(
+        routing::run_job(blocked).unwrap_err().kind,
+        ErrorKind::InvalidArgument
+    );
+
+    let job = routing::prepare_via_job(&session, args(request)).unwrap();
+    let trial = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
+        .unwrap()
+        .result;
+    assert_eq!(board_value(&session), before);
+    assert_eq!(session.project().unwrap().project().revision(), revision);
+    assert_eq!(trial["validation"]["before"]["unrouted"], 2);
+    assert_eq!(trial["validation"]["after"]["unrouted"], 1);
+    assert_eq!(trial["validation"]["acceptable"], true);
+    let selected = trial["candidate"].clone();
+    let preview = routing::routing_preview(&session, args(json!({"candidate":selected})))
+        .unwrap()
+        .result;
+    assert_eq!(preview["via_connection"], trial["via_connection"]);
+    let applied = routing::routing_apply(&mut session, args(json!({"candidate":selected})))
+        .unwrap()
+        .result;
+    assert_eq!(applied["validation"], trial["validation"]);
+    write::undo_redo(&mut session, Default::default(), false).unwrap();
+    assert_eq!(board_value(&session), before);
+}
+
+#[test]
 fn add_graphic_polygon_closes_path_and_supports_undo() {
     let temp = tempfile::tempdir().unwrap();
     let mut session = board_session(temp.path());

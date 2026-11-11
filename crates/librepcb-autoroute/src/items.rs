@@ -215,6 +215,17 @@ impl Items {
         skip_route: Option<RouteId>,
         on_route: &mut dyn FnMut(RouteId) -> bool,
     ) -> Result<(), Violation> {
+        self.check_via_with_own_keep(p, net, skip_route, on_route, |_, item| item.via_keep_own)
+    }
+
+    pub fn check_via_with_own_keep(
+        &self,
+        p: P,
+        net: u32,
+        skip_route: Option<RouteId>,
+        on_route: &mut dyn FnMut(RouteId) -> bool,
+        own_keep: impl Fn(usize, &Item) -> Option<f64>,
+    ) -> Result<(), Violation> {
         if !self.inside_board(p) {
             return Err(Violation::Static(None));
         }
@@ -223,7 +234,7 @@ impl Items {
                 continue;
             }
             let keep = if item.net == net && net != NO_NET {
-                item.via_keep_own
+                own_keep(index, item)
             } else {
                 item.via_keep_other
             };

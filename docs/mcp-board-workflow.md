@@ -183,6 +183,15 @@ local clearance blockers. It accepts the builtin `grid_pitch`,
 of each straight probe. Access points come from the builtin grid. A straight
 probe checks local clearance along one direction.
 
+Use `routing_via_prepare` to connect two same-net anchors on different
+layers through one via. Pass each endpoint and its layer. For example,
+`from: "U1.21"` on `top` can connect to a junction UUID from
+`board_get` on `bottom`. Omit `position` for a search around the first
+anchor, or provide an exact via center in board millimeters. Inspect
+`via_connection` and the patch with `routing_preview`, then apply the
+candidate with `routing_apply`. The preview uses integer nanometers for
+the via position, bends and dimensions.
+
 Use `routing_edit_prepare` for grouped changes to existing copper. In
 `vias`, provide `uuid`, `drill`, and `size` in mm. In `moves`, provide
 `kind` (`via` or `junction`), `uuid`, and an absolute `position` in mm.

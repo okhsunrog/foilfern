@@ -24,6 +24,9 @@ pub enum Error {
     /// The via drill is not smaller than the via diameter.
     #[error("{}", tr!("Autorouter", "The via drill must be smaller than the via diameter."))]
     InvalidVia,
+    /// The local via request uses invalid anchors, layers or search bounds.
+    #[error("{}", tr!("Autorouter", "Local via search requires one net, distinct routing layers and a radius of at most 1.5 mm."))]
+    InvalidLocalVia,
     /// A clearance rule is negative.
     #[error("{}", tr!("Autorouter", "Clearances must not be negative."))]
     NegativeClearance,

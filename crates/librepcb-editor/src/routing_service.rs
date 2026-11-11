@@ -6,7 +6,7 @@
 //! one checks the owning service and source revision, then replays one undo group.
 //! No general plugin abstraction is needed for this first builtin-only slice.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use librepcb_core::fileio::FilePath;
@@ -15,7 +15,9 @@ use librepcb_core::types::Uuid;
 use serde::Serialize;
 
 use crate::ProjectEditor;
-use crate::commands::{Autoroute, AutorouteResult, EditRoutingGeometry};
+use crate::commands::{
+    Autoroute, AutorouteResult, ConnectLocalVia, EditRoutingGeometry, LocalViaConnection,
+};
 use crate::routing_validation::{RoutingSnapshot, RoutingValidation, capture_routing_state};
 
 mod comparison;
@@ -77,6 +79,10 @@ pub enum RoutingCandidateDetails {
         regional: Box<RegionalRoutingRequest>,
         routing: Box<AutorouteResult>,
     },
+    LocalVia {
+        via_request: Box<ConnectLocalVia>,
+        via_connection: LocalViaConnection,
+    },
 }
 
 /// Result of routing selected nets on the edited snapshot.
@@ -102,10 +108,18 @@ impl RoutingCandidateDetails {
     }
 
     fn validate(&self, before: RoutingSnapshot, after: RoutingSnapshot) -> RoutingValidation {
+        let improves = match self {
+            Self::LocalVia { via_connection, .. } => {
+                let target = BTreeSet::from([via_connection.net]);
+                after.unrouted_on(&target) < before.unrouted_on(&target)
+            }
+            _ => true,
+        };
         let mut validation = RoutingValidation::compare(before, after);
         if !matches!(self, Self::Builtin { .. }) && !validation.unrouted_regressions.is_empty() {
             validation.acceptable = false;
         }
+        validation.acceptable &= improves;
         validation
     }
 }
@@ -118,6 +132,7 @@ enum RoutingWork {
         route: Option<Autoroute>,
     },
     Regional(RegionalRoutingRequest),
+    LocalVia(ConnectLocalVia),
 }
 
 /// Date and path placeholders affect physical board text without necessarily
@@ -185,6 +200,7 @@ impl RoutingJob {
             RoutingWork::Builtin(request) => request.board,
             RoutingWork::Edit { edit, .. } => Some(edit.board),
             RoutingWork::Regional(regional) => regional.request.board,
+            RoutingWork::LocalVia(request) => Some(request.board),
         };
         let board = crate::commands::resolve_board(self.source.sandbox.project(), requested)?.id();
         let before = capture_routing_state(&mut self.source.sandbox, board)?;
@@ -214,8 +230,29 @@ impl RoutingJob {
                     routing: Box::new(routing),
                 }
             }
+            RoutingWork::LocalVia(request) => {
+                let existing = |editor: &ProjectEditor| {
+                    let p = editor.project();
+                    region::copper(p, crate::commands::resolve_board(p, Some(board))?)
+                };
+                let protected = existing(sandbox)?;
+                let connection = sandbox.execute(request.clone())?;
+                region::ensure_preserved_copper(&protected, &existing(sandbox)?, &BTreeSet::new())?;
+                RoutingCandidateDetails::LocalVia {
+                    via_request: Box::new(request),
+                    via_connection: connection,
+                }
+            }
         };
         let after = capture_routing_state(sandbox, board)?;
+        if let RoutingCandidateDetails::LocalVia { via_connection, .. } = &details {
+            let target = BTreeSet::from([via_connection.net]);
+            if after.unrouted_on(&target) >= before.unrouted_on(&target) {
+                return Err(RoutingError::Refused(
+                    "Local via did not reduce the number of open connections on its net.".into(),
+                ));
+            }
+        }
         self.source.freeze(board, details, before, after)
     }
 }
@@ -299,6 +336,15 @@ impl RoutingService {
         request: Autoroute,
     ) -> Result<RoutingJob, RoutingError> {
         self.prepare_work(editor, RoutingWork::Builtin(request))
+    }
+
+    /// Captures a local via and short leads for preview and checked apply.
+    pub fn prepare_local_via(
+        &self,
+        editor: &ProjectEditor,
+        request: ConnectLocalVia,
+    ) -> Result<RoutingJob, RoutingError> {
+        self.prepare_work(editor, RoutingWork::LocalVia(request))
     }
 
     /// Captures a checked connected edit for the same preview/apply path.
@@ -432,7 +478,8 @@ impl RoutingService {
         editor.apply_mutations(
             match candidate.info.details {
                 RoutingCandidateDetails::Builtin { .. }
-                | RoutingCandidateDetails::Regional { .. } => {
+                | RoutingCandidateDetails::Regional { .. }
+                | RoutingCandidateDetails::LocalVia { .. } => {
                     librepcb_i18n::tr!("Autorouter", "Autoroute Board")
                 }
                 RoutingCandidateDetails::Edit { .. } => {

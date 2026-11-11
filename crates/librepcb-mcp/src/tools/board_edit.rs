@@ -539,7 +539,11 @@ pub enum EndpointArg {
     Ref(String),
 }
 
-fn endpoint(p: &Project, board: BoardId, arg: &EndpointArg) -> ToolResult<TraceEndpoint> {
+pub(super) fn endpoint(
+    p: &Project,
+    board: BoardId,
+    arg: &EndpointArg,
+) -> ToolResult<TraceEndpoint> {
     match arg {
         EndpointArg::Point(pt) => Ok(TraceEndpoint::Point(pt.to_point()?)),
         EndpointArg::Ref(s) => {

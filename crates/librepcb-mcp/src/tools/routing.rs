@@ -3,7 +3,7 @@
 
 use librepcb_core::project::Project;
 use librepcb_core::types::Uuid;
-use librepcb_editor::commands::{Autoroute, NetRef, PadNeckDown, RoutingOrder};
+use librepcb_editor::commands::{Autoroute, ConnectLocalVia, NetRef, PadNeckDown, RoutingOrder};
 use librepcb_editor::routing_service::{
     RegionalRoutingRequest, RoutingCandidate, RoutingCandidateInfo, RoutingComparisonJob,
     RoutingError, RoutingJob, RoutingTrials,
@@ -189,6 +189,60 @@ pub fn prepare_job(session: &Session, args: RoutingPrepareArgs) -> ToolResult<Ro
     let command = builtin_request(open.project(), args)?;
     open.routing
         .prepare(&open.editor, command)
+        .map_err(routing_error)
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RoutingViaPrepareArgs {
+    /// Existing footprint pad (e.g. U1.21), via UUID, or junction UUID.
+    pub from: String,
+    pub from_layer: String,
+    /// Existing footprint pad, via UUID, or junction UUID on the same net.
+    pub to: String,
+    pub to_layer: String,
+    /// Exact via center in board mm. Omit to search around the first anchor.
+    pub position: Option<crate::units::PointMm>,
+    /// Automatic search radius in mm (default 1, maximum 1.5).
+    pub search_radius: Option<f64>,
+    /// Trace width in mm. Defaults to the net class or board rules.
+    pub trace_width: Option<f64>,
+    pub via_drill: Option<f64>,
+    pub via_size: Option<f64>,
+    pub board: Option<String>,
+    pub expected_revision: Option<u64>,
+}
+
+pub fn prepare_via_job(session: &Session, args: RoutingViaPrepareArgs) -> ToolResult<RoutingJob> {
+    let open = session.project()?;
+    let project = open.project();
+    write::check_revision(project, args.expected_revision)?;
+    let board = board_edit::board_id(project, args.board.as_deref())?;
+    let endpoint = |key| board_edit::endpoint(project, board, &board_edit::EndpointArg::Ref(key));
+    let radius = args.search_radius.unwrap_or(1.0);
+    if radius > 1.5 || (args.position.is_some() && args.search_radius.is_some()) {
+        return Err(ToolError::invalid(
+            "Pass an exact position or a search radius up to 1.5 mm.",
+        ));
+    }
+    let dim = |value: Option<f64>, name| value.map(|v| board_edit::positive(v, name)).transpose();
+    let request = ConnectLocalVia {
+        board,
+        from: endpoint(args.from)?,
+        from_layer: board_edit::copper_layer(&args.from_layer)?,
+        to: endpoint(args.to)?,
+        to_layer: board_edit::copper_layer(&args.to_layer)?,
+        position: args
+            .position
+            .map(crate::units::PointMm::to_point)
+            .transpose()?,
+        search_radius: board_edit::positive(radius, "search_radius")?,
+        trace_width: dim(args.trace_width, "trace_width")?,
+        via_drill: dim(args.via_drill, "via_drill")?,
+        via_size: dim(args.via_size, "via_size")?,
+    };
+    open.routing
+        .prepare_local_via(&open.editor, request)
         .map_err(routing_error)
 }
 

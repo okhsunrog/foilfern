@@ -77,6 +77,7 @@ pub use result::{
     Endpoint, FrontierBlocker, FrontierSample, Progress, Route, RoutingResult, RoutingStats,
     Segment, Unrouted, UnroutedReason, Via,
 };
+pub use router::{LocalViaBridge, LocalViaSite, find_local_via};
 
 static_assertions::assert_impl_all!(RoutingProblem: Send, Sync);
 static_assertions::assert_impl_all!(RoutingResult: Send, Sync);
