@@ -30,7 +30,7 @@ because its tools exist or one board has zero air wires.
 
 | Stage | Result | Dependencies | State |
 | --- | --- | --- | --- |
-| P0 | Identifiable builds, concise responses and measured operation costs | Existing API | In progress; build identity and compact placement responses implemented |
+| P0 | Identifiable builds, concise responses and measured operation costs | Existing API | Complete; [release replay](benchmarks/esp-pd-sink/review/performance/p0/REPORT.md) |
 | P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation first | Planned |
 | P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | Planned; external review prototypes only |
 | P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | Planned; router callback only |
@@ -59,12 +59,12 @@ Done when:
   identity, placement, revision, warnings and a change summary. `component_get`
   provides detailed read-back. Schema and stdio tests cover the option and the
   default full response.
-- Reports identify the board snapshot, request, binary and profile. Cold and
-  repeated `prepare`, `preview` and `apply` are measured separately, with at least
-  five samples per compared condition and the full validation results retained.
-- The original ESP-PD-Sink OLED and competing-route requests reproduce both
-  baseline reuse and rejection of the new plane-fed GND break. No candidate or
-  non-empty apply check is skipped to obtain the improvement.
+- **Verified.** The release report identifies the snapshot, requests, binary
+  and profile. It records five samples per case and cache condition, with
+  separate prepare, preview and apply times and full validation evidence.
+- **Verified.** The original OLED and competing-route requests reproduce
+  baseline reuse. All competing-route candidates expose the plane-fed GND
+  break and refuse apply. Candidate checks and non-empty apply checks ran fresh.
 
 The existing 25.598 → 13.915 s OLED measurement is a small-sample result for
 repeated preparation, not a target for every host or evidence of faster apply.

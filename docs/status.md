@@ -88,7 +88,7 @@ workflow or desktop candidate overlay. The router's cancellation callback is
 not yet wired through the editor/MCP preparation path. `server_info` now reports
 build-time commit, tracked-source state, Cargo profile label and API capability
 version. `device_place` supports compact responses with `include_pads: false`.
-The timing protocol remains open in P0.
+The P0 release replay is complete. P1a is the next delivery step.
 
 ## Evidence and continuation points
 
@@ -99,6 +99,7 @@ The timing protocol remains open in P0.
 | [ESP-PD-Sink selected layout](benchmarks/esp-pd-sink/review/gate/REPORT.md) | OLED, U5, U2, Kelvin, ADC and gate-clamp review batches; zero open connections, three inherited errors and nine warnings | Continue PCB review from the gate-clamp archive; mechanical/silkscreen and remaining engineering findings are not closed |
 | [Release baseline reuse](benchmarks/esp-pd-sink/review/performance/release/REPORT.md) | Repeated OLED prepare: 25.598 → 13.915 s; full validation and normalized geometry agree | Small samples; first preparation and apply are not accelerated |
 | [Competing builtin trial](benchmarks/esp-pd-sink/review/performance/release/BUILTIN.md) | Repeated prepare: 26.553 → 14.667 s; both versions reject a new plane-fed GND break | DRC dominates this local workload; no A* speedup established |
+| [P0 routing stage timings](benchmarks/esp-pd-sink/review/performance/p0/REPORT.md) | Five release samples per case and cache condition. Median OLED prepare 32.202 → 16.731 s, regional prepare 32.713 → 16.936 s. All ten regional applies refused the new GND break | Single host and frozen fixture. Builtin search took a median 35 ms in this bounded case |
 | [Path API](benchmarks/esp-pd-sink/review/path-api/REPORT.md) | All 18 saved pairs replayed; 17 match prototype lengths, one is explicitly unmeasured | Requirements/groups remain external prototypes, not enforced project objects |
 
 Use the original ESP-PD-Sink `inputs.tar.gz` for performance comparisons and the
