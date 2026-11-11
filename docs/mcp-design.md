@@ -211,7 +211,9 @@ position, rotation, side, optional device/footprint choice),
 `device_auto_place` (all unplaced devices inside the outline, placed by
 connectivity),
 `trace_add` (net or pads, layer, width, list of points; endpoints snap to
-pads/vias/junctions at the given coordinates), `via_add`, `trace_remove`,
+pads/vias/junctions at the given coordinates), `trace_update` (batch width
+changes by trace UUIDs or net names, preserving UUIDs and connected geometry,
+with before/after DRC evidence), `via_add`, `trace_remove`,
 `plane_add` (net, layer, outline or whole board, clearance, connect style),
 `design_rules_set`, `planes_rebuild`, `autoroute` (built-in router for
 simple boards, see below), `unrouted` (air wires).

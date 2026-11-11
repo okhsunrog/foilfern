@@ -48,7 +48,8 @@ pub struct MutationApplyArgs {
 pub struct MutationSchemaArgs {
     /// Return the prefilled update mutation of this entity: a designator,
     /// net name, or UUID of a component, net, net class, schematic,
-    /// board, symbol, device (component UUID) or plane.
+    /// board, symbol or plane. A component UUID addresses the circuit
+    /// instance; board-device prefill is not supported.
     #[serde(default)]
     pub entity: Option<String>,
 }

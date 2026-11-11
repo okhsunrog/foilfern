@@ -1,8 +1,10 @@
 //! Board tools: `board_add`, `board_set_outline`, `device_place`,
-//! `device_auto_place`, `trace_add`, `via_add`, `trace_remove`,
+//! `device_auto_place`, `trace_add`, `trace_update`, `via_add`, `trace_remove`,
 //! `plane_add`, `design_rules_set`, `autoroute` (write tools, one undo
 //! group each, see [`write`]), `specctra_import`, `planes_rebuild`
 //! (derived data only), `unrouted` and `specctra_export` (read).
+
+use std::collections::BTreeSet;
 
 use librepcb_core::fileio::{CleanFileNameOptions, FileNameCase, FilePath};
 use librepcb_core::geometry::Path;
@@ -13,9 +15,9 @@ use librepcb_core::types::{
 };
 use librepcb_editor::commands::{
     AddBoard, AddDevice, AddPlane, AddTrace, AddVia, AutoPlaceDevices, Autoroute, BoardSelection,
-    EditBoardSettings, ImportSpecctraSession, MessageLevel, MoveDevice, NetRef, PadRef,
-    PlaneSettings, RemoveBoardItems, ReplaceDevice, SetBoardOutline, SpecctraExportManifest,
-    TraceEndpoint, closed_path, export_specctra_dsn,
+    EditBoardSettings, EditTraceWidths, ImportSpecctraSession, MessageLevel, MoveDevice, NetRef,
+    PadRef, PlaneSettings, RemoveBoardItems, ReplaceDevice, SetBoardOutline,
+    SpecctraExportManifest, TraceEndpoint, closed_path, export_specctra_dsn,
 };
 use librepcb_editor::routing_validation::{
     RoutingSnapshot, RoutingValidation, capture_routing_state,
@@ -585,6 +587,101 @@ pub fn trace_add(session: &mut Session, args: TraceAddArgs) -> ToolResult<ToolOu
             "unrouted": unrouted,
         }),
     )
+}
+
+/// Arguments of `trace_update`.
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TraceUpdateArgs {
+    /// UUIDs of existing traces; can be combined with nets.
+    #[serde(default)]
+    pub uuids: Vec<String>,
+    /// Change all traces of these net names or UUIDs.
+    #[serde(default)]
+    pub nets: Vec<String>,
+    /// New width in millimeters. UUIDs and connected geometry are preserved.
+    pub width: f64,
+    #[serde(default)]
+    pub board: Option<String>,
+    #[serde(default)]
+    pub expected_revision: Option<u64>,
+}
+
+/// `trace_update`: grouped width changes, with applied-model DRC evidence.
+pub fn trace_update(session: &mut Session, args: TraceUpdateArgs) -> ToolResult<ToolOutput> {
+    let p = session.project()?.project();
+    crate::tools::write::check_revision(p, args.expected_revision)?;
+    let (_, board, b) = resolve::board(p, args.board.as_deref())?;
+    let width = positive(args.width, "width")?;
+    let nets = args
+        .nets
+        .iter()
+        .map(|n| resolve::net(p, n).map(|(id, _)| id))
+        .collect::<ToolResult<BTreeSet<_>>>()?;
+    let mut traces = args
+        .uuids
+        .iter()
+        .map(|u| resolve::required_uuid(u, "trace"))
+        .collect::<ToolResult<BTreeSet<_>>>()?;
+    for segment in b.net_segments().values() {
+        if segment.net().is_some_and(|net| nets.contains(&net)) {
+            traces.extend(segment.traces().keys().copied());
+        }
+    }
+    if traces.is_empty() {
+        return Err(ToolError::invalid(
+            "Select existing traces with uuids or nets.",
+        ));
+    }
+    let existing: BTreeSet<_> = b
+        .net_segments()
+        .values()
+        .flat_map(|s| s.traces().keys().copied())
+        .collect();
+    if let Some(missing) = traces.difference(&existing).next() {
+        return Err(ToolError::not_found(format!(
+            "There is no trace {missing} on the board."
+        )));
+    }
+    let before = capture_routing_state(&mut session.project_mut()?.editor, board)?;
+    let revision = session.project()?.project().revision();
+    let done = write(session, "trace_update", Some(revision), |editor| {
+        Ok(editor.execute(EditTraceWidths {
+            board: Some(board),
+            traces: traces.into_iter().collect(),
+            width,
+        })?)
+    })?;
+    let validation = RoutingValidation::compare(
+        before,
+        capture_routing_state(&mut session.project_mut()?.editor, board)?,
+    );
+    let open = session.project()?;
+    let p = open.project();
+    let b = p
+        .board(board)
+        .ok_or_else(|| ToolError::not_found("Board no longer exists."))?;
+    let changed_ids: BTreeSet<_> = done.value.iter().copied().collect();
+    let mut changed = Vec::new();
+    for (segment, data) in b.net_segments() {
+        for trace in data
+            .traces()
+            .values()
+            .filter(|t| changed_ids.contains(&t.uuid()))
+        {
+            changed.push(json!({
+                "uuid": trace.uuid(), "segment": segment.0,
+                "net": data.net().map(|n| resolve::net_name(p, n)),
+                "width": mm(trace.width()), "layer": trace.layer().id(),
+            }));
+        }
+    }
+    let out = done.output(
+        open,
+        format!("Updated {} trace width(s).", changed.len()),
+        json!({"traces": changed}),
+    )?;
+    Ok(with_routing_validation(out, validation))
 }
 
 /// Arguments of `via_add`.
@@ -1319,13 +1416,15 @@ fn with_routing_validation(mut out: ToolOutput, validation: RoutingValidation) -
         out = out.partial();
     }
     if !validation.before.complete || !validation.after.complete {
-        out = out.warn("Full before/after DRC did not complete; the applied routing has not been validated (see validation.before.check_failures and validation.after.check_failures).");
+        out = out.warn("Full before/after DRC did not complete; the applied board change has not been validated (see validation.before.check_failures and validation.after.check_failures).");
     }
     if !validation.netlist_preserved {
-        out = out.warn("Routing changed the circuit netlist. Inspect the result or undo the routing operation.");
+        out = out.warn(
+            "The operation changed the circuit netlist. Inspect the result or undo the operation.",
+        );
     }
     if validation.new_error_count > 0 {
-        out = out.warn(format!("Routing introduced {} unapproved DRC error(s), including {} copper error(s). The result is kept as one undo step; inspect validation.new_errors or undo it.",
+        out = out.warn(format!("The operation introduced {} unapproved DRC error(s), including {} copper error(s). The result is kept as one undo step; inspect validation.new_errors or undo it.",
             validation.new_error_count, validation.new_copper_error_count));
     } else if !validation.drc_clean {
         out = out.warn("The applied board is not DRC clean; see validation.after and run drc_run for all messages.");

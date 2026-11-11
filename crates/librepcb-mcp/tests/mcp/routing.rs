@@ -229,3 +229,139 @@ fn builtin_routing_reports_actual_model_checks_and_preserves_one_undo_step() {
         history + 1
     );
 }
+
+#[test]
+fn grouped_trace_width_edits_preserve_anchors_and_report_clearance_regressions() {
+    use librepcb_core::types::{Length, PositiveLength, Uuid};
+    use librepcb_mcp::ErrorKind;
+    use std::collections::BTreeMap;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let mut session = board_session(tmp.path());
+    let path = tmp.path().join("thin.ses");
+    std::fs::write(&path, candidate(&session, 150_000)).unwrap();
+    board_edit::specctra_import(&mut session, args(json!({"path": path}))).unwrap();
+    let p = session.project().unwrap().project();
+    let board = p.boards()[0].id();
+    let original: BTreeMap<_, _> = p
+        .board(board)
+        .unwrap()
+        .net_segments()
+        .values()
+        .flat_map(|s| s.traces().values().map(|t| (t.uuid(), t.clone())))
+        .collect();
+    let revision = p.revision();
+    let history = session
+        .project()
+        .unwrap()
+        .editor
+        .undo_stack()
+        .history()
+        .len();
+    let updated = board_edit::trace_update(
+        &mut session,
+        args(json!({
+            "nets": ["A", "B"], "width": 0.25, "expected_revision": revision
+        })),
+    )
+    .unwrap();
+    assert_eq!(updated.outcome, Outcome::Complete, "{updated:?}");
+    assert_eq!(updated.result["traces"].as_array().unwrap().len(), 2);
+    assert_eq!(updated.result["validation"]["resolved_error_count"], 2);
+    assert_eq!(updated.result["validation"]["drc_clean"], true);
+    assert_eq!(updated.result["validation"]["netlist_preserved"], true);
+    let p = session.project().unwrap().project();
+    for trace in p
+        .board(board)
+        .unwrap()
+        .net_segments()
+        .values()
+        .flat_map(|s| s.traces().values())
+    {
+        let mut expected = original[&trace.uuid()].clone();
+        expected.set_width(PositiveLength::new(Length::from_mm(0.25).unwrap()).unwrap());
+        assert_eq!(trace, &expected);
+    }
+    assert_eq!(
+        session
+            .project()
+            .unwrap()
+            .editor
+            .undo_stack()
+            .history()
+            .len(),
+        history + 1
+    );
+    let noop = board_edit::trace_update(
+        &mut session,
+        args(json!({"nets": ["A", "B"], "width": 0.25})),
+    )
+    .unwrap();
+    assert_eq!(noop.result["traces"], json!([]));
+    assert_eq!(
+        session
+            .project()
+            .unwrap()
+            .editor
+            .undo_stack()
+            .history()
+            .len(),
+        history + 1
+    );
+
+    let uuid = updated.result["traces"][0]["uuid"].as_str().unwrap();
+    let too_wide =
+        board_edit::trace_update(&mut session, args(json!({"uuids": [uuid], "width": 6}))).unwrap();
+    assert_eq!(too_wide.outcome, Outcome::Partial, "{too_wide:?}");
+    assert_eq!(too_wide.result["unrouted_after"], 0);
+    assert!(
+        too_wide.result["validation"]["new_copper_error_count"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+    write::undo_redo(&mut session, Default::default(), false).unwrap();
+
+    let before = session
+        .project()
+        .unwrap()
+        .project()
+        .board(board)
+        .unwrap()
+        .net_segments()
+        .clone();
+    let current_revision = session.project().unwrap().project().revision();
+    for (value, kind) in [
+        (
+            json!({"uuids": [uuid, Uuid::new_random()], "width": 0.3}),
+            ErrorKind::NotFound,
+        ),
+        (
+            json!({"uuids": [uuid], "width": 0.3, "expected_revision": revision}),
+            ErrorKind::StaleRevision,
+        ),
+        (
+            json!({"uuids": [uuid], "width": 0}),
+            ErrorKind::InvalidArgument,
+        ),
+    ] {
+        let error = board_edit::trace_update(&mut session, args(value)).unwrap_err();
+        assert_eq!(error.kind, kind);
+        let p = session.project().unwrap().project();
+        assert_eq!(p.board(board).unwrap().net_segments(), &before);
+        assert_eq!(p.revision(), current_revision);
+    }
+    write::undo_redo(&mut session, Default::default(), false).unwrap();
+    let p = session.project().unwrap().project();
+    assert!(
+        p.board(board)
+            .unwrap()
+            .net_segments()
+            .values()
+            .flat_map(|s| s.traces().values())
+            .all(|t| t == &original[&t.uuid()])
+    );
+    write::undo_redo(&mut session, Default::default(), true).unwrap();
+    let drc = librepcb_mcp::tools::output::drc_run(&mut session, Default::default()).unwrap();
+    assert_eq!(drc.result["errors"], 0, "{drc:?}");
+}

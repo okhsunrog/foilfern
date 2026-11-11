@@ -6,7 +6,7 @@
 //! libs/librepcb/editor/project/cmd/cmdcombineboardnetsegments,
 //! cmdboardsplitnetline, cmdremoveboarditems, cmdboardplaneadd,
 //! cmdboardplaneedit, cmdboardpolygonadd, cmdboardholeadd, cmdboardzoneadd,
-//! cmdboardstroketextadd and cmdboardedit (`.{h,cpp}`).
+//! cmdboardstroketextadd, cmdboardedit and cmdboardnetlineedit (`.{h,cpp}`).
 //!
 //! Differences to upstream: traces are given as anchors and points instead
 //! of mouse clicks (no snapping); segments are combined with the element
@@ -1264,6 +1264,62 @@ impl Command for SetBoardOutline {
             item: BoardItem::Polygon(polygon),
         }))?;
         Ok(uuid)
+    }
+}
+
+/// Changes widths of existing traces as one command (upstream net-line
+/// property edits). UUIDs, anchors, layers and net membership stay intact.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct EditTraceWidths {
+    #[serde(default)]
+    pub board: Option<BoardId>,
+    pub traces: Vec<Uuid>,
+    pub width: PositiveLength,
+}
+
+impl Command for EditTraceWidths {
+    type Output = Vec<Uuid>;
+
+    fn text(&self) -> String {
+        tr!("librepcb::editor::CmdBoardNetLineEdit", "Edit trace")
+    }
+
+    fn execute(self, tx: &mut Transaction<'_>) -> Result<Self::Output> {
+        if self.traces.is_empty() {
+            return Err(Error::InvalidArgument("No traces selected.".into()));
+        }
+        let board = board_ref(tx, self.board)?;
+        let b = resolve::board(tx.project(), Some(board))?;
+        let mut requested: BTreeSet<_> = self.traces.into_iter().collect();
+        let mut updates = Vec::new();
+        let mut changed = Vec::new();
+        for (segment, data) in b.net_segments() {
+            let mut elements = BoardSegmentElements::default();
+            for trace in data.traces().values() {
+                if requested.remove(&trace.uuid()) && trace.width() != self.width {
+                    let mut trace = trace.clone();
+                    trace.set_width(self.width);
+                    changed.push(trace.uuid());
+                    elements.traces.push(trace);
+                }
+            }
+            if !elements.traces.is_empty() {
+                updates.push(BoardMutation::UpdateNetSegmentElements {
+                    segment: BoardNetSegmentRef {
+                        board,
+                        segment: *segment,
+                    },
+                    elements,
+                });
+            }
+        }
+        if let Some(missing) = requested.first() {
+            return Err(Error::not_found("Trace", missing));
+        }
+        for update in updates {
+            tx.apply(brd(update))?;
+        }
+        Ok(changed)
     }
 }
 

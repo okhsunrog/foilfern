@@ -73,6 +73,11 @@ Auto uses an installed Freerouting executable when supported and otherwise
 uses the built-in router. Net and layer filters apply only to the built-in
 router. `specctra_export` and `specctra_import` support external routing.
 Use `trace_add`, `via_add` and `trace_remove` for targeted routing changes.
+Use `trace_update` to change existing widths in one undo step, for example
+`{"nets":["VCC"],"width":0.2}` or `{"uuids":["<trace UUID>"],"width":0.25}`.
+It preserves trace identities, anchors and layers. Inspect its before/after
+validation: increasing width can remove width errors while adding clearance
+errors. Undo a regressing change rather than assuming wider copper is valid.
 Check `unrouted` after routing; a completed tool call does not establish
 that every connection was routed.
 

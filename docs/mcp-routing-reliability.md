@@ -38,6 +38,13 @@ violations identified. A 0.25 mm candidate passes. This test does not need
 Java or execute Freerouting; it isolates the import and validation boundary.
 The existing external-router suite exercises the subprocess when installed.
 
+`trace_update` changes widths of selected UUIDs or nets as one undo group,
+preserving trace identities and anchors. Its regression scenario repairs
+the thin SES candidate, then deliberately widens a trace into neighboring
+copper. The second change must report new clearance errors and `partial`.
+Invalid selections and stale revisions leave geometry and history unchanged;
+repeating the same width does not add an undo entry.
+
 ## Applied-result contract
 
 `autoroute` (both backends) and `specctra_import` return `result.validation`:
@@ -72,9 +79,8 @@ comparison explicit. Do not infer a physical regression from counts alone.
 
 ## Next work
 
-1. Add grouped trace-width, via-size and connected geometry edits with one
-   undo step and the same before/after evidence. Widening traces must expose
-   any resulting clearance violations.
+1. Extend the grouped trace-width editing with via-size and connected
+   geometry edits, using one undo step and the same before/after evidence.
 2. Add revision-bound preview/apply for expensive routing, device changes
    and large moves. Review the exact candidate before committing it.
 3. Fix selected-device pin resolution before PCB placement, expose effective

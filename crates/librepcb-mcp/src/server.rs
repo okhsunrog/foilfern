@@ -30,7 +30,7 @@ use crate::session::{Session, absolute_path};
 use crate::tools::board_edit::{
     AutorouteArgs, AutoroutePlan, BoardAddArgs, BoardArgs, BoardSetOutlineArgs, DesignRulesSetArgs,
     DeviceAutoPlaceArgs, DevicePlaceArgs, PlaneAddArgs, SpecctraExportArgs, SpecctraImportArgs,
-    TraceAddArgs, TraceRemoveArgs, ViaAddArgs,
+    TraceAddArgs, TraceRemoveArgs, TraceUpdateArgs, ViaAddArgs,
 };
 use crate::tools::circuit::{ComponentGetArgs, NetListArgs};
 use crate::tools::import::LibraryImportArgs;
@@ -743,6 +743,16 @@ impl LibrePcbMcp {
         Parameters(args): Parameters<TraceAddArgs>,
     ) -> Result<CallToolResult, McpError> {
         self.run(move |s| board_edit::trace_add(s, args)).await
+    }
+
+    #[tool(
+        description = "Change the width of existing traces, selected by UUIDs or nets, in one undo step. Preserves trace UUIDs and connected geometry; returns before/after DRC and reports regressions as partial."
+    )]
+    async fn trace_update(
+        &self,
+        Parameters(args): Parameters<TraceUpdateArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| board_edit::trace_update(s, args)).await
     }
 
     #[tool(description = "Add a through-hole via of a net (traces at its position connect).")]
