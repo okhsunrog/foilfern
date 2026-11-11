@@ -364,6 +364,10 @@ ID in `unrouted_regressions` and includes names, before/after counts and
 sampled air-wire endpoints in mm in `unrouted_regression_details`. These
 endpoints describe the rebuilt connection tree and help locate lost plane
 contacts. The sample covers up to 20 nets and eight air wires per net.
+`validation.connectivity_progress` reports `improved`, `unchanged`, or
+`regressed` independently of `acceptable`. A regression on any net takes
+precedence. `unrouted_improvements` lists up to 20 nets with their names and
+counts before and after, so a caller can tell whether the target net improved.
 
 `routing_copper_prepare` previews an explicit batch of vias and trace paths.
 Give each new via a label and use `{"via":"label"}` as a trace endpoint;

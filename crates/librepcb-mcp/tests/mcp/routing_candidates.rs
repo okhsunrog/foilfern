@@ -121,6 +121,11 @@ fn explicit_copper_requires_authorization_for_via_attachments() {
     assert_eq!(board_value(&session), before);
     let candidate = routing::finish_prepare(&mut session, trial).unwrap().result;
     assert_eq!(candidate["copper"]["removed_vias"], 1);
+    let validation = &candidate["validation"];
+    assert_eq!(validation["connectivity_progress"], "improved");
+    assert_eq!(validation["unrouted_improvements"][0]["name"], "A");
+    assert_eq!(validation["unrouted_improvements"][0]["before"], 1);
+    assert_eq!(validation["unrouted_improvements"][0]["after"], 0);
     routing::routing_apply(
         &mut session,
         args(json!({"candidate":candidate["candidate"]})),
@@ -183,6 +188,10 @@ fn explicit_copper_resolves_via_labels_and_applies_as_one_step() {
     assert_eq!(candidate["validation"]["acceptable"], true, "{candidate}");
     assert_eq!(candidate["validation"]["before"]["unrouted"], 1);
     assert_eq!(candidate["validation"]["after"]["unrouted"], 1);
+    assert_eq!(
+        candidate["validation"]["connectivity_progress"],
+        "unchanged"
+    );
     assert!(candidate["validation"]["new_warning_count"].is_null());
     assert_eq!(session.project().unwrap().project().revision(), revision);
     assert_eq!(board_value(&session), before);
@@ -262,6 +271,8 @@ fn builtin_candidate_cannot_break_another_nets_plane_connection() {
     .result;
     let validation = &candidate["validation"];
     assert_eq!(validation["new_copper_error_count"], 0, "{candidate:#}");
+    assert_eq!(validation["connectivity_progress"], "regressed");
+    assert_eq!(validation["unrouted_improvements"][0]["name"], "B");
     assert_eq!(
         validation["unrouted_regressions"].as_array().unwrap().len(),
         1,

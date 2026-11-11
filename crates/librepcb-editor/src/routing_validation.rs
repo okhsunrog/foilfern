@@ -76,6 +76,25 @@ pub struct RoutingRegression {
     pub air_wires: Vec<RoutingGap>,
 }
 
+/// Direction of the per-net connectivity changes. DRC is reported separately.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConnectivityProgress {
+    Improved,
+    #[default]
+    Unchanged,
+    Regressed,
+}
+
+/// A net with fewer open connections after rebuilding the board.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RoutingImprovement {
+    pub net: NetSignalId,
+    pub name: String,
+    pub before: usize,
+    pub after: usize,
+}
+
 impl RoutingSnapshot {
     pub(crate) fn non_connectivity_errors(&self) -> usize {
         self.errors.len()
@@ -100,6 +119,12 @@ pub struct RoutingValidation {
     pub drc_clean: bool,
     pub new_error_count: usize,
     pub new_copper_error_count: usize,
+    /// A regression on any net takes precedence over gains elsewhere.
+    #[serde(default)]
+    pub connectivity_progress: ConnectivityProgress,
+    /// First 20 nets whose rebuilt air-wire count decreased.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unrouted_improvements: Vec<RoutingImprovement>,
     /// Nets whose rebuilt air-wire count increased.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub unrouted_regressions: Vec<NetSignalId>,
@@ -297,6 +322,28 @@ impl RoutingValidation {
                 })
             })
             .collect();
+        let unrouted_improvements: Vec<_> = before
+            .unrouted_examples
+            .iter()
+            .filter_map(|(id, (name, _))| {
+                let remaining = after.unrouted_by_net.get(id).copied().unwrap_or(0);
+                let initial = before.unrouted_by_net[id];
+                (remaining < initial).then(|| RoutingImprovement {
+                    net: *id,
+                    name: name.clone(),
+                    before: initial,
+                    after: remaining,
+                })
+            })
+            .take(MAX_REGRESSION_NETS)
+            .collect();
+        let connectivity_progress = if !unrouted_regressions.is_empty() {
+            ConnectivityProgress::Regressed
+        } else if !unrouted_improvements.is_empty() {
+            ConnectivityProgress::Improved
+        } else {
+            ConnectivityProgress::Unchanged
+        };
         Self {
             acceptable: before.checks.complete
                 && after.checks.complete
@@ -306,6 +353,8 @@ impl RoutingValidation {
             netlist_preserved,
             new_error_count: new_errors.len(),
             new_copper_error_count: new_errors.iter().filter(|e| e.copper).count(),
+            connectivity_progress,
+            unrouted_improvements,
             unrouted_regressions,
             unrouted_regression_details,
             resolved_error_count: before
