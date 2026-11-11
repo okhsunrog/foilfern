@@ -100,6 +100,12 @@ pub(crate) struct Found {
     pub nodes: Vec<u32>,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum SearchFailure {
+    Exhausted,
+    Budget,
+}
+
 /// Reusable search buffers.
 #[derive(Debug, Default)]
 pub(crate) struct Search {
@@ -110,11 +116,14 @@ pub(crate) struct Search {
     node_g: Vec<u32>,
     node_stamp: Vec<u32>,
     generation: u32,
-    pub expansions: usize,
 }
 
 impl Search {
-    pub fn run(&mut self, q: &Query<'_>) -> Option<Found> {
+    pub fn run(&mut self, q: &Query<'_>) -> Result<Found, SearchFailure> {
+        self.run_with_limit(q, MAX_EXPANSIONS)
+    }
+
+    fn run_with_limit(&mut self, q: &Query<'_>, limit: usize) -> Result<Found, SearchFailure> {
         let cells = q.grid.cells();
         let nodes = cells * q.layers;
         let states = nodes * STATES_PER_NODE;
@@ -133,7 +142,7 @@ impl Search {
             self.generation = 1;
         }
         if q.sources.is_empty() || q.targets.is_empty() {
-            return None;
+            return Err(SearchFailure::Exhausted);
         }
 
         // Target bounding box in grid coordinates for the heuristic.
@@ -178,7 +187,7 @@ impl Search {
         }
 
         let mut best: Option<(u32, u32)> = None; // (total cost, state)
-        self.expansions = 0;
+        let mut expansions = 0;
         while let Some(Reverse((f, inv_g, s))) = heap.pop() {
             if best.is_some_and(|(cost, _)| f >= cost) {
                 break;
@@ -201,8 +210,8 @@ impl Search {
                 self.node_stamp[node] = generation;
                 self.node_g[node] = g;
             }
-            self.expansions += 1;
-            if self.expansions > MAX_EXPANSIONS {
+            expansions += 1;
+            if expansions > limit {
                 break;
             }
             if let Some(&extra) = q.targets.get(&(node as u32)) {
@@ -291,7 +300,13 @@ impl Search {
             }
         }
 
-        let (_, goal) = best?;
+        let Some((_, goal)) = best else {
+            return Err(if expansions > limit {
+                SearchFailure::Budget
+            } else {
+                SearchFailure::Exhausted
+            });
+        };
         let mut nodes = Vec::new();
         let mut s = goal;
         while s != NONE {
@@ -302,6 +317,43 @@ impl Search {
             s = self.parent[s as usize];
         }
         nodes.reverse();
-        Some(Found { nodes })
+        Ok(Found { nodes })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::geometry::P;
+    use crate::grid::{BLOCKED, FREE};
+
+    #[test]
+    fn distinguishes_search_budget_from_exhausted_frontier() {
+        let grid = Grid::new(P::new(0, 0), P::new(2, 0), 1);
+        let mut query = Query {
+            grid: &grid,
+            layers: 1,
+            trace_fixed: &[FREE; 3],
+            trace_routes: &[FREE; 3],
+            via_fixed: &[FREE; 3],
+            via_routes: &[FREE; 3],
+            owner: 1,
+            via_cost: 0,
+            factors: &[NEUTRAL],
+            soft: false,
+            sources: &[(0, 0)],
+            targets: &HashMap::from([(2, 0)]),
+        };
+        let mut search = Search::default();
+        assert_eq!(
+            search.run_with_limit(&query, 1).unwrap_err(),
+            SearchFailure::Budget
+        );
+        assert_eq!(search.run(&query).unwrap().nodes, vec![0, 1, 2]);
+        query.trace_fixed = &[FREE, BLOCKED, FREE];
+        assert_eq!(
+            search.run_with_limit(&query, 1).unwrap_err(),
+            SearchFailure::Exhausted
+        );
     }
 }

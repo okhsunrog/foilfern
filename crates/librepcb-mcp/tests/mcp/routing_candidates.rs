@@ -462,6 +462,26 @@ fn diagnostics_report_grid_access_and_local_blockers_without_edits() {
 }
 
 #[test]
+fn candidate_preserves_failed_request_and_unchanged_air_wire() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let prepared = routing::routing_prepare(
+        &mut session,
+        args(json!({"nets": ["A"], "layers": ["bottom"]})),
+    )
+    .unwrap();
+    assert_eq!(prepared.result["mutation_count"], 0);
+    let report = &prepared.result["routing"];
+    let failed = report["failed_requests"].as_array().unwrap();
+    assert_eq!(report["unrouted"], 1);
+    assert_eq!(failed.len(), 1);
+    assert_eq!(failed[0]["net_name"], "A");
+    assert_eq!(failed[0]["reason"], "no_access");
+    assert!(failed[0].get("soft_reason").is_none());
+    assert_eq!(report["remaining_air_wires"], report["failed_requests"]);
+}
+
+#[test]
 fn reviewed_edit_preserves_anchors_and_rejects_new_clearance_errors() {
     use librepcb_mcp::tools::layout::board_get;
 

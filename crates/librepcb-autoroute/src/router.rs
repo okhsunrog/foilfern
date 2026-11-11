@@ -17,7 +17,7 @@ use crate::problem::{
 use crate::result::{
     Endpoint, Progress, Route, RoutingResult, RoutingStats, Segment, Unrouted, UnroutedReason, Via,
 };
-use crate::search::{DirFactors, NEUTRAL, Query, STEP, Search};
+use crate::search::{DirFactors, NEUTRAL, Query, STEP, Search, SearchFailure};
 
 /// Default grid pitch (0.1 mm).
 const DEFAULT_PITCH: i64 = 100_000;
@@ -69,11 +69,10 @@ struct RouteState {
     items: Vec<usize>,
 }
 
-/// Why an attempt failed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Fail {
-    NoAccess,
-    NoPath,
+#[derive(Debug, Default, Clone, Copy)]
+struct AttemptFailures {
+    strict: Option<UnroutedReason>,
+    soft: Option<UnroutedReason>,
 }
 
 /// Numeric rules in nanometers.
@@ -736,7 +735,7 @@ impl<'p> Router<'p> {
 
     /// Tries to route a wire. Returns the wires of ripped routes (soft mode)
     /// along with the outcome.
-    fn try_route(&mut self, w: usize, soft: bool) -> (Result<(), Fail>, Vec<usize>) {
+    fn try_route(&mut self, w: usize, soft: bool) -> (Result<(), UnroutedReason>, Vec<usize>) {
         let wire = self.wires[w];
         let width = self.width_of(wire.net);
         let h = width.to_nm() / 2;
@@ -745,7 +744,7 @@ impl<'p> Router<'p> {
         let sources = self.anchors(&comps, comps[wire.a], &wire, h);
         let targets = self.anchors(&comps, comps[wire.b], &wire, h);
         if sources.is_empty() || targets.is_empty() {
-            return (Err(Fail::NoAccess), Vec::new());
+            return (Err(UnroutedReason::NoAccess), Vec::new());
         }
         let mut source_list: Vec<(u32, u32)> = sources.iter().map(|(n, (c, _))| (*n, *c)).collect();
         source_list.sort_unstable();
@@ -766,15 +765,21 @@ impl<'p> Router<'p> {
             targets: &target_costs,
         };
         self.stats.searches += 1;
-        let found = self.search.run(&query);
-        let Some(found) = found else {
-            return (Err(Fail::NoPath), Vec::new());
+        let found = match self.search.run(&query) {
+            Ok(path) => path,
+            Err(failure) => {
+                let reason = match failure {
+                    SearchFailure::Exhausted => UnroutedReason::NoPath,
+                    SearchFailure::Budget => UnroutedReason::SearchBudget,
+                };
+                return (Err(reason), Vec::new());
+            }
         };
 
         // Path to runs.
         let cells = self.grid.cells() as u32;
         let (Some(&first), Some(&last)) = (found.nodes.first(), found.nodes.last()) else {
-            return (Err(Fail::NoPath), Vec::new());
+            return (Err(UnroutedReason::GeometryRejected), Vec::new());
         };
         let start = sources[&first].1;
         let end = targets[&last].1;
@@ -851,8 +856,14 @@ impl<'p> Router<'p> {
                     .as_ref()
                     .is_some_and(|r| self.rip_count[r.wire] >= max)
             });
-            if !ok || locked || conflicts.is_empty() {
-                return (Err(Fail::NoPath), ripped);
+            if !ok {
+                return (Err(UnroutedReason::GeometryRejected), ripped);
+            }
+            if locked {
+                return (Err(UnroutedReason::RipUpLimit), ripped);
+            }
+            if conflicts.is_empty() {
+                return (Err(UnroutedReason::NoRipUpConflict), ripped);
             }
             for id in conflicts {
                 self.rip_up(id, &mut ripped);
@@ -903,7 +914,7 @@ impl<'p> Router<'p> {
             })
         });
         if !(ok_segments && ok_vias && ok_own_vias) {
-            return (Err(Fail::NoPath), ripped);
+            return (Err(UnroutedReason::GeometryRejected), ripped);
         }
 
         self.commit(w, width, h, runs, vias, start, end);
@@ -1025,7 +1036,7 @@ impl<'p> Router<'p> {
     }
 
     /// Final safety net: re-verifies every route against everything else.
-    fn verify_all(&mut self) {
+    fn verify_all(&mut self, failures: &mut [AttemptFailures]) {
         loop {
             let bad = self.routes.iter().enumerate().find_map(|(id, r)| {
                 let r = r.as_ref()?;
@@ -1054,6 +1065,14 @@ impl<'p> Router<'p> {
                 Some(id) => {
                     let mut ripped = Vec::new();
                     self.rip_up(id, &mut ripped);
+                    // Rip-up removes the rejected route first, then its attachments.
+                    for (i, wire) in ripped.into_iter().enumerate() {
+                        failures[wire].strict = Some(if i == 0 {
+                            UnroutedReason::GeometryRejected
+                        } else {
+                            UnroutedReason::AttachmentRemoved
+                        });
+                    }
                 }
                 None => break,
             }
@@ -1077,7 +1096,7 @@ impl<'p> Router<'p> {
                 .then(x.cmp(&y))
         });
 
-        let mut reasons: Vec<Option<UnroutedReason>> = vec![None; self.wires.len()];
+        let mut failures = vec![AttemptFailures::default(); self.wires.len()];
         let mut soft_tries = vec![0u32; self.wires.len()];
         let max = self.problem.rules.max_rip_ups;
         let mut queue: VecDeque<usize> = order.iter().copied().collect();
@@ -1093,23 +1112,26 @@ impl<'p> Router<'p> {
             }
             match self.try_route(w, false).0 {
                 Ok(()) => {
-                    reasons[w] = None;
+                    failures[w] = AttemptFailures::default();
                     continue;
                 }
-                Err(Fail::NoAccess) => {
-                    reasons[w] = Some(UnroutedReason::NoAccess);
+                Err(UnroutedReason::NoAccess) => {
+                    failures[w].strict = Some(UnroutedReason::NoAccess);
                     failed.push(w);
                     continue;
                 }
-                Err(Fail::NoPath) => reasons[w] = Some(UnroutedReason::NoPath),
+                Err(reason) => failures[w].strict = Some(reason),
             }
             if soft_tries[w] < max {
                 soft_tries[w] += 1;
                 let (outcome, ripped) = self.try_route(w, true);
                 queue.extend(ripped);
-                if outcome.is_ok() {
-                    reasons[w] = None;
-                    continue;
+                match outcome {
+                    Ok(()) => {
+                        failures[w] = AttemptFailures::default();
+                        continue;
+                    }
+                    Err(reason) => failures[w].soft = Some(reason),
                 }
             }
             failed.push(w);
@@ -1121,16 +1143,16 @@ impl<'p> Router<'p> {
                     cancelled = true;
                     break;
                 }
-                if self.wire_route[w].is_none()
-                    && !self.is_connected(w)
-                    && self.try_route(w, false).0.is_ok()
-                {
-                    reasons[w] = None;
+                if self.wire_route[w].is_none() && !self.is_connected(w) {
+                    match self.try_route(w, false).0 {
+                        Ok(()) => failures[w] = AttemptFailures::default(),
+                        Err(reason) => failures[w].strict = Some(reason),
+                    }
                 }
             }
         }
-        self.verify_all();
-        self.into_result(reasons, cancelled)
+        self.verify_all(&mut failures);
+        self.into_result(&failures, cancelled)
     }
 
     fn report(&self, progress: &mut dyn FnMut(Progress) -> ControlFlow<()>) -> ControlFlow<()> {
@@ -1147,7 +1169,7 @@ impl<'p> Router<'p> {
         })
     }
 
-    fn into_result(self, reasons: Vec<Option<UnroutedReason>>, cancelled: bool) -> RoutingResult {
+    fn into_result(self, failures: &[AttemptFailures], cancelled: bool) -> RoutingResult {
         let copper = &self.problem.copper_layers;
         let layer_of = |l: usize| copper[self.routing[l]];
         let rules = &self.problem.rules;
@@ -1208,11 +1230,12 @@ impl<'p> Router<'p> {
                 request: w.request,
                 net: self.nets[w.net as usize],
                 terminals: (TerminalId(w.a), TerminalId(w.b)),
-                reason: match reasons[i] {
+                reason: match failures[i].strict {
                     Some(r) => r,
                     None if cancelled => UnroutedReason::Cancelled,
-                    None => UnroutedReason::NoPath,
+                    None => UnroutedReason::NotRouted,
                 },
+                soft_reason: failures[i].soft,
             })
             .collect();
         RoutingResult {

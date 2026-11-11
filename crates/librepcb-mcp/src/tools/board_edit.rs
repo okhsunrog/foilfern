@@ -1283,12 +1283,16 @@ pub fn autoroute_builtin(
         .remaining_air_wires
         .iter()
         .map(|aw| {
-            json!({
+            let mut wire = json!({
                 "net": aw.net_name,
                 "from": views::point(aw.p1_position),
                 "to": views::point(aw.p2_position),
                 "reason": aw.reason,
-            })
+            });
+            if let Some(reason) = &aw.soft_reason {
+                wire["soft_reason"] = json!(reason);
+            }
+            wire
         })
         .collect();
     let mut result = board_overview(p, board)?;
@@ -1296,6 +1300,7 @@ pub fn autoroute_builtin(
     result["air_wires"] = json!(r.air_wires);
     result["routed"] = json!(r.routed);
     result["failed"] = json!(r.unrouted);
+    result["failed_requests"] = json!(r.failed_requests);
     result["new_traces"] = json!(r.traces);
     result["new_vias"] = json!(r.vias);
     result["grid_pitch"] = json!(mm(Length::new(r.grid_pitch)));

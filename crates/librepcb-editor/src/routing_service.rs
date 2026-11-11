@@ -61,7 +61,7 @@ pub enum RoutingCandidateDetails {
     Builtin {
         backend: &'static str,
         request: Autoroute,
-        routing: AutorouteResult,
+        routing: Box<AutorouteResult>,
     },
     Edit {
         edit: EditRoutingGeometry,
@@ -153,7 +153,7 @@ impl RoutingJob {
                 RoutingCandidateDetails::Builtin {
                     backend: "builtin",
                     request,
-                    routing,
+                    routing: Box::new(routing),
                 }
             }
             RoutingWork::Edit(edit) => {

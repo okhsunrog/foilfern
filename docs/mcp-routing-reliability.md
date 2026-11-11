@@ -175,3 +175,37 @@ A follow-up `routing_edit_prepare` on a separate STM32 copy moved the
 `GPIO_J4_3` via 0.05 mm in +X. It prepared and applied one reviewed
 mutation with zero new copper errors. The attached traces followed the via.
 The `V3V3` connection still remained open.
+
+## Builtin search evidence
+
+`routing_prepare` and `routing_preview` expose `routing.failed_requests` and
+`routing.remaining_air_wires`. Immediate builtin `autoroute` returns
+`failed_requests` alongside the existing `remaining` list. Failed requests
+keep their original net and anchors. Remaining air wires describe the rebuilt
+connectivity tree and inherit a failure reason only when the net and both
+anchors still match. Rebuilt pairs without a matching failure say `not_routed`.
+
+`reason` reports the last strict failure or the outcome of final verification.
+`soft_reason`, when present, reports the last failed attempt that allowed rip-up.
+Attempts can see different states of the generated copper. In both modes
+`no_access` means an empty anchor set, `no_path` a drained heuristic frontier,
+`search_budget` the expansion cap reached without a path, and
+`geometry_rejected` a failed exact check. Soft mode can also report
+`rip_up_limit` when an intersecting generated route exhausted its allowance,
+or `no_rip_up_conflict` when its proposed path hit no removable route.
+Final verification can report `attachment_removed` for a route that depended
+on rejected copper. `cancelled` and `not_routed` cover open connections without
+a recorded failure. Original requests with unsupported anchors keep
+`unsupported_anchor`.
+
+Existing board copper remains fixed during builtin routing. A drained soft
+search describes reachability in the attempted grid and its pruning rules
+with generated routes traversable at a penalty. Use local access diagnostics
+to inspect individual obstructions.
+
+On the preserved STM32 retry board, a stdio `routing_prepare` for `V3V3`
+at 0.1 mm grid pitch, 0.2 mm trace width and 0.3/0.6 mm via drill/diameter
+reported `no_path` for both attempts. It retained the original junction and
+`U1.21` anchors and proposed zero mutations. The one missing connection
+remained open. This run exhausted the heuristic frontier on existing copper
+with the specified rules and grid.

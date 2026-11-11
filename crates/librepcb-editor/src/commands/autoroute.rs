@@ -113,9 +113,11 @@ pub struct UnroutedAirWire {
     pub p2: TraceAnchor,
     /// Position of the second anchor.
     pub p2_position: Point,
-    /// Why it was not routed (`no_access`, `no_path`, `cancelled` or
-    /// `unsupported_anchor`).
+    /// Last strict failure, final verification outcome, or `unsupported_anchor`.
     pub reason: String,
+    /// Last failure from an attempt allowing rip-up, when available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub soft_reason: Option<String>,
 }
 
 impl UnroutedAirWire {
@@ -128,6 +130,7 @@ impl UnroutedAirWire {
             p2: wire.p2(),
             p2_position: wire.p2_position(),
             reason: reason.to_owned(),
+            soft_reason: None,
         }
     }
 }
@@ -149,6 +152,9 @@ pub struct AutorouteResult {
     pub vias: usize,
     /// Grid pitch used by the router (nanometers).
     pub grid_pitch: i64,
+    /// Original air wires left unresolved, with the router's attempt evidence.
+    #[serde(default)]
+    pub failed_requests: Vec<UnroutedAirWire>,
     /// The air wires of the routed nets which remain after routing
     /// (rebuilt from the new copper).
     pub remaining_air_wires: Vec<UnroutedAirWire>,
@@ -175,52 +181,55 @@ impl Command for Autoroute {
         let result = librepcb_autoroute::route(&extracted.problem)?;
         let (traces, vias) = apply_result(tx, board, &extracted, &result)?;
 
-        // Remaining air wires of the routed nets.
         let p = tx.project();
+        let failed_requests: Vec<_> = result
+            .unrouted
+            .iter()
+            .map(|u| {
+                // The extractor adds one original air wire per request.
+                let wire = &extracted.request_wires[u.request];
+                let mut failure = UnroutedAirWire::new(p, wire, reason_name(u.reason));
+                failure.soft_reason = u.soft_reason.map(|reason| reason_name(reason).to_owned());
+                failure
+            })
+            .chain(
+                extracted
+                    .unsupported
+                    .iter()
+                    .map(|wire| UnroutedAirWire::new(p, wire, "unsupported_anchor")),
+            )
+            .collect();
+
+        // Only copy failure evidence when the rebuilt air wire has the same endpoints.
         let b = resolve::board(p, Some(board))?;
         let builder = BoardAirWiresBuilder::new(b, p.library(), p.circuit());
-        let same_ends = |a: (TraceAnchor, TraceAnchor), b: (TraceAnchor, TraceAnchor)| {
-            a == b || a == (b.1, b.0)
-        };
         let remaining_air_wires = extracted
             .nets
             .iter()
             .flat_map(|net| builder.build_air_wires(*net))
             .map(|wire| {
                 let ends = (wire.p1(), wire.p2());
-                let reason = if extracted
-                    .unsupported
-                    .iter()
-                    .any(|w| same_ends((w.p1(), w.p2()), ends))
-                {
-                    "unsupported_anchor"
-                } else {
-                    // The router's reason where the air wire is unchanged.
-                    result
-                        .unrouted
-                        .iter()
-                        .find(|u| {
-                            match (
-                                extracted.anchor(u.terminals.0),
-                                extracted.anchor(u.terminals.1),
-                            ) {
-                                (Some(a), Some(b)) => same_ends((a, b), ends),
-                                _ => false,
-                            }
-                        })
-                        .map_or("not_routed", |u| reason_name(u.reason))
-                };
-                UnroutedAirWire::new(p, &wire, reason)
+                let failure = failed_requests.iter().find(|f| {
+                    f.net == wire.net() && (ends == (f.p1, f.p2) || ends == (f.p2, f.p1))
+                });
+                let mut remaining = UnroutedAirWire::new(
+                    p,
+                    &wire,
+                    failure.map_or("not_routed", |f| f.reason.as_str()),
+                );
+                remaining.soft_reason = failure.and_then(|f| f.soft_reason.clone());
+                remaining
             })
             .collect();
         Ok(AutorouteResult {
             board,
             air_wires: result.stats.air_wires,
             routed: result.routes.len(),
-            unrouted: result.unrouted.len() + extracted.unsupported.len(),
+            unrouted: failed_requests.len(),
             traces,
             vias,
             grid_pitch: result.stats.grid_pitch,
+            failed_requests,
             remaining_air_wires,
         })
     }
@@ -230,6 +239,12 @@ fn reason_name(reason: UnroutedReason) -> &'static str {
     match reason {
         UnroutedReason::NoAccess => "no_access",
         UnroutedReason::NoPath => "no_path",
+        UnroutedReason::SearchBudget => "search_budget",
+        UnroutedReason::GeometryRejected => "geometry_rejected",
+        UnroutedReason::RipUpLimit => "rip_up_limit",
+        UnroutedReason::NoRipUpConflict => "no_rip_up_conflict",
+        UnroutedReason::AttachmentRemoved => "attachment_removed",
+        UnroutedReason::NotRouted => "not_routed",
         UnroutedReason::Cancelled => "cancelled",
         _ => "unknown",
     }
@@ -246,18 +261,14 @@ pub struct ExtractedProblem {
     pub obstacle_traces: BTreeMap<usize, Uuid>,
     /// The nets whose air wires are routed.
     pub nets: BTreeSet<NetSignalId>,
+    /// Original board air wires, indexed by routing connection request.
+    request_wires: Vec<AirWire>,
     /// Air wires which could not be given to the router (anchors which are
     /// not supported, e.g. standalone board pads).
     pub unsupported: Vec<AirWire>,
     /// Drill and size of new vias per net if they differ from the
     /// automatic values of the via (`None`: automatic).
     pub via_sizes: BTreeMap<NetSignalId, (Option<PositiveLength>, Option<PositiveLength>)>,
-}
-
-impl ExtractedProblem {
-    fn anchor(&self, terminal: TerminalId) -> Option<TraceAnchor> {
-        self.terminal_anchors.get(terminal.0).copied()
-    }
 }
 
 /// Converts a path to polygons (arcs flattened, closing vertex removed).
@@ -802,13 +813,17 @@ pub fn extract_problem(
     }
 
     // Connections.
+    let mut request_wires = Vec::new();
     let mut unsupported = Vec::new();
     for wire in air_wires {
         match (
             builder.terminals_by_anchor.get(&wire.p1()),
             builder.terminals_by_anchor.get(&wire.p2()),
         ) {
-            (Some(a), Some(b)) if a != b => builder.problem.connect(*a, *b),
+            (Some(a), Some(b)) if a != b => {
+                builder.problem.connect(*a, *b);
+                request_wires.push(wire);
+            }
             (Some(_), Some(_)) => {}
             _ => unsupported.push(wire),
         }
@@ -818,6 +833,7 @@ pub fn extract_problem(
         terminal_anchors: builder.terminal_anchors,
         obstacle_traces,
         nets: routed_nets,
+        request_wires,
         unsupported,
         via_sizes,
     })

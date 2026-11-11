@@ -79,8 +79,20 @@ pub struct Route {
 pub enum UnroutedReason {
     /// A terminal has no free access point on an allowed layer.
     NoAccess,
-    /// No path was found (blocked, or no room left).
+    /// The heuristic grid search exhausted its frontier.
     NoPath,
+    /// The grid search reached the expansion limit without finding a path.
+    SearchBudget,
+    /// The proposed route failed the exact geometry checks.
+    GeometryRejected,
+    /// A conflicting route reached its rip-up limit.
+    RipUpLimit,
+    /// The soft path did not intersect any routes that could be ripped up.
+    NoRipUpConflict,
+    /// The route was attached to a route removed by final geometry checks.
+    AttachmentRemoved,
+    /// The connection is open and no failed attempt was recorded for it.
+    NotRouted,
     /// Routing was cancelled before the connection was routed.
     Cancelled,
 }
@@ -94,8 +106,10 @@ pub struct Unrouted {
     pub net: NetId,
     /// The terminals of the air wire.
     pub terminals: (TerminalId, TerminalId),
-    /// Why it could not be routed.
+    /// Last strict attempt failure or the outcome of final verification.
     pub reason: UnroutedReason,
+    /// Last attempt allowing rip-up since the connection was last routed.
+    pub soft_reason: Option<UnroutedReason>,
 }
 
 /// Statistics of a routing run.

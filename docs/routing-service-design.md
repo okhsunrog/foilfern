@@ -262,13 +262,18 @@ follow the anchor with unchanged IDs and connectivity. Prepare runs full model
 checks on the detached edit. Preview/apply use the same exact patch, revision
 checks and undo history as builtin routing.
 
-Remaining R2 work includes richer diagnostics and local topology changes.
+Builtin now preserves failed original requests alongside rebuilt air wires.
+The last strict and rip-up attempts are reported separately. They distinguish
+missing access, a drained search frontier, a search budget cutoff, exact
+geometry rejection, and rip-up limits. Unattempted work can report cancellation.
+See [builtin search evidence](mcp-routing-reliability.md#builtin-search-evidence)
+for the field contract.
 
-Separate no pad access, exhausted search budget, fixed-geometry blockage,
-changeable-route congestion, rejected geometry and cancellation. Report facts
-from the search and label suggested remedies as hypotheses unless a trial has
-verified them. "No path found" is not proof that a physical route is impossible.
-Expose effective rule values and their sources plus focused board images and
+Remaining R2 work includes locating specific blockers along the search,
+separating pre-existing copper from routes that can be changed, and adding
+local topology changes. Report suggested remedies as hypotheses until a trial
+verifies them. A drained heuristic frontier only describes the attempted grid
+search. Expose effective rule values and sources, focused board images, and
 blocking object IDs. Fix selected-device pin resolution before placement.
 
 Acceptance: an agent can inspect a remaining connection, identify a concrete

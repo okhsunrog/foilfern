@@ -477,6 +477,7 @@ fn blocked_path_is_reported_as_unrouted() {
     assert_eq!(r.unrouted[0].request, 0);
     assert_eq!(r.unrouted[0].terminals, (a1, a2));
     assert_eq!(r.unrouted[0].reason, UnroutedReason::NoPath);
+    assert_eq!(r.unrouted[0].soft_reason, Some(UnroutedReason::NoPath));
     assert_eq!(r.routes.len(), 1);
     assert_eq!(r.routes[0].net, b);
     assert_clean(&p, &r);
