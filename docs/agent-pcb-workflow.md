@@ -100,9 +100,10 @@ before claiming a design is better for the same operating conditions.
 
 ## ESP-PD-Sink handoff
 
-The [ESP-PD-Sink handoff](benchmarks/esp-pd-sink/HANDOFF.md) defines a
-routing-validation performance patch and provides the four-layer project
-and a saved routing request for reproducing the benchmark.
+The [ESP-PD-Sink handoff](benchmarks/esp-pd-sink/HANDOFF.md) continues the
+checked local routing work with a release-build benchmark and a product
+patch. The four-layer project and a saved routing request reproduce the
+case.
 
 ## Ideas to evaluate on real boards
 
