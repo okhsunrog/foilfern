@@ -308,7 +308,7 @@ impl LibrePcbMcp {
     // --- Session / project -------------------------------------------------
 
     #[tool(
-        description = "Server version, file format, units, open workspace and project (with \
+        description = "Server version, build identity, API capability version, file format, units, open workspace and project (with \
                        revision and unsaved state)."
     )]
     async fn server_info(&self) -> Result<CallToolResult, McpError> {

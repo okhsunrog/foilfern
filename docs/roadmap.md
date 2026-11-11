@@ -30,7 +30,7 @@ because its tools exist or one board has zero air wires.
 
 | Stage | Result | Dependencies | State |
 | --- | --- | --- | --- |
-| P0 | Identifiable builds, concise responses and measured operation costs | Existing API | Planned; Nix environment and baseline reuse already implemented |
+| P0 | Identifiable builds, concise responses and measured operation costs | Existing API | In progress; build identity implemented |
 | P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation first | Planned |
 | P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | Planned; external review prototypes only |
 | P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | Planned; router callback only |
@@ -51,8 +51,10 @@ checks, search, candidate checks and apply checks separately.
 
 Done when:
 
-- An installed binary reports its own build identity without reading a checkout
-  at runtime. Builds outside Git report unknown provenance explicitly.
+- **Implemented.** An installed binary reports its own build identity without
+  reading a checkout at runtime. Builds outside Git report unknown provenance
+  explicitly. See the [MCP contract](mcp-design.md#tool-surface) for the scope of
+  the tracked-source check and Cargo profile label.
 - Moving one device can return identity, placement, revision, warnings and a
   short change summary without its complete pad list. Detailed read-back remains
   available; schema/dispatch tests exercise both response modes.

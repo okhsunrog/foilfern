@@ -108,6 +108,11 @@ pub struct ProjectCloseArgs {
 
 /// `server_info`.
 pub fn server_info(session: &Session) -> ToolResult<ToolOutput> {
+    // Increment when callers need to distinguish changes in the tool contract.
+    const API_CAPABILITY_VERSION: u32 = 1;
+    let commit = env!("FOILFERN_SOURCE_COMMIT");
+    let source_state = env!("FOILFERN_TRACKED_SOURCE_STATE");
+    let cargo_profile = env!("FOILFERN_CARGO_PROFILE");
     let workspace = session.workspace.as_ref().map(|ws| {
         json!({
             "path": ws.path().to_native(),
@@ -123,9 +128,10 @@ pub fn server_info(session: &Session) -> ToolResult<ToolOutput> {
         })
     });
     let summary = format!(
-        "librepcb-mcp {} (file format {}); workspace: {}; project: {}",
+        "librepcb-mcp {} (file format {}, API {API_CAPABILITY_VERSION}, source {} [{source_state}], Cargo {cargo_profile}); workspace: {}; project: {}",
         env!("CARGO_PKG_VERSION"),
         librepcb_core::application::file_format_version(),
+        if commit.is_empty() { "unknown" } else { commit },
         session
             .workspace
             .as_ref()
@@ -140,6 +146,13 @@ pub fn server_info(session: &Session) -> ToolResult<ToolOutput> {
         json!({
             "name": "librepcb-mcp",
             "version": env!("CARGO_PKG_VERSION"),
+            "api_capability_version": API_CAPABILITY_VERSION,
+            "build": {
+                "source_commit": (!commit.is_empty()).then_some(commit),
+                "tracked_source_state": source_state,
+                "cargo_profile": cargo_profile,
+                "cargo_opt_level": env!("FOILFERN_CARGO_OPT_LEVEL"),
+            },
             "file_format_version": librepcb_core::application::file_format_version().to_string(),
             "units": { "length": "mm", "angle": "deg" },
             "workspace": workspace,

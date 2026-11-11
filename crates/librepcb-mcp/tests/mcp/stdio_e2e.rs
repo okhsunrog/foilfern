@@ -40,6 +40,29 @@ async fn call_ok(
     envelope["result"].clone()
 }
 
+#[tokio::test]
+async fn stdio_server_info_reports_embedded_build_identity() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.current_dir(tmp.path()).env_remove("PATH");
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    assert_eq!(info["api_capability_version"], 1);
+    let build = &info["build"];
+    let commit = env!("FOILFERN_SOURCE_COMMIT");
+    assert_eq!(
+        build["source_commit"],
+        json!((!commit.is_empty()).then_some(commit))
+    );
+    assert_eq!(
+        build["tracked_source_state"],
+        env!("FOILFERN_TRACKED_SOURCE_STATE")
+    );
+    assert_eq!(build["cargo_profile"], env!("FOILFERN_CARGO_PROFILE"));
+    assert_eq!(build["cargo_opt_level"], env!("FOILFERN_CARGO_OPT_LEVEL"));
+    client.cancel().await.unwrap();
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn stdio_connects_selected_device_pads_before_placement() {
     let tmp = tempfile::tempdir().unwrap();

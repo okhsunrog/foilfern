@@ -85,8 +85,9 @@ The editor owns one `RoutingService` per open project; MCP is its transport.
 Current limitations: no declarative reconciliation API, persisted engineering
 requirements, automatic diagnosis-to-repair planner, MCP progress/cancellation
 workflow or desktop candidate overlay. The router's cancellation callback is
-not yet wired through the editor/MCP preparation path. `server_info` reports
-package/file-format versions but not commit/dirty build provenance.
+not yet wired through the editor/MCP preparation path. `server_info` now reports
+build-time commit, tracked-source state, Cargo profile label and API capability
+version. Compact responses and the timing protocol remain open in P0.
 
 ## Evidence and continuation points
 

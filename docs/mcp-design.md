@@ -164,8 +164,17 @@ by `tools/list` are authoritative; the historical target of fewer than 60 tools
 is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
-`server_info` currently reports package and file-format versions. Source commit,
-dirty build state, Cargo profile and capability version are planned in P0.
+`server_info` reports package and file-format versions and
+`api_capability_version` (currently `1`). Its `build` object contains
+`source_commit` (full Git commit ID or `null`) and `tracked_source_state`
+(`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
+tracked workspace files. Untracked files, external dependencies and build inputs
+outside the checkout are outside that check. Builds without usable Git metadata
+report unknown provenance. The values are captured at build time.
+`cargo_profile` is Cargo's `PROFILE` label (`debug` or `release`), which groups
+custom profiles by inheritance. `cargo_opt_level` reports Cargo's optimization
+setting for the MCP crate. Record the actual build command for timing comparisons.
+
 Declarative reconciliation (P1), persisted enforced requirements (P2), worker
 jobs/cancellation (P3) and visual candidate review (P5) are not current MCP
 capabilities. `routing_compare` already ranks builtin-order candidates; runtime
