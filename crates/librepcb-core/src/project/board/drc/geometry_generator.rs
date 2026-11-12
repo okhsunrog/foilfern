@@ -1,9 +1,8 @@
 //! Port of libs/librepcb/core/project/board/drc/boardclipperpathgenerator.{h,cpp}.
 //!
-//! Builds Clipper paths (united areas) of the copper and stop mask openings
-//! of the DRC input data. The polygon operations are exactly those of
-//! upstream (same fill types and order), so the resulting paths are
-//! identical.
+//! Builds exact DRC regions from integer shape outlines. Arc flattening and
+//! primitive offsets retain upstream semantics; boolean composition retains
+//! rational intersections until violation locations are rendered.
 
 use clipper::PolyFillType::{EvenOdd, NonZero};
 use clipper::{JoinType, PolyFillType};
@@ -13,39 +12,33 @@ use super::error::Result;
 use crate::geometry::{NonEmptyPath, Path, Via};
 use crate::types::{Layer, Length, PositiveLength, UnsignedLength, Uuid};
 use crate::utils::clipper_helpers::{self, ClipperPath, ClipperPaths};
+use crate::utils::rational_union::{self, Operand, Region};
 use crate::utils::transform::Transform;
 
 /// Accumulates the areas of board objects (upstream
 /// `BoardClipperPathGenerator`).
 #[derive(Debug, Clone)]
-pub struct BoardClipperPathGenerator {
+pub struct GeometryGenerator {
     max_arc_tolerance: PositiveLength,
-    paths: ClipperPaths,
+    operands: Vec<Operand>,
 }
 
-impl BoardClipperPathGenerator {
+impl GeometryGenerator {
     /// Creates an empty generator.
     pub fn new(max_arc_tolerance: PositiveLength) -> Self {
         Self {
             max_arc_tolerance,
-            paths: ClipperPaths::new(),
+            operands: Vec::new(),
         }
     }
 
-    /// Returns the accumulated paths.
-    pub fn paths(&self) -> &ClipperPaths {
-        &self.paths
+    /// Unites all accumulated operands exactly and clears the generator.
+    pub fn take_region(&mut self) -> Result<Region> {
+        Ok(rational_union::union(&std::mem::take(&mut self.operands))?.0)
     }
 
-    /// Returns the accumulated paths and clears the generator (upstream
-    /// `takePathsTo()`).
-    pub fn take_paths(&mut self) -> ClipperPaths {
-        std::mem::take(&mut self.paths)
-    }
-
-    fn unite(&mut self, paths: &[ClipperPath], clip_fill: PolyFillType) -> Result<()> {
-        clipper_helpers::unite_with(&mut self.paths, paths, EvenOdd, clip_fill)?;
-        Ok(())
+    fn push_operand(&mut self, paths: &[ClipperPath], clip_fill: PolyFillType) {
+        self.operands.push(Operand::from_integer(paths, clip_fill));
     }
 
     fn convert(&self, paths: &[Path]) -> ClipperPaths {
@@ -272,7 +265,7 @@ impl BoardClipperPathGenerator {
             };
             let outlines = pad_transform.map(&geometry.to_outlines()?);
             let paths = self.convert(&outlines);
-            self.unite(&paths, NonZero)?;
+            self.push_operand(&paths, NonZero);
         }
         Ok(())
     }
@@ -286,7 +279,7 @@ impl BoardClipperPathGenerator {
                 &outline,
                 self.max_arc_tolerance,
             )];
-            self.unite(&paths, EvenOdd)?;
+            self.push_operand(&paths, EvenOdd);
         }
         Ok(())
     }
@@ -300,7 +293,7 @@ impl BoardClipperPathGenerator {
                 &outline,
                 self.max_arc_tolerance,
             )];
-            self.unite(&paths, EvenOdd)?;
+            self.push_operand(&paths, EvenOdd);
         }
         Ok(())
     }
@@ -309,7 +302,7 @@ impl BoardClipperPathGenerator {
     pub fn add_plane(&mut self, fragments: &[Path]) -> Result<()> {
         for p in fragments {
             let paths = vec![clipper_helpers::path_to_clipper(p, self.max_arc_tolerance)];
-            self.unite(&paths, EvenOdd)?;
+            self.push_operand(&paths, EvenOdd);
         }
         Ok(())
     }
@@ -327,7 +320,7 @@ impl BoardClipperPathGenerator {
         let total_width = line_width + (offset * 2);
         if let (true, Ok(width)) = (*line_width > Length::ZERO, PositiveLength::new(total_width)) {
             let paths = self.convert(&path.to_outline_strokes(width));
-            self.unite(&paths, NonZero)?;
+            self.push_operand(&paths, NonZero);
         }
 
         // Area (only fill closed paths, for consistency with the appearance
@@ -345,7 +338,7 @@ impl BoardClipperPathGenerator {
                     JoinType::Round,
                 )?;
             }
-            self.unite(&paths, EvenOdd)?;
+            self.push_operand(&paths, EvenOdd);
         }
         Ok(())
     }
@@ -364,7 +357,7 @@ impl BoardClipperPathGenerator {
         // Outline.
         if let Ok(width) = PositiveLength::new(*circle.line_width) {
             let paths = self.convert(&path.to_outline_strokes(width));
-            self.unite(&paths, NonZero)?;
+            self.push_operand(&paths, NonZero);
         }
 
         // Area.
@@ -373,7 +366,7 @@ impl BoardClipperPathGenerator {
                 &path,
                 self.max_arc_tolerance,
             )];
-            self.unite(&paths, EvenOdd)?;
+            self.push_operand(&paths, EvenOdd);
         }
         Ok(())
     }
@@ -384,7 +377,7 @@ impl BoardClipperPathGenerator {
         let transform = Transform::new(st.position, st.rotation, st.mirror);
         for path in transform.map(&st.paths) {
             let paths = self.convert(&path.to_outline_strokes(width));
-            self.unite(&paths, NonZero)?;
+            self.push_operand(&paths, NonZero);
         }
         Ok(())
     }
@@ -401,7 +394,7 @@ impl BoardClipperPathGenerator {
         let width = PositiveLength::new((diameter + offset + offset).max(Length::new(1)))?;
         let outlines = transform.map(path.get()).to_outline_strokes(width);
         let paths = self.convert(&outlines);
-        self.unite(&paths, NonZero)?;
+        self.push_operand(&paths, NonZero);
         Ok(())
     }
 
@@ -416,14 +409,14 @@ impl BoardClipperPathGenerator {
             };
             let outlines = transform.map(&geometry.to_outlines()?);
             let paths = self.convert(&outlines);
-            self.unite(&paths, NonZero)?;
+            self.push_operand(&paths, NonZero);
 
             // Also add each hole to ensure correct copper areas even if
             // the pad outline is too small or invalid.
             for hole in geometry.holes().iter() {
                 let strokes = transform.map(&hole.path().to_outline_strokes(hole.diameter()));
                 let paths = self.convert(&strokes);
-                self.unite(&paths, NonZero)?;
+                self.push_operand(&paths, NonZero);
             }
         }
         Ok(())

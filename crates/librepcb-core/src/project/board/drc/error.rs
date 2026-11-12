@@ -11,6 +11,15 @@ use crate::utils::clipper_helpers;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// An exact DRC geometry operation failed.
+    #[error(transparent)]
+    ExactCopper(#[from] crate::utils::rational_union::Error),
+    /// The project changed while preparing or running the check.
+    #[error("The project changed while preparing the DRC. Run the check again.")]
+    StaleSnapshot,
+    /// Plane calculation stopped before completing.
+    #[error("The plane rebuild did not complete.")]
+    IncompletePlaneRebuild,
     /// The board or an element of the project does not exist (boxed
     /// because it is large).
     #[error(transparent)]

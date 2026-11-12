@@ -34,6 +34,11 @@ the next task merely because their last paragraph once said "next".
   jobs. Graphics, mechanical STEP and interactive HTML BOM use the shared
   exporter adapters from CLI, desktop and MCP. Project BOM without a board
   deliberately reports `Package=N/A`; select a board for footprint packages.
+- **DRC reliability and performance:** consistent preparation snapshots, guarded
+  approval cleanup, one exact rational boolean implementation, local spatial
+  queries and deterministic Rayon pair checks. See the
+  [accepted session results](notes/drc-session-results-2026-11-12.md) for numeric
+  semantics, compatibility boundaries, tests and release measurements.
 - **Shared editing:** `ProjectEditor` owns commands and undo. Desktop and MCP
   share `Arc<Mutex<OpenProject>>`; a directory lock protects native files.
   Library additions/removals and assets have editor operations alongside
@@ -100,6 +105,7 @@ The P0 release replay is complete. P1a is the next delivery step.
 | [Release baseline reuse](benchmarks/esp-pd-sink/review/performance/release/REPORT.md) | Repeated OLED prepare: 25.598 → 13.915 s; full validation and normalized geometry agree | Small samples; first preparation and apply are not accelerated |
 | [Competing builtin trial](benchmarks/esp-pd-sink/review/performance/release/BUILTIN.md) | Repeated prepare: 26.553 → 14.667 s; both versions reject a new plane-fed GND break | DRC dominates this local workload; no A* speedup established |
 | [P0 routing stage timings](benchmarks/esp-pd-sink/review/performance/p0/REPORT.md) | Five release samples per case and cache condition. Median OLED prepare 32.202 → 16.731 s, regional prepare 32.713 → 16.936 s. All ten regional applies refused the new GND break | Single host and frozen fixture. Builtin search took a median 35 ms in this bounded case |
+| [DRC optimization](notes/drc-session-results-2026-11-12.md) | Final full core DRC median 1.645 s on ESP-PD-Sink; final Rayon step 2.259 → 1.645 s; 37-board compatibility corpus | Core replay, not end-to-end routing latency; exact sub-nanometer decisions intentionally differ from upstream rounding |
 | [Path API](benchmarks/esp-pd-sink/review/path-api/REPORT.md) | All 18 saved pairs replayed; 17 match prototype lengths, one is explicitly unmeasured | Requirements/groups remain external prototypes, not enforced project objects |
 
 Use the original ESP-PD-Sink `inputs.tar.gz` for performance comparisons and the
@@ -113,9 +119,12 @@ exact dependencies and acceptance rather than adding another task list here.
 
 ## Validation scope
 
-The last local merge checks on `33c4dfb` passed six routing-service unit tests and
+The DRC integration merge on 2026-11-12 passed six routing-service unit tests and
 32 routing-candidate MCP integration tests with the configured upstream checkout,
-plus formatting. The Nix addition at `f3c3fda` was evaluated for x86_64-linux and
+workspace Clippy with all targets and warnings denied, and formatting. The
+[session report](notes/drc-session-results-2026-11-12.md) separates these merge
+checks from the prior full-core and compatibility results. The Nix addition at
+`f3c3fda` was evaluated for x86_64-linux and
 aarch64-linux; shell/resource/library checks and `cargo check -p librepcb-i18n`
 ran on x86_64-linux. This was not a full workspace or GUI-in-Nix acceptance run.
 

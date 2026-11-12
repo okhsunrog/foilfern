@@ -364,6 +364,7 @@ impl DrcDevice {
 /// `BoardDesignRuleCheckData`).
 #[derive(Debug, Clone)]
 pub struct BoardDrcData {
+    pub(super) snapshot: super::job::DrcSnapshot,
     /// The DRC settings.
     pub settings: BoardDesignRuleCheckSettings,
     /// Whether only the quick check is run.
@@ -597,6 +598,7 @@ impl<'a> Extractor<'a> {
             .map(|(id, cmp)| (id.0, cmp.name().to_string()))
             .collect();
         Ok(BoardDrcData {
+            snapshot: super::job::DrcSnapshot::new(self.project, self.board.id()),
             settings: settings.clone(),
             quick,
             copper_layers: self.copper_layers.clone(),

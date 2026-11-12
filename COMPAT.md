@@ -677,6 +677,30 @@ Rendering only; no file is affected.
 
 ## project/board/drc
 
+- **Exact DRC copper geometry:** DRC uses one rational boolean implementation
+  (`dashu-ratio`) for copper/stopmask aggregation and the checks consuming those
+  regions: copper clearances, hole clearances, annular coverage and cutout
+  boundaries. Intermediate vertices are not rounded to integer nanometers.
+  Shape construction, arc flattening and primitive offsets still follow the
+  existing upstream-derived geometry; project files and manufacturing exporters
+  retain their integer format and geometry pipeline. At sub-nanometer boundaries,
+  exact positive-area overlaps or gaps can produce violations which upstream's
+  sequential rounding suppresses. Open boundary intervals coincident with copper
+  count as covered; isolated point touches do not create positive-length intervals.
+  Integer rounding is applied only to the resulting display locations and cannot
+  suppress a violation. There is no backend flag or alternate DRC runner.
+
+- **Snapshot safety and failed checks:** preparation rejects intervening model
+  edits before applying planes and extracts data in the same exclusive operation.
+  Concurrent air-wire/plane-fragment updates are allowed because they do not
+  change calculation inputs; an expired change-journal cursor fails closed. Failed/incomplete plane rebuilds abort preparation instead of
+  silently checking partial copper. Approval cleanup requires a successful,
+  identified, current result; failed or outdated checks preserve approvals and
+  their version. GUI results from older revisions remain marked outdated.
+  Background plane rebuilds also discard failed, aborted or stale results
+  instead of replacing newer fragments or clearing dirty layers.
+  These reliability checks intentionally strengthen upstream behavior.
+
 - **Iteration order**: the input data keeps net segments, devices, pads,
   vias and junctions in `BTreeMap`s (UUID order) and layers in `BTreeSet`s;
   upstream iterates `QHash`es/`QSet`s. Approvals are identical (upstream

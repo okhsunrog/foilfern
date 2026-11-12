@@ -41,7 +41,7 @@ use std::time::Duration;
 
 use librepcb_app_ui as ui;
 use librepcb_canvas::kurbo::Rect;
-use librepcb_core::project::board::drc::{BoardDrcData, DrcProgress, DrcResult, run_drc};
+use librepcb_core::project::board::drc::{DrcProgress, DrcResult, run_drc};
 use librepcb_core::project::erc::run_erc;
 use librepcb_core::project::{BoardId, BoardMutation, Mutation, SchematicId};
 use librepcb_core::rule_check::{RuleCheckMessage, Severity};
@@ -262,6 +262,8 @@ pub struct CheckState {
     /// Project revision the ERC ran on.
     revision: Option<u64>,
     execution_error: String,
+    /// The finished DRC no longer describes the current model.
+    stale: bool,
     /// Progress notification of a running DRC.
     notification: Option<NotificationId>,
 }
@@ -346,7 +348,7 @@ impl ProjectChecks {
             ui::RuleCheckState::Running
         } else if check.messages.is_none() {
             ui::RuleCheckState::NotRunYet
-        } else if check.undo_state == undo_state {
+        } else if !check.stale && check.undo_state == undo_state {
             ui::RuleCheckState::UpToDate
         } else {
             ui::RuleCheckState::Outdated
@@ -380,42 +382,23 @@ fn drc_worker(
     progress: &(dyn Fn(DrcProgress<'_>) + Sync),
 ) -> Result<DrcResult, String> {
     progress(DrcProgress::Percent(1));
+    let job = shared
+        .lock()
+        .project()
+        .drc_job(board, None, quick)
+        .map_err(|e| e.to_string())?;
     if !quick {
-        // Force rebuilding the planes; the fragments are calculated
-        // without holding the lock.
         progress(DrcProgress::Status(&tr!(
             "librepcb::BoardDesignRuleCheck",
             "Rebuild planes..."
         )));
-        let job = shared
-            .lock()
-            .project()
-            .plane_job(board, None)
-            .map_err(|e| e.to_string())?;
-        if let Some(job) = job {
-            let result = job.run();
-            shared
-                .lock()
-                .editor
-                .update_derived_data(|p| p.apply_plane_job_result(result))
-                .map_err(|e| e.to_string())?
-                .map_err(|e| e.to_string())?;
-        }
     }
+    let prepared = job.run();
     progress(DrcProgress::Percent(10));
     let data = shared
         .lock()
         .editor
-        .update_derived_data(|p| {
-            if !quick {
-                p.force_air_wires_rebuild(board)?;
-            }
-            let settings = p
-                .board(board)
-                .map(|b| b.settings().drc_settings.clone())
-                .unwrap_or_default();
-            BoardDrcData::new(p, board, &settings, quick)
-        })
+        .update_derived_data(|p| prepared.apply(p))
         .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())?;
     progress(DrcProgress::Percent(12));
@@ -799,8 +782,11 @@ impl State {
         else {
             return;
         };
-        let approvals = {
+        let (approvals, current) = {
             let mut p = shared.lock();
+            let current = result
+                .as_ref()
+                .is_ok_and(|r| r.is_current(p.project(), board));
             // Remove approvals of disappeared messages (upstream
             // `BoardEditor::setDrcResult()`, not undoable).
             if let Ok(result) = &result
@@ -810,16 +796,19 @@ impl State {
             {
                 log::error!("Failed to update the DRC approvals: {e}");
             }
-            p.project()
+            let approvals = p
+                .project()
                 .board(board)
                 .map(|b| b.drc_approvals().clone())
-                .unwrap_or_default()
+                .unwrap_or_default();
+            (approvals, current)
         };
         let handler = self.rule_check_handler(&project, CheckKind::Drc(board));
         let notification = {
             let mut checks = project.checks().borrow_mut();
             let check = checks.check_mut(CheckKind::Drc(board));
             check.running = false;
+            check.stale = !current;
             match result {
                 Ok(result) => {
                     let entries = result

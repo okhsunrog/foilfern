@@ -29,13 +29,18 @@ use std::time::{Duration, Instant};
 use clipper::JoinType;
 use clipper::PolyFillType::{EvenOdd, NonZero};
 use librepcb_i18n::{tr, trn};
+use rayon::prelude::*;
+use rstar::{
+    AABB, Envelope, RTree,
+    primitives::{GeomWithData, Rectangle},
+};
 
-use super::clipper_path_generator::{BoardClipperPathGenerator, has_geometry};
 use super::data::{
     BoardDrcData, DrcAirWireAnchor, DrcAirWireObject, DrcDevice, DrcHole, DrcPad, DrcPlane,
     DrcPolygon, DrcSegment, DrcTrace, DrcVia, DrcZone,
 };
 use super::error::{Error, Result};
+use super::geometry_generator::{GeometryGenerator, has_geometry};
 use super::messages::{
     ConnectionAnchor, CopperObject, DrcHoleRef, DrcMessage, ZoneObject, pad_transform,
 };
@@ -45,6 +50,7 @@ use crate::project::{BoardId, Project};
 use crate::types::{Angle, Layer, Length, Point, PositiveLength, UnsignedLength};
 use crate::utils::clipper_helpers::{self, ClipperPaths};
 use crate::utils::painter_path::PainterPathPx;
+use crate::utils::rational_union::{self, Operand, Region};
 use crate::utils::transform::Transform;
 
 const CTX: &str = "librepcb::BoardDesignRuleCheck";
@@ -66,6 +72,7 @@ pub type DrcProgressCallback<'a> = &'a (dyn Fn(DrcProgress<'_>) + Sync);
 /// `BoardDesignRuleCheck::Result`).
 #[derive(Debug, Clone, Default)]
 pub struct DrcResult {
+    snapshot: Option<super::job::DrcSnapshot>,
     /// All emitted messages (approved or not).
     pub messages: Vec<DrcMessage>,
     /// Errors of failed checks (empty on success).
@@ -74,6 +81,18 @@ pub struct DrcResult {
     pub quick: bool,
     /// Duration of the check.
     pub elapsed: Duration,
+}
+
+impl DrcResult {
+    /// Whether all full-check jobs finished successfully on an identified snapshot.
+    pub fn is_complete(&self) -> bool {
+        self.snapshot.is_some() && !self.quick && self.errors.is_empty()
+    }
+
+    /// Whether the result belongs to this board and the current project revision.
+    pub fn is_current(&self, project: &Project, board: BoardId) -> bool {
+        self.snapshot.is_some_and(|s| s.matches(project, board))
+    }
 }
 
 /// Returns the maximum allowed arc tolerance when flattening arcs.
@@ -110,14 +129,55 @@ fn intersection(subject: &ClipperPaths, clip: &ClipperPaths) -> Result<Vec<Path>
     Ok(from_clipper(&clipper_helpers::flatten_tree(tree.root())?))
 }
 
+/// Convert only established violations. Keep even collapsed display polygons:
+/// an integer-grid rendering must never suppress an exact nonempty result.
+fn exact_locations(region: &Region) -> Result<Vec<Path>> {
+    if region.is_empty() {
+        return Ok(Vec::new());
+    }
+    let rounded = region.rounded_paths()?;
+    // This Clipper call only prepares the display polygons (including cut-ins
+    // for holes). It cannot change whether a violation is emitted.
+    let tree = clipper_helpers::unite_to_tree(&rounded, NonZero)?;
+    let display = clipper_helpers::flatten_tree(tree.root())?;
+    Ok(from_clipper(if display.is_empty() {
+        &rounded
+    } else {
+        &display
+    }))
+}
+
+fn exact_intersection(a: &Region, b: &Region) -> Result<Vec<Path>> {
+    exact_locations(&a.intersection(b)?)
+}
+
+/// Stroke exact open violation intervals without adding a closing chord.
+fn exact_line_locations(paths: &[Vec<rational_union::Point>]) -> Result<Vec<Path>> {
+    let width = positive(Length::new(100_000))?;
+    let mut locations = Vec::new();
+    for path in paths {
+        let points = path
+            .iter()
+            .map(|p| p.rounded())
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let vertices = points
+            .iter()
+            .map(|p| Vertex::at(Point::from_nm(p.x, p.y)))
+            .collect();
+        // A collapsed nonempty interval still gets a circular display marker.
+        locations.extend(Path::new(vertices).to_outline_strokes(width));
+    }
+    Ok(locations)
+}
+
 /// Data calculated by stage 1 jobs (upstream `CalculatedJobData`).
 #[derive(Debug, Clone, Default)]
 struct CalculatedJobData {
-    copper_paths_per_layer: BTreeMap<Layer, ClipperPaths>,
+    copper_paths_per_layer: BTreeMap<Layer, Region>,
 }
 
 impl CalculatedJobData {
-    fn copper(&self, layer: Layer) -> ClipperPaths {
+    fn copper(&self, layer: Layer) -> Region {
         self.copper_paths_per_layer
             .get(&layer)
             .cloned()
@@ -242,6 +302,7 @@ pub fn run_drc(data: &BoardDrcData, progress: DrcProgressCallback<'_>) -> DrcRes
     checker.percent(20);
 
     let mut result = DrcResult {
+        snapshot: Some(data.snapshot),
         quick: data.quick,
         ..DrcResult::default()
     };
@@ -342,7 +403,7 @@ impl Project {
     /// For a full check (not `quick`), all planes and the air wires are
     /// rebuilt first.
     /// Errors of single checks are reported in [`DrcResult::errors`];
-    /// an error is returned only if the input data cannot be extracted.
+    /// an error is returned if preparation fails, including a failed plane rebuild.
     pub fn run_drc(
         &mut self,
         board: BoardId,
@@ -352,33 +413,13 @@ impl Project {
     ) -> Result<DrcResult> {
         progress(DrcProgress::Percent(1));
 
-        // Force rebuilding planes (upstream).
+        let job = self.drc_job(board, settings, quick)?;
         if !quick {
             progress(DrcProgress::Status(&tr!(CTX, "Rebuild planes...")));
-            // Like upstream, errors of single planes do not abort the check:
-            // the calculated fragments are applied anyway.
-            if let Some(job) = self.plane_job(board, None)? {
-                self.apply_plane_job_result(job.run())?;
-            }
         }
+        let prepared = job.run();
         progress(DrcProgress::Percent(7));
-
-        // The "checkForMissingConnections()" check requires up-to-date
-        // air wires.
-        if !quick {
-            self.force_air_wires_rebuild(board)?;
-        }
-        progress(DrcProgress::Percent(10));
-
-        // Copy all relevant data for thread-safe access.
-        let settings = match settings {
-            Some(s) => s.clone(),
-            None => self
-                .board(board)
-                .map(|b| b.settings().drc_settings.clone())
-                .unwrap_or_default(),
-        };
-        let data = BoardDrcData::new(self, board, &settings, quick)?;
+        let data = prepared.apply(self)?;
         progress(DrcProgress::Percent(12));
         Ok(run_drc(&data, progress))
     }
@@ -389,6 +430,7 @@ impl Project {
     /// (upstream modifies the board without undo command and marks the
     /// project as modified).
     ///
+    /// Failed, unidentified or outdated results never change approvals.
     /// Records the approvals of `result` as occurring in this session
     /// (derived data of the board). After a quick check nothing is removed,
     /// since messages of the skipped checks would lose their approvals.
@@ -409,6 +451,9 @@ impl Project {
                 kind: crate::project::EntityKind::Board,
                 uuid: board.0,
             })?;
+        if !result.is_current(self, board) || !result.errors.is_empty() {
+            return Ok(None);
+        }
         let b = &mut self.boards[index];
         let approvals: BTreeSet<_> = result
             .messages
@@ -418,7 +463,7 @@ impl Project {
         b.derived
             .supported_drc_approvals
             .extend(approvals.iter().cloned());
-        if result.quick {
+        if !result.is_complete() {
             return Ok(None);
         }
         let current = crate::application::file_format_version();
@@ -454,17 +499,144 @@ struct CopperItem<'a> {
     end_layer: Layer,
     net: Option<crate::types::Uuid>,
     clearance: Length,
-    copper_area: ClipperPaths,
-    clearance_area: ClipperPaths,
+    copper_area: Region,
+    clearance_area: Region,
+}
+
+/// Broad-phase bounds covering both directions of a clearance check.
+fn copper_envelope(copper: &Region, clearance: &Region) -> Result<Option<AABB<[i128; 2]>>> {
+    let a = copper.envelope()?;
+    let b = clearance.envelope()?;
+    Ok(match (a, b) {
+        (Some(a), Some(b)) => Some(a.merged(&b)),
+        (a, b) => a.or(b),
+    })
+}
+
+fn copper_layer_mask(start: Layer, end: Layer, layers: &BTreeSet<Layer>) -> u64 {
+    layers
+        .iter()
+        .filter(|layer| {
+            (start.copper_number()..=end.copper_number()).contains(&layer.copper_number())
+        })
+        .fold(0, |mask, layer| mask | (1u64 << layer.copper_number()))
 }
 
 /// A copper clearance violation (merged per object pair).
+#[derive(Debug, PartialEq, Eq)]
 struct CopperViolation {
     obj1: usize,
     obj2: usize,
-    layers: BTreeSet<Layer>,
+    layers: u64,
     clearance: Length,
     locations: Vec<Path>,
+}
+
+/// Evaluate independent groups of copper pairs in parallel, then merge in the
+/// original (i, k) order so messages, locations and approvals remain stable.
+fn check_copper_pairs(
+    items: &[CopperItem<'_>],
+    layers: &BTreeSet<Layer>,
+) -> Result<Vec<CopperViolation>> {
+    // Index both areas: custom clearances require checking either direction.
+    // i128 accommodates areas and squared distances over the full input range.
+    let envelopes = items
+        .iter()
+        .map(|item| copper_envelope(&item.copper_area, &item.clearance_area))
+        .collect::<Result<Vec<_>>>()?;
+    let index = RTree::bulk_load(
+        envelopes
+            .iter()
+            .enumerate()
+            .filter_map(|(i, bounds)| {
+                bounds.map(|bounds| GeomWithData::new(Rectangle::from_aabb(bounds), i))
+            })
+            .collect(),
+    );
+    let layer_masks: Vec<u64> = items
+        .iter()
+        .map(|item| copper_layer_mask(item.start_layer, item.end_layer, layers))
+        .collect();
+
+    // Now check for intersections.
+    // Indexed parallel collection retains the original i order, including errors.
+    // Each worker keeps only violations, not a board-wide quadratic pair list.
+    let results: Vec<Result<Vec<CopperViolation>>> = (0..items.len())
+        .into_par_iter()
+        .map(|i| {
+            let mut violations = Vec::new();
+            let Some(envelope) = &envelopes[i] else {
+                return Ok(violations);
+            };
+            let mut candidates: Vec<_> = index
+                .locate_in_envelope_intersecting(*envelope)
+                .map(|entry| entry.data)
+                .filter(|&k| k > i)
+                .collect();
+            // Tree traversal order must not affect messages or approval handling.
+            candidates.sort_unstable();
+            for k in candidates {
+                let (it1, it2) = (&items[i], &items[k]);
+                if !(((it1.clearance > Length::ZERO) || (it2.clearance > Length::ZERO))
+                    && ((it1.net != it2.net) || it1.net.is_none() || it2.net.is_none()))
+                {
+                    continue;
+                }
+                let overlapping = layer_masks[i] & layer_masks[k];
+                if overlapping == 0 {
+                    continue;
+                }
+                let mut locations = exact_intersection(&it1.copper_area, &it2.clearance_area)?;
+                // Perform the check the other way around only if:
+                //  - Either the two items have individual clearances
+                //  - Or there are any intersections -> show both violations
+                if (it1.clearance != it2.clearance) || !locations.is_empty() {
+                    locations.extend(exact_intersection(&it2.copper_area, &it1.clearance_area)?);
+                }
+                if locations.is_empty() {
+                    continue;
+                }
+                let clearance = it1.clearance.max(it2.clearance);
+                violations.push(CopperViolation {
+                    obj1: i,
+                    obj2: k,
+                    layers: overlapping,
+                    clearance,
+                    locations,
+                });
+            }
+            Ok(violations)
+        })
+        .collect();
+    merge_copper_violations(items, results)
+}
+
+/// Merge in input order after every worker has finished. In particular, do not
+/// collect the parallel iterator into Result: its chosen error is unspecified.
+fn merge_copper_violations(
+    items: &[CopperItem<'_>],
+    results: impl IntoIterator<Item = Result<Vec<CopperViolation>>>,
+) -> Result<Vec<CopperViolation>> {
+    let mut violations: Vec<CopperViolation> = Vec::new();
+    for result in results {
+        for next in result? {
+            let (it1, it2) = (&items[next.obj1], &items[next.obj2]);
+            let existing = violations.iter_mut().find(|v| {
+                let (s1, s2) = (&items[v.obj1].serialized, &items[v.obj2].serialized);
+                ((&it1.serialized == s1) && (&it2.serialized == s2))
+                    || ((&it1.serialized == s2) && (&it2.serialized == s1))
+            });
+            match existing {
+                Some(v) => {
+                    v.layers |= next.layers;
+                    v.clearance = v.clearance.max(next.clearance);
+                    v.locations.extend(next.locations);
+                }
+                None => violations.push(next),
+            }
+        }
+    }
+    Ok(violations)
 }
 
 impl<'a> CopperItem<'a> {
@@ -473,8 +645,8 @@ impl<'a> CopperItem<'a> {
         layers: (Layer, Layer),
         net: Option<crate::types::Uuid>,
         clearance: Length,
-        copper_area: ClipperPaths,
-        clearance_area: ClipperPaths,
+        copper_area: Region,
+        clearance_area: Region,
     ) -> Self {
         Self {
             serialized: object.serialize(),
@@ -499,11 +671,11 @@ struct ZoneItem<'a> {
 }
 
 impl Checker<'_> {
-    fn prepare_copper_paths(&self, data: &BoardDrcData, layer: Layer) -> Result<ClipperPaths> {
+    fn prepare_copper_paths(&self, data: &BoardDrcData, layer: Layer) -> Result<Region> {
         self.status(&tr!(CTX, "Prepare '{0}'...", layer.name_tr()));
-        let mut generator = BoardClipperPathGenerator::new(max_arc_tolerance());
+        let mut generator = GeometryGenerator::new(max_arc_tolerance());
         generator.add_copper(data, layer, &[], data.quick)?;
-        Ok(generator.take_paths())
+        generator.take_region()
     }
 
     fn check_copper_copper_clearances(&self, data: &BoardDrcData) -> Messages {
@@ -527,22 +699,11 @@ impl Checker<'_> {
 
         // Determine the area of each copper object.
         let mut items: Vec<CopperItem<'_>> = Vec::new();
-        let mut generator = BoardClipperPathGenerator::new(max_arc_tolerance());
-        let offset_clearance =
-            |mut paths: ClipperPaths, clearance: UnsignedLength| -> Result<ClipperPaths> {
-                clipper_helpers::offset(
-                    &mut paths,
-                    reduced(clearance),
-                    max_arc_tolerance(),
-                    JoinType::Round,
-                )?;
-                Ok(paths)
-            };
-
+        let mut generator = GeometryGenerator::new(max_arc_tolerance());
         // Helper for pads: the copper and clearance areas per layer.
         let pad_areas = |pad: &DrcPad,
-                         generator: &mut BoardClipperPathGenerator|
-         -> Result<Vec<(Layer, Length, ClipperPaths, ClipperPaths)>> {
+                         generator: &mut GeometryGenerator|
+         -> Result<Vec<(Layer, Length, Region, Region)>> {
             let pad_clearance = pad
                 .copper_clearance
                 .max(data.min_copper_copper_clearance(pad.net_class));
@@ -550,9 +711,9 @@ impl Checker<'_> {
             for &layer in &data.copper_layers {
                 if has_geometry(pad, layer) {
                     generator.add_pad(pad, layer, Length::ZERO)?;
-                    let copper_area = generator.take_paths();
+                    let copper_area = generator.take_region()?;
                     generator.add_pad(pad, layer, reduced(pad_clearance))?;
-                    let clearance_area = generator.take_paths();
+                    let clearance_area = generator.take_region()?;
                     areas.push((layer, *pad_clearance, copper_area, clearance_area));
                 }
             }
@@ -582,9 +743,9 @@ impl Checker<'_> {
             // Vias.
             for via in ns.vias.values() {
                 generator.add_via(via, Length::ZERO)?;
-                let copper = generator.take_paths();
+                let copper = generator.take_region()?;
                 generator.add_via(via, reduced(clearance))?;
-                let clearance_area = generator.take_paths();
+                let clearance_area = generator.take_region()?;
                 items.push(CopperItem {
                     object: CopperObject::Via(via, ns),
                     serialized: CopperObject::Via(via, ns).serialize(),
@@ -601,9 +762,9 @@ impl Checker<'_> {
             for trace in &ns.traces {
                 if data.copper_layers.contains(&trace.layer) {
                     generator.add_trace(trace, Length::ZERO)?;
-                    let copper = generator.take_paths();
+                    let copper = generator.take_region()?;
                     generator.add_trace(trace, reduced(clearance))?;
-                    let clearance_area = generator.take_paths();
+                    let clearance_area = generator.take_region()?;
                     items.push(CopperItem {
                         object: CopperObject::Trace(trace, ns),
                         serialized: CopperObject::Trace(trace, ns).serialize(),
@@ -624,8 +785,15 @@ impl Checker<'_> {
                 if data.copper_layers.contains(&plane.layer) {
                     let clearance = data.min_copper_copper_clearance(plane.net_class);
                     generator.add_plane(&plane.fragments)?;
-                    let copper = generator.take_paths();
-                    let clearance_area = offset_clearance(copper.clone(), clearance)?;
+                    let copper = generator.take_region()?;
+                    let mut expanded = to_clipper(&plane.fragments);
+                    clipper_helpers::offset(
+                        &mut expanded,
+                        reduced(clearance),
+                        max_arc_tolerance(),
+                        JoinType::Round,
+                    )?;
+                    let clearance_area = Region::from_integer(&expanded, NonZero)?;
                     items.push(CopperItem {
                         object: CopperObject::Plane(plane),
                         serialized: CopperObject::Plane(plane).serialize(),
@@ -651,8 +819,14 @@ impl Checker<'_> {
                     polygon.filled,
                     Length::ZERO,
                 )?;
-                let copper = generator.take_paths();
-                let clearance_area = offset_clearance(copper.clone(), board_clearance)?;
+                let copper = generator.take_region()?;
+                generator.add_polygon(
+                    &polygon.path,
+                    polygon.line_width,
+                    polygon.filled,
+                    reduced(board_clearance),
+                )?;
+                let clearance_area = generator.take_region()?;
                 items.push(CopperItem {
                     object: CopperObject::Polygon(polygon, None),
                     serialized: CopperObject::Polygon(polygon, None).serialize(),
@@ -670,9 +844,9 @@ impl Checker<'_> {
         for st in &data.stroke_texts {
             if data.copper_layers.contains(&st.layer) {
                 generator.add_stroke_text(st, Length::ZERO)?;
-                let copper = generator.take_paths();
+                let copper = generator.take_region()?;
                 generator.add_stroke_text(st, reduced(board_clearance))?;
-                let clearance_area = generator.take_paths();
+                let clearance_area = generator.take_region()?;
                 items.push(CopperItem {
                     object: CopperObject::StrokeText(st, None),
                     serialized: CopperObject::StrokeText(st, None).serialize(),
@@ -716,8 +890,14 @@ impl Checker<'_> {
                         polygon.filled,
                         Length::ZERO,
                     )?;
-                    let copper = generator.take_paths();
-                    let clearance_area = offset_clearance(copper.clone(), board_clearance)?;
+                    let copper = generator.take_region()?;
+                    generator.add_polygon(
+                        &transform.map(&polygon.path),
+                        polygon.line_width,
+                        polygon.filled,
+                        reduced(board_clearance),
+                    )?;
+                    let clearance_area = generator.take_region()?;
                     items.push(CopperItem {
                         object: CopperObject::Polygon(polygon, Some(dev)),
                         serialized: CopperObject::Polygon(polygon, Some(dev)).serialize(),
@@ -736,9 +916,9 @@ impl Checker<'_> {
                 let layer = transform.map(&circle.layer);
                 if data.copper_layers.contains(&layer) {
                     generator.add_circle(circle, &transform, Length::ZERO)?;
-                    let copper = generator.take_paths();
+                    let copper = generator.take_region()?;
                     generator.add_circle(circle, &transform, reduced(board_clearance))?;
-                    let clearance_area = generator.take_paths();
+                    let clearance_area = generator.take_region()?;
                     items.push(CopperItem {
                         object: CopperObject::Circle(circle, Some(dev)),
                         serialized: CopperObject::Circle(circle, Some(dev)).serialize(),
@@ -757,9 +937,9 @@ impl Checker<'_> {
                 // Layer does not need to be transformed!
                 if data.copper_layers.contains(&st.layer) {
                     generator.add_stroke_text(st, Length::ZERO)?;
-                    let copper = generator.take_paths();
+                    let copper = generator.take_region()?;
                     generator.add_stroke_text(st, reduced(board_clearance))?;
-                    let clearance_area = generator.take_paths();
+                    let clearance_area = generator.take_region()?;
                     items.push(CopperItem {
                         object: CopperObject::StrokeText(st, Some(dev)),
                         serialized: CopperObject::StrokeText(st, Some(dev)).serialize(),
@@ -774,79 +954,18 @@ impl Checker<'_> {
             }
         }
 
-        // Helper to check for overlapping layer spans.
-        let layers_overlap = |a: &CopperItem<'_>, b: &CopperItem<'_>| -> BTreeSet<Layer> {
-            let first = a
-                .start_layer
-                .copper_number()
-                .max(b.start_layer.copper_number());
-            let last = a.end_layer.copper_number().min(b.end_layer.copper_number());
-            (first..=last)
-                .filter_map(Layer::copper)
-                .filter(|l| data.copper_layers.contains(l))
-                .collect()
-        };
-
-        // Memorize violations since we want to emit messages only once per
-        // object1<->object2 pair.
-        let mut violations: Vec<CopperViolation> = Vec::new();
-
-        // Now check for intersections.
-        for i in 0..items.len() {
-            for k in (i + 1)..items.len() {
-                let (it1, it2) = (&items[i], &items[k]);
-                if !(((it1.clearance > Length::ZERO) || (it2.clearance > Length::ZERO))
-                    && ((it1.net != it2.net) || it1.net.is_none() || it2.net.is_none()))
-                {
-                    continue;
-                }
-                let overlapping = layers_overlap(it1, it2);
-                if overlapping.is_empty() {
-                    continue;
-                }
-                let mut locations = intersection(&it1.copper_area, &it2.clearance_area)?;
-                // Perform the check the other way around only if:
-                //  - Either the two items have individual clearances
-                //  - Or there are any intersections -> show both violations
-                if (it1.clearance != it2.clearance) || !locations.is_empty() {
-                    locations.extend(intersection(&it2.copper_area, &it1.clearance_area)?);
-                }
-                if locations.is_empty() {
-                    continue;
-                }
-                let clearance = it1.clearance.max(it2.clearance);
-                let existing = violations.iter_mut().find(|v| {
-                    let (s1, s2) = (&items[v.obj1].serialized, &items[v.obj2].serialized);
-                    ((&it1.serialized == s1) && (&it2.serialized == s2))
-                        || ((&it1.serialized == s2) && (&it2.serialized == s1))
-                });
-                match existing {
-                    Some(v) => {
-                        // Merge with existing violation.
-                        v.layers.extend(overlapping);
-                        v.clearance = v.clearance.max(clearance);
-                        v.locations.extend(locations);
-                    }
-                    None => violations.push(CopperViolation {
-                        obj1: i,
-                        obj2: k,
-                        layers: overlapping,
-                        clearance,
-                        locations,
-                    }),
-                }
-            }
-        }
+        let violations = check_copper_pairs(&items, &data.copper_layers)?;
 
         // Emit messages.
         for v in violations {
-            let single = (v.layers.len() == 1)
-                .then(|| v.layers.first().copied())
+            let count = v.layers.count_ones() as usize;
+            let single = (count == 1)
+                .then(|| Layer::copper(v.layers.trailing_zeros() as usize))
                 .flatten();
             messages.push(DrcMessage::copper_copper_clearance_violation(
                 &items[v.obj1].object,
                 &items[v.obj2].object,
-                v.layers.len(),
+                count,
                 single,
                 v.clearance,
                 v.locations,
@@ -865,18 +984,20 @@ impl Checker<'_> {
         self.status(&tr!(CTX, "Check board clearances..."));
 
         // Determine restricted area around board outline.
-        let restricted_area = board_clearance_area(data, clearance)?;
+        let restricted_area =
+            Region::from_integer(&board_clearance_area(data, clearance)?, EvenOdd)?;
 
         // Helper for the actual check.
-        let intersects = |paths: &ClipperPaths| -> Result<Option<Vec<Path>>> {
-            let locations = intersection(&restricted_area, paths)?;
+        let intersects = |region: &Region| -> Result<Option<Vec<Path>>> {
+            let locations = exact_intersection(&restricted_area, region)?;
             Ok((!locations.is_empty()).then_some(locations))
         };
-        let single = |add: &dyn Fn(&mut BoardClipperPathGenerator) -> Result<()>| -> Result<Option<Vec<Path>>> {
-            let mut generator = BoardClipperPathGenerator::new(max_arc_tolerance());
-            add(&mut generator)?;
-            intersects(generator.paths())
-        };
+        let single =
+            |add: &dyn Fn(&mut GeometryGenerator) -> Result<()>| -> Result<Option<Vec<Path>>> {
+                let mut generator = GeometryGenerator::new(max_arc_tolerance());
+                add(&mut generator)?;
+                intersects(&generator.take_region()?)
+            };
 
         // Helper for pads: mention every pad only once.
         let check_pad = |pad: &DrcPad| -> Result<Option<Vec<Path>>> {
@@ -1024,28 +1145,28 @@ impl Checker<'_> {
     ) -> Messages {
         let mut messages = Vec::new();
         let clearance = data.settings.min_copper_npth_clearance();
-        if *clearance == Length::ZERO {
+        if *clearance == Length::ZERO
+            || (data.holes.is_empty() && data.devices.values().all(|dev| dev.holes.is_empty()))
+        {
             return Ok(messages);
         }
 
         self.status(&tr!(CTX, "Check hole clearances..."));
 
-        // Determine the areas where copper is available on *any* layer.
-        let mut copper_any_layer = ClipperPaths::new();
-        for paths in calc.copper_paths_per_layer.values() {
-            clipper_helpers::unite_with(&mut copper_any_layer, paths, EvenOdd, NonZero)?;
-        }
-
         // Helper for the actual check.
         let intersects = |hole: &DrcHole, transform: &Transform| -> Result<Vec<Path>> {
-            let mut generator = BoardClipperPathGenerator::new(max_arc_tolerance());
+            let mut generator = GeometryGenerator::new(max_arc_tolerance());
             generator.add_hole(
                 hole.diameter,
                 &hole.path,
                 transform,
                 *clearance - *max_arc_tolerance() - Length::new(1),
             )?;
-            intersection(&copper_any_layer, generator.paths())
+            exact_locations(
+                &generator
+                    .take_region()?
+                    .intersection_with_union(calc.copper_paths_per_layer.values())?,
+            )
         };
 
         // Check board holes.
@@ -1172,12 +1293,13 @@ impl Checker<'_> {
         self.status(&tr!(CTX, "Check drill to board edge clearances..."));
 
         // Determine restricted area around board outline.
-        let restricted_area = board_clearance_area(data, clearance)?;
+        let restricted_area =
+            Region::from_integer(&board_clearance_area(data, clearance)?, EvenOdd)?;
 
         // Helper for the actual check.
         let intersects = |path: &Path, diameter: PositiveLength| -> Result<Vec<Path>> {
             let area = to_clipper(&path.to_outline_strokes(diameter));
-            intersection(&restricted_area, &area)
+            exact_intersection(&restricted_area, &Region::from_integer(&area, EvenOdd)?)
         };
         let mut check =
             |hole: DrcHoleRef<'_>, path: &Path, diameter: PositiveLength| -> Result<()> {
@@ -1273,20 +1395,23 @@ impl Checker<'_> {
             // Build stopmask openings area. Only take the board area into
             // account since warnings outside the board area are not really
             // helpful.
-            let mut generator = BoardClipperPathGenerator::new(max_arc_tolerance());
+            let mut generator = GeometryGenerator::new(max_arc_tolerance());
             generator.add_stop_mask_openings(data, stop_mask, *clearance)?;
-            let mut clearance_area = generator.take_paths();
-            clipper_helpers::unite_with(&mut clearance_area, &board_clearance, EvenOdd, NonZero)?;
-            clipper_helpers::intersect(&mut clearance_area, &board_area, EvenOdd, EvenOdd)?;
+            let clearance_area = rational_union::union(&[
+                generator.take_region()?.operand(),
+                Operand::from_integer(&board_clearance, NonZero),
+            ])?
+            .0
+            .intersection(&Region::from_integer(&board_area, EvenOdd)?)?;
 
             // Note: We check only stroke texts. For other objects like
             // polygons, usually there are dozens of clearance violations but
             // most of the time they are not relevant and cannot be avoided.
             // So let's omit these annoying warnings.
             let intersects = |st: &super::data::DrcStrokeText| -> Result<Vec<Path>> {
-                let mut generator = BoardClipperPathGenerator::new(max_arc_tolerance());
+                let mut generator = GeometryGenerator::new(max_arc_tolerance());
                 generator.add_stroke_text(st, Length::ZERO)?;
-                intersection(&clearance_area, generator.paths())
+                exact_intersection(&clearance_area, &generator.take_region()?)
             };
 
             // Check board stroke texts.
@@ -1342,39 +1467,35 @@ impl Checker<'_> {
 
         self.status(&tr!(CTX, "Check PTH annular rings..."));
 
-        // Determine the areas where copper is available on *all* layers.
-        let tht_copper_areas: Vec<ClipperPaths> = data
-            .copper_layers
-            .iter()
-            .map(|&layer| calc.copper(layer))
-            .collect();
-        let tree = clipper_helpers::intersect_all_to_tree(&tht_copper_areas)?;
-        let tht_copper_area_paths = clipper_helpers::tree_to_paths(&tree);
+        let empty = Region::default();
 
         // Helper.
-        let check_pad = |pad: &DrcPad| -> Result<Vec<Path>> {
-            // Determine hole areas including minimum annular ring.
-            let transform = pad_transform(pad);
-            let mut areas = ClipperPaths::new();
-            for hole in &pad.holes {
-                let diameter = hole.diameter + (*annular_width * 2) - Length::new(1);
-                if diameter <= Length::ZERO {
-                    continue;
+        let check_pad =
+            |pad: &DrcPad| -> Result<Vec<Path>> {
+                if pad.holes.is_empty() {
+                    return Ok(Vec::new());
                 }
-                let strokes = transform.map(&hole.path.to_outline_strokes(positive(diameter)?));
-                clipper_helpers::unite_with(&mut areas, &to_clipper(&strokes), EvenOdd, NonZero)?;
-            }
+                // Determine hole areas including minimum annular ring.
+                let transform = pad_transform(pad);
+                let mut areas = Vec::new();
+                for hole in &pad.holes {
+                    let diameter = hole.diameter + (*annular_width * 2) - Length::new(1);
+                    if diameter <= Length::ZERO {
+                        continue;
+                    }
+                    let strokes = transform.map(&hole.path.to_outline_strokes(positive(diameter)?));
+                    areas.push(Operand::from_integer(&to_clipper(&strokes), NonZero));
+                }
 
-            // Check if there's not a 100% overlap.
-            let tree = clipper_helpers::subtract_to_tree(
-                &areas,
-                &tht_copper_area_paths,
-                EvenOdd,
-                EvenOdd,
-                true,
-            )?;
-            Ok(from_clipper(&clipper_helpers::flatten_tree(tree.root())?))
-        };
+                // Decide on the exact difference, before integer display conversion.
+                exact_locations(
+                    &rational_union::union(&areas)?
+                        .0
+                        .difference_from_intersection(data.copper_layers.iter().map(|layer| {
+                            calc.copper_paths_per_layer.get(layer).unwrap_or(&empty)
+                        }))?,
+                )
+            };
 
         // Check pad & via annular rings.
         for ns in data.segments.values() {
@@ -2313,67 +2434,48 @@ impl Checker<'_> {
         let mut messages = Vec::new();
         self.status(&tr!(CTX, "Check board cutouts..."));
 
+        let is_cutout =
+            |layer| [Layer::BOARD_CUTOUTS, Layer::BOARD_PLATED_CUTOUTS].contains(&layer);
+        if !data.polygons.iter().any(|p| is_cutout(p.layer))
+            && !data.devices.values().any(|dev| {
+                dev.polygons.iter().any(|p| is_cutout(p.layer))
+                    || dev.circles.iter().any(|c| is_cutout(c.layer))
+            })
+        {
+            return Ok(messages);
+        }
+
         // Helper to stroke a path.
         let get_locations = |path: &Path, line_width: UnsignedLength| -> Result<Vec<Path>> {
             Ok(path.to_outline_strokes(positive((*line_width).max(Length::new(100_000)))?))
         };
 
-        // Helper to get the locations of path segments.
-        let tree_to_locations = |tree: &clipper::PolyTree| -> Result<Vec<Path>> {
-            let mut locations = Vec::new();
-            for location in from_clipper(&clipper_helpers::tree_to_paths(tree)) {
-                locations.extend(get_locations(&location, UnsignedLength::ZERO)?);
-            }
-            Ok(locations)
-        };
+        let top = calc.copper(Layer::TOP_COPPER);
+        let bottom = calc.copper(Layer::BOT_COPPER);
+        let united_copper = rational_union::union(&[top.operand(), bottom.operand()])?.0;
+        let intersected_copper = top.intersection(&bottom)?;
 
-        // Top & bottom copper areas, united resp. intersected.
-        let mut united_copper = calc.copper(Layer::TOP_COPPER);
-        clipper_helpers::unite_with(
-            &mut united_copper,
-            &calc.copper(Layer::BOT_COPPER),
-            EvenOdd,
-            NonZero,
-        )?;
-        let mut intersected_copper = calc.copper(Layer::TOP_COPPER);
-        clipper_helpers::intersect(
-            &mut intersected_copper,
-            &calc.copper(Layer::BOT_COPPER),
-            EvenOdd,
-            NonZero,
-        )?;
-
-        // Helpers to check non-plated cutouts for intersections with copper.
+        let clipped_locations =
+            |region: &Region, outline: &Path, inside: bool| -> Result<Vec<Path>> {
+                let inputs =
+                    Operand::from_integer(&to_clipper(std::slice::from_ref(outline)), EvenOdd);
+                let mut locations = Vec::new();
+                for path in &inputs.paths {
+                    locations.extend(exact_line_locations(&region.clip_polyline(path, inside)?)?);
+                }
+                Ok(locations)
+            };
         let non_plated_but_intersected_by_copper = |layer: Layer, outline: &Path| {
             if (layer != Layer::BOARD_CUTOUTS) || !outline.is_closed() {
                 return Ok(Vec::new());
             }
-            let paths = to_clipper(std::slice::from_ref(outline));
-            let tree = clipper_helpers::intersect_to_tree(
-                &paths,
-                &united_copper,
-                EvenOdd,
-                EvenOdd,
-                false,
-            )?;
-            tree_to_locations(&tree)
+            clipped_locations(&united_copper, outline, true)
         };
-
-        // Helpers to check plated cutouts for missing copper along its
-        // outline.
         let plated_but_not_surrounded_by_copper = |layer: Layer, outline: &Path| {
             if (layer != Layer::BOARD_PLATED_CUTOUTS) || !outline.is_closed() {
                 return Ok(Vec::new());
             }
-            let paths = to_clipper(std::slice::from_ref(outline));
-            let tree = clipper_helpers::subtract_to_tree(
-                &paths,
-                &intersected_copper,
-                EvenOdd,
-                EvenOdd,
-                false,
-            )?;
-            tree_to_locations(&tree)
+            clipped_locations(&intersected_copper, outline, false)
         };
 
         // Check all plated and non-plated cutouts.
@@ -3019,4 +3121,293 @@ fn hole_location(hole: &DrcHole, transform: &Transform) -> Vec<Path> {
     transform
         .map(hole.path.get())
         .to_outline_strokes(hole.diameter)
+}
+
+#[cfg(test)]
+mod exact_geometry_tests {
+    use super::*;
+    use crate::utils::rational_union::Point as ExactPoint;
+    use dashu_ratio::RBig;
+
+    fn rectangle(x: i64, y: i64, w: i64, h: i64) -> Region {
+        rational_union::union(&[Operand {
+            paths: vec![
+                [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+                    .into_iter()
+                    .map(|(x, y)| ExactPoint::from_nm(x, y))
+                    .collect(),
+            ],
+            fill: NonZero,
+        }])
+        .unwrap()
+        .0
+    }
+
+    #[test]
+    fn parallel_pairs_preserve_order_locations_and_multilayer_merging() {
+        let polygons: Vec<_> = (0..3)
+            .map(|_| DrcPolygon {
+                uuid: crate::types::Uuid::new_random(),
+                layer: Layer::TOP_COPPER,
+                line_width: unsigned(Length::ZERO).unwrap(),
+                filled: true,
+                path: Path::default(),
+            })
+            .collect();
+        // The same three objects on two layers must yield three merged messages,
+        // in the original pair order, retaining locations from both layers.
+        let items: Vec<_> = (0..6)
+            .map(|i| {
+                let layer = if i < 3 {
+                    Layer::TOP_COPPER
+                } else {
+                    Layer::BOT_COPPER
+                };
+                CopperItem::new(
+                    CopperObject::Polygon(&polygons[i % 3], None),
+                    (layer, layer),
+                    None,
+                    Length::new(10 + i as i64),
+                    rectangle(i as i64, 0, 20, 20),
+                    rectangle(-10, -10, 50, 50),
+                )
+            })
+            .collect();
+        let layers = [Layer::TOP_COPPER, Layer::BOT_COPPER].into();
+        let mut expected = None;
+        for threads in [1, 2, 4] {
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap();
+            for _ in 0..3 {
+                let actual = pool
+                    .install(|| check_copper_pairs(&items, &layers))
+                    .unwrap();
+                assert_eq!(
+                    actual.iter().map(|v| (v.obj1, v.obj2)).collect::<Vec<_>>(),
+                    [(0, 1), (0, 2), (1, 2)]
+                );
+                for (v, width) in actual.iter().zip([14, 15, 15]) {
+                    assert_eq!(v.layers, 1 | (1u64 << 63));
+                    assert_eq!(v.clearance, Length::new(width));
+                    assert_eq!(v.locations.len(), 4);
+                    let mut locations = Vec::new();
+                    for offset in [0, 3] {
+                        locations.extend(
+                            exact_intersection(
+                                &items[v.obj1 + offset].copper_area,
+                                &items[v.obj2 + offset].clearance_area,
+                            )
+                            .unwrap(),
+                        );
+                        locations.extend(
+                            exact_intersection(
+                                &items[v.obj2 + offset].copper_area,
+                                &items[v.obj1 + offset].clearance_area,
+                            )
+                            .unwrap(),
+                        );
+                    }
+                    assert_eq!(v.locations, locations);
+                }
+                if let Some(expected) = &expected {
+                    assert_eq!(&actual, expected);
+                } else {
+                    expected = Some(actual);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn parallel_pair_errors_are_reported_in_input_order() {
+        // Completion order cannot choose the error or turn a failed check into
+        // a partial success (which could otherwise clear stored approvals).
+        let results = vec![
+            Ok(Vec::new()),
+            Err(Error::IncompletePlaneRebuild),
+            Err(Error::StaleSnapshot),
+        ];
+        assert!(matches!(
+            merge_copper_violations(&[], results),
+            Err(Error::IncompletePlaneRebuild)
+        ));
+        let results = vec![
+            Err(Error::StaleSnapshot),
+            Err(Error::IncompletePlaneRebuild),
+        ];
+        assert!(matches!(
+            merge_copper_violations(&[], results),
+            Err(Error::StaleSnapshot)
+        ));
+    }
+
+    #[test]
+    fn spatial_candidates_retain_asymmetric_clearances_and_full_range() {
+        let small = rectangle(0, 0, 2, 2);
+        let wide = rectangle(-10, -10, 22, 22);
+        let other = rectangle(8, 0, 2, 2);
+        assert!(small.intersection(&other).unwrap().is_empty());
+        assert!(!wide.intersection(&other).unwrap().is_empty());
+        let limit = 0x3fff_ffff_ffff_ffff;
+        let full = rectangle(-limit, -limit, 2 * limit, 2 * limit);
+        let empty = Region::default();
+        let pairs = [
+            (&small, &wide),
+            (&other, &other),
+            (&empty, &empty),
+            (&full, &full),
+        ];
+        let bounds: Vec<_> = pairs
+            .iter()
+            .map(|(a, b)| copper_envelope(a, b).unwrap())
+            .collect();
+        // Force internal tree nodes, including envelopes spanning the full range.
+        let tree = RTree::bulk_load(
+            (0..128)
+                .filter_map(|i| {
+                    bounds[i % 4].map(|b| GeomWithData::new(Rectangle::from_aabb(b), i))
+                })
+                .collect(),
+        );
+        for query in bounds.iter().flatten() {
+            let mut actual: Vec<_> = tree
+                .locate_in_envelope_intersecting(*query)
+                .map(|e| e.data)
+                .collect();
+            actual.sort_unstable();
+            let expected: Vec<_> = (0..128)
+                .filter(|&i| bounds[i % 4].is_some_and(|b| b.intersects(query)))
+                .collect();
+            assert_eq!(actual, expected);
+        }
+        assert!(bounds[0].unwrap().intersects(&bounds[1].unwrap()));
+        assert!(bounds[2].is_none());
+    }
+
+    #[test]
+    fn layer_masks_preserve_sparse_and_full_stack_spans() {
+        let all: BTreeSet<_> = (0..64).map(|n| Layer::copper(n).unwrap()).collect();
+        assert_eq!(
+            copper_layer_mask(Layer::TOP_COPPER, Layer::BOT_COPPER, &all),
+            u64::MAX
+        );
+        let sparse: BTreeSet<_> = [0, 1, 2, 63].map(|n| Layer::copper(n).unwrap()).into();
+        let mask = |a, b| {
+            copper_layer_mask(
+                Layer::copper(a).unwrap(),
+                Layer::copper(b).unwrap(),
+                &sparse,
+            )
+        };
+        assert_eq!(mask(1, 62), 0b110);
+        assert_eq!(mask(2, 1), 0);
+        assert_eq!(mask(0, 1) & mask(2, 63), 0);
+        assert_eq!(mask(0, 63) & mask(63, 63), 1u64 << 63);
+    }
+
+    #[test]
+    fn local_layer_queries_equal_global_booleans_before_rounding() {
+        let outer = rectangle(-100, -100, 200, 200);
+        let hole = rectangle(-10, -10, 20, 20);
+        let donut = outer.difference(&hole).unwrap();
+        let fractional = rational_union::union(&[Operand {
+            paths: vec![vec![
+                ExactPoint::from_nm(-3, -4),
+                ExactPoint::from_nm(15, -2),
+                ExactPoint::from_nm(1, 20),
+            ]],
+            fill: NonZero,
+        }])
+        .unwrap()
+        .0
+        .intersection(&rectangle(-6, -5, 14, 16))
+        .unwrap();
+        let layers = [donut, fractional, rectangle(200, 200, 5, 5)];
+        let empty = Region::default();
+        // Include empty layer sets, explicit missing layers, enclosing holes,
+        // remote rings, and fractional boundaries at query-box intersections.
+        for stack in [
+            vec![],
+            vec![&layers[0]],
+            vec![&layers[0], &layers[1]],
+            vec![&layers[0], &layers[1], &layers[2]],
+            vec![&layers[0], &empty],
+        ] {
+            let operands: Vec<_> = stack.iter().map(|r| r.operand()).collect();
+            let any = rational_union::union(&operands).unwrap().0;
+            let all = rational_union::intersection(&operands).unwrap();
+            for x in -12..12 {
+                let query = rectangle(x, x / 2, 4, 6);
+                assert_eq!(
+                    query
+                        .intersection_with_union(stack.iter().copied())
+                        .unwrap(),
+                    query.intersection(&any).unwrap()
+                );
+                assert_eq!(
+                    query
+                        .difference_from_intersection(stack.iter().copied())
+                        .unwrap(),
+                    query.difference(&all).unwrap()
+                );
+            }
+            assert!(
+                empty
+                    .intersection_with_union(stack.iter().copied())
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(
+                empty
+                    .difference_from_intersection(stack.iter().copied())
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn collapsed_display_does_not_hide_a_real_violation() {
+        let region = rational_union::union(&[Operand {
+            paths: vec![vec![
+                ExactPoint::from_nm(0, 0),
+                ExactPoint::new(RBig::ONE / RBig::from(3), RBig::ZERO),
+                ExactPoint::new(RBig::ONE / RBig::from(3), RBig::from(2)),
+                ExactPoint::from_nm(0, 2),
+            ]],
+            fill: NonZero,
+        }])
+        .unwrap()
+        .0;
+        let locations = exact_intersection(&region, &region).unwrap();
+        assert!(!locations.is_empty());
+        assert!(
+            locations
+                .iter()
+                .flat_map(|p| p.vertices())
+                .all(|v| v.pos.x == Length::ZERO)
+        );
+        assert!(
+            exact_intersection(&region, &Region::default())
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn cutout_locations_do_not_close_open_intervals() {
+        let path = vec![
+            ExactPoint::from_nm(0, 0),
+            ExactPoint::from_nm(1_000_000, 0),
+            ExactPoint::from_nm(1_000_000, 1_000_000),
+        ];
+        assert_eq!(exact_line_locations(&[path]).unwrap().len(), 2);
+        let collapsed = vec![
+            ExactPoint::from_nm(0, 0),
+            ExactPoint::new(RBig::ONE / RBig::from(3), RBig::ZERO),
+        ];
+        assert_eq!(exact_line_locations(&[collapsed]).unwrap().len(), 1);
+    }
 }

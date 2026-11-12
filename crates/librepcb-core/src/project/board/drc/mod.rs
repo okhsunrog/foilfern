@@ -10,7 +10,7 @@
 //!   air wires, extracts the data and runs the checks.
 //! - [`DrcMessage`]: the messages (upstream `DrcMsg*` classes), with the
 //!   upstream texts and approvals.
-//! - [`BoardClipperPathGenerator`]: the copper and stop mask areas used by
+//! - [`GeometryGenerator`]: the copper and stop mask areas used by
 //!   the checks.
 //!
 //! The DRC settings (upstream `BoardDesignRuleCheckSettings`) live in the
@@ -18,17 +18,19 @@
 //! ([`BoardDesignRuleCheckSettings`](crate::library::org::BoardDesignRuleCheckSettings)).
 
 mod check;
-mod clipper_path_generator;
 mod data;
 mod error;
+mod geometry_generator;
+mod job;
 mod messages;
 
 pub use check::{DrcProgress, DrcProgressCallback, DrcResult, run_drc};
-pub use clipper_path_generator::BoardClipperPathGenerator;
 pub use data::{
     BoardDrcData, DrcAirWire, DrcAirWireAnchor, DrcAirWireObject, DrcCircle, DrcDevice, DrcHole,
     DrcImpossibleConnection, DrcJunction, DrcNetClass, DrcPad, DrcPlane, DrcPolygon, DrcSegment,
     DrcStrokeText, DrcTrace, DrcVia, DrcZone,
 };
 pub use error::{Error, Result};
+pub use geometry_generator::GeometryGenerator;
+pub use job::{DrcJob, PreparedDrc};
 pub use messages::{DrcMessage, DrcMessageKind};

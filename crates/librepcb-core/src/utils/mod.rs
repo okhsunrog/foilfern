@@ -33,3 +33,5 @@ pub mod tag_matcher;
 pub mod tangent_path_joiner;
 pub mod toolbox;
 pub mod transform;
+
+pub mod rational_union;
