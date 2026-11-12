@@ -167,6 +167,7 @@ pub fn component_detail(p: &Project, id: ComponentInstanceId) -> ToolResult<(Str
                 "schematic": { "index": index, "name": schematic.name().as_str() },
                 "gate": sym.lib_gate(),
                 "gate_suffix": gate.map(|g| g.suffix().as_str()),
+                "library_symbol": gate.map(|g| g.symbol_uuid()),
                 "position": views::point(sym.position()),
                 "rotation": deg(sym.rotation()),
                 "mirrored": sym.mirrored(),

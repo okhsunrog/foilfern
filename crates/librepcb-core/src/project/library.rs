@@ -14,13 +14,14 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use super::error::{EntityKind, Error, Result};
+use super::mutation::SymbolArtwork;
 use crate::fileio::TransactionalDirectory;
 use crate::library::LibraryBaseElement;
 use crate::library::cmp::Component;
 use crate::library::dev::Device;
 use crate::library::pkg::Package;
 use crate::library::sym::Symbol;
-use crate::types::Uuid;
+use crate::types::{Point, Uuid};
 
 /// Kind of a library element in the project library.
 #[derive(
@@ -146,6 +147,47 @@ impl ProjectLibrary {
         add_element(&mut self.directory, &mut self.symbols, symbol)
     }
 
+    pub(crate) fn set_symbol_artwork(
+        &mut self,
+        artwork: SymbolArtwork,
+    ) -> Result<(SymbolArtwork, bool)> {
+        let SymbolArtwork {
+            symbol: uuid,
+            polygons,
+            pin_name_positions,
+        } = artwork;
+        let symbol = self
+            .symbols
+            .get_mut(&uuid)
+            .ok_or(Error::MissingLibrarySymbol(uuid))?;
+        let mut previous_positions = BTreeMap::new();
+        for (&pin, &position) in &pin_name_positions {
+            let previous = symbol.pins().required_by_uuid(&pin)?.name_position();
+            if previous != position {
+                previous_positions.insert(pin, previous);
+            }
+        }
+        let changed = symbol.polygons() != &polygons || !previous_positions.is_empty();
+        let mut previous = SymbolArtwork {
+            symbol: uuid,
+            polygons,
+            pin_name_positions: previous_positions,
+        };
+        if changed {
+            let fs = Arc::clone(symbol.directory().file_system());
+            let overlay = fs.snapshot_overlay();
+            std::mem::swap(symbol.polygons_mut(), &mut previous.polygons);
+            set_pin_name_positions(symbol, &pin_name_positions);
+            if let Err(error) = symbol.save() {
+                *symbol.polygons_mut() = previous.polygons;
+                set_pin_name_positions(symbol, &previous.pin_name_positions);
+                fs.restore_overlay(overlay);
+                return Err(error.into());
+            }
+        }
+        Ok((previous, changed))
+    }
+
     pub(crate) fn add_package(&mut self, package: Package) -> Result<()> {
         add_element(&mut self.directory, &mut self.packages, package)
     }
@@ -172,6 +214,14 @@ impl ProjectLibrary {
 
     pub(crate) fn remove_device(&mut self, uuid: &Uuid) -> Result<Device> {
         remove_element(&mut self.devices, uuid)
+    }
+}
+
+fn set_pin_name_positions(symbol: &mut Symbol, positions: &BTreeMap<Uuid, Point>) {
+    for pin in symbol.pins_mut().iter_mut() {
+        if let Some(position) = positions.get(&pin.uuid()) {
+            pin.set_name_position(*position);
+        }
     }
 }
 

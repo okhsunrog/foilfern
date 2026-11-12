@@ -22,7 +22,7 @@ mod board;
 mod circuit;
 mod schematic;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::Project;
 use super::board::{Board, BoardProperties};
@@ -37,6 +37,7 @@ use super::id::{
 };
 use super::project::{ProjectMetadata, ProjectSettings};
 use super::schematic::{Schematic, SchematicProperties};
+use crate::geometry::PolygonList;
 use crate::job::OutputJobList;
 use crate::library::LibraryBaseElement;
 use crate::library::cmp::Component;
@@ -44,10 +45,20 @@ use crate::library::dev::Device;
 use crate::library::pkg::Package;
 use crate::library::sym::Symbol;
 use crate::serialization::SExpression;
-use crate::types::Uuid;
+use crate::types::{Point, Uuid};
 
 pub use board::BoardMutation;
 pub use schematic::SchematicMutation;
+
+/// Graphical changes to one symbol in the project library.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct SymbolArtwork {
+    pub symbol: Uuid,
+    pub polygons: PolygonList,
+    /// Optional pin name positions relative to their connection points.
+    #[serde(default)]
+    pub pin_name_positions: BTreeMap<Uuid, Point>,
+}
 
 /// A modification of the project model, see the module documentation.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -74,6 +85,8 @@ pub enum Mutation {
         /// Whether the message is approved.
         approved: bool,
     },
+    /// Replaces the outlines and optionally repositions pin name labels.
+    SetLibrarySymbolArtwork(SymbolArtwork),
 
     // --- Circuit ---
     /// Adds an assembly variant at `index` (appends if `None`).
@@ -169,6 +182,13 @@ impl Project {
             Mutation::SetErcApprovals(a) => self.set_erc_approvals(a),
             Mutation::SetErcApproval { approval, approved } => {
                 self.set_erc_approval(approval, approved)
+            }
+            Mutation::SetLibrarySymbolArtwork(artwork) => {
+                let (previous, changed) = self.library.set_symbol_artwork(artwork)?;
+                if changed {
+                    self.record(Change::LibrarySymbolArtworkChanged(previous.symbol));
+                }
+                Ok(Mutation::SetLibrarySymbolArtwork(previous))
             }
             Mutation::AddAssemblyVariant { variant, index } => {
                 circuit::add_assembly_variant(self, variant, index)

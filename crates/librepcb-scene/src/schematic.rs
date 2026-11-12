@@ -346,7 +346,8 @@ impl SchematicScene {
                 dirty.components.insert(signal.component);
             }
             Change::LibraryElementAdded { uuid, .. }
-            | Change::LibraryElementRemoved { uuid, .. } => {
+            | Change::LibraryElementRemoved { uuid, .. }
+            | Change::LibrarySymbolArtworkChanged(uuid) => {
                 dirty.library.insert(*uuid);
             }
             // Pad names and texts of the symbols (primary device).

@@ -101,6 +101,8 @@ pub enum Change {
         /// UUID of the element.
         uuid: Uuid,
     },
+    /// The artwork of a symbol in the project library changed.
+    LibrarySymbolArtworkChanged(Uuid),
     /// A schematic page was added (upstream `Project::schematicAdded()`).
     SchematicAdded(SchematicId),
     /// A schematic page was removed.

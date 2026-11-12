@@ -45,6 +45,7 @@ pub(crate) use resolve::{board as resolve_board, required_net as resolve_net};
 pub mod schematic;
 pub mod schematic_tidy;
 pub mod specctra;
+pub mod symbol_style;
 pub mod wiring;
 
 use librepcb_core::project::{ComponentInstanceId, Mutation, NetSignalId};
@@ -64,6 +65,7 @@ pub use project::*;
 pub use schematic::*;
 pub use schematic_tidy::*;
 pub use specctra::*;
+pub use symbol_style::SymbolStyle;
 pub use wiring::*;
 
 /// Reference to a component instance: its UUID or its name (designator,

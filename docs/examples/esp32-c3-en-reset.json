@@ -22,6 +22,10 @@
     "EN": ["mcu.7"],
     "V3V3": ["pullup.1"]
   },
+  "symbol_styles": {
+    "9052ab1c-124b-4c10-ae0c-560e8449b9c8": "capacitor",
+    "caddb73c-a3eb-48ca-9873-c043261f0c20": "normally_open_push_button"
+  },
   "wire_groups": [
     {"net": "EN", "pins": ["pullup.2", "delay.1", "reset.1"]},
     {"net": "GND", "pins": ["delay.2", "reset.2"]}

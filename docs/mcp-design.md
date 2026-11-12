@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `4`). Its `build` object contains
+`api_capability_version` (currently `5`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -215,12 +215,21 @@ would touch a segment with a pin outside the group or a bus connection, the
 preview fails. Pins already physically connected satisfy the group, preserving
 its existing wire geometry.
 
+Use `symbol_styles` to replace rectangular placeholders with native artwork.
+Keys are project library symbol UUIDs from `component_get.symbols[].library_symbol`.
+Supported styles are `capacitor` and `normally_open_push_button`. A style
+expects a single plain rectangle and two aligned, opposing pins. A symbol
+already using the requested outline is a no-op. Other artwork is refused.
+The edit affects the shared symbol in the current project's library. The diff
+lists every affected designator, including uses on other sheets. Pins, pin
+names, component text positions, wires and device mappings are preserved.
+The templates move pin names that sit on the lead axis away from the lead.
+
 Call `design_apply` with the latest preview ID in the same open project.
 It applies the rendered patch in one undo group. An edit or save invalidates
 the preview, and applying an empty diff leaves the revision and history intact.
-The native preview uses the project's existing library symbols. Component
-creation, changes to circuit connectivity and automatic placement are separate
-P1 work.
+Component creation, changes to circuit connectivity and automatic placement are
+separate P1 work.
 
 Library:
 `library_search` (query, kind: component|device|package|symbol, limit;

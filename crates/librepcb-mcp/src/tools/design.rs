@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use librepcb_core::project::{ComponentInstanceId, ComponentSignalRef, NetSignalId, Project};
-use librepcb_editor::commands::{EditComponent, MoveSymbol, WireGroup};
+use librepcb_editor::commands::{EditComponent, MoveSymbol, SymbolStyle, WireGroup};
 use librepcb_editor::design_preview::{DesignEdit, DesignPreview};
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -73,6 +73,17 @@ pub struct DesignDocument {
     /// Local physical connections on the selected sheet between existing members of a net.
     #[serde(default)]
     wire_groups: Vec<LocalWireGroup>,
+    /// Optional artwork for rectangular placeholders, keyed by embedded library
+    /// symbol UUID (see component_get). All instances using that symbol change.
+    #[serde(default)]
+    symbol_styles: BTreeMap<String, Artwork>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, serde::Serialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+enum Artwork {
+    Capacitor,
+    NormallyOpenPushButton,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -102,6 +113,47 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     let mut seen = BTreeSet::new();
     let mut edits = Vec::new();
     let mut diff = Vec::new();
+    let mut styled = BTreeSet::new();
+    for (key, style) in &doc.symbol_styles {
+        let id = resolve::required_uuid(key, "library symbol")?;
+        if !styled.insert(id) {
+            return Err(ToolError::invalid(format!(
+                "Duplicate style for symbol {id}."
+            )));
+        }
+        let symbol = p.library().symbol(&id).ok_or_else(|| {
+            ToolError::not_found(format!("Project library symbol {id} not found."))
+        })?;
+        let template = match style {
+            Artwork::Capacitor => SymbolStyle::Capacitor,
+            Artwork::NormallyOpenPushButton => SymbolStyle::NormallyOpenPushButton,
+        };
+        if let Some(mutation) = template.plan(symbol)? {
+            let mut affected: Vec<_> = p
+                .circuit()
+                .component_instances()
+                .values()
+                .filter(|component| {
+                    p.library()
+                        .component(&component.lib_component())
+                        .and_then(|lib| lib.symbol_variants().by_uuid(&component.lib_variant()))
+                        .is_some_and(|variant| {
+                            variant
+                                .symbol_items()
+                                .iter()
+                                .any(|gate| gate.symbol_uuid() == id)
+                        })
+                })
+                .map(|component| component.name().as_str())
+                .collect();
+            affected.sort_unstable();
+            diff.push(json!({
+                "field":"symbol_style", "library_symbol":id, "before":"box", "after":style,
+                "affected_components":affected,
+            }));
+            edits.push(DesignEdit::LibrarySymbolArtwork(mutation));
+        }
+    }
     for (key, spec) in &doc.components {
         if key.is_empty() || key.contains('.') {
             return Err(ToolError::invalid(format!(

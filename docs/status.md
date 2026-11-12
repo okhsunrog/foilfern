@@ -100,6 +100,9 @@ joins local wire groups on the original ESP32-C3 sheet. Save/reopen, empty
 reapplication and preservation of unmanaged placement were verified, with
 all 29 nets and the board files preserved. LibrePCB 2.1.1 opened the saved copy
 and reported zero ERC messages, matching the original.
+The document also styles the shared capacitor and push-button symbols in the
+project library. Preview reports all affected components. Pin connections,
+pad mappings and schematic wire geometry are preserved by the artwork edits.
 
 ## Evidence and continuation points
 

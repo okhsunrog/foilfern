@@ -31,7 +31,7 @@ because its tools exist or one board has zero air wires.
 | Stage | Result | Dependencies | State |
 | --- | --- | --- | --- |
 | P0 | Identifiable builds, concise responses and measured operation costs | Existing API | Complete; [release replay](benchmarks/esp-pd-sink/review/performance/p0/REPORT.md) |
-| P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; existing-component edits and local wire groups verified on EN/RESET |
+| P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; local wire groups and embedded symbol artwork verified on EN/RESET |
 | P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | Planned; external review prototypes only |
 | P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | Planned; router callback only |
 | P4 | Diagnosed local repair with bounded placement alternatives | P2, P3 | Planned; explicit repair primitives already implemented |
@@ -83,8 +83,11 @@ UUIDs, checks net memberships and previews two local wire groups. It normalizes
 the pull-up value and places and rotates the capacitor and switch. Undo/redo
 and native save/reopen preserve circuit connectivity and the routed board.
 Reapplication gives an empty diff and leaves unmanaged placement intact.
-The next schematic readability step is to support choosing conventional symbol
-graphics for imported passives and switches while retaining their pin mappings.
+The document also assigns conventional capacitor and push-button artwork to
+two embedded symbol UUIDs. The preview reports all uses of each shared symbol.
+For symbols with additional terminals, record the pin roles explicitly before
+choosing artwork. The ESP32-C3 crystal is a case with two resonator terminals
+and two grounded case pads.
 
 Done when:
 

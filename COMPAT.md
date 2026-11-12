@@ -452,6 +452,10 @@ differ between platforms/implementations:
 
 ## project/schematic
 
+- The declarative editor can replace the artwork of a symbol in the
+  project library while preserving its pin interface. This changes the native
+  `symbol.lp` file. The file format and pin references follow upstream.
+
 - Loading validates each schematic page as a whole after deserializing it
   (upstream adds the empty page and then item by item); for a file with
   several errors, the reported error can differ. Messages are upstream's.

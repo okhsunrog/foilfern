@@ -69,7 +69,7 @@ pub use id::{
 };
 pub use library::{LibraryElementKind, ProjectLibrary};
 pub use loader::ProjectLoader;
-pub use mutation::{BoardMutation, Mutation, SchematicMutation};
+pub use mutation::{BoardMutation, Mutation, SchematicMutation, SymbolArtwork};
 pub use output_job_runner::{
     BoardStepExporter, BoardStepOutput, GraphicsExportResult, GraphicsExporter, GraphicsJobFile,
     GraphicsPage, GraphicsPageContent, OutputJobError, OutputJobEvent, OutputJobObserver,

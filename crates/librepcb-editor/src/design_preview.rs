@@ -1,7 +1,7 @@
 //! Exact, revision-bound model changes for declarative schematic updates.
 
 use librepcb_core::fileio::FilePath;
-use librepcb_core::project::{Mutation, Project};
+use librepcb_core::project::{Mutation, Project, SymbolArtwork};
 use librepcb_core::types::Uuid;
 
 use crate::commands::{EditComponent, MoveSymbol, WireGroup};
@@ -12,6 +12,7 @@ pub enum DesignEdit {
     Component(EditComponent),
     Symbol(MoveSymbol),
     WireGroup(WireGroup),
+    LibrarySymbolArtwork(SymbolArtwork),
 }
 
 /// A proposal retained by the open project until it is applied or replaced.
@@ -41,6 +42,9 @@ impl DesignPreview {
                     }
                     DesignEdit::Symbol(command) => tx.run(command)?,
                     DesignEdit::WireGroup(command) => tx.run(command)?,
+                    DesignEdit::LibrarySymbolArtwork(artwork) => {
+                        tx.apply(Mutation::SetLibrarySymbolArtwork(artwork))?;
+                    }
                 }
             }
             Ok(())

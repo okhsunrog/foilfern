@@ -107,6 +107,11 @@ methods with journal events, not serializable `Mutation` variants. This is why
 a future declarative update which installs parts must use an editor transaction,
 not only a batch of circuit mutations.
 
+Replacing the artwork of an embedded symbol is a serializable
+mutation. It stages the native symbol file in the same transactional overlay
+and journals the symbol UUID so schematic scenes rebuild its uses. The symbol's
+pin interface stays fixed.
+
 Derived-data updates use `ProjectEditor::update_derived_data()` outside the undo
 history. They can still publish change events. Dirty state is tracked by the
 editor's clean/history state and manual modifications, with pending file-format

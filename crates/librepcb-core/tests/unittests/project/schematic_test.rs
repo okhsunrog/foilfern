@@ -22,7 +22,7 @@ use librepcb_core::project::schematic::{
 };
 use librepcb_core::project::{
     BusId, BusSegmentRef, Change, ChangesSince, ComponentSignalRef, EntityKind, Error,
-    NetSegmentRef, SchematicId, SchematicMutation, SymbolId, SymbolRef,
+    NetSegmentRef, SchematicId, SchematicMutation, SymbolArtwork, SymbolId, SymbolRef,
 };
 use librepcb_core::types::{
     Alignment, Angle, BusName, FileProofName, HAlign, Layer, Length, Point, PositiveLength,
@@ -36,6 +36,70 @@ type M = SchematicMutation;
 
 /// An invalid item and a check of the expected error.
 type ErrorCase<T> = (T, fn(&Error) -> bool);
+
+#[test]
+fn library_symbol_polygons_are_snapshot_safe_and_reversible() {
+    let mut project = new_project();
+    add_gated_library_component(&mut project, 1);
+    let (uuid, symbol) = project.library().symbols().first_key_value().unwrap();
+    let uuid = *uuid;
+    let pins = symbol.pins().clone();
+    let path = format!("library/sym/{uuid}/symbol.lp");
+    let before = project.directory().read(&path).unwrap();
+    let revision = project.revision();
+    let replacement = Mutation::SetLibrarySymbolArtwork(SymbolArtwork {
+        symbol: uuid,
+        polygons: vec![Polygon::new(
+            Uuid::new_random(),
+            Layer::SYMBOL_OUTLINES,
+            width(),
+            false,
+            false,
+            Path::line(pt(0.0, 0.0), pt(10.0, 0.0), Angle::DEG0),
+        )]
+        .into(),
+        pin_name_positions: [(pins.first().unwrap().uuid(), pt(1.0, 1.0))].into(),
+    });
+    assert!(
+        project
+            .apply(Mutation::Batch(vec![
+                replacement.clone(),
+                Mutation::RemoveSchematic(SchematicId(Uuid::new_random())),
+            ]))
+            .is_err()
+    );
+    assert_eq!(project.revision(), revision);
+    assert_eq!(project.directory().read(&path).unwrap(), before);
+    assert!(
+        project
+            .library()
+            .symbol(&uuid)
+            .unwrap()
+            .polygons()
+            .is_empty()
+    );
+
+    let inverse = project.apply(replacement).unwrap();
+    let edited = project.directory().read(&path).unwrap();
+    assert_ne!(edited, before);
+    let snapshot = project.snapshot().unwrap();
+    let symbol = snapshot.library().symbol(&uuid).unwrap();
+    let mut expected_pins = pins;
+    expected_pins
+        .get_mut(0)
+        .unwrap()
+        .set_name_position(pt(1.0, 1.0));
+    assert_eq!(symbol.pins(), &expected_pins);
+    assert_eq!(
+        symbol.polygons(),
+        project.library().symbol(&uuid).unwrap().polygons()
+    );
+
+    let redo = project.apply(inverse).unwrap();
+    assert_eq!(project.directory().read(&path).unwrap(), before);
+    project.apply(redo).unwrap();
+    assert_eq!(project.directory().read(&path).unwrap(), edited);
+}
 
 // --- Fixture ---
 

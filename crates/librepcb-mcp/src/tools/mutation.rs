@@ -100,6 +100,10 @@ const VARIANTS: &[(&str, &str)] = &[
         "SetErcApproval",
         "{approval, approved}: approve one ERC message",
     ),
+    (
+        "SetLibrarySymbolArtwork",
+        "{symbol, polygons, pin_name_positions?}: replace an embedded symbol's artwork",
+    ),
     ("AddAssemblyVariant", "{variant, index}"),
     ("RemoveAssemblyVariant", "AssemblyVariantId"),
     ("UpdateAssemblyVariant", "AssemblyVariant"),
