@@ -161,13 +161,13 @@ backend and checks the realistic board PDF.
 
 ## Tool surface
 
-At the reviewed revision, `server.rs` registers 79 tools. The schemas advertised
+At the reviewed revision, `server.rs` registers 81 tools. The schemas advertised
 by `tools/list` are authoritative; the historical target of fewer than 60 tools
 is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `2`). Its `build` object contains
+`api_capability_version` (currently `3`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -177,7 +177,7 @@ report unknown provenance. The values are captured at build time.
 custom profiles by inheritance. `cargo_opt_level` reports Cargo's optimization
 setting for the MCP crate. Record the actual build command for timing comparisons.
 
-Declarative reconciliation (P1), persisted enforced requirements (P2), worker
+Full declarative project creation (P1), persisted enforced requirements (P2), worker
 jobs/cancellation (P3) and visual candidate review (P5) are not current MCP
 capabilities. `routing_compare` already ranks builtin-order candidates; runtime
 candidate capacity does not limit the number of active preparation workers.
@@ -187,6 +187,28 @@ Session / project:
 `project_open`, `project_save`, `project_close`, `project_summary`
 (metadata, pages, boards, counts, revision, unsaved changes), `undo`, `redo`,
 `history`.
+
+### Declarative edits to an existing schematic
+
+`design_preview` takes a version 1 document and returns a semantic `diff`,
+the number of checked pin memberships, a preview ID and a native page render.
+The [ESP32-C3 EN/RESET example](examples/esp32-c3-en-reset.json) targets the
+saved comparison board. Bind each document key to a component instance UUID
+from `component_get`. In `nets`, address pins as `key.pin`. The existing
+circuit must match the listed memberships. Unlisted endpoints can share those
+nets elsewhere on the project.
+
+Value and single-symbol position edits take `expected` and `set` values.
+Omitting a field preserves its current value. When the current value equals
+`set`, it contributes an empty diff. A third value produces a conflict and
+identifies the managed field. Positions are in millimeters.
+
+Call `design_apply` with the latest preview ID in the same open project.
+It applies the rendered patch in one undo group. An edit or save invalidates
+the preview, and applying an empty diff leaves the revision and history intact.
+The current document edits existing components. The native preview uses their
+existing library symbols and wires. Component creation, rewiring and automatic
+layout of functional groups are separate P1 work.
 
 Library:
 `library_search` (query, kind: component|device|package|symbol, limit;

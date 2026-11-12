@@ -397,7 +397,7 @@ impl UndoStack {
     }
 
     /// Copies the exact forward mutations of the next redo entry. Used only
-    /// on detached routing sandboxes after undo; file/library operations are
+    /// on detached preview sandboxes after undo; file/library operations are
     /// refused rather than silently omitted from a candidate.
     pub(crate) fn redo_mutations(&self) -> Result<Vec<Mutation>> {
         let Some(entry) = self.entries.get(self.index) else {
@@ -409,7 +409,7 @@ impl UndoStack {
             .map(|op| match op {
                 Operation::Mutation(mutation) => Ok(mutation.clone()),
                 _ => Err(Error::InvalidArgument(
-                    "A routing candidate must contain model mutations only.".into(),
+                    "A detached preview patch must contain model mutations only.".into(),
                 )),
             })
             .collect()

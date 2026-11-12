@@ -1237,6 +1237,30 @@ impl LibrePcbMcp {
         self.run(move |s| output::render(s, args)).await
     }
 
+    // --- Declarative schematic updates -------------------------------------------
+
+    #[tool(
+        description = "Preview a version 1 declarative update of existing schematic components. Verify pin memberships, compare managed values and positions, and render the resulting page."
+    )]
+    async fn design_preview(
+        &self,
+        Parameters(args): Parameters<crate::tools::design::DesignDocument>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| crate::tools::design::preview(s, args))
+            .await
+    }
+
+    #[tool(
+        description = "Apply the exact patch from design_preview as one undo step. A stale preview is refused and an empty patch adds no undo step."
+    )]
+    async fn design_apply(
+        &self,
+        Parameters(args): Parameters<crate::tools::design::DesignApplyArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| crate::tools::design::apply(s, args))
+            .await
+    }
+
     // --- Escape hatch -------------------------------------------------------------
 
     #[tool(

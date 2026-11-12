@@ -87,14 +87,16 @@ The editor owns one `RoutingService` per open project; MCP is its transport.
   and via-barrel lengths are excluded. An unavailable trace-only length is
   `not_measured`, not zero length or a connectivity failure.
 
-Current limitations: no declarative reconciliation API, persisted engineering
-requirements, automatic diagnosis-to-repair planner, MCP progress/cancellation
+Current limitations include declarative project creation, persisted engineering
+requirements, automatic diagnosis-to-repair planning, MCP progress/cancellation
 workflow or desktop candidate overlay. The router's cancellation callback is
 not yet wired through the editor/MCP preparation path. `server_info` now reports
 build-time commit, tracked-source state, Cargo profile label and API capability
 version. `device_place` supports compact responses with `include_pads: false`.
-The P0 release replay and P1a transaction foundation are complete. Declarative
-reconciliation is the next P1 step.
+The P0 release replay and P1a transaction foundation are complete. The first
+P1 slice previews and applies edits to existing components and checks named pin
+memberships. The [EN/RESET document](examples/esp32-c3-en-reset.json) verified
+empty reapplication and preservation of manual placement on the saved ESP32-C3.
 
 ## Evidence and continuation points
 

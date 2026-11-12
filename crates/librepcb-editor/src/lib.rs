@@ -40,6 +40,7 @@
 //! explicit parameters.
 
 pub mod commands;
+pub mod design_preview;
 mod editor;
 mod error;
 mod freerouting;

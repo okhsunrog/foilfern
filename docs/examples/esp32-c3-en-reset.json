@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "schematic": "Main",
+  "components": {
+    "mcu": {"uuid": "dc985800-2af5-4465-b70e-de2716f20711"},
+    "pullup": {
+      "uuid": "9e0c4e93-78dd-4efb-80bd-004563bcb101",
+      "value": {"expected": "10k", "set": "10 kΩ"}
+    },
+    "delay": {"uuid": "e8ec5b08-c356-4e5d-bb9b-8442b46e0249"},
+    "reset": {"uuid": "a7411d7b-2ac3-4974-a72a-0c57fb8c71a5"}
+  },
+  "nets": {
+    "EN": ["mcu.7", "pullup.2", "delay.1", "reset.1"],
+    "V3V3": ["pullup.1"],
+    "GND": ["delay.2", "reset.2"]
+  }
+}

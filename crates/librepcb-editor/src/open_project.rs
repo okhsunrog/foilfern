@@ -41,6 +41,8 @@ pub struct OpenProject {
     pub editor: ProjectEditor,
     /// Session-local reviewed routing candidates; never serialized.
     pub routing: crate::routing_service::RoutingService,
+    /// The latest declarative schematic proposal for this project session.
+    pub design_preview: Option<crate::design_preview::DesignPreview>,
     /// The file system of the project directory; while it exists, the
     /// directory is locked (upstream compatible `.lock` file).
     pub file_system: Arc<TransactionalFileSystem>,
@@ -68,6 +70,7 @@ impl OpenProject {
             saved_revision: project.revision(),
             editor: ProjectEditor::with_source(project, source),
             routing: Default::default(),
+            design_preview: None,
             file_system,
             upgraded,
             migration_log: None,

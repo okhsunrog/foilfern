@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 2);
+    assert_eq!(info["api_capability_version"], 3);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -1055,5 +1055,100 @@ async fn stdio_reviewed_builtin_routing_save_reopen() {
     let validation = call_ok(&client, "drc_run", json!({})).await;
     assert_eq!(validation["errors"], 0, "{validation:#}");
     call_ok(&client, "project_close", json!({})).await;
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn stdio_design_preview_preserves_manual_placement() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    let project = call_ok(&client, "project_create", json!({"name":"Reset update"})).await;
+    call_ok(
+        &client,
+        "component_add",
+        json!({"part":"R-0805","designator":"R1","value":"10k"}),
+    )
+    .await;
+    call_ok(&client, "connect", json!({"net":"EN","pins":["R1.2"]})).await;
+    let detail = call_ok(&client, "component_get", json!({"component":"R1"})).await;
+    let document = json!({
+        "version":1,"schematic":"Main",
+        "components":{"pullup":{"uuid":detail["uuid"],"value":{"expected":"10k","set":"10 kΩ"}}},
+        "nets":{"EN":["pullup.2"]}
+    });
+    let history = call_ok(&client, "history", json!({})).await;
+    let response = call(&client, "design_preview", document.clone()).await;
+    assert!(
+        response
+            .content
+            .iter()
+            .any(|item| matches!(item, ContentBlock::Image(_)))
+    );
+    let preview = response.structured_content.unwrap()["result"].clone();
+    assert_eq!(preview["diff"].as_array().unwrap().len(), 1);
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    let moved = json!({"x":40.64,"y":25.4});
+    call_ok(
+        &client,
+        "symbol_move",
+        json!({"component":"R1","position":moved}),
+    )
+    .await;
+    let rejected = call(
+        &client,
+        "design_apply",
+        json!({"preview":preview["preview"]}),
+    )
+    .await;
+    assert_eq!(
+        rejected.structured_content.unwrap()["error"]["kind"],
+        "stale_revision"
+    );
+
+    let preview = call_ok(&client, "design_preview", document.clone()).await;
+    let applied = call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":preview["preview"]}),
+    )
+    .await;
+    assert_eq!(applied["mutation_count"], 1);
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    call_ok(&client, "project_open", json!({"path":project["path"]})).await;
+    let history = call_ok(&client, "history", json!({})).await;
+    let preview = call_ok(&client, "design_preview", document.clone()).await;
+    assert_eq!(preview["diff"], json!([]));
+    let applied = call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":preview["preview"]}),
+    )
+    .await;
+    assert_eq!(applied["mutation_count"], 0);
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    let after = call_ok(&client, "component_get", json!({"component":"R1"})).await;
+    assert_eq!(after["uuid"], detail["uuid"]);
+    assert_eq!(after["symbols"][0]["position"], moved);
+    assert_eq!(after["value"], "10 kΩ");
+
+    call_ok(
+        &client,
+        "component_update",
+        json!({"component":"R1","value":"12k"}),
+    )
+    .await;
+    let conflict = call(&client, "design_preview", document).await;
+    assert_eq!(
+        conflict.structured_content.unwrap()["error"]["kind"],
+        "conflict"
+    );
     client.cancel().await.unwrap();
 }
