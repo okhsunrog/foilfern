@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "schematic": "Main",
+  "components": {},
+  "add_components": {
+    "extra_decoupler": {
+      "designator": "C15",
+      "library_component": "92311341-791d-49ce-91da-19cf52f9c4fa",
+      "device": "9ab03489-c60f-41a6-98ef-75dc88077846",
+      "value": "100 nF",
+      "position": {"x": 172.72, "y": 162.56},
+      "connections": {"1": "V3V3", "2": "GND"}
+    }
+  }
+}

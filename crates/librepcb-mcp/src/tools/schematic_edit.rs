@@ -235,7 +235,7 @@ fn positive(mm: f64, what: &str) -> ToolResult<PositiveLength> {
         .map_err(|_| ToolError::invalid(format!("{what} must be greater than zero")))
 }
 
-fn identifier(s: &str, what: &str) -> ToolResult<CircuitIdentifier> {
+pub(super) fn identifier(s: &str, what: &str) -> ToolResult<CircuitIdentifier> {
     CircuitIdentifier::new(s.trim())
         .map_err(|e| ToolError::invalid(format!("invalid {what} \"{s}\": {e}")))
 }

@@ -2,8 +2,15 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use librepcb_core::project::{ComponentInstanceId, ComponentSignalRef, NetSignalId, Project};
-use librepcb_editor::commands::{EditComponent, MoveSymbol, SymbolStyle, WireGroup};
+use librepcb_core::attribute::{Attribute, AttributeKey, AttributeType};
+use librepcb_core::project::{
+    ComponentInstanceId, ComponentSignalRef, LibraryElementKind, NetSignalId, Project, SchematicId,
+};
+use librepcb_editor::Transaction;
+use librepcb_editor::commands::{
+    AddComponent, AddLibraryElement, AutoPlaceSymbols, EditComponent, MoveSymbol, SymbolPlacement,
+    SymbolStyle, WireGroup, connect_design_pin,
+};
 use librepcb_editor::design_preview::{DesignEdit, DesignPreview};
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -66,6 +73,9 @@ pub struct DesignDocument {
     schematic: String,
     /// Stable document keys bound to existing component UUIDs.
     components: BTreeMap<String, ExistingComponent>,
+    /// Components to create if their stable document key has no instance.
+    #[serde(default)]
+    add_components: BTreeMap<String, NewComponent>,
     /// Required pin memberships, using `key.pin` (for example `pullup.2`).
     /// These are assertions against the existing circuit.
     #[serde(default)]
@@ -77,6 +87,22 @@ pub struct DesignDocument {
     /// symbol UUID (see component_get). All instances using that symbol change.
     #[serde(default)]
     symbol_styles: BTreeMap<String, Artwork>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct NewComponent {
+    /// Designator used on first creation.
+    designator: String,
+    library_component: String,
+    device: String,
+    value: String,
+    /// Initial position in mm. Subsequent manual moves are retained.
+    position: Option<PointMm>,
+    /// Initial rotation in degrees.
+    rotation: Option<f64>,
+    /// Maps exact physical package pad names to existing net names.
+    connections: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Deserialize, serde::Serialize, JsonSchema)]
@@ -132,6 +158,13 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     let mut edits = Vec::new();
     let mut diff = Vec::new();
     let mut styled = BTreeSet::new();
+    for key in doc.add_components.keys() {
+        if key.is_empty() || key.contains('.') || doc.components.contains_key(key) {
+            return Err(ToolError::invalid(format!(
+                "Invalid or duplicate component key {key:?}."
+            )));
+        }
+    }
     for (key, style) in &doc.symbol_styles {
         let id = resolve::required_uuid(key, "library symbol")?;
         if !styled.insert(id) {
@@ -309,7 +342,19 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
             edits.push(DesignEdit::WireGroup(command));
         }
     }
-    let (preview, project) = DesignPreview::prepare(&open.editor, edits)?;
+    let (preview, project, added) = DesignPreview::prepare(&open.editor, |tx| -> ToolResult<_> {
+        for edit in edits {
+            edit.execute(tx)?;
+        }
+        let mut added = Vec::new();
+        for (key, spec) in &doc.add_components {
+            if let Some(change) = add_component(tx, page, key, spec)? {
+                added.push(change);
+            }
+        }
+        Ok(added)
+    })?;
+    diff.extend(added);
     let schematic = project
         .schematic(page)
         .ok_or_else(|| ToolError::not_found("Preview schematic not found."))?;
@@ -324,6 +369,182 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     .image(image);
     open.design_preview = Some(preview);
     Ok(result)
+}
+
+const DESIGN_KEY: &str = "FOILFERN_DESIGN_KEY";
+
+fn add_component(
+    tx: &mut Transaction<'_>,
+    page: SchematicId,
+    key: &str,
+    spec: &NewComponent,
+) -> ToolResult<Option<serde_json::Value>> {
+    let component = resolve::required_uuid(&spec.library_component, "library component")?;
+    let device = resolve::required_uuid(&spec.device, "device")?;
+    let name = super::schematic_edit::identifier(&spec.designator, "designator")?;
+    let p = tx.project();
+    let mut bound = p
+        .circuit()
+        .component_instances()
+        .values()
+        .filter(|instance| {
+            instance
+                .attributes()
+                .by_name(DESIGN_KEY, true)
+                .is_some_and(|attribute| attribute.value() == key)
+        });
+    let existing = bound.next();
+    let conflict = |message: String| ToolError::new(ErrorKind::Conflict, message);
+    if bound.next().is_some() {
+        return Err(conflict(format!(
+            "More than one instance owns design key {key:?}."
+        )));
+    }
+    let (id, created) = if let Some(instance) = existing {
+        if instance.lib_component() != component
+            || instance.default_device() != Some(device)
+            || instance.value() != &spec.value
+        {
+            return Err(conflict(format!(
+                "Component {key:?} differs in library identity or value."
+            )));
+        }
+        (instance.id(), false)
+    } else {
+        if p.circuit()
+            .component_instance_by_name(name.as_str())
+            .is_some()
+        {
+            return Err(conflict(format!("Designator {name} is already in use.")));
+        }
+        tx.run(AddLibraryElement::new(LibraryElementKind::Device, device))?;
+        let lib_device = tx
+            .project()
+            .library()
+            .device(&device)
+            .ok_or_else(|| ToolError::not_found(format!("Device {device} not found.")))?;
+        if lib_device.component_uuid() != component {
+            return Err(ToolError::invalid(format!(
+                "Device {device} does not implement component {component}."
+            )));
+        }
+        let added = tx.run(AddComponent {
+            component,
+            device: Some(device),
+            name: Some(name),
+            value: Some(spec.value.clone()),
+            symbol_variant: None,
+            place: Some(SymbolPlacement {
+                schematic: Some(page),
+                position: spec
+                    .position
+                    .map(PointMm::to_point)
+                    .transpose()?
+                    .unwrap_or_default(),
+                rotation: spec
+                    .rotation
+                    .map(units::angle)
+                    .transpose()?
+                    .unwrap_or_default(),
+                mirrored: false,
+                gate_offset: None,
+            }),
+        })?;
+        if spec.position.is_none() {
+            tx.run(AutoPlaceSymbols {
+                symbols: added.symbols,
+                margin: None,
+            })?;
+        }
+        let mut attrs = tx
+            .project()
+            .circuit()
+            .component_instance(added.component)
+            .ok_or_else(|| ToolError::internal("Added component is missing."))?
+            .attributes()
+            .clone();
+        attrs.push(
+            Attribute::new(
+                AttributeKey::new(DESIGN_KEY)?,
+                AttributeType::String,
+                key,
+                None,
+            )
+            .map_err(|e| ToolError::invalid(e.to_string()))?,
+        );
+        tx.run(EditComponent {
+            component: added.component.into(),
+            name: None,
+            value: None,
+            attributes: Some(attrs),
+            assembly_options: None,
+            lock_assembly: None,
+        })?;
+        (added.component, true)
+    };
+    let p = tx.project();
+    let library = p.library();
+    let lib_device = library
+        .device(&device)
+        .ok_or_else(|| ToolError::not_found(format!("Device {device} not found.")))?;
+    let package = library
+        .package(&lib_device.package_uuid())
+        .ok_or_else(|| ToolError::not_found("Device package not found."))?;
+    let instance = p
+        .circuit()
+        .component_instance(id)
+        .ok_or_else(|| ToolError::internal("Design component is missing."))?;
+    let designator = instance.name().as_str().to_owned();
+    let mut signals = BTreeMap::new();
+    let mut endpoints = Vec::new();
+    for (pad, net_name) in &spec.connections {
+        let physical = package.pads().by_name(pad, true).ok_or_else(|| {
+            ToolError::not_found(format!("Pad {pad:?} not found on {designator}."))
+        })?;
+        let signal = lib_device
+            .pad_signal_map()
+            .by_uuid(&physical.uuid())
+            .and_then(|m| m.signal_uuid())
+            .ok_or_else(|| ToolError::invalid(format!("Pad {pad:?} has no component signal.")))?;
+        let (net, _) = p
+            .circuit()
+            .net_signal_by_name(net_name)
+            .ok_or_else(|| ToolError::not_found(format!("Net {net_name:?} not found.")))?;
+        if signals
+            .insert(signal, net)
+            .is_some_and(|previous| previous != net)
+        {
+            return Err(conflict(format!(
+                "Pads of {designator} assign one signal to different nets."
+            )));
+        }
+        if !created && instance.signal(&signal).and_then(|signal| signal.net()) != Some(net) {
+            return Err(conflict(format!(
+                "{designator}.{pad} is no longer on {net_name}."
+            )));
+        }
+        endpoints
+            .push(json!({"pad":pad,"pad_uuid":physical.uuid(),"signal":signal,"net":net_name}));
+    }
+    if !created {
+        return Ok(None);
+    }
+    let package_id = lib_device.package_uuid();
+    for (signal, net) in signals {
+        connect_design_pin(
+            tx,
+            page,
+            ComponentSignalRef {
+                component: id,
+                signal,
+            },
+            net,
+        )?;
+    }
+    Ok(Some(
+        json!({"field":"add_component","component":key,"designator":designator,
+        "uuid":id,"library_component":component,"device":device,"package":package_id,"value":spec.value,"connections":endpoints}),
+    ))
 }
 
 fn resolve_memberships(
@@ -377,16 +598,20 @@ pub fn apply(session: &mut Session, args: DesignApplyArgs) -> ToolResult<ToolOut
         ));
     }
     let count = preview.mutation_count();
+    let operations = preview.operation_count();
     let revision_before = preview.revision;
+    let preview = open
+        .design_preview
+        .take()
+        .ok_or_else(|| ToolError::not_found("Unknown design preview."))?;
     preview.apply(&mut open.editor)?;
-    open.design_preview = None;
     Written {
         value: (),
         revision_before,
     }
     .output(
         open,
-        format!("Applied {count} design mutations."),
-        json!({"mutation_count": count}),
+        format!("Applied {operations} design operations."),
+        json!({"mutation_count": count, "operation_count": operations}),
     )
 }

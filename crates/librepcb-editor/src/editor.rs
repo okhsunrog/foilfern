@@ -52,8 +52,11 @@ impl Transaction<'_> {
 
     /// Applies a mutation and records its inverse.
     pub fn apply(&mut self, mutation: Mutation) -> Result<()> {
-        self.stack
-            .execute(self.project, Operation::Mutation(mutation))
+        self.apply_operation(Operation::Mutation(mutation))
+    }
+
+    pub(crate) fn apply_operation(&mut self, operation: Operation) -> Result<()> {
+        self.stack.execute(self.project, operation)
     }
 
     /// Applies several mutations (each recorded separately).
@@ -221,6 +224,10 @@ impl ProjectEditor {
     /// Returns the undo stack.
     pub fn undo_stack(&self) -> &UndoStack {
         &self.undo_stack
+    }
+
+    pub(crate) fn take_redo_operations(&mut self) -> Vec<Operation> {
+        self.undo_stack.take_redo_operations()
     }
 
     /// Returns the library element source.

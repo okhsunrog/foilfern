@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `6`). Its `build` object contains
+`api_capability_version` (currently `7`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -234,8 +234,16 @@ The templates move pin names that sit on the lead axis away from the lead.
 Call `design_apply` with the latest preview ID in the same open project.
 It applies the rendered patch in one undo group. An edit or save invalidates
 the preview, and applying an empty diff leaves the revision and history intact.
-Component creation, changes to circuit connectivity and automatic placement are
-separate P1 work.
+Use [`add_components`](examples/esp32-c3-add-decoupler.json) to add parts to
+the selected sheet. Each entry provides a stable key, the initial designator,
+the exact component and device UUIDs, a value and a map of package pad names to
+existing net names. The preview reports the pad, signal and library UUIDs.
+Omit the initial position for automatic placement. Replaying the same entry
+keeps subsequent designator and placement edits. A changed part, value or pin
+membership reports a conflict. The key is stored in the component's native
+`FOILFERN_DESIGN_KEY` attribute. Apply and undo include the embedded library
+files. This operation adds schematic connections and an assembly option.
+PCB placement, new nets and rewiring existing components are separate operations.
 
 Library:
 `library_search` (query, kind: component|device|package|symbol, limit;

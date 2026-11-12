@@ -131,6 +131,37 @@ fn stub_with_label(
     }))
 }
 
+/// Connects only this signal, leaving the existing segments of the net intact.
+pub fn connect_design_pin(
+    tx: &mut Transaction<'_>,
+    schematic: SchematicId,
+    signal: ComponentSignalRef,
+    net: NetSignalId,
+) -> Result<()> {
+    let project = tx.project();
+    let name = project
+        .circuit()
+        .net_signal(net)
+        .ok_or_else(|| Error::not_found("Net", net))?
+        .name()
+        .clone();
+    if forced_net_name(project, signal).is_some_and(|forced| forced != name) {
+        return Err(Error::InvalidArgument(format!(
+            "The selected pin requires a different net than {name}."
+        )));
+    }
+    let pins: Vec<_> = placed_pins(project, signal)?
+        .into_iter()
+        .filter(|pin| pin.schematic == schematic)
+        .collect();
+    let [pin] = pins.as_slice() else {
+        return Err(Error::InvalidArgument(
+            "Expected one placed pin for the new connection.".into(),
+        ));
+    };
+    stub_with_label(tx, pin, &name)
+}
+
 /// Things a new wire or net label must keep clear of on a schematic page.
 struct Clearance {
     /// Symbols (with texts, frames excluded) and net labels.

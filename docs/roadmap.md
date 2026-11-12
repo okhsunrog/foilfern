@@ -88,6 +88,9 @@ two embedded symbol UUIDs. The preview reports all uses of each shared symbol.
 The [ESP32-C3 crystal document](examples/esp32-c3-crystal.json) selects artwork
 with explicit roles for two resonator terminals and two case terminals. Net
 assertions verify the existing circuit, including the case ground connections.
+The [decoupler document](examples/esp32-c3-add-decoupler.json) adds a component
+to an existing sheet and connects exact package pads to existing nets. The
+frozen preview includes any required project library additions.
 
 Done when:
 

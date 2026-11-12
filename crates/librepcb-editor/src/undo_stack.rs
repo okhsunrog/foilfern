@@ -415,6 +415,13 @@ impl UndoStack {
             .collect()
     }
 
+    /// Takes the exact forward operations of a discarded preview editor.
+    pub(crate) fn take_redo_operations(&mut self) -> Vec<Operation> {
+        self.entries
+            .get_mut(self.index)
+            .map_or_else(Vec::new, |entry| std::mem::take(&mut entry.ops))
+    }
+
     /// Redoes the next undone group. Returns `false` if there is nothing to
     /// redo (or a group is active).
     pub fn redo(&mut self, project: &mut Project) -> Result<bool> {

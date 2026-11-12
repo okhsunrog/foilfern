@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 6);
+    assert_eq!(info["api_capability_version"], 7);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -1265,5 +1265,107 @@ async fn stdio_design_wire_group_keeps_other_connections() {
     assert_eq!(applied["mutation_count"], 0);
     assert_eq!(call_ok(&client, "history", json!({})).await, history);
     assert_eq!(call_ok(&client, "schematic_get", json!({})).await, manual);
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn stdio_design_add_component_replays_library_and_keeps_identity() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    let project = call_ok(&client, "project_create", json!({"name":"Design Add"})).await;
+    call_ok(
+        &client,
+        "component_add",
+        json!({"part":"R-0805","designator":"R1"}),
+    )
+    .await;
+    for (pin, net) in [("R1.1", "VCC"), ("R1.2", "GND")] {
+        call_ok(&client, "connect", json!({"pins":[pin],"net":net})).await;
+    }
+    let device = call_ok(
+        &client,
+        "library_search",
+        json!({"query":"C-0805","kind":"device"}),
+    )
+    .await["elements"][0]
+        .clone();
+    let document = json!({
+        "version":1,"schematic":"Main","components":{},
+        "add_components":{"decoupler":{
+            "designator":"C1","library_component":device["component"]["uuid"],"device":device["uuid"],
+            "value":"100 nF","position":{"x":40.64,"y":40.64},"connections":{"1":"VCC","2":"GND"}
+        }}
+    });
+    let before = call_ok(&client, "project_summary", json!({})).await;
+    let mut invalid = document.clone();
+    invalid["add_components"]["decoupler"]["connections"]["2"] = json!("missing");
+    let rejected = call(&client, "design_preview", invalid).await;
+    assert_eq!(
+        rejected.structured_content.unwrap()["error"]["kind"],
+        "not_found"
+    );
+    assert_eq!(call_ok(&client, "project_summary", json!({})).await, before);
+
+    let preview = call_ok(&client, "design_preview", document.clone()).await;
+    assert_eq!(preview["diff"].as_array().unwrap().len(), 1);
+    let change = &preview["diff"][0];
+    let id = &change["uuid"];
+    assert_eq!(change["connections"].as_array().unwrap().len(), 2);
+    assert_eq!(call_ok(&client, "project_summary", json!({})).await, before);
+    let applied = call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":preview["preview"]}),
+    )
+    .await;
+    assert!(
+        applied["operation_count"].as_u64().unwrap() > applied["mutation_count"].as_u64().unwrap()
+    );
+    let installed = call_ok(&client, "project_summary", json!({})).await;
+    assert_eq!(
+        installed["counts"]["library"]["devices"].as_u64().unwrap(),
+        before["counts"]["library"]["devices"].as_u64().unwrap() + 1
+    );
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(
+        call_ok(&client, "project_summary", json!({})).await["counts"],
+        before["counts"]
+    );
+    call_ok(&client, "redo", json!({})).await;
+    call_ok(
+        &client,
+        "component_update",
+        json!({"component":"C1","designator":"C7"}),
+    )
+    .await;
+    let moved = json!({"x":48.26,"y":40.64});
+    call_ok(
+        &client,
+        "symbol_move",
+        json!({"component":"C7","position":moved}),
+    )
+    .await;
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    call_ok(&client, "project_open", json!({"path":project["path"]})).await;
+    let repeat = call_ok(&client, "design_preview", document).await;
+    assert_eq!(repeat["diff"], json!([]));
+    let noop = call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":repeat["preview"]}),
+    )
+    .await;
+    assert_eq!(noop["operation_count"], 0);
+    let component = call_ok(&client, "component_get", json!({"component":"C7"})).await;
+    assert_eq!(&component["uuid"], id);
+    assert_eq!(component["symbols"][0]["position"], moved);
     client.cancel().await.unwrap();
 }
