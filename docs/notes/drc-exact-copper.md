@@ -269,3 +269,57 @@ Validation:
 
 Raw stdout/stderr, corpus results and replay scripts:
 `/home/okhsunrog/tmp_zfs/codex_tmp/drc-review/local-queries/`.
+
+## Parallel copper-pair checks (2026-11-12)
+
+Implementation: `9aec02bbeac00ec6c2d4ed9cc676339b1f7e0b4f`,
+compared with `a674dd2e541ef9baf98d0c41669c89ff73944856`.
+Independent copper-pair groups now execute on the existing Rayon pool. Each
+worker sorts its candidates and retains only violations. Indexed collection
+preserves the original object order; the final merge is sequential, preserving
+message order, per-layer locations and approval keys. Results are collected as
+an ordered vector of results before selecting an error, so worker completion
+order cannot change which error is reported. There is no alternate runner or
+backend and no board-wide list of every candidate pair.
+
+Five fresh-process before/after pairs per project were measured with the same
+release profile and machine as above. Pair order alternates; task builds and
+tests finished before measurement. ESP-PD-Sink is the unchanged snapshot used
+in the earlier comparisons. The three smaller projects come from the same
+upstream fixture revision. Medians of full DRC, including preparation, seconds:
+
+| Project | Before | Parallel pairs | Change |
+| --- | ---: | ---: | ---: |
+| ESP-PD-Sink | 2.259 | 1.645 | -27.2% |
+| Gerber Test | 1.302 | 1.305 | +0.2% |
+| Nested Planes | 0.358 | 0.307 | -14.3% |
+| v1 | 0.746 | 0.759 | +1.8% |
+
+On ESP-PD-Sink this step saves **0.614 s (27.2%, 1.37× faster)**.
+The five-sample ranges are 2.255–2.359 s before and
+1.583–1.776 s after. Whole-process CPU time increases from
+5.377 to 5.949 CPU-seconds (**+10.6%**): this change
+reduces latency through concurrency, with additional scheduling/parallel
+execution overhead. Gerber Test and v1 remain effectively unchanged; their
+small differences are not evidence of a reliable speedup or regression.
+Master and upstream LibrePCB were not remeasured for this isolated follow-up;
+previous comparisons remain recorded above.
+
+Validation: 120 unit tests and 894 integration tests in core passed (one ignored),
+including upstream CLI comparisons; workspace Clippy with all targets and
+warnings denied, formatting and diff checks passed. Two new tests cover stable
+pair order, merged layers/locations and maximum clearance with 1/2/4 Rayon
+workers, plus deterministic error selection. All 37 fixture boards retain
+exactly the same 925 ordered messages, locations and approvals. All 40 timing
+runs likewise preserve each project's ordered messages and approvals. Full
+workspace tests and app runtime tests were not repeated for this follow-up.
+
+The release binary is `worktree/target/release/examples/drc_copper_benchmark`,
+SHA-256 `25c2169f172f4bf42abf92910a72e679b4b5a3aa42a1981dada0c324e4dd61d8`.
+The preceding binary is saved at `parallel-pairs/before`. See the
+[individual measurements and binary provenance](../benchmarks/esp-pd-sink/drc-parallel-pair-timings.json).
+Raw outputs and replay scripts are under
+`/home/okhsunrog/tmp_zfs/codex_tmp/drc-review/parallel-pairs/`.
+
+This completes the bounded optimization pass. Geometry reuse and incremental
+DRC are deferred until a concrete slow workload justifies their complexity.
