@@ -1,0 +1,468 @@
+{
+  "input_archive_sha256": "3a74dd46af84f76a59828e2e2a0b63ab695dea81142c7e7bde557e5d3247ccc0",
+  "project": "ESP-PD-Sink",
+  "rust_profile": "release",
+  "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
+  "cpu": "Intel Core Ultra 5 125H",
+  "before_commit": "0636f99ff707b31e45ab597580c84463405539c9",
+  "current_commit": "dc9577de9097e019a7f6f008bef44e518b78f39e",
+  "master_commit": "dfee64b16e1897bfcd0f73a6750a7928f3a39cac",
+  "librepcb": "2.1.1 / 06465bf / Qt 6.11.1 / official Linux x86-64 binary",
+  "full_drc_scope": "plane rebuild, air wires, extraction and full checks; excludes project loading",
+  "binaries": {
+    "before": {
+      "path": "/home/okhsunrog/tmp_zfs/codex_tmp/drc-review/local-queries/before",
+      "sha256": "7748eb95fd60f457a09c3318b62510bb1b55444d211f0cdcbaa39f485eb56d85"
+    },
+    "current": {
+      "path": "/home/okhsunrog/tmp_zfs/codex_tmp/drc-review/worktree/target/release/examples/drc_copper_benchmark",
+      "sha256": "f90452f956dbe2a9e54d239ebdcde6f73e681185442e5f643323e363514e7681"
+    },
+    "master": {
+      "path": "/home/okhsunrog/tmp_zfs/codex_tmp/drc-review/master-benchmark/target/release/examples/drc_master_benchmark",
+      "sha256": "777b51005581eea7a0939d8938c3bc241779a0bc594c498da2ef0a1505b6bfcc"
+    },
+    "librepcb": {
+      "path": "/home/okhsunrog/tmp_zfs/codex_tmp/librepcb-attributes/librepcb-2.1.1-linux-x86_64/bin/librepcb-cli",
+      "sha256": "0626428de6f793acdf1f27d1ed8dd9a44a025229b6db0159a1fa0f899412a66b"
+    }
+  },
+  "sample_order": [
+    [
+      "before",
+      "current",
+      "master",
+      "librepcb"
+    ],
+    [
+      "librepcb",
+      "master",
+      "current",
+      "before"
+    ],
+    [
+      "current",
+      "before",
+      "librepcb",
+      "master"
+    ]
+  ],
+  "samples": [
+    {
+      "board": "default",
+      "checks_ms": 2852.210693,
+      "errors": [],
+      "full_ms": 3365.255075,
+      "mode": "full",
+      "sample": 0,
+      "variant": "before",
+      "process_wall_ms": 3499.7261919779703,
+      "process_cpu_ms": 8668.005000000001,
+      "message_count": 12,
+      "messages_sha256": "7fe25aec1fc2d2291c8fd6cf08409df3611b3b0be9396f7ccfe649063d23ae8e",
+      "approvals_sha256": "8f0e7551b95ff151919bd062305fb2e662c41b7477dcf885dc244cbdc56275f0"
+    },
+    {
+      "board": "default",
+      "checks_ms": 1940.972601,
+      "errors": [],
+      "full_ms": 2450.629558,
+      "mode": "full",
+      "sample": 0,
+      "variant": "current",
+      "process_wall_ms": 2552.0099500427023,
+      "process_cpu_ms": 5877.393999999999,
+      "message_count": 12,
+      "messages_sha256": "7fe25aec1fc2d2291c8fd6cf08409df3611b3b0be9396f7ccfe649063d23ae8e",
+      "approvals_sha256": "8f0e7551b95ff151919bd062305fb2e662c41b7477dcf885dc244cbdc56275f0"
+    },
+    {
+      "board": "default",
+      "checks_ms": 14918.158904,
+      "errors": [],
+      "full_ms": 15426.964002,
+      "load_ms": 96.323915,
+      "variant": "master",
+      "sample": 0,
+      "process_wall_ms": 15572.23785307724,
+      "process_cpu_ms": 30195.744000000002,
+      "message_count": 12,
+      "messages_sha256": "7fe25aec1fc2d2291c8fd6cf08409df3611b3b0be9396f7ccfe649063d23ae8e",
+      "approvals_sha256": "8f0e7551b95ff151919bd062305fb2e662c41b7477dcf885dc244cbdc56275f0"
+    },
+    {
+      "full_ms": 13883,
+      "error_count": 3,
+      "warning_count": 9,
+      "variant": "librepcb",
+      "sample": 0,
+      "process_wall_ms": 14975.24580906611,
+      "process_cpu_ms": 29042.720999999994
+    },
+    {
+      "full_ms": 13792,
+      "error_count": 3,
+      "warning_count": 9,
+      "variant": "librepcb",
+      "sample": 1,
+      "process_wall_ms": 14889.26047401037,
+      "process_cpu_ms": 28421.429000000004
+    },
+    {
+      "board": "default",
+      "checks_ms": 15012.065359,
+      "errors": [],
+      "full_ms": 15512.518213,
+      "load_ms": 72.725424,
+      "variant": "master",
+      "sample": 1,
+      "process_wall_ms": 15606.662860955112,
+      "process_cpu_ms": 29789.36499999999,
+      "message_count": 12,
+      "messages_sha256": "7fe25aec1fc2d2291c8fd6cf08409df3611b3b0be9396f7ccfe649063d23ae8e",
+      "approvals_sha256": "8f0e7551b95ff151919bd062305fb2e662c41b7477dcf885dc244cbdc56275f0"
+    },
+    {
+      "board": "default",
+      "checks_ms": 1856.871189,
+      "errors": [],
+      "full_ms": 2367.412634,
+      "mode": "full",
+      "sample": 1,
+      "variant": "current",
+      "process_wall_ms": 2473.0168299283832,
+      "process_cpu_ms": 5472.904000000028,
+      "message_count": 12,
+      "messages_sha256": "7fe25aec1fc2d2291c8fd6cf08409df3611b3b0be9396f7ccfe649063d23ae8e",
+      "approvals_sha256": "8f0e7551b95ff151919bd062305fb2e662c41b7477dcf885dc244cbdc56275f0"
+    },
+    {
+      "board": "default",
+      "checks_ms": 3042.276193,
+      "errors": [],
+      "full_ms": 3530.358023,
+      "mode": "full",
+      "sample": 1,
+      "variant": "before",
+      "process_wall_ms": 3642.1540880110115,
+      "process_cpu_ms": 8823.237999999976,
+      "message_count": 12,
+      "messages_sha256": "7fe25aec1fc2d2291c8fd6cf08409df3611b3b0be9396f7ccfe649063d23ae8e",
+      "approvals_sha256": "8f0e7551b95ff151919bd062305fb2e662c41b7477dcf885dc244cbdc56275f0"
+    },
+    {
+      "board": "default",
+      "checks_ms": 1783.011054,
+      "errors": [],
+      "full_ms": 2310.981428,
+      "mode": "full",
+      "sample": 2,
+      "variant": "current",
+      "process_wall_ms": 2418.753174948506,
+      "process_cpu_ms": 5337.117000000007,
+      "message_count": 12,
+      "messages_sha256": "7fe25aec1fc2d2291c8fd6cf08409df3611b3b0be9396f7ccfe649063d23ae8e",
+      "approvals_sha256": "8f0e7551b95ff151919bd062305fb2e662c41b7477dcf885dc244cbdc56275f0"
+    },
+    {
+      "board": "default",
+      "checks_ms": 3191.7608060000002,
+      "errors": [],
+      "full_ms": 3694.891904,
+      "mode": "full",
+      "sample": 2,
+      "variant": "before",
+      "process_wall_ms": 3804.7065200516954,
+      "process_cpu_ms": 9562.836000000005,
+      "message_count": 12,
+      "messages_sha256": "7fe25aec1fc2d2291c8fd6cf08409df3611b3b0be9396f7ccfe649063d23ae8e",
+      "approvals_sha256": "8f0e7551b95ff151919bd062305fb2e662c41b7477dcf885dc244cbdc56275f0"
+    },
+    {
+      "full_ms": 13867,
+      "error_count": 3,
+      "warning_count": 9,
+      "variant": "librepcb",
+      "sample": 2,
+      "process_wall_ms": 14995.922980946489,
+      "process_cpu_ms": 29435.38899999999
+    },
+    {
+      "board": "default",
+      "checks_ms": 14930.103948,
+      "errors": [],
+      "full_ms": 15434.155043,
+      "load_ms": 68.077525,
+      "variant": "master",
+      "sample": 2,
+      "process_wall_ms": 15520.592028973624,
+      "process_cpu_ms": 29782.47000000002,
+      "message_count": 12,
+      "messages_sha256": "7fe25aec1fc2d2291c8fd6cf08409df3611b3b0be9396f7ccfe649063d23ae8e",
+      "approvals_sha256": "8f0e7551b95ff151919bd062305fb2e662c41b7477dcf885dc244cbdc56275f0"
+    }
+  ],
+  "fixture_sample_order": [
+    [
+      "before",
+      "current"
+    ],
+    [
+      "current",
+      "before"
+    ],
+    [
+      "before",
+      "current"
+    ]
+  ],
+  "fixture_samples": [
+    {
+      "board": "default",
+      "checks_ms": 1279.923008,
+      "errors": [],
+      "full_ms": 1400.984913,
+      "mode": "full",
+      "sample": 0,
+      "variant": "before",
+      "project": "Gerber Test",
+      "message_count": 56,
+      "messages_sha256": "631e34a532a6e01de3a2af74911329ddae4fd07f423222c8127212a0779dcfe5",
+      "approvals_sha256": "f070d48fa1efe02486782f0ebbc33635a746dc27e80377ff1ceb6c3f6cbf5c30"
+    },
+    {
+      "board": "default",
+      "checks_ms": 1231.901677,
+      "errors": [],
+      "full_ms": 1351.5142,
+      "mode": "full",
+      "sample": 0,
+      "variant": "current",
+      "project": "Gerber Test",
+      "message_count": 56,
+      "messages_sha256": "631e34a532a6e01de3a2af74911329ddae4fd07f423222c8127212a0779dcfe5",
+      "approvals_sha256": "f070d48fa1efe02486782f0ebbc33635a746dc27e80377ff1ceb6c3f6cbf5c30"
+    },
+    {
+      "board": "default",
+      "checks_ms": 242.216809,
+      "errors": [],
+      "full_ms": 386.113621,
+      "mode": "full",
+      "sample": 0,
+      "variant": "before",
+      "project": "Nested Planes",
+      "message_count": 80,
+      "messages_sha256": "d1932c36b6e14174dedf1bee9fc3ad50bf75708c0d0ef3b6d9f22fbe13e16466",
+      "approvals_sha256": "3b57c836ecf0b122285a424a91250f47d83729b976623766eb648426182ddd3d"
+    },
+    {
+      "board": "default",
+      "checks_ms": 208.261168,
+      "errors": [],
+      "full_ms": 351.038789,
+      "mode": "full",
+      "sample": 0,
+      "variant": "current",
+      "project": "Nested Planes",
+      "message_count": 80,
+      "messages_sha256": "d1932c36b6e14174dedf1bee9fc3ad50bf75708c0d0ef3b6d9f22fbe13e16466",
+      "approvals_sha256": "3b57c836ecf0b122285a424a91250f47d83729b976623766eb648426182ddd3d"
+    },
+    {
+      "board": "default",
+      "checks_ms": 694.985777,
+      "errors": [],
+      "full_ms": 784.125067,
+      "mode": "full",
+      "sample": 0,
+      "variant": "before",
+      "project": "v1",
+      "message_count": 37,
+      "messages_sha256": "02a6c88b295fc5c329b8afedc8129108de40f5b798b3c9aa529ae142ed210439",
+      "approvals_sha256": "1ccb6be4b90b4a37c3e0af422996fde2f01174b7789aea8342142b45fe2a55c7"
+    },
+    {
+      "board": "default",
+      "checks_ms": 682.474057,
+      "errors": [],
+      "full_ms": 772.178172,
+      "mode": "full",
+      "sample": 0,
+      "variant": "current",
+      "project": "v1",
+      "message_count": 37,
+      "messages_sha256": "02a6c88b295fc5c329b8afedc8129108de40f5b798b3c9aa529ae142ed210439",
+      "approvals_sha256": "1ccb6be4b90b4a37c3e0af422996fde2f01174b7789aea8342142b45fe2a55c7"
+    },
+    {
+      "board": "default",
+      "checks_ms": 1161.96999,
+      "errors": [],
+      "full_ms": 1279.783506,
+      "mode": "full",
+      "sample": 1,
+      "variant": "current",
+      "project": "Gerber Test",
+      "message_count": 56,
+      "messages_sha256": "631e34a532a6e01de3a2af74911329ddae4fd07f423222c8127212a0779dcfe5",
+      "approvals_sha256": "f070d48fa1efe02486782f0ebbc33635a746dc27e80377ff1ceb6c3f6cbf5c30"
+    },
+    {
+      "board": "default",
+      "checks_ms": 1216.1870290000002,
+      "errors": [],
+      "full_ms": 1329.821964,
+      "mode": "full",
+      "sample": 1,
+      "variant": "before",
+      "project": "Gerber Test",
+      "message_count": 56,
+      "messages_sha256": "631e34a532a6e01de3a2af74911329ddae4fd07f423222c8127212a0779dcfe5",
+      "approvals_sha256": "f070d48fa1efe02486782f0ebbc33635a746dc27e80377ff1ceb6c3f6cbf5c30"
+    },
+    {
+      "board": "default",
+      "checks_ms": 207.290978,
+      "errors": [],
+      "full_ms": 351.919144,
+      "mode": "full",
+      "sample": 1,
+      "variant": "current",
+      "project": "Nested Planes",
+      "message_count": 80,
+      "messages_sha256": "d1932c36b6e14174dedf1bee9fc3ad50bf75708c0d0ef3b6d9f22fbe13e16466",
+      "approvals_sha256": "3b57c836ecf0b122285a424a91250f47d83729b976623766eb648426182ddd3d"
+    },
+    {
+      "board": "default",
+      "checks_ms": 223.932301,
+      "errors": [],
+      "full_ms": 366.65889000000004,
+      "mode": "full",
+      "sample": 1,
+      "variant": "before",
+      "project": "Nested Planes",
+      "message_count": 80,
+      "messages_sha256": "d1932c36b6e14174dedf1bee9fc3ad50bf75708c0d0ef3b6d9f22fbe13e16466",
+      "approvals_sha256": "3b57c836ecf0b122285a424a91250f47d83729b976623766eb648426182ddd3d"
+    },
+    {
+      "board": "default",
+      "checks_ms": 681.6573970000001,
+      "errors": [],
+      "full_ms": 787.267979,
+      "mode": "full",
+      "sample": 1,
+      "variant": "current",
+      "project": "v1",
+      "message_count": 37,
+      "messages_sha256": "02a6c88b295fc5c329b8afedc8129108de40f5b798b3c9aa529ae142ed210439",
+      "approvals_sha256": "1ccb6be4b90b4a37c3e0af422996fde2f01174b7789aea8342142b45fe2a55c7"
+    },
+    {
+      "board": "default",
+      "checks_ms": 738.466327,
+      "errors": [],
+      "full_ms": 826.2643800000001,
+      "mode": "full",
+      "sample": 1,
+      "variant": "before",
+      "project": "v1",
+      "message_count": 37,
+      "messages_sha256": "02a6c88b295fc5c329b8afedc8129108de40f5b798b3c9aa529ae142ed210439",
+      "approvals_sha256": "1ccb6be4b90b4a37c3e0af422996fde2f01174b7789aea8342142b45fe2a55c7"
+    },
+    {
+      "board": "default",
+      "checks_ms": 1222.9062820000001,
+      "errors": [],
+      "full_ms": 1338.1285090000001,
+      "mode": "full",
+      "sample": 2,
+      "variant": "before",
+      "project": "Gerber Test",
+      "message_count": 56,
+      "messages_sha256": "631e34a532a6e01de3a2af74911329ddae4fd07f423222c8127212a0779dcfe5",
+      "approvals_sha256": "f070d48fa1efe02486782f0ebbc33635a746dc27e80377ff1ceb6c3f6cbf5c30"
+    },
+    {
+      "board": "default",
+      "checks_ms": 1204.477369,
+      "errors": [],
+      "full_ms": 1326.3977229999998,
+      "mode": "full",
+      "sample": 2,
+      "variant": "current",
+      "project": "Gerber Test",
+      "message_count": 56,
+      "messages_sha256": "631e34a532a6e01de3a2af74911329ddae4fd07f423222c8127212a0779dcfe5",
+      "approvals_sha256": "f070d48fa1efe02486782f0ebbc33635a746dc27e80377ff1ceb6c3f6cbf5c30"
+    },
+    {
+      "board": "default",
+      "checks_ms": 217.406601,
+      "errors": [],
+      "full_ms": 367.899383,
+      "mode": "full",
+      "sample": 2,
+      "variant": "before",
+      "project": "Nested Planes",
+      "message_count": 80,
+      "messages_sha256": "d1932c36b6e14174dedf1bee9fc3ad50bf75708c0d0ef3b6d9f22fbe13e16466",
+      "approvals_sha256": "3b57c836ecf0b122285a424a91250f47d83729b976623766eb648426182ddd3d"
+    },
+    {
+      "board": "default",
+      "checks_ms": 227.581723,
+      "errors": [],
+      "full_ms": 369.980237,
+      "mode": "full",
+      "sample": 2,
+      "variant": "current",
+      "project": "Nested Planes",
+      "message_count": 80,
+      "messages_sha256": "d1932c36b6e14174dedf1bee9fc3ad50bf75708c0d0ef3b6d9f22fbe13e16466",
+      "approvals_sha256": "3b57c836ecf0b122285a424a91250f47d83729b976623766eb648426182ddd3d"
+    },
+    {
+      "board": "default",
+      "checks_ms": 659.563837,
+      "errors": [],
+      "full_ms": 756.654949,
+      "mode": "full",
+      "sample": 2,
+      "variant": "before",
+      "project": "v1",
+      "message_count": 37,
+      "messages_sha256": "02a6c88b295fc5c329b8afedc8129108de40f5b798b3c9aa529ae142ed210439",
+      "approvals_sha256": "1ccb6be4b90b4a37c3e0af422996fde2f01174b7789aea8342142b45fe2a55c7"
+    },
+    {
+      "board": "default",
+      "checks_ms": 724.97452,
+      "errors": [],
+      "full_ms": 816.736355,
+      "mode": "full",
+      "sample": 2,
+      "variant": "current",
+      "project": "v1",
+      "message_count": 37,
+      "messages_sha256": "02a6c88b295fc5c329b8afedc8129108de40f5b798b3c9aa529ae142ed210439",
+      "approvals_sha256": "1ccb6be4b90b4a37c3e0af422996fde2f01174b7789aea8342142b45fe2a55c7"
+    }
+  ],
+  "validation": {
+    "core_unit_passed": 118,
+    "core_integration_passed": 894,
+    "core_integration_ignored": 1,
+    "workspace_clippy": "passed: --locked --workspace --all-targets -- -D warnings",
+    "fmt": "passed",
+    "corpus_boards": 37,
+    "corpus_messages": 925,
+    "corpus_full_ordered_messages_locations_approvals_match": true,
+    "comparison_baseline": "0636f99 / c610b68 exact production DRC",
+    "full_workspace_tests_run": false
+  },
+  "raw_artifacts": "/home/okhsunrog/tmp_zfs/codex_tmp/drc-review/local-queries"
+}

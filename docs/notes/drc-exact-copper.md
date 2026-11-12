@@ -186,3 +186,86 @@ not claimed for this board.
 versions and Rust message/approval hashes. Full stdout/stderr and the rotated
 three-way replay script are preserved in the local `exact-main` artifact
 folder listed above.
+
+## Local query optimizations (2026-11-12)
+
+Implementation: `dc9577de9097e019a7f6f008bef44e518b78f39e`.
+All four changes replace the existing production operations; no backend selector or alternate DRC path was added.
+
+- Copper pairs use an `rstar` R-tree and 64-bit layer masks. The envelope covers
+  both copper and clearance regions, retaining asymmetric clearance checks.
+  Rational extrema are rounded outward only for candidate selection; `i128`
+  index arithmetic covers the full accepted coordinate range. Candidate indices
+  are sorted before checking, preserving message order and approval keys.
+- Exact regions cache bounds for every contour. Local queries reject remote
+  contours before cloning and skip clipping planes that cannot cut a contour.
+  Enclosing rings and hole winding remain part of the local operand.
+- NPTH and annular-ring checks clip the participating layers to each hole/pad's
+  query box before computing their union/intersection. All operations stay
+  rational until the final violation display conversion. Missing layers and
+  empty layer sets retain the previous intersection semantics.
+- Collinear cleanup uses cyclic neighbor links and a queue, followed by one
+  compaction. It performs at most 3n queued vertex checks instead of repeatedly
+  scanning and removing from a vector.
+
+The same ESP-PD-Sink snapshot, binary entry points, release profile and machine
+as above were used. Three fresh-process runs per version were interleaved in
+these orders: previous/current/master/LibrePCB,
+LibrePCB/master/current/previous, current/previous/LibrePCB/master.
+All task builds and tests had finished before measuring. The binaries and their
+SHA-256 hashes are recorded in the [sample data](../benchmarks/esp-pd-sink/drc-local-query-timings.json).
+Current binary: `worktree/target/release/examples/drc_copper_benchmark`, SHA-256
+`f90452f956dbe2a9e54d239ebdcde6f73e681185442e5f643323e363514e7681`.
+The previous binary was saved before rebuilding at `local-queries/before` under the task artifact root.
+
+Medians of three runs, seconds; full DRC includes preparation:
+
+| Version | Full DRC | Range | Whole process CPU time |
+| --- | ---: | ---: | ---: |
+| Previous rational DRC `0636f99` | 3.530 | 3.365–3.695 | 8.823 |
+| Local queries `dc9577d` | 2.367 | 2.311–2.451 | 5.473 |
+| Master `dfee64b` | 15.434 | 15.427–15.513 | 29.789 |
+| LibrePCB 2.1.1 `06465bf` | 13.867 | 13.792–13.883 | 29.043 |
+
+The four optimizations together reduce full DRC wall time by
+**32.9% (1.49×)** versus the previous rational implementation,
+and whole-process CPU time by **38.0%**.
+The resulting full DRC is **6.52× faster than master** and
+**5.86× faster than upstream LibrePCB** on this board.
+These measurements do not isolate each optimization's contribution.
+
+Three additional fixture projects were measured before/after in three alternating
+fresh-process pairs each, without concurrent task builds or tests:
+
+| Project | Previous full DRC | Current full DRC | Change |
+| --- | ---: | ---: | ---: |
+| Gerber Test | 1.338 | 1.326 | -0.9% |
+| Nested Planes | 0.368 | 0.352 | -4.3% |
+| v1 | 0.784 | 0.787 | +0.4% |
+
+The small fixture differences are within a few percent and should not be treated
+as a reliable speedup or regression with only three samples. The larger
+ESP-PD-Sink improvement does not generalize to every board.
+
+Validation:
+
+- Five new regression tests cover outward fractional bounds, asymmetric
+  clearances, full-range R-tree queries, sparse/all-64-layer masks, local versus
+  global rational booleans (including holes and missing layers), and long
+  collinear chains with cyclic seams, reversed winding and degenerate rings.
+- Full core suite: 118 unit tests and 894 integration tests passed, one ignored;
+  upstream CLI comparisons were enabled. Workspace Clippy with all targets and
+  warnings denied, formatting and diff checks passed. The full workspace test
+  suite and app runtime tests were not repeated for this follow-up.
+- All 37 upstream fixture boards produced exactly the same 925 ordered full
+  Debug messages, locations and approvals as the previous rational production
+  DRC, with no check errors. Unlike the earlier migration from Clipper, this
+  follow-up introduces no display-location differences on that corpus.
+- All nine Rust ESP-PD-Sink timing runs produced identical messages, locations
+  and approval multisets. LibrePCB reported the same three errors and nine
+  warnings; its CLI does not expose approval keys or location polygons.
+- All 18 additional fixture timing runs retained identical ordered messages
+  and approvals within each project.
+
+Raw stdout/stderr, corpus results and replay scripts:
+`/home/okhsunrog/tmp_zfs/codex_tmp/drc-review/local-queries/`.
