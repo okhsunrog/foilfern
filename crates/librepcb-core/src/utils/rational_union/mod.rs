@@ -17,7 +17,7 @@ mod bounds;
 mod lines;
 mod sweep;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 
 use clipper::{IntPoint, PolyFillType};
 use dashu_ratio::RBig;
@@ -92,6 +92,7 @@ pub struct Statistics {
 pub struct Region {
     paths: Vec<Vec<Point>>,
     bounds: Option<(Point, Point)>,
+    path_bounds: Vec<(Point, Point)>,
 }
 
 impl Region {
@@ -135,6 +136,50 @@ impl Region {
             Operation::Difference,
         )?
         .0)
+    }
+
+    /// Conservative integer envelope for broad-phase queries. Rounding is only
+    /// outward here; exact contours still decide every geometric predicate.
+    pub(crate) fn envelope(&self) -> Result<Option<rstar::AABB<[i128; 2]>>, Error> {
+        self.bounds
+            .as_ref()
+            .map(|(min, max)| {
+                let floor =
+                    |v: &RBig| i128::try_from(v.floor()).map_err(|_| Error::CoordinateOutOfRange);
+                let ceil =
+                    |v: &RBig| i128::try_from(v.ceil()).map_err(|_| Error::CoordinateOutOfRange);
+                Ok(rstar::AABB::from_corners(
+                    [floor(&min.x)?, floor(&min.y)?],
+                    [ceil(&max.x)?, ceil(&max.y)?],
+                ))
+            })
+            .transpose()
+    }
+
+    /// Intersects a small query with copper on any layer. Clip each layer to the
+    /// query bounds before combining, keeping enclosing contours and hole winding.
+    pub(crate) fn intersection_with_union<'a>(
+        &self,
+        regions: impl Iterator<Item = &'a Self>,
+    ) -> Result<Self, Error> {
+        let Some((min, max)) = &self.bounds else {
+            return Ok(Self::default());
+        };
+        let operands: Vec<_> = regions.map(|r| r.operand_within(min, max)).collect();
+        self.intersection(&union(&operands)?.0)
+    }
+
+    /// Finds missing copper on any required layer within this small query.
+    /// Empty input and empty layers retain the n-ary intersection semantics.
+    pub(crate) fn difference_from_intersection<'a>(
+        &self,
+        regions: impl Iterator<Item = &'a Self>,
+    ) -> Result<Self, Error> {
+        let Some((min, max)) = &self.bounds else {
+            return Ok(Self::default());
+        };
+        let operands: Vec<_> = regions.map(|r| r.operand_within(min, max)).collect();
+        self.difference(&intersection(&operands)?)
     }
 
     fn bounds_overlap(&self, other: &Self) -> bool {
@@ -211,14 +256,35 @@ fn combine(operands: &[Operand], operation: Operation) -> Result<(Region, Statis
     let boundary = sweep::boundary(&points, &edges, operands, operation)?;
     stats.boundary_edges = boundary.len();
     let paths = rings(&points, &boundary)?;
-    let bounds = paths.iter().flatten().fold(None, |bounds, p| match bounds {
-        None => Some((p.clone(), p.clone())),
-        Some((a, b)) => Some((
-            Point::new(a.x.min(p.x.clone()), a.y.min(p.y.clone())),
-            Point::new(b.x.max(p.x.clone()), b.y.max(p.y.clone())),
-        )),
+    let path_bounds: Vec<_> = paths
+        .iter()
+        .map(|path| {
+            // rings() rejects paths with fewer than three vertices.
+            let first = &path[0];
+            path.iter()
+                .skip(1)
+                .fold((first.clone(), first.clone()), |(a, b), p| {
+                    (
+                        Point::new(a.x.min(p.x.clone()), a.y.min(p.y.clone())),
+                        Point::new(b.x.max(p.x.clone()), b.y.max(p.y.clone())),
+                    )
+                })
+        })
+        .collect();
+    let bounds = path_bounds.iter().cloned().reduce(|(a, b), (c, d)| {
+        (
+            Point::new(a.x.min(c.x), a.y.min(c.y)),
+            Point::new(b.x.max(d.x), b.y.max(d.y)),
+        )
     });
-    Ok((Region { paths, bounds }, stats))
+    Ok((
+        Region {
+            paths,
+            bounds,
+            path_bounds,
+        },
+        stats,
+    ))
 }
 
 #[derive(Debug)]
@@ -292,24 +358,7 @@ fn rings(points: &[Point], edges: &[(usize, usize)]) -> Result<Vec<Vec<Point>>, 
         }
         // Remove collinear split vertices, including the wraparound seam. Exact
         // predicates make canonical output independent of how operands were split.
-        loop {
-            if path.len() < 3 {
-                return Err(Error::InvalidTopology);
-            }
-            let redundant = (0..path.len()).find(|&i| {
-                let prev = (i + path.len() - 1) % path.len();
-                let next = (i + 1) % path.len();
-                let a = direction(&path[prev], &path[i]);
-                let b = direction(&path[i], &path[next]);
-                cross(&a.0, &a.1, &b.0, &b.1) == RBig::ZERO
-            });
-            match redundant {
-                Some(i) => {
-                    path.remove(i);
-                }
-                None => break,
-            }
-        }
+        remove_collinear(&mut path)?;
         // Nonempty by the preceding size check.
         let first = (0..path.len())
             .min_by_key(|&i| &path[i])
@@ -319,4 +368,107 @@ fn rings(points: &[Point], edges: &[(usize, usize)]) -> Result<Vec<Vec<Point>>, 
     }
     result.sort();
     Ok(result)
+}
+
+/// Each removal rechecks only its two neighbors. The queue has at most 3n
+/// entries, including the cyclic seam, and vertices are compacted once.
+fn remove_collinear(path: &mut Vec<Point>) -> Result<(), Error> {
+    let n = path.len();
+    if n < 3 {
+        return Err(Error::InvalidTopology);
+    }
+    let mut prev: Vec<_> = (0..n).map(|i| (i + n - 1) % n).collect();
+    let mut next: Vec<_> = (0..n).map(|i| (i + 1) % n).collect();
+    let mut alive = vec![true; n];
+    let mut pending: VecDeque<_> = (0..n).collect();
+    let mut remaining = n;
+    while let Some(i) = pending.pop_front() {
+        if !alive[i] {
+            continue;
+        }
+        let (p, q) = (prev[i], next[i]);
+        let a = direction(&path[p], &path[i]);
+        let b = direction(&path[i], &path[q]);
+        if cross(&a.0, &a.1, &b.0, &b.1) != RBig::ZERO {
+            continue;
+        }
+        remaining -= 1;
+        if remaining < 3 {
+            return Err(Error::InvalidTopology);
+        }
+        alive[i] = false;
+        next[p] = q;
+        prev[q] = p;
+        pending.extend([p, q]);
+    }
+    let mut i = 0;
+    path.retain(|_| {
+        let keep = alive[i];
+        i += 1;
+        keep
+    });
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn collinear_cleanup_handles_long_chains_seams_and_degenerate_rings() {
+        let corners: Vec<_> = [(0, 0), (1000, 0), (1000, 1000), (0, 1000)]
+            .into_iter()
+            .map(|(x, y)| Point::from_nm(x, y))
+            .collect();
+        let mut split = Vec::new();
+        for (a, b) in corners.iter().zip(corners.iter().cycle().skip(1)).take(4) {
+            for t in 0..1000 {
+                let fraction = RBig::from(t) / RBig::from(1000);
+                split.push(Point::new(
+                    &a.x + (&b.x - &a.x) * &fraction,
+                    &a.y + (&b.y - &a.y) * &fraction,
+                ));
+            }
+        }
+        for reversed in [false, true] {
+            for shift in [0, 1, 999, 1999, 3999] {
+                let mut path = split.clone();
+                path.rotate_left(shift);
+                if reversed {
+                    path.reverse();
+                }
+                remove_collinear(&mut path).unwrap();
+                assert_eq!(path.len(), 4);
+                for p in &path {
+                    assert!(corners.contains(p));
+                }
+                let a = direction(&path[0], &path[1]);
+                let b = direction(&path[1], &path[2]);
+                assert_eq!(cross(&a.0, &a.1, &b.0, &b.1) < RBig::ZERO, reversed);
+            }
+        }
+        for n in 0..5 {
+            let mut line = (0..n).map(|x| Point::from_nm(x, 0)).collect();
+            assert!(remove_collinear(&mut line).is_err());
+        }
+    }
+
+    #[test]
+    fn integer_envelope_rounds_fractional_extrema_outward() {
+        let third = RBig::ONE / RBig::from(3);
+        let region = union(&[Operand {
+            paths: vec![vec![
+                Point::new(-&third, -&third),
+                Point::new(third.clone(), -&third),
+                Point::new(third.clone(), third.clone()),
+                Point::new(-&third, third),
+            ]],
+            fill: PolyFillType::NonZero,
+        }])
+        .unwrap()
+        .0;
+        let envelope = region.envelope().unwrap().unwrap();
+        assert_eq!(envelope.lower(), [-1, -1]);
+        assert_eq!(envelope.upper(), [1, 1]);
+    }
 }

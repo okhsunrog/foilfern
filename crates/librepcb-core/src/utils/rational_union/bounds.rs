@@ -6,7 +6,6 @@
 
 use super::{Operand, Point, Region};
 use clipper::PolyFillType;
-use dashu_ratio::RBig;
 
 impl Region {
     pub(super) fn operand_within(&self, min: &Point, max: &Point) -> Operand {
@@ -17,33 +16,39 @@ impl Region {
         {
             return self.operand();
         }
-        let mut paths = self.paths.clone();
-        for (x_axis, limit, lower) in [
-            (true, &min.x, true),
-            (true, &max.x, false),
-            (false, &min.y, true),
-            (false, &max.y, false),
-        ] {
-            let coord = |p: &Point| -> RBig { if x_axis { p.x.clone() } else { p.y.clone() } };
-            for path in &mut paths {
-                let mut clipped = Vec::new();
+        let mut paths = Vec::new();
+        for (original, (a, b)) in self.paths.iter().zip(&self.path_bounds) {
+            if a.x >= max.x || b.x <= min.x || a.y >= max.y || b.y <= min.y {
+                continue;
+            }
+            let mut path = original.clone();
+            for (x_axis, limit, lower, bound) in [
+                (true, &min.x, true, &a.x),
+                (true, &max.x, false, &b.x),
+                (false, &min.y, true, &a.y),
+                (false, &max.y, false, &b.y),
+            ] {
+                if (lower && bound >= limit) || (!lower && bound <= limit) {
+                    continue;
+                }
+
+                let mut clipped = Vec::with_capacity(path.len());
                 if let Some(mut prev) = path.last() {
-                    let mut prev_coord = coord(prev);
+                    let mut prev_coord = if x_axis { &prev.x } else { &prev.y };
                     let mut prev_inside = if lower {
-                        &prev_coord >= limit
+                        prev_coord >= limit
                     } else {
-                        &prev_coord <= limit
+                        prev_coord <= limit
                     };
-                    for current in path.iter() {
-                        let current_coord = coord(current);
+                    for current in &path {
+                        let current_coord = if x_axis { &current.x } else { &current.y };
                         let current_inside = if lower {
-                            &current_coord >= limit
+                            current_coord >= limit
                         } else {
-                            &current_coord <= limit
+                            current_coord <= limit
                         };
                         if prev_inside != current_inside {
-                            // A crossing has distinct coordinates on this axis.
-                            let t = (limit - &prev_coord) / (&current_coord - &prev_coord);
+                            let t = (limit - prev_coord) / (current_coord - prev_coord);
                             clipped.push(if x_axis {
                                 Point::new(limit.clone(), &prev.y + (&current.y - &prev.y) * t)
                             } else {
@@ -59,8 +64,9 @@ impl Region {
                     }
                 }
                 clipped.dedup();
-                *path = clipped;
+                path = clipped;
             }
+            paths.push(path);
         }
         paths.retain(|p| p.len() >= 3);
         Operand {

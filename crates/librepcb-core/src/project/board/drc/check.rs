@@ -29,6 +29,10 @@ use std::time::{Duration, Instant};
 use clipper::JoinType;
 use clipper::PolyFillType::{EvenOdd, NonZero};
 use librepcb_i18n::{tr, trn};
+use rstar::{
+    AABB, Envelope, RTree,
+    primitives::{GeomWithData, Rectangle},
+};
 
 use super::data::{
     BoardDrcData, DrcAirWireAnchor, DrcAirWireObject, DrcDevice, DrcHole, DrcPad, DrcPlane,
@@ -498,11 +502,30 @@ struct CopperItem<'a> {
     clearance_area: Region,
 }
 
+/// Broad-phase bounds covering both directions of a clearance check.
+fn copper_envelope(copper: &Region, clearance: &Region) -> Result<Option<AABB<[i128; 2]>>> {
+    let a = copper.envelope()?;
+    let b = clearance.envelope()?;
+    Ok(match (a, b) {
+        (Some(a), Some(b)) => Some(a.merged(&b)),
+        (a, b) => a.or(b),
+    })
+}
+
+fn copper_layer_mask(start: Layer, end: Layer, layers: &BTreeSet<Layer>) -> u64 {
+    layers
+        .iter()
+        .filter(|layer| {
+            (start.copper_number()..=end.copper_number()).contains(&layer.copper_number())
+        })
+        .fold(0, |mask, layer| mask | (1u64 << layer.copper_number()))
+}
+
 /// A copper clearance violation (merged per object pair).
 struct CopperViolation {
     obj1: usize,
     obj2: usize,
-    layers: BTreeSet<Layer>,
+    layers: u64,
     clearance: Length,
     locations: Vec<Path>,
 }
@@ -822,18 +845,25 @@ impl Checker<'_> {
             }
         }
 
-        // Helper to check for overlapping layer spans.
-        let layers_overlap = |a: &CopperItem<'_>, b: &CopperItem<'_>| -> BTreeSet<Layer> {
-            let first = a
-                .start_layer
-                .copper_number()
-                .max(b.start_layer.copper_number());
-            let last = a.end_layer.copper_number().min(b.end_layer.copper_number());
-            (first..=last)
-                .filter_map(Layer::copper)
-                .filter(|l| data.copper_layers.contains(l))
-                .collect()
-        };
+        // Index both areas: custom clearances require checking either direction.
+        // i128 accommodates areas and squared distances over the full input range.
+        let envelopes = items
+            .iter()
+            .map(|item| copper_envelope(&item.copper_area, &item.clearance_area))
+            .collect::<Result<Vec<_>>>()?;
+        let index = RTree::bulk_load(
+            envelopes
+                .iter()
+                .enumerate()
+                .filter_map(|(i, bounds)| {
+                    bounds.map(|bounds| GeomWithData::new(Rectangle::from_aabb(bounds), i))
+                })
+                .collect(),
+        );
+        let layer_masks: Vec<u64> = items
+            .iter()
+            .map(|item| copper_layer_mask(item.start_layer, item.end_layer, &data.copper_layers))
+            .collect();
 
         // Memorize violations since we want to emit messages only once per
         // object1<->object2 pair.
@@ -841,15 +871,25 @@ impl Checker<'_> {
 
         // Now check for intersections.
         for i in 0..items.len() {
-            for k in (i + 1)..items.len() {
+            let Some(envelope) = &envelopes[i] else {
+                continue;
+            };
+            let mut candidates: Vec<_> = index
+                .locate_in_envelope_intersecting(*envelope)
+                .map(|entry| entry.data)
+                .filter(|&k| k > i)
+                .collect();
+            // Tree traversal order must not affect messages or approval handling.
+            candidates.sort_unstable();
+            for k in candidates {
                 let (it1, it2) = (&items[i], &items[k]);
                 if !(((it1.clearance > Length::ZERO) || (it2.clearance > Length::ZERO))
                     && ((it1.net != it2.net) || it1.net.is_none() || it2.net.is_none()))
                 {
                     continue;
                 }
-                let overlapping = layers_overlap(it1, it2);
-                if overlapping.is_empty() {
+                let overlapping = layer_masks[i] & layer_masks[k];
+                if overlapping == 0 {
                     continue;
                 }
                 let mut locations = exact_intersection(&it1.copper_area, &it2.clearance_area)?;
@@ -871,7 +911,7 @@ impl Checker<'_> {
                 match existing {
                     Some(v) => {
                         // Merge with existing violation.
-                        v.layers.extend(overlapping);
+                        v.layers |= overlapping;
                         v.clearance = v.clearance.max(clearance);
                         v.locations.extend(locations);
                     }
@@ -888,13 +928,14 @@ impl Checker<'_> {
 
         // Emit messages.
         for v in violations {
-            let single = (v.layers.len() == 1)
-                .then(|| v.layers.first().copied())
+            let count = v.layers.count_ones() as usize;
+            let single = (count == 1)
+                .then(|| Layer::copper(v.layers.trailing_zeros() as usize))
                 .flatten();
             messages.push(DrcMessage::copper_copper_clearance_violation(
                 &items[v.obj1].object,
                 &items[v.obj2].object,
-                v.layers.len(),
+                count,
                 single,
                 v.clearance,
                 v.locations,
@@ -1082,14 +1123,6 @@ impl Checker<'_> {
 
         self.status(&tr!(CTX, "Check hole clearances..."));
 
-        // Determine the areas where copper is available on *any* layer.
-        let operands: Vec<_> = calc
-            .copper_paths_per_layer
-            .values()
-            .map(Region::operand)
-            .collect();
-        let copper_any_layer = rational_union::union(&operands)?.0;
-
         // Helper for the actual check.
         let intersects = |hole: &DrcHole, transform: &Transform| -> Result<Vec<Path>> {
             let mut generator = GeometryGenerator::new(max_arc_tolerance());
@@ -1099,7 +1132,11 @@ impl Checker<'_> {
                 transform,
                 *clearance - *max_arc_tolerance() - Length::new(1),
             )?;
-            exact_intersection(&copper_any_layer, &generator.take_region()?)
+            exact_locations(
+                &generator
+                    .take_region()?
+                    .intersection_with_union(calc.copper_paths_per_layer.values())?,
+            )
         };
 
         // Check board holes.
@@ -1400,49 +1437,35 @@ impl Checker<'_> {
 
         self.status(&tr!(CTX, "Check PTH annular rings..."));
 
-        // Only drilled pads need the intersection of all copper layers.
-        // Via annular rings are checked directly from their diameters below.
-        let has_pad_holes = data
-            .segments
-            .values()
-            .flat_map(|s| s.pads.values())
-            .chain(data.devices.values().flat_map(|d| d.pads.values()))
-            .any(|pad| !pad.holes.is_empty());
-        let tht_copper_area_paths = if has_pad_holes {
-            let areas: Vec<_> = data
-                .copper_layers
-                .iter()
-                .map(|&layer| calc.copper(layer).operand())
-                .collect();
-            rational_union::intersection(&areas)?
-        } else {
-            Region::default()
-        };
+        let empty = Region::default();
 
         // Helper.
-        let check_pad = |pad: &DrcPad| -> Result<Vec<Path>> {
-            if pad.holes.is_empty() {
-                return Ok(Vec::new());
-            }
-            // Determine hole areas including minimum annular ring.
-            let transform = pad_transform(pad);
-            let mut areas = Vec::new();
-            for hole in &pad.holes {
-                let diameter = hole.diameter + (*annular_width * 2) - Length::new(1);
-                if diameter <= Length::ZERO {
-                    continue;
+        let check_pad =
+            |pad: &DrcPad| -> Result<Vec<Path>> {
+                if pad.holes.is_empty() {
+                    return Ok(Vec::new());
                 }
-                let strokes = transform.map(&hole.path.to_outline_strokes(positive(diameter)?));
-                areas.push(Operand::from_integer(&to_clipper(&strokes), NonZero));
-            }
+                // Determine hole areas including minimum annular ring.
+                let transform = pad_transform(pad);
+                let mut areas = Vec::new();
+                for hole in &pad.holes {
+                    let diameter = hole.diameter + (*annular_width * 2) - Length::new(1);
+                    if diameter <= Length::ZERO {
+                        continue;
+                    }
+                    let strokes = transform.map(&hole.path.to_outline_strokes(positive(diameter)?));
+                    areas.push(Operand::from_integer(&to_clipper(&strokes), NonZero));
+                }
 
-            // Decide on the exact difference, before integer display conversion.
-            exact_locations(
-                &rational_union::union(&areas)?
-                    .0
-                    .difference(&tht_copper_area_paths)?,
-            )
-        };
+                // Decide on the exact difference, before integer display conversion.
+                exact_locations(
+                    &rational_union::union(&areas)?
+                        .0
+                        .difference_from_intersection(data.copper_layers.iter().map(|layer| {
+                            calc.copper_paths_per_layer.get(layer).unwrap_or(&empty)
+                        }))?,
+                )
+            };
 
         // Check pad & via annular rings.
         for ns in data.segments.values() {
@@ -3075,6 +3098,145 @@ mod exact_geometry_tests {
     use super::*;
     use crate::utils::rational_union::Point as ExactPoint;
     use dashu_ratio::RBig;
+
+    fn rectangle(x: i64, y: i64, w: i64, h: i64) -> Region {
+        rational_union::union(&[Operand {
+            paths: vec![
+                [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+                    .into_iter()
+                    .map(|(x, y)| ExactPoint::from_nm(x, y))
+                    .collect(),
+            ],
+            fill: NonZero,
+        }])
+        .unwrap()
+        .0
+    }
+
+    #[test]
+    fn spatial_candidates_retain_asymmetric_clearances_and_full_range() {
+        let small = rectangle(0, 0, 2, 2);
+        let wide = rectangle(-10, -10, 22, 22);
+        let other = rectangle(8, 0, 2, 2);
+        assert!(small.intersection(&other).unwrap().is_empty());
+        assert!(!wide.intersection(&other).unwrap().is_empty());
+        let limit = 0x3fff_ffff_ffff_ffff;
+        let full = rectangle(-limit, -limit, 2 * limit, 2 * limit);
+        let empty = Region::default();
+        let pairs = [
+            (&small, &wide),
+            (&other, &other),
+            (&empty, &empty),
+            (&full, &full),
+        ];
+        let bounds: Vec<_> = pairs
+            .iter()
+            .map(|(a, b)| copper_envelope(a, b).unwrap())
+            .collect();
+        // Force internal tree nodes, including envelopes spanning the full range.
+        let tree = RTree::bulk_load(
+            (0..128)
+                .filter_map(|i| {
+                    bounds[i % 4].map(|b| GeomWithData::new(Rectangle::from_aabb(b), i))
+                })
+                .collect(),
+        );
+        for query in bounds.iter().flatten() {
+            let mut actual: Vec<_> = tree
+                .locate_in_envelope_intersecting(*query)
+                .map(|e| e.data)
+                .collect();
+            actual.sort_unstable();
+            let expected: Vec<_> = (0..128)
+                .filter(|&i| bounds[i % 4].is_some_and(|b| b.intersects(query)))
+                .collect();
+            assert_eq!(actual, expected);
+        }
+        assert!(bounds[0].unwrap().intersects(&bounds[1].unwrap()));
+        assert!(bounds[2].is_none());
+    }
+
+    #[test]
+    fn layer_masks_preserve_sparse_and_full_stack_spans() {
+        let all: BTreeSet<_> = (0..64).map(|n| Layer::copper(n).unwrap()).collect();
+        assert_eq!(
+            copper_layer_mask(Layer::TOP_COPPER, Layer::BOT_COPPER, &all),
+            u64::MAX
+        );
+        let sparse: BTreeSet<_> = [0, 1, 2, 63].map(|n| Layer::copper(n).unwrap()).into();
+        let mask = |a, b| {
+            copper_layer_mask(
+                Layer::copper(a).unwrap(),
+                Layer::copper(b).unwrap(),
+                &sparse,
+            )
+        };
+        assert_eq!(mask(1, 62), 0b110);
+        assert_eq!(mask(2, 1), 0);
+        assert_eq!(mask(0, 1) & mask(2, 63), 0);
+        assert_eq!(mask(0, 63) & mask(63, 63), 1u64 << 63);
+    }
+
+    #[test]
+    fn local_layer_queries_equal_global_booleans_before_rounding() {
+        let outer = rectangle(-100, -100, 200, 200);
+        let hole = rectangle(-10, -10, 20, 20);
+        let donut = outer.difference(&hole).unwrap();
+        let fractional = rational_union::union(&[Operand {
+            paths: vec![vec![
+                ExactPoint::from_nm(-3, -4),
+                ExactPoint::from_nm(15, -2),
+                ExactPoint::from_nm(1, 20),
+            ]],
+            fill: NonZero,
+        }])
+        .unwrap()
+        .0
+        .intersection(&rectangle(-6, -5, 14, 16))
+        .unwrap();
+        let layers = [donut, fractional, rectangle(200, 200, 5, 5)];
+        let empty = Region::default();
+        // Include empty layer sets, explicit missing layers, enclosing holes,
+        // remote rings, and fractional boundaries at query-box intersections.
+        for stack in [
+            vec![],
+            vec![&layers[0]],
+            vec![&layers[0], &layers[1]],
+            vec![&layers[0], &layers[1], &layers[2]],
+            vec![&layers[0], &empty],
+        ] {
+            let operands: Vec<_> = stack.iter().map(|r| r.operand()).collect();
+            let any = rational_union::union(&operands).unwrap().0;
+            let all = rational_union::intersection(&operands).unwrap();
+            for x in -12..12 {
+                let query = rectangle(x, x / 2, 4, 6);
+                assert_eq!(
+                    query
+                        .intersection_with_union(stack.iter().copied())
+                        .unwrap(),
+                    query.intersection(&any).unwrap()
+                );
+                assert_eq!(
+                    query
+                        .difference_from_intersection(stack.iter().copied())
+                        .unwrap(),
+                    query.difference(&all).unwrap()
+                );
+            }
+            assert!(
+                empty
+                    .intersection_with_union(stack.iter().copied())
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(
+                empty
+                    .difference_from_intersection(stack.iter().copied())
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+    }
 
     #[test]
     fn collapsed_display_does_not_hide_a_real_violation() {

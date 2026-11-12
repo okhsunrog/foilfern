@@ -5128,6 +5128,7 @@ dependencies = [
  "petgraph",
  "rayon",
  "regex",
+ "rstar 0.14.0",
  "rusqlite",
  "rustix 1.1.5",
  "serde",
@@ -7857,6 +7858,18 @@ dependencies = [
  "heapless 0.8.0",
  "num-traits 0.2.19",
  "serde",
+ "smallvec",
+]
+
+[[package]]
+name = "rstar"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d95c33d01e9acee7be3363f99e9ef88b1a587186e81e03843fbe39d77d9a0c1f"
+dependencies = [
+ "heapless 0.9.3",
+ "num-traits 0.2.19",
+ "ordered-float",
  "smallvec",
 ]
 
