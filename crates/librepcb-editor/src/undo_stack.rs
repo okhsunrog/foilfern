@@ -20,7 +20,6 @@
 //!   inverses always succeed), the already applied steps are rolled back and
 //!   the whole history is cleared, since it no longer matches the model.
 
-use librepcb_core::fileio::TransactionalFileSystem;
 use librepcb_core::library::LibraryBaseElement;
 use librepcb_core::library::cmp::Component;
 use librepcb_core::library::dev::Device;
@@ -104,15 +103,7 @@ impl Operation {
         Ok(match self {
             Self::Mutation(m) => Self::Mutation(project.apply(m)?),
             Self::WriteFile { path, content } => {
-                let dir = project.directory();
-                let fs = dir.file_system();
-                let full = TransactionalFileSystem::clean_path(&format!("{}/{path}", dir.path()));
-                let old = fs.read_if_exists(&full)?;
-                match &content {
-                    Some(data) => fs.write(&full, data)?,
-                    None if old.is_some() => fs.remove_file(&full)?,
-                    None => {}
-                }
+                let old = project.replace_asset(&path, content.as_deref())?;
                 Self::WriteFile { path, content: old }
             }
             Self::AddLibraryElement(element) => {
@@ -155,7 +146,7 @@ fn apply_all(project: &mut Project, ops: Vec<Operation>) -> Result<Vec<Operation
         match op.apply(project) {
             Ok(inverse) => inverses.push(inverse),
             Err(e) => {
-                rollback(project, inverses);
+                rollback(project, inverses)?;
                 return Err(e);
             }
         }
@@ -165,15 +156,20 @@ fn apply_all(project: &mut Project, ops: Vec<Operation>) -> Result<Vec<Operation
 }
 
 /// Applies the inverses (in execution order) in reverse order.
-fn rollback(project: &mut Project, inverses: Vec<Operation>) {
+fn rollback(project: &mut Project, inverses: Vec<Operation>) -> Result<()> {
+    let mut error = None;
     for inverse in inverses.into_iter().rev() {
         // The inverse of a successful operation applied right afterwards
         // always succeeds (model invariant).
         if let Err(e) = inverse.apply(project) {
-            log::error!("Rollback of an operation failed: {e}");
-            debug_assert!(false, "rollback failed: {e}");
+            error.get_or_insert(e);
         }
     }
+    if let Some(error) = error {
+        project.invalidate_change_journal();
+        return Err(Error::RollbackFailed(error.to_string()));
+    }
+    Ok(())
 }
 
 /// A committed group.
@@ -364,19 +360,19 @@ impl UndoStack {
     /// `abortCmdGroup()`).
     pub fn abort_group(&mut self, project: &mut Project) -> Result<()> {
         let active = self.active.take().ok_or(Error::NoGroupActive)?;
-        rollback(project, active.inverses);
-        Ok(())
+        rollback(project, active.inverses)
     }
 
     /// Rolls back the operations of the active group after the first `len`
     /// ones (for nested commands which failed).
-    pub(crate) fn rollback_active_to(&mut self, project: &mut Project, len: usize) {
+    pub(crate) fn rollback_active_to(&mut self, project: &mut Project, len: usize) -> Result<()> {
         if let Some(active) = self.active.as_mut()
             && len < active.inverses.len()
         {
             let tail = active.inverses.split_off(len);
-            rollback(project, tail);
+            rollback(project, tail)?;
         }
+        Ok(())
     }
 
     /// Undoes the last done group. Returns `false` if there is nothing to
@@ -456,5 +452,50 @@ impl UndoStack {
         self.entries.clear();
         self.clean_index = if self.is_clean() { Some(0) } else { None };
         self.index = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use librepcb_core::fileio::TransactionalDirectory;
+    use librepcb_core::project::{ChangesSince, NetClassId};
+    use librepcb_core::types::ElementName;
+
+    use super::*;
+
+    #[test]
+    fn failed_inverse_is_reported_and_invalidates_observers() {
+        let directory = TransactionalDirectory::new_temporary().unwrap();
+        let mut project = Project::create(directory, "test.lpp", Uuid::new_random).unwrap();
+        let mut stack = UndoStack::new();
+        let original = project.circuit().net_classes().len();
+        let mut metadata = project.metadata().clone();
+        metadata.name = ElementName::new("Changed").unwrap();
+        let before = project.revision();
+        let result = project.with_edit_savepoint(|project| {
+            stack.begin_group("Abort")?;
+            stack.execute(
+                project,
+                Operation::Mutation(Mutation::SetProjectMetadata(metadata)),
+            )?;
+            // Inject a broken inverse to exercise the invariant failure path.
+            stack
+                .active
+                .as_mut()
+                .unwrap()
+                .inverses
+                .push(Operation::Mutation(Mutation::RemoveNetClass(NetClassId(
+                    Uuid::new_random(),
+                ))));
+            stack.abort_group(project)
+        });
+        assert!(matches!(result, Err(Error::RollbackFailed(_))));
+        assert!(project.revision() > before);
+        assert!(matches!(
+            project.changes_since(before),
+            ChangesSince::Resync
+        ));
+        assert_eq!(project.metadata().name.as_str(), "Unnamed");
+        assert_eq!(project.circuit().net_classes().len(), original);
     }
 }

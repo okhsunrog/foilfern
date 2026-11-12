@@ -1531,9 +1531,10 @@ fn add_whole_schematic() {
     );
     assert!(matches!(e, Error::AnchorNetMismatch { .. }));
 
-    // Batches roll back (the rollback is journaled).
+    // A failed batch leaves the published revision intact.
     f.p.add_schematic(full.clone(), None).unwrap();
     let before = snapshot(&f.p);
+    let before_revision = f.p.revision();
     let e =
         f.p.apply(Mutation::Batch(vec![
             sch(M::AddText {
@@ -1548,6 +1549,7 @@ fn add_whole_schematic() {
         .unwrap_err();
     assert!(matches!(e, Error::ItemInUse { .. }));
     assert_eq!(snapshot(&f.p), before);
+    assert_eq!(f.p.revision(), before_revision);
     assert!(f.p.is_ref_index_consistent());
 
     // Journal.

@@ -140,10 +140,10 @@ pub fn board_add(session: &mut Session, args: BoardAddArgs) -> ToolResult<ToolOu
         Some(key) => Some(resolve::board(session.project()?.project(), Some(key))?.1),
         None => None,
     };
-    let done = write(session, "board_add", args.expected_revision, |editor| {
+    let done = write(session, "board_add", args.expected_revision, |tx| {
         let mut command = AddBoard::new(name);
         command.copy_from = copy_from;
-        Ok(editor.execute(command)?)
+        Ok(tx.run(command)?)
     })?;
     let open = session.project()?;
     let result = board_overview(open.project(), done.value.board)?;
@@ -220,17 +220,12 @@ pub fn board_set_outline(
             ));
         }
     };
-    let done = write(
-        session,
-        "board_set_outline",
-        args.expected_revision,
-        |editor| {
-            Ok(editor.execute(SetBoardOutline {
-                board: Some(board),
-                outline,
-            })?)
-        },
-    )?;
+    let done = write(session, "board_set_outline", args.expected_revision, |tx| {
+        Ok(tx.run(SetBoardOutline {
+            board: Some(board),
+            outline,
+        })?)
+    })?;
     let open = session.project()?;
     let result = board_overview(open.project(), board)?;
     done.output(open, "Board outline set.", result)
@@ -295,21 +290,16 @@ pub fn board_polygon_add(
             }),
         "line_width",
     )?;
-    let done = write(
-        session,
-        "board_polygon_add",
-        args.expected_revision,
-        |editor| {
-            Ok(editor.execute(AddBoardPolygon {
-                board: Some(board),
-                layer,
-                path: path.clone(),
-                line_width: Some(line_width),
-                filled: args.filled,
-                grab_area: false,
-            })?)
-        },
-    )?;
+    let done = write(session, "board_polygon_add", args.expected_revision, |tx| {
+        Ok(tx.run(AddBoardPolygon {
+            board: Some(board),
+            layer,
+            path: path.clone(),
+            line_width: Some(line_width),
+            filled: args.filled,
+            grab_area: false,
+        })?)
+    })?;
     done.output(
         session.project()?,
         "Added a closed polygon to the board.",
@@ -433,12 +423,9 @@ pub fn board_text_move(session: &mut Session, args: BoardTextMoveArgs) -> ToolRe
             item: BoardItem::StrokeText(text),
         },
     };
-    let done = write(
-        session,
-        "board_text_move",
-        args.expected_revision,
-        |editor| Ok(editor.apply_mutations("Move board text", vec![Mutation::Board(mutation)])?),
-    )?;
+    let done = write(session, "board_text_move", args.expected_revision, |tx| {
+        Ok(tx.apply(Mutation::Board(mutation))?)
+    })?;
     done.output(session.project()?, "Moved board text.", result)
 }
 
@@ -526,10 +513,10 @@ pub fn device_place(session: &mut Session, args: DevicePlaceArgs) -> ToolResult<
             })
     };
     let default_position = center();
-    let done = write(session, "device_place", args.expected_revision, |editor| {
+    let done = write(session, "device_place", args.expected_revision, |tx| {
         match existing {
             None => {
-                editor.execute(AddDevice {
+                tx.run(AddDevice {
                     component: component.into(),
                     board: Some(board),
                     device,
@@ -542,14 +529,14 @@ pub fn device_place(session: &mut Session, args: DevicePlaceArgs) -> ToolResult<
             Some((cur_device, cur_footprint)) => {
                 let new_device = device.unwrap_or(cur_device);
                 if new_device != cur_device || footprint.is_some_and(|f| f != cur_footprint) {
-                    editor.execute(ReplaceDevice {
+                    tx.run(ReplaceDevice {
                         component: component.into(),
                         board: Some(board),
                         device: new_device,
                         footprint,
                     })?;
                 }
-                editor.execute(MoveDevice {
+                tx.run(MoveDevice {
                     component: component.into(),
                     board: Some(board),
                     position,
@@ -613,18 +600,13 @@ pub fn device_auto_place(
         .map(|c| resolve::component(p, c).map(|(id, _)| id))
         .collect::<ToolResult<_>>()?;
     let spacing = args.spacing.map(|s| unsigned(s, "spacing")).transpose()?;
-    let done = write(
-        session,
-        "device_auto_place",
-        args.expected_revision,
-        |editor| {
-            Ok(editor.execute(AutoPlaceDevices {
-                board: Some(board),
-                components: components.into_iter().map(Into::into).collect(),
-                spacing,
-            })?)
-        },
-    )?;
+    let done = write(session, "device_auto_place", args.expected_revision, |tx| {
+        Ok(tx.run(AutoPlaceDevices {
+            board: Some(board),
+            components: components.into_iter().map(Into::into).collect(),
+            spacing,
+        })?)
+    })?;
     let open = session.project()?;
     let p = open.project();
     let r = &done.value;
@@ -750,8 +732,8 @@ pub fn trace_add(session: &mut Session, args: TraceAddArgs) -> ToolResult<ToolOu
         .as_deref()
         .map(|n| resolve::net(p, n).map(|(id, _)| NetRef::Id(id)))
         .transpose()?;
-    let done = write(session, "trace_add", args.expected_revision, |editor| {
-        Ok(editor.execute(AddTrace {
+    let done = write(session, "trace_add", args.expected_revision, |tx| {
+        Ok(tx.run(AddTrace {
             board: Some(board),
             start,
             end,
@@ -863,8 +845,8 @@ pub fn trace_update(session: &mut Session, args: TraceUpdateArgs) -> ToolResult<
     }
     let before = capture_routing_state(&mut session.project_mut()?.editor, board)?;
     let revision = session.project()?.project().revision();
-    let done = write(session, "trace_update", Some(revision), |editor| {
-        Ok(editor.execute(EditTraceWidths {
+    let done = write(session, "trace_update", Some(revision), |tx| {
+        Ok(tx.run(EditTraceWidths {
             board: Some(board),
             traces: traces.into_iter().collect(),
             width,
@@ -932,8 +914,8 @@ pub fn via_add(session: &mut Session, args: ViaAddArgs) -> ToolResult<ToolOutput
     let position = args.position.to_point()?;
     let drill = args.drill.map(|d| positive(d, "drill")).transpose()?;
     let size = args.size.map(|d| positive(d, "size")).transpose()?;
-    let done = write(session, "via_add", args.expected_revision, |editor| {
-        Ok(editor.execute(AddVia {
+    let done = write(session, "via_add", args.expected_revision, |tx| {
+        Ok(tx.run(AddVia {
             board: Some(board),
             position,
             net: Some(NetRef::Id(net)),
@@ -1026,8 +1008,8 @@ pub fn trace_remove(session: &mut Session, args: TraceRemoveArgs) -> ToolResult<
         return Err(ToolError::invalid("Pass nets, uuids or all=true."));
     }
     let (traces, vias) = (selection.traces.len(), selection.vias.len());
-    let done = write(session, "trace_remove", args.expected_revision, |editor| {
-        Ok(editor.execute(RemoveBoardItems {
+    let done = write(session, "trace_remove", args.expected_revision, |tx| {
+        Ok(tx.run(RemoveBoardItems {
             board: Some(board),
             selection,
         })?)
@@ -1127,8 +1109,8 @@ pub fn plane_add(session: &mut Session, args: PlaneAddArgs) -> ToolResult<ToolOu
         }),
         ..PlaneSettings::default()
     };
-    let done = write(session, "plane_add", args.expected_revision, |editor| {
-        Ok(editor.execute(AddPlane {
+    let done = write(session, "plane_add", args.expected_revision, |tx| {
+        Ok(tx.run(AddPlane {
             board: Some(board),
             net: Some(NetRef::Id(net)),
             layer: Some(layer),
@@ -1191,21 +1173,16 @@ pub fn plane_set_outline(
             "A plane outline needs at least three distinct points.",
         ));
     }
-    let done = write(
-        session,
-        "plane_set_outline",
-        args.expected_revision,
-        |editor| {
-            Ok(editor.execute(EditPlane {
-                board: Some(board),
-                plane,
-                net: None,
-                layer: None,
-                outline: Some(closed_path(&points)),
-                settings: PlaneSettings::default(),
-            })?)
-        },
-    )?;
+    let done = write(session, "plane_set_outline", args.expected_revision, |tx| {
+        Ok(tx.run(EditPlane {
+            board: Some(board),
+            plane,
+            net: None,
+            layer: None,
+            outline: Some(closed_path(&points)),
+            settings: PlaneSettings::default(),
+        })?)
+    })?;
     let open = session.project()?;
     let updated = open
         .project()
@@ -1313,20 +1290,15 @@ pub fn design_rules_set(session: &mut Session, args: DesignRulesSetArgs) -> Tool
     if let Some(v) = args.min_drill_clearance {
         drc.set_min_drill_drill_clearance(unsigned(v, "min_drill_clearance")?);
     }
-    let done = write(
-        session,
-        "design_rules_set",
-        args.expected_revision,
-        |editor| {
-            Ok(editor.execute(EditBoardSettings {
-                board: Some(board),
-                settings: None,
-                design_rules: Some(rules),
-                drc_settings: Some(drc),
-                inner_layer_count: args.inner_layers,
-            })?)
-        },
-    )?;
+    let done = write(session, "design_rules_set", args.expected_revision, |tx| {
+        Ok(tx.run(EditBoardSettings {
+            board: Some(board),
+            settings: None,
+            design_rules: Some(rules),
+            drc_settings: Some(drc),
+            inner_layer_count: args.inner_layers,
+        })?)
+    })?;
     let open = session.project()?;
     let result = rules_json(open.project(), board);
     done.output(open, "Design rules updated.", result)
@@ -1558,8 +1530,8 @@ pub fn autoroute_builtin(
     // Full DRC can publish derived-data changes. Check the caller's revision
     // before it, then use the current revision while holding the same lock.
     let revision = session.project()?.project().revision();
-    let done = write(session, "autoroute", Some(revision), |editor| {
-        Ok(editor.execute(command)?)
+    let done = write(session, "autoroute", Some(revision), |tx| {
+        Ok(tx.run(command)?)
     })?;
     let validation = RoutingValidation::compare(
         before,
@@ -1655,8 +1627,8 @@ pub fn autoroute_freerouting_finish(
     };
     let elapsed = output.elapsed;
     let manifest = job.manifest.clone();
-    let done = write(session, "autoroute", Some(revision), |editor| {
-        Ok(editor.execute(ImportSpecctraSession {
+    let done = write(session, "autoroute", Some(revision), |tx| {
+        Ok(tx.run(ImportSpecctraSession {
             board: Some(board),
             session: output.session,
             manifest: Some(manifest),
@@ -1826,8 +1798,8 @@ pub fn specctra_import(session: &mut Session, args: SpecctraImportArgs) -> ToolR
     crate::tools::write::check_revision(session.project()?.project(), args.expected_revision)?;
     let before = capture_routing_state(&mut session.project_mut()?.editor, board)?;
     let revision = session.project()?.project().revision();
-    let done = write(session, "specctra_import", Some(revision), |editor| {
-        Ok(editor.execute(ImportSpecctraSession {
+    let done = write(session, "specctra_import", Some(revision), |tx| {
+        Ok(tx.run(ImportSpecctraSession {
             board: Some(board),
             session: content,
             manifest: None,

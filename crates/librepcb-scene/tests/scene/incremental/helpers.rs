@@ -270,7 +270,9 @@ impl Harness {
     /// number of full rebuilds.
     #[track_caller]
     pub fn check(&mut self, step: &str) -> usize {
-        self.update_derived();
+        if !self.editor.undo_stack().is_group_active() {
+            self.update_derived();
+        }
         let project = self.editor.project();
         let mut rebuilds = 0;
         self.schematics

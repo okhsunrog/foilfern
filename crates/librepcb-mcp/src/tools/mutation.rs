@@ -27,7 +27,6 @@ use crate::outcome::ToolOutput;
 use crate::resolve::{self, parse_uuid};
 use crate::session::Session;
 use crate::tools::write::write;
-use librepcb_editor::commands::ApplyMutations;
 
 /// Arguments of `mutation_apply`.
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -61,17 +60,9 @@ pub fn mutation_apply(session: &mut Session, args: MutationApplyArgs) -> ToolRes
             "The mutation does not match the core Mutation format ({e}); see mutation_schema."
         ))
     })?;
-    let done = write(
-        session,
-        "mutation_apply",
-        args.expected_revision,
-        |editor| {
-            Ok(editor.execute(ApplyMutations {
-                text: None,
-                mutations: vec![mutation],
-            })?)
-        },
-    )?;
+    let done = write(session, "mutation_apply", args.expected_revision, |tx| {
+        Ok(tx.apply(mutation)?)
+    })?;
     let open = session.project()?;
     done.output(
         open,

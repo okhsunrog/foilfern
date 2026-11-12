@@ -309,6 +309,7 @@ impl SchematicScene {
             // may change.
             Change::ProjectMetadata
             | Change::ProjectSettings
+            | Change::ProjectAsset
             | Change::SchematicAdded(_)
             | Change::SchematicRemoved(_)
             | Change::SchematicChanged(_)

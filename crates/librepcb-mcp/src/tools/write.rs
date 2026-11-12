@@ -8,7 +8,7 @@
 //! journal and the new revision (in the envelope).
 
 use librepcb_core::project::{ChangesSince, Project};
-use librepcb_editor::ProjectEditor;
+use librepcb_editor::Transaction;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -87,25 +87,16 @@ pub fn write<T>(
     session: &mut Session,
     tool: &str,
     expected: Option<u64>,
-    f: impl FnOnce(&mut ProjectEditor) -> ToolResult<T>,
+    f: impl FnOnce(&mut Transaction<'_>) -> ToolResult<T>,
 ) -> ToolResult<Written<T>> {
     let open = session.project_mut()?;
     check_revision(open.project(), expected)?;
     let revision_before = open.project().revision();
-    open.editor.begin_group(format!("AI: {tool}"))?;
-    match f(&mut open.editor) {
-        Ok(value) => {
-            open.editor.commit_group()?;
-            Ok(Written {
-                value,
-                revision_before,
-            })
-        }
-        Err(e) => {
-            open.editor.abort_group()?;
-            Err(e)
-        }
-    }
+    let value = open.editor.execute_atomic(format!("AI: {tool}"), f)?;
+    Ok(Written {
+        value,
+        revision_before,
+    })
 }
 
 /// Arguments of `undo` / `redo`.

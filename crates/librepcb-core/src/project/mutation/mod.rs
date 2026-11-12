@@ -30,7 +30,7 @@ use super::change::Change;
 use super::circuit::{
     AssemblyVariant, Bus, ComponentInstance, ComponentInstanceProperties, NetClass, NetSignal,
 };
-use super::error::Result;
+use super::error::{Error, Result};
 use super::id::{
     AssemblyVariantId, BoardId, BusId, ComponentInstanceId, ComponentSignalRef, NetClassId,
     NetSignalId, SchematicId,
@@ -205,18 +205,24 @@ impl Project {
     }
 
     fn apply_batch(&mut self, mutations: Vec<Mutation>) -> Result<Mutation> {
+        self.with_edit_savepoint(|project| project.apply_batch_inner(mutations))
+    }
+
+    fn apply_batch_inner(&mut self, mutations: Vec<Mutation>) -> Result<Mutation> {
         let mut inverses = Vec::with_capacity(mutations.len());
         for m in mutations {
             match self.apply(m) {
                 Ok(inverse) => inverses.push(inverse),
                 Err(e) => {
+                    let mut rollback_error = None;
                     for inverse in inverses.into_iter().rev() {
-                        // The inverse of a successful mutation applied right
-                        // afterwards always succeeds (model invariant).
                         if let Err(e) = self.apply(inverse) {
-                            log::error!("Rollback of a batch mutation failed: {e}");
-                            debug_assert!(false, "rollback failed: {e}");
+                            rollback_error.get_or_insert(e);
                         }
+                    }
+                    if let Some(error) = rollback_error {
+                        self.invalidate_change_journal();
+                        return Err(Error::RollbackFailed(Box::new(error)));
                     }
                     return Err(e);
                 }

@@ -314,6 +314,31 @@ fn test_build_modify_undo_redo() {
     let tmp = tempfile::tempdir().unwrap();
     let mut h = Harness::new(create_editor(&tmp.path().join("project")));
     let (schematic, board) = build_demo(&mut h);
+    let movement = || MoveDevice {
+        component: "R1".into(),
+        board: Some(board),
+        position: Some(mm(12.0, 8.0)),
+        rotation: None,
+        mirrored: None,
+        locked: None,
+    };
+    let revision = h.project().revision();
+    let failed = h.editor.execute_atomic("Failed movement", |tx| {
+        tx.run(movement())?;
+        Err::<(), _>(librepcb_editor::Error::InvalidArgument("Rejected".into()))
+    });
+    assert!(failed.is_err());
+    assert_eq!(h.project().revision(), revision);
+    h.check("after failed movement");
+
+    h.editor.begin_group("Interactive movement").unwrap();
+    h.editor.execute(movement()).unwrap();
+    let visible = h.project().revision();
+    assert!(visible > revision);
+    h.check("visible preview");
+    h.editor.abort_group().unwrap();
+    assert!(h.project().revision() > visible);
+    h.check("cancel visible preview");
     // Adding pages and boards rebuilds (page numbers, primary devices).
     let built_rebuilds = h.stats.rebuilds;
     h.stats.rebuilds = 0;

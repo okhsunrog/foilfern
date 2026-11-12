@@ -1001,6 +1001,33 @@ async fn stdio_reviewed_builtin_routing_save_reopen() {
     let candidate = &prepared["candidate"];
     let preview = call_ok(&client, "routing_preview", json!({"candidate":candidate})).await;
     assert!(!preview["mutations"].as_array().unwrap().is_empty());
+    let history = call_ok(&client, "history", json!({})).await;
+    let rejected = call(
+        &client,
+        "mutation_apply",
+        json!({"expected_revision":before["revision"], "mutation":{"Batch":[
+            {"SetProjectSettings":librepcb_core::project::ProjectSettings::default()},
+            {"RemoveBoard":librepcb_core::types::Uuid::new_random()}
+        ]}}),
+    )
+    .await;
+    let failure = rejected.structured_content.unwrap();
+    assert_eq!(failure["outcome"], "failed");
+    assert_eq!(failure["revision"], before["revision"]);
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    let warm = call_ok(
+        &client,
+        "routing_prepare",
+        json!({"expected_revision":before["revision"]}),
+    )
+    .await;
+    assert_eq!(warm["baseline_reused"], true);
+    call_ok(
+        &client,
+        "routing_discard",
+        json!({"candidate":warm["candidate"]}),
+    )
+    .await;
     let unchanged = call(&client, "board_get", json!({}))
         .await
         .structured_content

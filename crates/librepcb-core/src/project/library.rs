@@ -187,11 +187,17 @@ fn add_element<E: LibraryBaseElement>(
     if map.contains_key(&uuid) {
         return Err(Error::DuplicateLibraryElement(uuid));
     }
-    if Arc::ptr_eq(element.directory().file_system(), directory.file_system()) {
-        element.save()?;
+    let fs = Arc::clone(directory.file_system());
+    let overlay = fs.snapshot_overlay();
+    let result = if Arc::ptr_eq(element.directory().file_system(), &fs) {
+        element.save()
     } else {
         let mut dir = directory.subdir(E::SHORT_ELEMENT_NAME);
-        element.save_into_parent_directory(&mut dir)?;
+        element.save_into_parent_directory(&mut dir)
+    };
+    if let Err(error) = result {
+        fs.restore_overlay(overlay);
+        return Err(error.into());
     }
     map.insert(uuid, element);
     Ok(())
@@ -206,6 +212,13 @@ fn remove_element<E: LibraryBaseElement>(map: &mut BTreeMap<Uuid, E>, uuid: &Uui
         uuid: *uuid,
     })?;
     let mut tmp = TransactionalDirectory::new_temporary()?;
-    element.move_into_parent_directory(&mut tmp)?;
+    let fs = Arc::clone(element.directory().file_system());
+    let overlay = fs.snapshot_overlay();
+    let path = element.directory().path().to_owned();
+    if let Err(error) = element.move_into_parent_directory(&mut tmp) {
+        *element.directory_mut() = TransactionalDirectory::new(Arc::clone(&fs), &path);
+        fs.restore_overlay(overlay);
+        return Err(error.into());
+    }
     Ok(map.remove(uuid).expect("element was found above"))
 }

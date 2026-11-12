@@ -93,7 +93,8 @@ workflow or desktop candidate overlay. The router's cancellation callback is
 not yet wired through the editor/MCP preparation path. `server_info` now reports
 build-time commit, tracked-source state, Cargo profile label and API capability
 version. `device_place` supports compact responses with `include_pads: false`.
-The P0 release replay is complete. P1a is the next delivery step.
+The P0 release replay and P1a transaction foundation are complete. Declarative
+reconciliation is the next P1 step.
 
 ## Evidence and continuation points
 

@@ -23,7 +23,9 @@ use super::ref_index::{ComponentUses, NetUse, RefIndex};
 use super::schematic::Schematic;
 use crate::application;
 use crate::attribute::AttributeList;
-use crate::fileio::{FilePath, FileSystem, TransactionalDirectory, VersionFile};
+use crate::fileio::{
+    FilePath, FileSystem, TransactionalDirectory, TransactionalFileSystem, VersionFile,
+};
 use crate::font::StrokeFontPool;
 use crate::job::OutputJobList;
 use crate::serialization::{List, Mode, SExpression, SerializeObject};
@@ -88,9 +90,32 @@ pub struct Project {
     pub(crate) boards: Vec<Board>,
     pub(crate) refs: RefIndex,
     pub(crate) journal: ChangeLog,
+    pending_changes: Option<Vec<Change>>,
 }
 
 static_assertions::assert_impl_all!(Project: Send, Sync);
+
+struct EditSavepoint<'a> {
+    project: &'a mut Project,
+    outer: bool,
+    finished: bool,
+}
+
+impl Drop for EditSavepoint<'_> {
+    fn drop(&mut self) {
+        if !self.finished {
+            // A panic bypasses the caller's inverse application.
+            self.project.invalidate_change_journal();
+        }
+        if self.outer
+            && let Some(pending) = self.project.pending_changes.take()
+        {
+            for change in pending {
+                self.project.journal.push(change);
+            }
+        }
+    }
+}
 
 /// Read-only context for item computations which need the project library
 /// and the circuit (items have no back-pointers, e.g.
@@ -151,6 +176,7 @@ impl Project {
             boards: Vec::new(),
             refs: RefIndex::default(),
             journal: ChangeLog::default(),
+            pending_changes: None,
         })
     }
 
@@ -410,7 +436,61 @@ impl Project {
     }
 
     pub(crate) fn record(&mut self, change: Change) {
-        self.journal.push(change);
+        if let Some(pending) = &mut self.pending_changes {
+            pending.push(change);
+        } else {
+            self.journal.push(change);
+        }
+    }
+
+    /// Buffers changes for a synchronous edit with exclusive project access.
+    /// The caller must reverse model edits before returning an error and
+    /// hold exclusive access to the file overlay for the scope. A
+    /// successful rollback also restores the exact file overlay at entry.
+    /// Nested scopes publish through the outermost scope on success.
+    pub fn with_edit_savepoint<T, E>(
+        &mut self,
+        edit: impl FnOnce(&mut Self) -> std::result::Result<T, E>,
+    ) -> std::result::Result<T, E> {
+        let files = self.directory.file_system().snapshot_overlay();
+        let revision = self.revision();
+        let outer = self.pending_changes.is_none();
+        let start = self.pending_changes.get_or_insert_with(Vec::new).len();
+        let mut scope = EditSavepoint {
+            project: self,
+            outer,
+            finished: false,
+        };
+        let result = edit(scope.project);
+        if result.is_err() && scope.project.revision() == revision {
+            scope.project.directory.file_system().restore_overlay(files);
+            if let Some(pending) = &mut scope.project.pending_changes {
+                pending.truncate(start);
+            }
+        }
+        scope.finished = true;
+        result
+    }
+
+    /// Forces observers to rebuild after an incomplete model rollback.
+    pub fn invalidate_change_journal(&mut self) {
+        self.journal.invalidate();
+    }
+
+    /// Replaces an asset in the transactional overlay, returning its old bytes.
+    pub fn replace_asset(&mut self, path: &str, content: Option<&[u8]>) -> Result<Option<Vec<u8>>> {
+        let fs = self.directory.file_system();
+        let full =
+            TransactionalFileSystem::clean_path(&format!("{}/{path}", self.directory.path()));
+        let old = fs.read_if_exists(&full)?;
+        if old.as_deref() != content {
+            match content {
+                Some(data) => fs.write(&full, data)?,
+                None => fs.remove_file(&full)?,
+            }
+            self.record(Change::ProjectAsset);
+        }
+        Ok(old)
     }
 
     // --- Saving ---

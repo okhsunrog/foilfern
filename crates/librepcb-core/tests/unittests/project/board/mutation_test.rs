@@ -1118,3 +1118,34 @@ fn batch_rollback() {
             .is_none()
     );
 }
+
+#[test]
+fn large_batch_rollback_preserves_published_journal_and_board_files() {
+    use librepcb_core::project::{ChangesSince, DEFAULT_CHANGE_LOG_CAPACITY};
+
+    let mut f = Fixture::with_devices();
+    let path = format!("boards/{}/extra.txt", f.board().directory_name());
+    let fs = f.p.directory().file_system().clone();
+    fs.write(&path, b"unsaved board asset").unwrap();
+    let before = fs.save_state();
+    let revision = f.p.revision();
+    let ChangesSince::Changes(changes) = f.p.changes_since(revision - 1) else {
+        panic!("expected the last published event");
+    };
+    let published = changes.to_vec();
+    let mut mutations =
+        vec![Mutation::SetProjectSettings(f.p.settings().clone()); DEFAULT_CHANGE_LOG_CAPACITY + 1];
+    mutations.extend([
+        Mutation::RemoveBoard(f.board),
+        Mutation::RemoveBoard(f.board),
+    ]);
+    assert!(f.p.apply(Mutation::Batch(mutations)).is_err());
+    assert!(f.p.board(f.board).is_some());
+    assert!(f.p.is_ref_index_consistent());
+    assert_eq!(fs.save_state(), before);
+    assert_eq!(f.p.revision(), revision);
+    let ChangesSince::Changes(changes) = f.p.changes_since(revision - 1) else {
+        panic!("failed batch evicted a published event");
+    };
+    assert_eq!(changes, published);
+}

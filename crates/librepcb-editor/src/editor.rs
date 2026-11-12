@@ -94,11 +94,27 @@ impl Transaction<'_> {
     /// own changes are rolled back.
     pub fn run<C: Command>(&mut self, command: C) -> Result<C::Output> {
         let len = self.stack.active_group_len().unwrap_or(0);
-        let result = command.execute(self);
-        if result.is_err() {
-            self.stack.rollback_active_to(self.project, len);
-        }
-        result
+        self.project.with_edit_savepoint(|project| {
+            let revision = project.revision();
+            let mut tx = Transaction {
+                project,
+                stack: self.stack,
+                source: self.source,
+            };
+            let result = command.execute(&mut tx).and_then(|value| {
+                if tx.project.revision() == revision {
+                    Ok(value)
+                } else {
+                    Err(Error::RollbackFailed(
+                        "An inner operation could not be rolled back.".into(),
+                    ))
+                }
+            });
+            if result.is_err() {
+                tx.stack.rollback_active_to(tx.project, len)?;
+            }
+            result
+        })
     }
 }
 
@@ -223,24 +239,53 @@ impl ProjectEditor {
     /// command are rolled back.
     pub fn execute<C: Command>(&mut self, command: C) -> Result<C::Output> {
         if self.undo_stack.is_group_active() {
-            let mut tx = self.transaction();
-            return tx.run(command);
-        }
-        self.undo_stack.begin_group(command.text())?;
-        let result = {
-            let mut tx = self.transaction();
-            command.execute(&mut tx)
-        };
-        match result {
-            Ok(output) => {
-                self.undo_stack.commit_group()?;
-                Ok(output)
+            let revision = self.project.revision();
+            let result = self.transaction().run(command);
+            if result.is_err() && self.project.revision() != revision {
+                self.manual_modifications = true;
             }
-            Err(e) => {
-                self.undo_stack.abort_group(&mut self.project)?;
-                Err(e)
-            }
+            return result;
         }
+        self.execute_atomic(command.text(), |tx| command.execute(tx))
+    }
+
+    /// Runs a synchronous transaction as one undo step and publishes its
+    /// changes on commit. This boundary cannot join a visible interactive group.
+    pub fn execute_atomic<T, E: From<Error>>(
+        &mut self,
+        text: impl Into<String>,
+        execute: impl FnOnce(&mut Transaction<'_>) -> Result<T, E>,
+    ) -> Result<T, E> {
+        self.undo_stack.begin_group(text)?;
+        let revision = self.project.revision();
+        let result = self.project.with_edit_savepoint(|project| {
+            let mut tx = Transaction {
+                project,
+                stack: &mut self.undo_stack,
+                source: self.source.as_ref(),
+            };
+            let result = execute(&mut tx).and_then(|value| {
+                if tx.project.revision() == revision {
+                    Ok(value)
+                } else {
+                    Err(Error::RollbackFailed(
+                        "An inner operation could not be rolled back.".into(),
+                    )
+                    .into())
+                }
+            });
+            if result.is_ok() {
+                tx.stack.commit_group()?;
+            } else {
+                tx.stack.abort_group(tx.project)?;
+            }
+            result
+        });
+        if result.is_err() && self.project.revision() != revision {
+            self.manual_modifications = true;
+            self.undo_stack.clear(&mut self.project);
+        }
+        result
     }
 
     /// Applies mutations as one undo group (the raw escape hatch for
@@ -270,7 +315,12 @@ impl ProjectEditor {
 
     /// Aborts the active group and rolls back its changes.
     pub fn abort_group(&mut self) -> Result<()> {
-        self.undo_stack.abort_group(&mut self.project)
+        let revision = self.project.revision();
+        let result = self.undo_stack.abort_group(&mut self.project);
+        if result.is_err() && self.project.revision() != revision {
+            self.manual_modifications = true;
+        }
+        result
     }
 
     /// Returns the number of operations recorded in the active group
@@ -285,7 +335,10 @@ impl ProjectEditor {
     /// an open group, like upstream's temporary `setPosition()` calls).
     /// Does nothing if no group is active or it is not longer than `len`.
     pub fn rollback_group_to(&mut self, len: usize) {
-        self.undo_stack.rollback_active_to(&mut self.project, len);
+        if let Err(error) = self.undo_stack.rollback_active_to(&mut self.project, len) {
+            self.manual_modifications = true;
+            log::error!("{error}");
+        }
     }
 
     /// Rebuilds the air wires of the nets scheduled for rebuild on a board
@@ -298,12 +351,16 @@ impl ProjectEditor {
 
     /// Undoes the last group; returns `false` if there was nothing to undo.
     pub fn undo(&mut self) -> Result<bool> {
-        self.undo_stack.undo(&mut self.project)
+        let result = self.undo_stack.undo(&mut self.project);
+        self.manual_modifications |= result.as_ref().is_err_and(|error| error.rollback_failed());
+        result
     }
 
     /// Redoes the next group; returns `false` if there was nothing to redo.
     pub fn redo(&mut self) -> Result<bool> {
-        self.undo_stack.redo(&mut self.project)
+        let result = self.undo_stack.redo(&mut self.project);
+        self.manual_modifications |= result.as_ref().is_err_and(|error| error.rollback_failed());
+        result
     }
 
     /// Runs `f` with mutable access to the project to update derived data

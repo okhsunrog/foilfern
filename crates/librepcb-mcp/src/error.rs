@@ -152,6 +152,7 @@ fn file_io_kind(e: &fileio::Error) -> ErrorKind {
 fn project_kind(e: &project::Error) -> ErrorKind {
     use project::Error as E;
     match e {
+        E::RollbackFailed(..) => ErrorKind::Internal,
         E::FileIo(e) => file_io_kind(e),
         E::ProjectFileNotFound(..)
         | E::NotAProjectDirectory(..)
@@ -212,6 +213,7 @@ impl From<librepcb_editor::Error> for ToolError {
                 ErrorKind::NotFound
             }
             E::GroupActive | E::NoGroupActive => ErrorKind::Conflict,
+            E::RollbackFailed(..) => ErrorKind::Internal,
             E::DeviceNotCompatible | E::AllGatesPlaced(..) | E::NetMismatch(..) => {
                 ErrorKind::Conflict
             }

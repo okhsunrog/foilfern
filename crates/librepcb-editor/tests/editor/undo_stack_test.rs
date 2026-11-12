@@ -106,6 +106,7 @@ fn test_group_commit_and_abort() {
 fn test_failed_command_rolls_back() {
     let (_tmp, mut editor) = editor();
     let before = editor.project().circuit().clone();
+    let revision = editor.project().revision();
     let duplicate = NetClass::new(Uuid::new_random(), ElementName::new("dup").unwrap());
     let result = editor.execute(ApplyMutations {
         text: None,
@@ -117,6 +118,7 @@ fn test_failed_command_rolls_back() {
     });
     assert!(result.is_err());
     assert_eq!(*editor.project().circuit(), before);
+    assert_eq!(editor.project().revision(), revision);
     assert!(!editor.undo_stack().can_undo());
 
     // Inside a group, only the failed command is rolled back.
@@ -137,6 +139,95 @@ fn test_failed_command_rolls_back() {
         .collect();
     assert!(names.contains(&"x".to_owned()));
     assert!(!names.contains(&"y".to_owned()));
+}
+
+#[test]
+fn nested_atomic_edits_restore_library_and_file_overlay() {
+    use librepcb_core::library::{BaseMetadata, sym::Symbol};
+    use librepcb_core::project::{Change, ChangesSince, LibraryElementKind};
+    use librepcb_editor::{Command, LibraryElement, Transaction};
+
+    struct RemoveAndFail(Uuid);
+    impl Command for RemoveAndFail {
+        type Output = ();
+
+        fn text(&self) -> String {
+            "Remove symbol".into()
+        }
+
+        fn execute(self, tx: &mut Transaction<'_>) -> Result<(), Error> {
+            tx.remove_library_element(LibraryElementKind::Symbol, self.0)?;
+            tx.write_file("resources/asset", None)?;
+            Err(Error::InvalidArgument("Reject nested command".into()))
+        }
+    }
+
+    let (_tmp, mut editor) = editor();
+    editor
+        .apply_mutations("Retain redo", vec![net_class("redo")])
+        .unwrap();
+    editor.undo().unwrap();
+    let revision = editor.project().revision();
+    let history = editor.undo_stack().history();
+    let fs = editor.project().directory().file_system().clone();
+    let original = fs.save_state();
+    let uuid = Uuid::new_random();
+    let created = editor.project().metadata().created;
+    let edit = |tx: &mut Transaction<'_>| -> Result<(), Error> {
+        let symbol = Symbol::new(BaseMetadata::new(
+            uuid,
+            "1.0".parse().unwrap(),
+            "test",
+            created,
+            ElementName::new("Test").unwrap(),
+            "",
+            "",
+        ))
+        .unwrap();
+        tx.add_library_element(LibraryElement::Symbol(symbol))?;
+        tx.write_file("resources/asset", Some(b"outer".to_vec()))?;
+        let parent = fs.save_state();
+        assert!(tx.run(RemoveAndFail(uuid)).is_err());
+        assert!(tx.project().library().symbol(&uuid).is_some());
+        assert_eq!(fs.save_state(), parent);
+        assert_eq!(tx.project().revision(), revision);
+        Ok(())
+    };
+    let aborted = editor.execute_atomic("Aborted", |tx| {
+        edit(tx)?;
+        Err::<(), _>(Error::InvalidArgument("Reject outer command".into()))
+    });
+    assert!(aborted.is_err());
+    assert_eq!(editor.project().revision(), revision);
+    assert_eq!(fs.save_state(), original);
+    assert!(editor.project().library().symbol(&uuid).is_none());
+    assert_eq!(editor.undo_stack().history(), history);
+    assert!(editor.undo_stack().can_redo());
+    assert!(editor.is_clean());
+
+    editor.execute_atomic("Committed", edit).unwrap();
+    let ChangesSince::Changes(changes) = editor.project().changes_since(revision) else {
+        panic!("expected new journal entries");
+    };
+    assert_eq!(
+        changes,
+        [
+            Change::LibraryElementAdded {
+                kind: LibraryElementKind::Symbol,
+                uuid
+            },
+            Change::ProjectAsset,
+        ]
+    );
+    let committed = editor.project().revision();
+    assert!(editor.undo().unwrap());
+    assert!(editor.project().revision() > committed);
+    assert!(editor.project().library().symbol(&uuid).is_none());
+    assert!(!fs.file_exists("resources/asset"));
+    let undone = editor.project().revision();
+    assert!(editor.redo().unwrap());
+    assert!(editor.project().revision() > undone);
+    assert_eq!(fs.read("resources/asset").unwrap(), b"outer");
 }
 
 #[test]

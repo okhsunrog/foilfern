@@ -745,6 +745,10 @@ Rendering only; no file is affected.
   are rolled back and the history is cleared; upstream rethrows and leaves
   the stack as it is. `state_id()` replaces `getUniqueStateId()`/the
   `stateModified` signal.
+- **Atomic edit publication**: the Rust journal publishes changes from a
+  synchronous transaction after commit. A successful rollback restores the
+  file overlay and preserves the previous revision. Undo, redo and cancellation
+  of an interactive preview publish new changes.
 - **Combining net segments** (`CmdCombineSchematicNetSegments`,
   `CmdCombineBoardNetSegments`, used when a wire or trace connects two
   segments) moves the elements with their UUIDs; upstream re-creates

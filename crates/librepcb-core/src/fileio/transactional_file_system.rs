@@ -34,7 +34,7 @@
 //! [`autosave()`]: TransactionalFileSystem::autosave
 
 use std::collections::{HashMap, HashSet};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use chrono::{Local, Utc};
 
@@ -83,16 +83,10 @@ impl State {
     fn is_removed(&self, path: &str) -> bool {
         self.removed_files.contains(path) || self.removed_dirs.iter().any(|d| path.starts_with(d))
     }
-
-    fn clear(&mut self) {
-        self.modified_files.clear();
-        self.removed_files.clear();
-        self.removed_dirs.clear();
-    }
 }
 
 struct Inner {
-    state: State,
+    state: Arc<State>,
     writable: bool,
     lock: DirectoryLock,
     restored_from_autosave: bool,
@@ -125,7 +119,7 @@ impl TransactionalFileSystem {
         // remove the autosave directory (upstream does not run the destructor
         // if the constructor throws).
         let mut inner = Inner {
-            state: State::default(),
+            state: Arc::default(),
             writable,
             lock: DirectoryLock::new(path),
             restored_from_autosave: false,
@@ -138,7 +132,7 @@ impl TransactionalFileSystem {
                 "Restore file system from backup: {}",
                 backup_file.to_native()
             );
-            inner.state = load_diff(&backup_file)?;
+            inner.state = load_diff(&backup_file)?.into();
         }
 
         // Lock directory if the file system is opened in R/W mode.
@@ -162,7 +156,7 @@ impl TransactionalFileSystem {
                     "Restore file system from autosave backup: {}",
                     autosave_file.to_native()
                 );
-                inner.state = load_diff(&autosave_file)?;
+                inner.state = load_diff(&autosave_file)?.into();
                 inner.restored_from_autosave = true;
             }
         }
@@ -268,8 +262,9 @@ impl TransactionalFileSystem {
         let cleaned = Self::clean_path(path);
         self.sanitize_path(&cleaned)?;
         let mut inner = self.lock();
-        inner.state.removed_files.remove(&cleaned);
-        inner.state.modified_files.insert(cleaned, content.to_vec());
+        let state = Arc::make_mut(&mut inner.state);
+        state.removed_files.remove(&cleaned);
+        state.modified_files.insert(cleaned, content.to_vec());
         Ok(())
     }
 
@@ -284,8 +279,9 @@ impl TransactionalFileSystem {
         let cleaned = Self::clean_path(path);
         self.sanitize_path(&cleaned)?;
         let mut inner = self.lock();
-        inner.state.modified_files.remove(&cleaned);
-        inner.state.removed_files.insert(cleaned);
+        let state = Arc::make_mut(&mut inner.state);
+        state.modified_files.remove(&cleaned);
+        state.removed_files.insert(cleaned);
         Ok(())
     }
 
@@ -297,7 +293,7 @@ impl TransactionalFileSystem {
             dirpath.push('/');
         }
         let mut inner = self.lock();
-        let state = &mut inner.state;
+        let state = Arc::make_mut(&mut inner.state);
         state
             .modified_files
             .retain(|fp, _| !fp.starts_with(&dirpath));
@@ -308,11 +304,20 @@ impl TransactionalFileSystem {
 
     /// Returns a snapshot of the in-memory modifications.
     pub fn save_state(&self) -> State {
-        self.lock().state.clone()
+        self.lock().state.as_ref().clone()
     }
 
     /// Restores a snapshot taken with [`save_state()`](Self::save_state).
     pub fn restore_state(&self, state: State) {
+        self.lock().state = state.into();
+    }
+
+    /// Retains the overlay cheaply until a write needs a private copy.
+    pub(crate) fn snapshot_overlay(&self) -> Arc<State> {
+        Arc::clone(&self.lock().state)
+    }
+
+    pub(crate) fn restore_overlay(&self, state: Arc<State>) {
         self.lock().state = state;
     }
 
@@ -371,7 +376,7 @@ impl TransactionalFileSystem {
 
     /// Discards all in-memory modifications.
     pub fn discard_changes(&self) {
-        self.lock().state.clear();
+        self.lock().state = Arc::default();
     }
 
     /// Returns the paths of all modifications which differ from the files
@@ -448,7 +453,7 @@ impl TransactionalFileSystem {
         self.remove_diff("backup")?;
 
         // Clear state.
-        inner.state.clear();
+        inner.state = Arc::default();
         Ok(())
     }
 

@@ -532,8 +532,8 @@ pub fn component_add(session: &mut Session, args: ComponentAddArgs) -> ToolResul
         .as_deref()
         .map(|v| resolve::required_uuid(v, "symbol variant"))
         .transpose()?;
-    let done = write(session, "component_add", args.expected_revision, |editor| {
-        let added = editor.execute(AddComponent {
+    let done = write(session, "component_add", args.expected_revision, |tx| {
+        let added = tx.run(AddComponent {
             component: part.component,
             symbol_variant,
             name,
@@ -548,7 +548,7 @@ pub fn component_add(session: &mut Session, args: ComponentAddArgs) -> ToolResul
             }),
         })?;
         if position.is_none() {
-            editor.execute(AutoPlaceSymbols {
+            tx.run(AutoPlaceSymbols {
                 symbols: added.symbols.clone(),
                 margin: None,
             })?;
@@ -579,16 +579,11 @@ pub fn component_remove(
     let p = session.project()?.project();
     let (id, c) = resolve::component(p, &args.component)?;
     let designator = c.name().as_str().to_owned();
-    let done = write(
-        session,
-        "component_remove",
-        args.expected_revision,
-        |editor| {
-            Ok(editor.execute(RemoveComponent {
-                component: id.into(),
-            })?)
-        },
-    )?;
+    let done = write(session, "component_remove", args.expected_revision, |tx| {
+        Ok(tx.run(RemoveComponent {
+            component: id.into(),
+        })?)
+    })?;
     let open = session.project()?;
     done.output(
         open,
@@ -644,21 +639,16 @@ pub fn component_update(
             Some(list)
         }
     };
-    let done = write(
-        session,
-        "component_update",
-        args.expected_revision,
-        |editor| {
-            Ok(editor.execute(EditComponent {
-                component: id.into(),
-                name,
-                value: args.value.clone(),
-                attributes,
-                assembly_options: None,
-                lock_assembly: None,
-            })?)
-        },
-    )?;
+    let done = write(session, "component_update", args.expected_revision, |tx| {
+        Ok(tx.run(EditComponent {
+            component: id.into(),
+            name,
+            value: args.value.clone(),
+            attributes,
+            assembly_options: None,
+            lock_assembly: None,
+        })?)
+    })?;
     let open = session.project()?;
     let (summary, detail) = component_detail(open.project(), id)?;
     done.output(open, format!("Updated {summary}"), detail)
@@ -733,15 +723,15 @@ pub fn symbol_move(session: &mut Session, args: SymbolMoveArgs) -> ToolResult<To
             "Nothing to do: pass position, rotation, mirror or auto=true.",
         ));
     }
-    let done = write(session, "symbol_move", args.expected_revision, |editor| {
-        editor.execute(MoveSymbol {
+    let done = write(session, "symbol_move", args.expected_revision, |tx| {
+        tx.run(MoveSymbol {
             symbol,
             position,
             rotation,
             mirrored: args.mirror,
         })?;
         if args.auto {
-            editor.execute(AutoPlaceSymbols {
+            tx.run(AutoPlaceSymbols {
                 symbols: vec![symbol],
                 margin: None,
             })?;
@@ -808,23 +798,18 @@ pub fn symbol_text_move(session: &mut Session, args: SymbolTextMoveArgs) -> Tool
         text.set_rotation(angle(rotation)?);
     }
     let result = crate::tools::layout::symbol_text_json(&text);
-    let done = write(
-        session,
-        "symbol_text_move",
-        args.expected_revision,
-        |editor| {
-            Ok(editor.execute(ApplyMutations {
-                text: None,
-                mutations: vec![Mutation::Schematic(SchematicMutation::UpdateSymbolText {
-                    symbol: SymbolRef {
-                        schematic,
-                        symbol: id,
-                    },
-                    text,
-                })],
-            })?)
-        },
-    )?;
+    let done = write(session, "symbol_text_move", args.expected_revision, |tx| {
+        Ok(tx.run(ApplyMutations {
+            text: None,
+            mutations: vec![Mutation::Schematic(SchematicMutation::UpdateSymbolText {
+                symbol: SymbolRef {
+                    schematic,
+                    symbol: id,
+                },
+                text,
+            })],
+        })?)
+    })?;
     done.output(session.project()?, "Moved schematic symbol text.", result)
 }
 
@@ -855,8 +840,8 @@ pub fn connect(session: &mut Session, args: ConnectArgs) -> ToolResult<ToolOutpu
                 .map_err(|_| ToolError::invalid("max_wire_length must not be negative"))
         })
         .transpose()?;
-    let done = write(session, "connect", args.expected_revision, |editor| {
-        Ok(editor.execute(ConnectNet {
+    let done = write(session, "connect", args.expected_revision, |tx| {
+        Ok(tx.run(ConnectNet {
             net,
             signals,
             max_wire_length,
@@ -905,8 +890,8 @@ pub fn connect(session: &mut Session, args: ConnectArgs) -> ToolResult<ToolOutpu
 /// `disconnect`.
 pub fn disconnect(session: &mut Session, args: DisconnectArgs) -> ToolResult<ToolOutput> {
     let signals = resolve_pins(session, &args.pins)?;
-    let done = write(session, "disconnect", args.expected_revision, |editor| {
-        Ok(editor.execute(DisconnectSignals { signals })?)
+    let done = write(session, "disconnect", args.expected_revision, |tx| {
+        Ok(tx.run(DisconnectSignals { signals })?)
     })?;
     let open = session.project()?;
     done.output(
@@ -921,8 +906,8 @@ pub fn net_rename(session: &mut Session, args: NetRenameArgs) -> ToolResult<Tool
     let p = session.project()?.project();
     let (id, _) = resolve::net(p, &args.net)?;
     let name = identifier(&args.name, "net name")?;
-    let done = write(session, "net_rename", args.expected_revision, |editor| {
-        Ok(editor.execute(EditNet {
+    let done = write(session, "net_rename", args.expected_revision, |tx| {
+        Ok(tx.run(EditNet {
             net: NetRef::Id(id),
             name: Some(name),
             net_class: None,
@@ -972,11 +957,11 @@ pub fn net_class_set(session: &mut Session, args: NetClassSetArgs) -> ToolResult
         .default_via_drill
         .map(|d| positive(d, "default_via_drill"))
         .transpose()?;
-    let done = write(session, "net_class_set", args.expected_revision, |editor| {
+    let done = write(session, "net_class_set", args.expected_revision, |tx| {
         let class = match existing {
             Some(id) => {
                 if width.is_some() || drill.is_some() {
-                    editor.execute(EditNetClass {
+                    tx.run(EditNetClass {
                         net_class: id,
                         name: None,
                         default_trace_width: width,
@@ -986,14 +971,14 @@ pub fn net_class_set(session: &mut Session, args: NetClassSetArgs) -> ToolResult
                 }
                 id
             }
-            None => editor.execute(AddNetClass {
+            None => tx.run(AddNetClass {
                 name,
                 default_trace_width: width,
                 default_via_drill: drill,
             })?,
         };
         for net in nets {
-            editor.execute(EditNet {
+            tx.run(EditNet {
                 net: NetRef::Id(net),
                 name: None,
                 net_class: Some(class),
@@ -1030,8 +1015,8 @@ pub fn net_class_set(session: &mut Session, args: NetClassSetArgs) -> ToolResult
 pub fn schematic_add(session: &mut Session, args: SchematicAddArgs) -> ToolResult<ToolOutput> {
     let name = ElementName::new(args.name.trim())
         .map_err(|e| ToolError::invalid(format!("invalid page name: {e}")))?;
-    let done = write(session, "schematic_add", args.expected_revision, |editor| {
-        Ok(editor.execute(AddSchematic { name, index: None })?)
+    let done = write(session, "schematic_add", args.expected_revision, |tx| {
+        Ok(tx.run(AddSchematic { name, index: None })?)
     })?;
     let open = session.project()?;
     let p = open.project();
@@ -1051,16 +1036,11 @@ pub fn schematic_add(session: &mut Session, args: SchematicAddArgs) -> ToolResul
 pub fn schematic_tidy(session: &mut Session, args: SchematicTidyArgs) -> ToolResult<ToolOutput> {
     let p = session.project()?.project();
     let (index, id, _) = resolve::schematic(p, args.schematic.as_deref())?;
-    let done = write(
-        session,
-        "schematic_tidy",
-        args.expected_revision,
-        |editor| {
-            Ok(editor.execute(TidySchematic {
-                schematic: Some(id),
-            })?)
-        },
-    )?;
+    let done = write(session, "schematic_tidy", args.expected_revision, |tx| {
+        Ok(tx.run(TidySchematic {
+            schematic: Some(id),
+        })?)
+    })?;
     let open = session.project()?;
     let r = &done.value;
     done.output(

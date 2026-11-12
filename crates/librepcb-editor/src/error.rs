@@ -40,6 +40,9 @@ pub enum Error {
     /// No group is active.
     #[error("{}", tr!("librepcb::editor::UndoStack", "No command group active!"))]
     NoGroupActive,
+    /// One or more inverse operations failed, leaving the project changed.
+    #[error("{}", tr!("ProjectEditor", "Project rollback failed: {0}", .0))]
+    RollbackFailed(String),
     /// The library element does not exist in the library element source
     /// (upstream: "workspace library").
     #[error("{}", not_in_source_message(*.kind, .uuid))]
@@ -116,6 +119,11 @@ impl From<project::Error> for Error {
 }
 
 impl Error {
+    pub(crate) fn rollback_failed(&self) -> bool {
+        matches!(self, Self::RollbackFailed(_))
+            || matches!(self, Self::Project(error) if matches!(**error, project::Error::RollbackFailed(_)))
+    }
+
     /// Creates a [`BoardExport`](Self::BoardExport) error.
     pub(crate) fn from_export(e: librepcb_core::project::board::BoardExportError) -> Self {
         Self::BoardExport(Box::new(e))

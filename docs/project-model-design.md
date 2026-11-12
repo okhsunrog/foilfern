@@ -73,8 +73,8 @@ upstream messages where compatibility requires them.
 Removal in core is strict. A referenced net/component cannot simply disappear;
 editor commands compose the needed disconnections/removals. Core does not hide
 cascading edits from a caller. Failed individual validating mutations do not
-commit invalid model data. Batch rollback restores prior data using inverses,
-but does not rewind the monotonic change journal (see sections 4 and 5).
+commit invalid model data. Batch rollback restores prior data using inverses
+and restores the saved file overlay before discarding the buffered events.
 
 ## 4. Mutations, commands and undo
 
@@ -93,7 +93,9 @@ than a second handwritten list of variants in this document.
 [`ProjectEditor`](../crates/librepcb-editor/src/editor.rs) owns the project,
 library source and undo stack. Intent-level `Command`s execute through a
 `Transaction`. A command starts one labeled group, or joins an already active
-group; a failure rolls back its operations. Empty groups are dropped. Committing
+group. Standalone commands and MCP writes run through `execute_atomic`, which
+holds exclusive editor access for the whole operation. Nested commands use
+savepoints within that boundary. Empty groups are dropped. Committing
 a new group discards redo; starting and aborting one does not discard redo.
 Undo/redo apply stored inverse operations and keep their inverses for the next
 transition. They restore data, not an earlier revision number.
@@ -119,16 +121,16 @@ number; one command/mutation may publish multiple events. A lagging consumer of
 `changes_since(cursor)` receives `ChangesSince::Resync` and rebuilds its view.
 `clear()` keeps the revision counter; creation/loading reset it to zero.
 
-A rollback or edit followed by undo can leave identical persistent geometry
-with a newer revision. Preparation therefore cannot be implemented as temporary
-edits to the live project. Runtime revision numbers are scoped to an open model,
-not durable cross-session version identifiers.
+Atomic edits buffer events until the outer commit. A nested failure reverses
+its own edits, restores its copy-on-write file overlay and drops its buffered
+events. A successful rollback preserves the published journal, even when the
+aborted edit produced more events than its capacity. Asset writes publish
+`ProjectAsset` when bytes change. Inverse failures return an explicit error,
+advance the revision and force observers to resync.
 
-Planned [roadmap P1a](roadmap.md#p1a--atomic-failure-rollback-without-published-changes)
-will buffer events inside explicit atomic transactions so successful rollback
-of a failed transaction leaves the public revision unchanged. This is not implemented yet.
-Published undo/redo and cancellation of visible interactive changes will continue
-to advance the revision; previews will continue to use detached snapshots.
+Undo/redo and cancellation of visible interactive changes publish new events.
+Routing previews still use detached snapshots. Runtime revision numbers are
+scoped to an open model.
 
 Boards maintain dirty net/layer sets and derived air wires/plane fragments.
 Mutations invalidate these directly; correctness does not depend on a UI consumer

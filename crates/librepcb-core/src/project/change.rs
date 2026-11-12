@@ -34,6 +34,8 @@ pub enum Change {
     /// changed (upstream `Project::attributesChanged()` /
     /// `normOrderChanged()`).
     ProjectSettings,
+    /// A file in the project's asset overlay changed.
+    ProjectAsset,
     /// The output jobs changed.
     OutputJobs,
     /// The ERC message approvals changed.
@@ -191,6 +193,12 @@ impl ChangeLog {
     pub fn clear(&mut self) {
         self.first_seq = self.revision() + 1;
         self.entries.clear();
+    }
+
+    /// Advances the revision and forces earlier readers to resync.
+    pub(crate) fn invalidate(&mut self) {
+        self.clear();
+        self.first_seq += 1;
     }
 
     /// Forgets all changes and restarts the revision counter at 0 (for a

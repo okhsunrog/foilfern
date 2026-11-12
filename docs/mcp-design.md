@@ -104,8 +104,10 @@ The desktop app starts the server in-process ("watch the agent",
   workspace_replaced, revision_before, revision, focus }`; `focus` lists
   the schematics and boards touched by the call (from the change
   journal), so the UI can show them. The UI pulls
-  `Project::changes_since(cursor)` and repaints; read tools and failed
-  writes notify nobody.
+  `Project::changes_since(cursor)` and repaints. An atomic write that rolls
+  back successfully preserves the revision, history and host notification
+  sequence. An incomplete rollback returns an internal error and forces a
+  resync.
 - Concurrency: UI and MCP edit the same `ProjectEditor` under the same
   mutex, so they share one undo stack: agent writes are groups
   `"AI: <tool>"`, UI commands have their own texts, and undo/redo from

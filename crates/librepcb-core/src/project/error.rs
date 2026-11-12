@@ -169,6 +169,9 @@ fn duplicate_name(kind: EntityKind, name: &str) -> String {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// An inverse mutation failed while rolling back a batch.
+    #[error("Project rollback failed: {0}")]
+    RollbackFailed(#[source] Box<Error>),
     /// DRC was cancelled before returning an applicable result.
     #[error("Design rule check cancelled.")]
     DrcCancelled,

@@ -442,14 +442,8 @@ fn batch_rolls_back_on_error() {
     assert!(matches!(error, Error::DuplicateName { .. }));
     assert_eq!(snapshot(&p), before, "the batch was rolled back");
     assert!(p.is_ref_index_consistent());
-    // The rollback is journaled like any other change.
-    assert_eq!(
-        p.changes_since(cursor),
-        ChangesSince::Changes(&[
-            Change::NetClassAdded(NetClassId(ok.uuid())),
-            Change::NetClassRemoved(NetClassId(ok.uuid())),
-        ])
-    );
+    assert_eq!(p.revision(), cursor);
+    assert_eq!(p.changes_since(cursor), ChangesSince::Changes(&[]));
 
     // A successful batch inverts to the reversed inverses.
     let signal = NetClass::new(Uuid::new_random(), ElementName::new("signal").unwrap());
