@@ -1240,7 +1240,7 @@ impl LibrePcbMcp {
     // --- Declarative schematic updates -------------------------------------------
 
     #[tool(
-        description = "Preview a version 1 declarative update of existing schematic components. Verify pin memberships, compare managed values and positions, and render the resulting page."
+        description = "Preview a version 1 declarative update of existing schematic components. Verify pin memberships, compare managed values and symbol transforms, draw local wire groups, and render the resulting page."
     )]
     async fn design_preview(
         &self,

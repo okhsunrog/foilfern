@@ -716,7 +716,12 @@ fn clean_route(
             bodies.push(placed_symbol_rect(p, schematic, *id, true)?);
         }
         for pin in sym.pins(p.view())? {
-            points.push(pin.position());
+            if ![a, b]
+                .iter()
+                .any(|end| end.symbol == *id && end.pin == pin.uuid())
+            {
+                points.push(pin.position());
+            }
         }
     }
     let mut lines = Vec::new();
@@ -748,9 +753,7 @@ fn clean_route(
         let clean = path.windows(2).all(|w| {
             let (p1, p2) = (w[0], w[1]);
             !bodies.iter().any(|r| segment_crosses_rect(p1, p2, r))
-                && !points
-                    .iter()
-                    .any(|x| *x != a.position && *x != b.position && point_on_segment(*x, p1, p2))
+                && !points.iter().any(|x| point_on_segment(*x, p1, p2))
                 && !lines
                     .iter()
                     .any(|l| segments_overlap((p1, p2), *l) || segments_cross((p1, p2), *l))
@@ -760,6 +763,190 @@ fn clean_route(
         }
     }
     Ok(None)
+}
+
+/// Draws a local group of pins already assigned to the same circuit net.
+/// Existing segments are replaced only if they are fully contained in the group.
+pub struct WireGroup {
+    pub schematic: SchematicId,
+    pub net: NetSignalId,
+    pub pins: Vec<ComponentSignalRef>,
+}
+
+struct WireGroupPlan {
+    pins: Vec<PlacedPin>,
+    segments: BTreeSet<NetSegmentId>,
+}
+
+impl WireGroup {
+    fn resolve(&self, p: &Project) -> Result<Option<WireGroupPlan>> {
+        let sheet = p
+            .schematic(self.schematic)
+            .ok_or_else(|| Error::not_found("Schematic", self.schematic))?;
+        let mut pins = Vec::new();
+        let mut anchors = BTreeSet::new();
+        let mut segments = BTreeSet::new();
+        for signal in &self.pins {
+            let net = p
+                .circuit()
+                .component_instance(signal.component)
+                .and_then(|c| c.signal(&signal.signal))
+                .and_then(|s| s.net());
+            if net != Some(self.net) {
+                return Err(Error::InvalidArgument(
+                    "Every wire group pin must already belong to the requested net.".into(),
+                ));
+            }
+            let mut placed = placed_pins(p, *signal)?
+                .into_iter()
+                .filter(|pin| pin.schematic == self.schematic);
+            let pin = placed
+                .next()
+                .filter(|_| placed.next().is_none())
+                .ok_or_else(|| {
+                    Error::InvalidArgument(format!(
+                        "Signal {signal:?} must have exactly one pin on this sheet."
+                    ))
+                })?;
+            if !anchors.insert((pin.symbol, pin.pin)) {
+                return Err(Error::InvalidArgument(
+                    "Duplicate pin in wire group.".into(),
+                ));
+            }
+            if let Some(segment) = sheet.pin_net_segment(pin.symbol, pin.pin) {
+                segments.insert(segment);
+            }
+            pins.push(pin);
+        }
+        if pins.len() < 2 {
+            return Err(Error::InvalidArgument(
+                "A wire group needs at least two pins.".into(),
+            ));
+        }
+        // An existing physical connection satisfies the request, including
+        // when the pins already share a larger manually wired segment.
+        if segments.len() == 1
+            && pins
+                .iter()
+                .all(|p| sheet.pin_net_segment(p.symbol, p.pin).is_some())
+        {
+            return Ok(None);
+        }
+        for id in &segments {
+            let segment = &sheet.net_segments()[id];
+            if !segment.connected_pins().is_subset(&anchors)
+                || !segment.connected_bus_junctions().is_empty()
+            {
+                return Err(Error::InvalidArgument(format!(
+                    "Wire group would replace segment {id}, which has connections outside the group."
+                )));
+            }
+        }
+        Ok(Some(WireGroupPlan { pins, segments }))
+    }
+
+    /// Returns the segments to replace, or `None` for an existing physical connection.
+    pub fn segments_to_replace(&self, p: &Project) -> Result<Option<BTreeSet<NetSegmentId>>> {
+        Ok(self.resolve(p)?.map(|plan| plan.segments))
+    }
+}
+
+impl Command for WireGroup {
+    type Output = ();
+
+    fn text(&self) -> String {
+        tr!("CmdSchematicNetSegmentAdd", "Draw wires")
+    }
+
+    fn execute(self, tx: &mut Transaction<'_>) -> Result<()> {
+        let Some(WireGroupPlan {
+            pins: mut pending,
+            segments,
+        }) = self.resolve(tx.project())?
+        else {
+            return Ok(());
+        };
+        let schematic = self.schematic;
+        let net_name = tx
+            .project()
+            .circuit()
+            .net_signal(self.net)
+            .ok_or_else(|| Error::not_found("Net", self.net))?
+            .name()
+            .clone();
+        let mut connected = vec![pending.remove(0)];
+        for segment in segments {
+            tx.apply(Mutation::Schematic(SchematicMutation::RemoveNetSegment(
+                NetSegmentRef { schematic, segment },
+            )))?;
+        }
+        let mut last_segment = None;
+        let mut label_line = None;
+        while !pending.is_empty() {
+            let mut candidates: Vec<_> = connected
+                .iter()
+                .enumerate()
+                .flat_map(|(a, start)| {
+                    pending
+                        .iter()
+                        .enumerate()
+                        .map(move |(b, end)| (manhattan(start.position, end.position), a, b))
+                })
+                .collect();
+            candidates.sort_unstable();
+            let mut route = None;
+            for (distance, a, b) in candidates {
+                if distance != Length::ZERO
+                    && let Some(corners) =
+                        clean_route(tx.project(), schematic, &connected[a], &pending[b])?
+                {
+                    route = Some((a, b, corners));
+                    break;
+                }
+            }
+            let (a, b, corners) = route.ok_or_else(|| {
+                Error::InvalidArgument(format!(
+                    "No clear route for wire group on {net_name}. Adjust the symbol positions."
+                ))
+            })?;
+            let start = connected[a];
+            let end = pending.remove(b);
+            let wire = draw_wire(
+                tx,
+                Some(schematic),
+                &start.anchor(),
+                &end.anchor(),
+                &corners,
+                Some(&net_name),
+            )?;
+            last_segment = Some(wire.segment);
+            let points = std::iter::once(start.position)
+                .chain(corners)
+                .chain([end.position]);
+            let mut previous = start.position;
+            for point in points.skip(1) {
+                let length = manhattan(previous, point);
+                if label_line.is_none_or(|(a, b)| length > manhattan(a, b)) {
+                    label_line = Some((previous, point));
+                }
+                previous = point;
+            }
+            connected.push(end);
+        }
+        if let (Some(segment), Some((a, b))) = (last_segment, label_line) {
+            let position = Point::new((a.x + b.x) / 2, (a.y + b.y) / 2);
+            let rotation = if a.x == b.x {
+                Angle::DEG90
+            } else {
+                Angle::DEG0
+            };
+            tx.apply(Mutation::Schematic(SchematicMutation::AddNetLabel {
+                segment: NetSegmentRef { schematic, segment },
+                label: NetLabel::new(Uuid::new_random(), position, rotation, false),
+            }))?;
+        }
+        Ok(())
+    }
 }
 
 /// Returns the signal and forced net name of a supply symbol component: a

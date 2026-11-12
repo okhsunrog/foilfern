@@ -31,7 +31,7 @@ because its tools exist or one board has zero air wires.
 | Stage | Result | Dependencies | State |
 | --- | --- | --- | --- |
 | P0 | Identifiable builds, concise responses and measured operation costs | Existing API | Complete; [release replay](benchmarks/esp-pd-sink/review/performance/p0/REPORT.md) |
-| P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; existing-component preview/apply verified on EN/RESET |
+| P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; existing-component edits and local wire groups verified on EN/RESET |
 | P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | Planned; external review prototypes only |
 | P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | Planned; router callback only |
 | P4 | Diagnosed local repair with bounded placement alternatives | P2, P3 | Planned; explicit repair primitives already implemented |
@@ -78,10 +78,13 @@ existing editor commands, preview the semantic diff and apply one transaction.
 Choose the wire/schema representation before adding convenience YAML syntax.
 Use the P1a transaction boundary for reconciliation.
 
-The first [EN/RESET document](examples/esp32-c3-en-reset.json) binds existing
-component UUIDs and checks net memberships. It normalizes the displayed pull-up
-value and preserves the manual switch position after save/reopen. Preview/apply,
-conflict reporting and an empty repeated diff are available for this scope.
+The [EN/RESET document](examples/esp32-c3-en-reset.json) binds existing component
+UUIDs, checks net memberships and previews two local wire groups. It normalizes
+the pull-up value and places and rotates the capacitor and switch. Undo/redo
+and native save/reopen preserve circuit connectivity and the routed board.
+Reapplication gives an empty diff and leaves unmanaged placement intact.
+The next schematic readability step is to support choosing conventional symbol
+graphics for imported passives and switches while retaining their pin mappings.
 
 Done when:
 

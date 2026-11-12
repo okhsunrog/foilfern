@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `3`). Its `build` object contains
+`api_capability_version` (currently `4`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -198,17 +198,29 @@ from `component_get`. In `nets`, address pins as `key.pin`. The existing
 circuit must match the listed memberships. Unlisted endpoints can share those
 nets elsewhere on the project.
 
-Value and single-symbol position edits take `expected` and `set` values.
+Value, position and rotation edits take `expected` and `set` values.
+Placement fields require a single symbol on the selected sheet.
 Omitting a field preserves its current value. When the current value equals
 `set`, it contributes an empty diff. A third value produces a conflict and
-identifies the managed field. Positions are in millimeters.
+identifies the managed field. Positions are in millimeters and rotations are in
+degrees.
+
+Use `wire_groups` for pins that should be joined by visible wires on that
+sheet. Each entry gives an existing `net` and at least two `pins` in the same
+`key.pin` form. Group pins are checked against the circuit just like the
+memberships in `nets`, so they only need to be listed once. The editor tries
+local orthogonal routes at the proposed positions and labels each new group.
+The diff lists the UUIDs of the segments it would replace. If a replacement
+would touch a segment with a pin outside the group or a bus connection, the
+preview fails. Pins already physically connected satisfy the group, preserving
+its existing wire geometry.
 
 Call `design_apply` with the latest preview ID in the same open project.
 It applies the rendered patch in one undo group. An edit or save invalidates
 the preview, and applying an empty diff leaves the revision and history intact.
-The current document edits existing components. The native preview uses their
-existing library symbols and wires. Component creation, rewiring and automatic
-layout of functional groups are separate P1 work.
+The native preview uses the project's existing library symbols. Component
+creation, changes to circuit connectivity and automatic placement are separate
+P1 work.
 
 Library:
 `library_search` (query, kind: component|device|package|symbol, limit;

@@ -2,8 +2,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use librepcb_core::project::ComponentInstanceId;
-use librepcb_editor::commands::{EditComponent, MoveSymbol};
+use librepcb_core::project::{ComponentInstanceId, ComponentSignalRef, NetSignalId, Project};
+use librepcb_editor::commands::{EditComponent, MoveSymbol, WireGroup};
 use librepcb_editor::design_preview::{DesignEdit, DesignPreview};
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -13,7 +13,7 @@ use crate::error::{ErrorKind, ToolError, ToolResult};
 use crate::outcome::ToolOutput;
 use crate::session::Session;
 use crate::tools::write::Written;
-use crate::{resolve, units::PointMm, views};
+use crate::{resolve, units, units::PointMm, views};
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -35,6 +35,15 @@ pub struct ManagedPosition {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+pub struct ManagedRotation {
+    /// Baseline angle in degrees.
+    expected: f64,
+    /// Desired angle in degrees.
+    set: f64,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ExistingComponent {
     /// UUID of an existing component instance.
     uuid: String,
@@ -43,6 +52,9 @@ pub struct ExistingComponent {
     /// Managed position of its single symbol on this sheet.
     /// Omission preserves manual placement.
     position: Option<ManagedPosition>,
+    /// Managed rotation of its single symbol on this sheet, in degrees.
+    /// Omission preserves manual rotation.
+    rotation: Option<ManagedRotation>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -58,6 +70,18 @@ pub struct DesignDocument {
     /// These are assertions against the existing circuit.
     #[serde(default)]
     nets: BTreeMap<String, Vec<String>>,
+    /// Local physical connections on the selected sheet between existing members of a net.
+    #[serde(default)]
+    wire_groups: Vec<LocalWireGroup>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LocalWireGroup {
+    /// Name of an existing circuit net.
+    net: String,
+    /// At least two pins as `key.pin`, each with one symbol pin on this sheet.
+    pins: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -117,7 +141,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 lock_assembly: None,
             }));
         }
-        if let Some(position) = &spec.position {
+        if spec.position.is_some() || spec.rotation.is_some() {
             let mut symbols = schematic.symbols().values().filter(|s| s.component() == id);
             let symbol = symbols
                 .next()
@@ -125,56 +149,79 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 .ok_or_else(|| {
                     ToolError::invalid(format!("{key} must have exactly one symbol on this sheet."))
                 })?;
-            let desired = position.set.to_point()?;
-            let current = symbol.position();
-            if current != desired {
-                if current != position.expected.to_point()? {
-                    return Err(ToolError::new(
-                        ErrorKind::Conflict,
-                        format!(
-                            "{key}.position: expected {:?}, found {:?}.",
-                            position.expected,
-                            views::point(current)
-                        ),
-                    ));
+            let mut command = MoveSymbol {
+                symbol: symbol.id(),
+                position: None,
+                rotation: None,
+                mirrored: None,
+            };
+            if let Some(position) = &spec.position {
+                let desired = position.set.to_point()?;
+                let current = symbol.position();
+                if current != desired {
+                    if current != position.expected.to_point()? {
+                        return Err(ToolError::new(
+                            ErrorKind::Conflict,
+                            format!(
+                                "{key}.position: expected {:?}, found {:?}.",
+                                position.expected,
+                                views::point(current)
+                            ),
+                        ));
+                    }
+                    diff.push(json!({"component":key,"uuid":id,"field":"position","before":views::point(current),"after":views::point(desired)}));
+                    command.position = Some(desired);
                 }
-                diff.push(json!({"component":key,"uuid":id,"field":"position","before":views::point(current),"after":views::point(desired)}));
-                edits.push(DesignEdit::Symbol(MoveSymbol {
-                    symbol: symbol.id(),
-                    position: Some(desired),
-                    rotation: None,
-                    mirrored: None,
-                }));
+            }
+            if let Some(rotation) = &spec.rotation {
+                let desired = units::angle(rotation.set)?.mapped_to_0_360deg();
+                let current = symbol.rotation().mapped_to_0_360deg();
+                if current != desired {
+                    if current != units::angle(rotation.expected)?.mapped_to_0_360deg() {
+                        return Err(ToolError::new(
+                            ErrorKind::Conflict,
+                            format!(
+                                "{key}.rotation: expected {}°, found {}°.",
+                                rotation.expected,
+                                units::deg(current)
+                            ),
+                        ));
+                    }
+                    diff.push(json!({"component":key,"uuid":id,"field":"rotation","before":units::deg(current),"after":units::deg(desired)}));
+                    command.rotation = Some(desired);
+                }
+            }
+            if command.position.is_some() || command.rotation.is_some() {
+                edits.push(DesignEdit::Symbol(command));
             }
         }
     }
     let mut verified = 0;
     for (name, pins) in &doc.nets {
-        let (net, _) = p
-            .circuit()
-            .net_signal_by_name(name)
-            .ok_or_else(|| ToolError::not_found(format!("Net {name} not found.")))?;
-        for endpoint in pins {
-            let (key, pin) = resolve::split_pin_ref(endpoint)?;
-            let id = bindings
-                .get(key)
-                .ok_or_else(|| ToolError::invalid(format!("Unknown component key {key:?}.")))?;
-            let resolved = resolve::pin(p, &format!("{id}.{pin}"))?;
-            let connected = p
-                .circuit()
-                .component_instance(*id)
-                .and_then(|c| c.signal(&resolved.signal.signal))
-                .and_then(|s| s.net());
-            if connected != Some(net) {
-                return Err(ToolError::new(
-                    ErrorKind::Conflict,
-                    format!(
-                        "{endpoint} ({}) is not connected to {name}.",
-                        resolved.label
-                    ),
-                ));
+        let (_, signals) = resolve_memberships(p, &bindings, name, pins)?;
+        verified += signals.len();
+    }
+    let mut grouped = BTreeSet::new();
+    for group in &doc.wire_groups {
+        let (net, pins) = resolve_memberships(p, &bindings, &group.net, &group.pins)?;
+        for (pin, name) in pins.iter().zip(&group.pins) {
+            if !grouped.insert(*pin) {
+                return Err(ToolError::invalid(format!(
+                    "{name} appears more than once in wire groups."
+                )));
             }
-            verified += 1;
+        }
+        verified += pins.len();
+        let command = WireGroup {
+            schematic: page,
+            net,
+            pins,
+        };
+        if let Some(segments) = command.segments_to_replace(p)? {
+            diff.push(json!({
+                "field":"wire_group","net":group.net,"pins":group.pins,"replaced_segments":segments,
+            }));
+            edits.push(DesignEdit::WireGroup(command));
         }
     }
     let (preview, project) = DesignPreview::prepare(&open.editor, edits)?;
@@ -189,6 +236,42 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     .image(image);
     open.design_preview = Some(preview);
     Ok(result)
+}
+
+fn resolve_memberships(
+    p: &Project,
+    bindings: &BTreeMap<&str, ComponentInstanceId>,
+    name: &str,
+    pins: &[String],
+) -> ToolResult<(NetSignalId, Vec<ComponentSignalRef>)> {
+    let (net, _) = p
+        .circuit()
+        .net_signal_by_name(name)
+        .ok_or_else(|| ToolError::not_found(format!("Net {name} not found.")))?;
+    let mut signals = Vec::with_capacity(pins.len());
+    for endpoint in pins {
+        let (key, pin) = resolve::split_pin_ref(endpoint)?;
+        let id = bindings
+            .get(key)
+            .ok_or_else(|| ToolError::invalid(format!("Unknown component key {key:?}.")))?;
+        let resolved = resolve::pin(p, &format!("{id}.{pin}"))?;
+        let connected = p
+            .circuit()
+            .component_instance(*id)
+            .and_then(|c| c.signal(&resolved.signal.signal))
+            .and_then(|s| s.net());
+        if connected != Some(net) {
+            return Err(ToolError::new(
+                ErrorKind::Conflict,
+                format!(
+                    "{endpoint} ({}) is not connected to {name}.",
+                    resolved.label
+                ),
+            ));
+        }
+        signals.push(resolved.signal);
+    }
+    Ok((net, signals))
 }
 
 pub fn apply(session: &mut Session, args: DesignApplyArgs) -> ToolResult<ToolOutput> {

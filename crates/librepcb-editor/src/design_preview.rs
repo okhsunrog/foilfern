@@ -4,13 +4,14 @@ use librepcb_core::fileio::FilePath;
 use librepcb_core::project::{Mutation, Project};
 use librepcb_core::types::Uuid;
 
-use crate::commands::{EditComponent, MoveSymbol};
+use crate::commands::{EditComponent, MoveSymbol, WireGroup};
 use crate::{ProjectEditor, Result};
 
 /// A resolved change to an existing design.
 pub enum DesignEdit {
     Component(EditComponent),
     Symbol(MoveSymbol),
+    WireGroup(WireGroup),
 }
 
 /// A proposal retained by the open project until it is applied or replaced.
@@ -39,6 +40,7 @@ impl DesignPreview {
                         tx.run(command)?;
                     }
                     DesignEdit::Symbol(command) => tx.run(command)?,
+                    DesignEdit::WireGroup(command) => tx.run(command)?,
                 }
             }
             Ok(())

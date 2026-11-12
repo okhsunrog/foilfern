@@ -95,8 +95,11 @@ build-time commit, tracked-source state, Cargo profile label and API capability
 version. `device_place` supports compact responses with `include_pads: false`.
 The P0 release replay and P1a transaction foundation are complete. The first
 P1 slice previews and applies edits to existing components and checks named pin
-memberships. The [EN/RESET document](examples/esp32-c3-en-reset.json) verified
-empty reapplication and preservation of manual placement on the saved ESP32-C3.
+memberships. The [EN/RESET document](examples/esp32-c3-en-reset.json) now also
+joins local wire groups on the original ESP32-C3 sheet. Save/reopen, empty
+reapplication and preservation of unmanaged placement were verified, with
+all 29 nets and the board files preserved. LibrePCB 2.1.1 opened the saved copy
+and reported zero ERC messages, matching the original.
 
 ## Evidence and continuation points
 
