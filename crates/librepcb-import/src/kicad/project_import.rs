@@ -10,6 +10,7 @@ use librepcb_core::geometry::{
 };
 use librepcb_core::library::LibraryBaseElement;
 use librepcb_core::project::circuit::{ComponentInstance, NetClass, NetSignal};
+use librepcb_core::project::schematic::import_appearance::{GlobalLabel, ImportAppearance};
 use librepcb_core::project::schematic::{Schematic, SchematicNetSegment, SchematicSymbol};
 use librepcb_core::project::{
     ComponentInstanceId, ComponentSignalRef, Mutation, NetClassId, NetSignalId, Project,
@@ -25,7 +26,7 @@ use librepcb_core::utils::transform::Transform;
 
 use super::merge_symbol_gates;
 use super::project_board::{BoardSource, PadNets};
-use super::types::{KiCadProperty, KiCadSymbol, KiCadSymbolGate};
+use super::types::{KiCadProperty, KiCadSymbol, KiCadSymbolGate, text_alignment};
 use super::{Error, KiCadLibraryConverter, KiCadTypeConverter, NoImportedElements, Result};
 
 pub(super) fn invalid(message: impl Into<String>) -> Error {
@@ -164,6 +165,12 @@ impl KiCadProjectImport {
             None => (BTreeMap::new(), BTreeMap::new()),
         };
         graph.import(project, sheet, &pad_nets, &net_classes)?;
+        let schematic = project
+            .schematic(sheet)
+            .ok_or(Error::Logic("imported sheet missing"))?;
+        let appearance = serde_json::to_vec(&graph.appearance)
+            .map_err(|err| invalid(format!("Cannot store imported sheet appearance: {err}")))?;
+        project.replace_asset(&ImportAppearance::asset_path(schematic), Some(&appearance))?;
         for node in self.schematic.children_named("rectangle") {
             let width = node
                 .child("stroke/width/@0")
@@ -200,8 +207,8 @@ impl KiCadProjectImport {
                 value,
                 point(node, "at")?,
                 angle(node, "at/@2")?,
-                KiCadTypeConverter::convert_symbol_text_height(size)?,
-                Alignment::default(),
+                project_text_height(size)?,
+                text_alignment(node),
                 false,
             );
             project.apply(Mutation::Schematic(SchematicMutation::AddText {
@@ -349,7 +356,11 @@ fn import_instance(
         }
     };
     let uuid = Uuid::new_random();
+    if node.child("dnp/@0").and_then(|value| value.value().ok()) == Some("yes") {
+        graph.appearance.unpopulated.insert(uuid);
+    }
     let mut symbol = SchematicSymbol::new(uuid, component_id, item_uuid, pos, rot, mirrored);
+    let transform = Transform::from_obj(&symbol);
     for field in node.children_named("property") {
         let field = KiCadProperty::parse(field, log)?;
         let (layer, text) = match field.key.as_str() {
@@ -357,14 +368,19 @@ fn import_instance(
             "Value" if !field.hide => (Layer::SYMBOL_VALUES, "{{VALUE}}"),
             _ => continue,
         };
+        let (rotation, alignment) = field_orientation(
+            &transform,
+            Angle::from_deg(field.rotation)?,
+            field.alignment,
+        );
         symbol.insert_text(Text::new(
             Uuid::new_random(),
             layer,
             text,
             Point::from_mm(field.position.x, -field.position.y)?,
-            Angle::from_deg(field.rotation)?,
-            KiCadTypeConverter::convert_symbol_text_height(field.font_size.height)?,
-            field.alignment,
+            rotation,
+            project_text_height(field.font_size.height)?,
+            alignment,
             false,
         ));
     }
@@ -381,9 +397,12 @@ fn import_instance(
         .library()
         .symbol(library_symbol)
         .ok_or(Error::Logic("imported symbol missing"))?;
-    let transform = Transform::from_obj(&symbol);
     let mut power_pin = None;
-    for (pin_name, numbers) in KiCadTypeConverter::convert_symbol_pin_names(&gate.pins) {
+    for (source_pin, (pin_name, numbers)) in gate
+        .pins
+        .iter()
+        .zip(KiCadTypeConverter::convert_symbol_pin_names(&gate.pins))
+    {
         if pin_name.is_empty() {
             continue;
         }
@@ -398,6 +417,35 @@ fn import_instance(
             .and_then(|m| m.signal_uuid())
             .ok_or_else(|| Error::PinNotFound(pin_name.clone()))?;
         let position = transform.map(&pin.position());
+        let visible_pin = gate
+            .pins
+            .iter()
+            .find(|p| !p.hidden && p.position == source_pin.position && p.name == source_pin.name);
+        let display_number = if lib.definition.hide_pin_numbers {
+            String::new()
+        } else {
+            visible_pin.map(|p| p.number.clone()).unwrap_or_default()
+        };
+        graph
+            .appearance
+            .pin_numbers
+            .entry(uuid)
+            .or_default()
+            .insert(pin.uuid(), display_number);
+        let display_name = if lib.definition.hide_pin_names {
+            String::new()
+        } else {
+            visible_pin
+                .map(|p| KiCadTypeConverter::convert_circuit_identifier(&p.name).to_string())
+                .filter(|_| !source_pin.name.is_empty())
+                .unwrap_or_default()
+        };
+        graph
+            .appearance
+            .pin_names
+            .entry(uuid)
+            .or_default()
+            .insert(pin.uuid(), display_name);
         graph.pins.entry(position).or_default().push(BoundPin {
             anchor: NetLineAnchor::Pin {
                 symbol: uuid,
@@ -427,6 +475,37 @@ fn import_instance(
     Ok(())
 }
 
+fn project_text_height(mm: f64) -> Result<PositiveLength> {
+    // KiCad specifies the glyph height. Native schematic text uses line height.
+    Ok(PositiveLength::new(Length::from_mm(mm * 1.5)?)?)
+}
+
+fn field_orientation(
+    transform: &Transform,
+    rotation: Angle,
+    alignment: Alignment,
+) -> (Angle, Alignment) {
+    // KiCad stores placed field coordinates in sheet space, but its text
+    // axes and justification are relative to the symbol (SCH_FIELD).
+    let direction = transform.map_non_mirrorable(rotation).mapped_to_0_360deg();
+    let upright = match direction {
+        Angle::DEG180 => Angle::DEG0,
+        Angle::DEG270 => Angle::DEG90,
+        _ => direction,
+    };
+    let alignment = if transform.mirrored {
+        alignment.mirrored_v()
+    } else {
+        alignment
+    };
+    let alignment = if direction == upright {
+        alignment
+    } else {
+        alignment.mirrored()
+    };
+    (upright, alignment)
+}
+
 #[derive(Clone)]
 struct BoundPin {
     anchor: NetLineAnchor,
@@ -440,8 +519,9 @@ struct WireGraph {
     edges: BTreeMap<Point, BTreeSet<Point>>,
     pins: BTreeMap<Point, Vec<BoundPin>>,
     names: BTreeMap<Point, BTreeSet<String>>,
-    labels: BTreeMap<Point, Vec<Angle>>,
+    labels: BTreeMap<Point, Vec<NetLabel>>,
     no_connects: BTreeSet<Point>,
+    appearance: ImportAppearance,
 }
 
 impl WireGraph {
@@ -454,10 +534,25 @@ impl WireGraph {
                     .entry(pos)
                     .or_default()
                     .insert(label.required_child("@0")?.value()?.to_owned());
-                self.labels
-                    .entry(pos)
-                    .or_default()
-                    .push(angle(label, "at/@2")?);
+                let rotation = angle(label, "at/@2")?;
+                let style = if tag == "global_label" {
+                    let shape = label.child("shape/@0").and_then(|n| n.value().ok());
+                    let size = label
+                        .child("effects/font/size/@1")
+                        .map_or(Ok(1.27), f64::from_sexpression)?;
+                    Some(GlobalLabel {
+                        input: matches!(shape, Some("input" | "bidirectional" | "tri_state")),
+                        output: matches!(shape, Some("output" | "bidirectional" | "tri_state")),
+                        height: *project_text_height(size)?,
+                    })
+                } else {
+                    None
+                };
+                let native = NetLabel::new(Uuid::new_random(), pos, rotation, false);
+                if let Some(style) = style {
+                    self.appearance.global_labels.insert(native.uuid(), style);
+                }
+                self.labels.entry(pos).or_default().push(native);
                 points.insert(pos);
             }
         }
@@ -465,7 +560,17 @@ impl WireGraph {
             points.insert(point(junction, "at")?);
         }
         for marker in sheet.children_named("no_connect") {
-            self.no_connects.insert(point(marker, "at")?);
+            let pos = point(marker, "at")?;
+            self.no_connects.insert(pos);
+            for pin in self.pins.get(&pos).into_iter().flatten() {
+                if let NetLineAnchor::Pin { symbol, pin } = pin.anchor {
+                    self.appearance
+                        .no_connects
+                        .entry(symbol)
+                        .or_default()
+                        .insert(pin);
+                }
+            }
         }
         let mut wires = Vec::new();
         for wire in sheet.children_named("wire") {
@@ -668,8 +773,8 @@ impl WireGraph {
                 anchors.insert(*pos, NetLineAnchor::Junction(junction.uuid()));
                 segment.insert_junction(junction);
             }
-            for &rot in self.labels.get(pos).into_iter().flatten() {
-                segment.insert_label(NetLabel::new(Uuid::new_random(), *pos, rot, false));
+            for label in self.labels.get(pos).into_iter().flatten() {
+                segment.insert_label(label.clone());
             }
         }
         for pos in positions {

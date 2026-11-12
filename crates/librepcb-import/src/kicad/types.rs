@@ -498,6 +498,12 @@ impl KiCadProperty {
     }
 }
 
+/// Position-independent text effects shared by properties and schematic text.
+pub(super) fn text_alignment(node: &SExpression) -> Alignment {
+    node.child("effects/justify")
+        .map_or(CENTER, deserialize_alignment)
+}
+
 /// A line of a custom pad shape (`gr_line`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct KiCadGraphicalLine {
@@ -727,6 +733,8 @@ pub struct KiCadSymbolPin {
     pub name: String,
     /// Number (pad name).
     pub number: String,
+    /// Whether the pin is hidden in KiCad.
+    pub hidden: bool,
 }
 
 /// Style of a symbol gate (unit).
@@ -876,6 +884,8 @@ impl KiCadSymbolGate {
                         length: child_f64(child, "length/@0")?,
                         name: value(child, "name/@0")?.to_owned(),
                         number: value(child, "number/@0")?.to_owned(),
+                        hidden: opt_value(child, "hide/@0")?
+                            .map_or_else(|| has_token(child, "hide"), |v| v == "yes"),
                     });
                 }
                 other => log.warning(&tr!(

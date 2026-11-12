@@ -14,6 +14,7 @@
 mod anchor_index;
 mod bus_segment;
 mod change;
+pub mod import_appearance;
 mod net_segment;
 mod net_segment_splitter;
 #[allow(clippy::module_inception)] // Upstream file name.

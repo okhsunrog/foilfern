@@ -569,7 +569,11 @@ impl<'a> KiCadLibraryConverter<'a> {
                     .push(ComponentPinSignalMapItem::new(
                         pin_uuid,
                         Some(signal_uuid),
-                        CmpSigPinDisplayType::ComponentSignal,
+                        if ki_sym.hide_pin_names {
+                            CmpSigPinDisplayType::None
+                        } else {
+                            CmpSigPinDisplayType::ComponentSignal
+                        },
                     ));
                 self.component_signal_map
                     .insert((generated_by.to_owned(), pin_name.clone()), signal_uuid);

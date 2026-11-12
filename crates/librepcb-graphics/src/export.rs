@@ -42,6 +42,31 @@ impl Default for GraphicsExport {
     }
 }
 impl GraphicsExport {
+    /// Renders a drawing to a fixed-size PNG, fitting it without stretching.
+    pub fn render_png(&self, page: &GraphicsPage, width: u32, height: u32) -> Result<Vec<u8>> {
+        if width == 0 || height == 0 || u64::from(width) * u64::from(height) > self.max_pixels {
+            return Err(Error::Dimensions);
+        }
+        let layout = self.page_layout(page)?;
+        let tree = resvg::usvg::Tree::from_str(&layout.svg, &svg_options())
+            .map_err(|error| Error::Svg(error.to_string()))?;
+        let width = width as f32;
+        let height = height as f32;
+        let scale = (width / tree.size().width()).min(height / tree.size().height());
+        let transform = resvg::tiny_skia::Transform::from_scale(scale, scale).post_translate(
+            (width - tree.size().width() * scale) / 2.,
+            (height - tree.size().height() * scale) / 2.,
+        );
+        let mut pixmap =
+            resvg::tiny_skia::Pixmap::new(width as u32, height as u32).ok_or(Error::Dimensions)?;
+        let c = page.settings.background;
+        pixmap.fill(resvg::tiny_skia::Color::from_rgba8(c.r, c.g, c.b, c.a));
+        resvg::render(&tree, transform, &mut pixmap.as_mut());
+        pixmap
+            .encode_png()
+            .map_err(|error| Error::Image(error.to_string()))
+    }
+
     pub fn generate(&self, pages: &[GraphicsPage], name: &str) -> Result<Vec<GraphicsFile>> {
         let ext = Path::new(name)
             .extension()

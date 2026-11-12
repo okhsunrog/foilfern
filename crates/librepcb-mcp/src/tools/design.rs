@@ -310,7 +310,10 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
         }
     }
     let (preview, project) = DesignPreview::prepare(&open.editor, edits)?;
-    let image = librepcb_scene::render_schematic_png(&project, page, &Default::default())?;
+    let schematic = project
+        .schematic(page)
+        .ok_or_else(|| ToolError::not_found("Preview schematic not found."))?;
+    let image = super::output::render_schematic_preview(&project, schematic, 1600, 1200)?;
     let result = ToolOutput::new(
         format!("{} schematic changes.", diff.len()),
         json!({

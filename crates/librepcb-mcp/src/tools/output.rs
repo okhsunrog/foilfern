@@ -442,9 +442,9 @@ pub fn render(session: &Session, args: RenderArgs) -> ToolResult<ToolOutput> {
         });
     let (png, what) = match target {
         RenderTarget::Schematic => {
-            let (index, id, s) = resolve::schematic(p, args.schematic.as_deref())?;
+            let (index, _, s) = resolve::schematic(p, args.schematic.as_deref())?;
             (
-                librepcb_scene::render_schematic_png(p, id, &options)?,
+                render_schematic_preview(p, s, width, height)?,
                 format!("schematic page {index} \"{}\"", s.name().as_str()),
             )
         }
@@ -473,6 +473,38 @@ pub fn render(session: &Session, args: RenderArgs) -> ToolResult<ToolOutput> {
         json!({ "width": width, "height": height, "bytes": png.len(), "mime_type": "image/png" }),
     )?
     .image(png))
+}
+
+pub(crate) fn render_schematic_preview(
+    project: &librepcb_core::project::Project,
+    schematic: &librepcb_core::project::schematic::Schematic,
+    width: u32,
+    height: u32,
+) -> ToolResult<Vec<u8>> {
+    if schematic.images().is_empty() {
+        let options = RenderOptions {
+            size: RenderSize::Fit { width, height },
+            ..RenderOptions::default()
+        };
+        return Ok(librepcb_scene::render_schematic_png(
+            project,
+            schematic.id(),
+            &options,
+        )?);
+    }
+    let settings = librepcb_graphics::GraphicsSettings {
+        background: librepcb_core::types::Color::WHITE,
+        ..Default::default()
+    };
+    let drawing = librepcb_graphics::schematic_drawing(project, schematic, &settings)
+        .map_err(|error| ToolError::internal(error.to_string()))?;
+    librepcb_graphics::GraphicsExport::default()
+        .render_png(
+            &librepcb_graphics::GraphicsPage { drawing, settings },
+            width,
+            height,
+        )
+        .map_err(|error| ToolError::internal(error.to_string()))
 }
 
 /// Arguments of `drc_run`.

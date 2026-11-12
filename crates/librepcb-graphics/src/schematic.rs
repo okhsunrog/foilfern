@@ -5,8 +5,14 @@ use librepcb_core::{
     fileio::FileSystem,
     geometry::{Image, NetLineAnchor},
     library::{LibraryBaseElement, sym::SymbolPin},
-    project::{Project, ProjectAttributeLookup, schematic::Schematic},
-    types::{Alignment, Angle, HAlign, Point, VAlign},
+    project::{
+        Project, ProjectAttributeLookup,
+        schematic::{
+            Schematic,
+            import_appearance::{ImportAppearance, cross, symbol_cross},
+        },
+    },
+    types::{Alignment, Angle, Color, HAlign, Point, VAlign},
     utils::transform::Transform,
 };
 fn placed_image(
@@ -36,6 +42,7 @@ pub fn schematic_drawing(
 ) -> Result<Drawing> {
     let mut drawing = Drawing::new();
     let ctx = project.view();
+    let appearance = ImportAppearance::load(project, schematic);
     let mut pin_junctions = Vec::new();
     for symbol in schematic.symbols().values() {
         let resolved = symbol.resolve(ctx)?;
@@ -98,7 +105,11 @@ pub fn schematic_drawing(
                 transform.map_non_mirrorable(lib.rotation() + lib.name_rotation()),
                 lib.name_height().to_mm(),
                 name_align,
-                pin.name(),
+                appearance
+                    .pin_names
+                    .get(&symbol.uuid())
+                    .and_then(|pins| pins.get(&pin.uuid()))
+                    .map_or_else(|| pin.name(), String::as_str),
                 settings.color("schematic_pin_names"),
                 true,
                 false,
@@ -115,7 +126,12 @@ pub fn schematic_drawing(
                 }
             }
             numbers.sort_by(|a, b| librepcb_core::utils::toolbox::compare_numeric(a, b));
-            let numbers = pin.numbers_text(&numbers);
+            let numbers = appearance
+                .pin_numbers
+                .get(&symbol.uuid())
+                .and_then(|pins| pins.get(&pin.uuid()))
+                .cloned()
+                .unwrap_or_else(|| pin.numbers_text(&numbers));
             drawing.markup_label(
                 transform.map(
                     &(lib.position()
@@ -138,6 +154,34 @@ pub fn schematic_drawing(
                 .any(|segment| segment.is_visible_junction(pin.anchor()))
             {
                 pin_junctions.push(pin.position());
+            }
+            if pin.net().is_none()
+                && appearance
+                    .no_connects
+                    .get(&symbol.uuid())
+                    .is_some_and(|pins| pins.contains(&pin.uuid()))
+            {
+                let delta = Point::from_nm(635_000, 635_000);
+                for (start, end) in cross(pin.position() - delta, pin.position() + delta) {
+                    drawing.line(
+                        start,
+                        end,
+                        0.2,
+                        Some(Color::rgba(0, 90, 180, 255)),
+                        settings,
+                    );
+                }
+            }
+        }
+        if appearance.unpopulated.contains(&symbol.uuid()) {
+            for (start, end) in symbol_cross(lib, &transform) {
+                drawing.line(
+                    start,
+                    end,
+                    0.35,
+                    Some(Color::rgba(190, 0, 0, 255)),
+                    settings,
+                );
             }
         }
     }
@@ -206,6 +250,29 @@ pub fn schematic_drawing(
             .ok_or_else(|| Error::Model("Missing net signal".into()))?
             .name();
         for label in segment.labels().values() {
+            if let Some(style) = appearance.global_labels.get(&label.uuid()) {
+                let (path, position, rotation, alignment) = style.geometry(label, name.as_str());
+                let color = settings.color("schematic_outlines");
+                drawing.path(
+                    librepcb_canvas::convert::path(&path),
+                    0.15,
+                    color,
+                    None,
+                    settings,
+                );
+                drawing.markup_label(
+                    position,
+                    rotation,
+                    style.height.to_mm(),
+                    alignment,
+                    name.as_str(),
+                    color,
+                    false,
+                    false,
+                    true,
+                );
+                continue;
+            }
             drawing.markup_label(
                 label.position(),
                 label.rotation(),

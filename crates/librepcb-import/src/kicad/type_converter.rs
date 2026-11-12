@@ -1338,6 +1338,7 @@ mod tests {
             length: 2.54,
             name: name.to_owned(),
             number: number.to_owned(),
+            hidden: false,
         }
     }
 

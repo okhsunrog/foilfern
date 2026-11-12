@@ -210,8 +210,8 @@ fn kicad_project_import_preserves_numbered_unnamed_pins_and_direct_labels() {
         (pin passive line (at 0 -2 90) (length 1)
           (name "" (effects (font (size 1 1)))) (number "2" (effects (font (size 1 1))))))))
   (symbol (lib_id "Fixture:Part") (at 20 20 270) (mirror x) (unit 1)
-    (property "Reference" "U1" (at 20 20 0) (effects (font (size 1 1)))))
-  (symbol (lib_id "Fixture:Part") (at 40 20 0) (unit 1)
+    (property "Reference" "U1" (at 20 20 90) (effects (font (size 1 1)))))
+  (symbol (lib_id "Fixture:Part") (at 40 20 0) (unit 1) (dnp yes)
     (property "Reference" "U2" (at 40 20 0) (effects (font (size 1 1)))))
   (global_label "LINK" (shape input) (at 18 20 0) (effects (font (size 1 1))))
   (global_label "LINK" (shape input) (at 40 18 0) (effects (font (size 1 1))))
@@ -231,6 +231,38 @@ fn kicad_project_import_preserves_numbered_unnamed_pins_and_direct_labels() {
     let netlist = circuit::netlist(&session).unwrap().result;
     assert_eq!(netlist["nets"], json!({"LINK":["U1.2","U2.1"]}));
     assert_eq!(netlist["unconnected_pins"], json!(["U1.1", "U2.2"]));
+    let open = session.project().unwrap();
+    let native = open.project();
+    let sheet = &native.schematics()[0];
+    let appearance =
+        librepcb_core::project::schematic::import_appearance::ImportAppearance::load(native, sheet);
+    assert_eq!(appearance.global_labels.len(), 2);
+    assert_eq!(
+        appearance
+            .no_connects
+            .values()
+            .map(|pins| pins.len())
+            .sum::<usize>(),
+        2
+    );
+    assert_eq!(appearance.unpopulated.len(), 1);
+    assert_eq!(
+        appearance
+            .pin_numbers
+            .values()
+            .map(|pins| pins.len())
+            .sum::<usize>(),
+        4
+    );
+    let rotated = sheet
+        .symbols()
+        .values()
+        .find(|symbol| symbol.name(native.view()).unwrap() == "U1")
+        .unwrap();
+    assert_eq!(
+        rotated.texts().values().next().unwrap().rotation(),
+        librepcb_core::types::Angle::DEG0
+    );
     let erc = output::erc_run(&mut session, Default::default())
         .unwrap()
         .result;

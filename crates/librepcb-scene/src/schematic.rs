@@ -29,6 +29,7 @@ use librepcb_canvas::peniko::Color;
 use librepcb_canvas::{Item, ItemId, Layer as CanvasLayer, LayerId, Scene, Style, convert};
 use librepcb_core::geometry::{Image, NetLineAnchor, Polygon, Text};
 use librepcb_core::library::sym::SymbolPin;
+use librepcb_core::project::schematic::import_appearance::{ImportAppearance, cross, symbol_cross};
 use librepcb_core::project::schematic::{Schematic, SchematicSymbol, SymbolPinView};
 use librepcb_core::project::{
     BoardChange, BusId, BusSegmentId, Change, ChangesSince, ComponentInstanceId, NetSegmentId,
@@ -478,6 +479,7 @@ impl SchematicScene {
             schematic: sch,
             scheme: &self.scheme,
             text: TextRenderer::new(schematic_font(project)),
+            appearance: ImportAppearance::load(project, sch),
             pin_positions: HashMap::new(),
             pad_names: HashMap::new(),
             out: Built::default(),
@@ -518,6 +520,7 @@ struct Builder<'a> {
     schematic: &'a Schematic,
     scheme: &'a ColorScheme,
     text: TextRenderer<'a>,
+    appearance: ImportAppearance,
     /// Absolute positions of the connected pins of the built symbols.
     pin_positions: HashMap<(Uuid, Uuid), Point>,
     /// Pad names per component signal (component, signal).
@@ -713,6 +716,9 @@ impl Builder<'_> {
                 .insert((symbol.uuid(), pin.uuid()), pin.position());
             self.add_pin(symbol, &transform, pin);
         }
+        if self.appearance.unpopulated.contains(&symbol.uuid()) {
+            self.add_cross(symbol_cross(lib, &transform), object, true);
+        }
 
         // Texts (with substituted attributes).
         let texts: Vec<Text> = symbol.texts().values().cloned().collect();
@@ -776,7 +782,11 @@ impl Builder<'_> {
                         .rotated(lib_pin.rotation(), Point::ORIGIN)),
             );
             let rendered = self.text.text(
-                pin.name(),
+                self.appearance
+                    .pin_names
+                    .get(&symbol.uuid())
+                    .and_then(|pins| pins.get(&pin.uuid()))
+                    .map_or_else(|| pin.name(), String::as_str),
                 pos,
                 TextStyle {
                     height: lib_pin.name_height().to_mm(),
@@ -793,9 +803,16 @@ impl Builder<'_> {
 
         // Numbers.
         if let Some(layer) = SchematicScene::layer_id("schematic_pin_numbers") {
-            let signal = pin.signal();
-            let names = self.pad_names(signal.component.0, signal.signal).to_vec();
-            let numbers = pin.numbers_text(&names);
+            let numbers = self
+                .appearance
+                .pin_numbers
+                .get(&symbol.uuid())
+                .and_then(|pins| pins.get(&pin.uuid()))
+                .cloned()
+                .unwrap_or_else(|| {
+                    let signal = pin.signal();
+                    pin.numbers_text(self.pad_names(signal.component.0, signal.signal))
+                });
             let pos = transform.map(
                 &(lib_pin.position()
                     + pin
@@ -815,6 +832,32 @@ impl Builder<'_> {
                 },
             );
             self.insert_text(layer, z::PIN_TEXTS, rendered, object);
+        }
+        if pin.net().is_none()
+            && self
+                .appearance
+                .no_connects
+                .get(&symbol.uuid())
+                .is_some_and(|pins| pins.contains(&pin.uuid()))
+        {
+            let delta = Point::from_nm(635_000, 635_000);
+            self.add_cross(cross(start - delta, start + delta), object, false);
+        }
+    }
+
+    fn add_cross(&mut self, lines: [(Point, Point); 2], object: SchematicObject, dnp: bool) {
+        let (role, width) = if dnp {
+            ("schematic_outlines", Length::new(350_000))
+        } else {
+            ("schematic_documentation", Length::new(200_000))
+        };
+        if let Some(layer) = SchematicScene::layer_id(role) {
+            for (start, end) in lines {
+                self.insert(
+                    Some(shapes::line(layer, start, end, width).with_z(z::NET_LABELS)),
+                    object,
+                );
+            }
         }
     }
 
@@ -989,18 +1032,43 @@ impl Builder<'_> {
                 .map(|n| n.name().as_str().to_owned())
                 .unwrap_or_default();
             for (uuid, label) in segment.labels() {
+                let object = SchematicObject::NetLabel(id, *uuid);
+                if let Some(style) = self.appearance.global_labels.get(uuid) {
+                    let (path, position, rotation, align) = style.geometry(label, &name);
+                    let rendered = self.text.text(
+                        &name,
+                        position,
+                        TextStyle {
+                            height: style.height.to_mm(),
+                            align,
+                            rotation,
+                            auto_rotate: false,
+                            mirror_in_place: false,
+                            parse_overlines: true,
+                        },
+                    );
+                    let layer = SchematicScene::layer_id("schematic_outlines").unwrap_or(layer);
+                    self.insert(
+                        Some(
+                            Item::new(
+                                layer,
+                                convert::path(&path),
+                                Style::stroke(shapes::pen(Length::new(150_000))),
+                            )
+                            .with_z(z::NET_LABELS),
+                        ),
+                        object,
+                    );
+                    self.insert_text(layer, z::NET_LABELS, rendered, object);
+                    continue;
+                }
                 let rendered = self.text.net_label(
                     &name,
                     label.position(),
                     label.rotation(),
                     label.mirrored(),
                 );
-                self.insert_text(
-                    layer,
-                    z::NET_LABELS,
-                    rendered,
-                    SchematicObject::NetLabel(id, *uuid),
-                );
+                self.insert_text(layer, z::NET_LABELS, rendered, object);
             }
         }
     }

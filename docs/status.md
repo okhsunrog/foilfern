@@ -48,6 +48,9 @@ the next task merely because their last paragraph once said "next".
   project import, and KiCad library import. MCP also imports flat KiCad schematics
   and board placement/outline/zones/supported rules for rerouting. Full routed
   KiCad PCB and hierarchical schematic import remain outside that contract.
+  The flat schematic import preserves instance field orientation and alignment,
+  pin legends, global label outlines, DNP and no-connect marks in Foilfern
+  renders. Imported bitmap images are included in MCP PNG previews.
 - **Desktop:** Slint schematic/board editors, tool FSMs, dialogs, library tabs,
   workspace/project lifecycle, shared live MCP editing, rule-check panels,
   output jobs and read-only `.lppz` opening. Detailed UI gaps remain in COMPAT.md.
