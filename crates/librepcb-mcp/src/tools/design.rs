@@ -9,8 +9,8 @@ use librepcb_core::project::{
 };
 use librepcb_editor::Transaction;
 use librepcb_editor::commands::{
-    AddComponent, AddLibraryElement, AutoPlaceSymbols, EditComponent, MoveSymbol, SymbolPlacement,
-    SymbolStyle, WireGroup, connect_design_pin,
+    AddComponent, AddLibraryElement, AutoPlaceSymbols, BlockDirection, EditComponent, MoveSymbol,
+    PlaceSchematicBlock, Rect, SymbolPlacement, SymbolStyle, WireGroup, connect_design_pin,
 };
 use librepcb_editor::design_preview::{DesignEdit, DesignPreview};
 use schemars::JsonSchema;
@@ -94,6 +94,31 @@ pub struct DesignDocument {
     /// Optional annotation-overlap review focused on these component keys.
     #[serde(default)]
     review_components: Vec<String>,
+    /// Bounded row/column placement of selected existing components.
+    block: Option<SchematicBlock>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct SchematicBlock {
+    /// Ordered component keys to move. Omitted components stay fixed.
+    members: Vec<String>,
+    /// Bottom-left and top-right corners in sheet coordinates.
+    min: PointMm,
+    max: PointMm,
+    direction: LayoutDirection,
+    /// Minimum gap between members in millimeters.
+    gap: f64,
+    /// Optional Y (row) or X (column) coordinate in millimeters to align
+    /// symbol origins, with each symbol retaining its current grid phase.
+    baseline: Option<f64>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+enum LayoutDirection {
+    Row,
+    Column,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -374,10 +399,71 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
         let (_, signals) = resolve_memberships(p, &bindings, name, pins)?;
         verified += signals.len();
     }
+    let mut block_members = BTreeSet::new();
+    let mut block_designators = BTreeMap::new();
+    let block = if let Some(block) = &doc.block {
+        let mut symbols = Vec::new();
+        for member in &block.members {
+            let id = bindings.get(member.as_str()).ok_or_else(|| {
+                ToolError::invalid(format!(
+                    "Block member {member:?} must be an existing component key."
+                ))
+            })?;
+            if !block_members.insert(*id) {
+                return Err(ToolError::invalid(format!(
+                    "{member:?} appears more than once in the block."
+                )));
+            }
+            let spec = &doc.components[member];
+            if spec.position.is_some() || spec.rotation.is_some() || !spec.text_positions.is_empty()
+            {
+                return Err(ToolError::invalid(format!(
+                    "{member:?} combines block placement with explicit symbol or text placement."
+                )));
+            }
+            let mut instances = schematic
+                .symbols()
+                .values()
+                .filter(|symbol| symbol.component() == *id);
+            let symbol = instances
+                .next()
+                .filter(|_| instances.next().is_none())
+                .ok_or_else(|| {
+                    ToolError::invalid(format!(
+                        "{member:?} must have exactly one symbol on this sheet."
+                    ))
+                })?;
+            symbols.push(symbol.id());
+            block_designators.insert(symbol.id(), resolve::designator(p, *id));
+            reviewed.insert(*id);
+        }
+        Some(PlaceSchematicBlock {
+            schematic: page,
+            symbols,
+            area: Rect {
+                min: block.min.to_point()?,
+                max: block.max.to_point()?,
+            },
+            direction: match block.direction {
+                LayoutDirection::Row => BlockDirection::Row,
+                LayoutDirection::Column => BlockDirection::Column,
+            },
+            gap: librepcb_core::types::UnsignedLength::new(units::length(block.gap)?)?,
+            baseline: block.baseline.map(units::length).transpose()?,
+        })
+    } else {
+        None
+    };
     let mut grouped = BTreeSet::new();
+    let mut wire_edits = Vec::new();
     for group in &doc.wire_groups {
         let (net, pins) = resolve_memberships(p, &bindings, &group.net, &group.pins)?;
         for (pin, name) in pins.iter().zip(&group.pins) {
+            if block_members.contains(&pin.component) {
+                return Err(ToolError::invalid(format!(
+                    "{name} is a movable block member. Apply its placement before previewing a wire group for it."
+                )));
+            }
             if !grouped.insert(*pin) {
                 return Err(ToolError::invalid(format!(
                     "{name} appears more than once in wire groups."
@@ -394,7 +480,8 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
             diff.push(json!({
                 "field":"wire_group","net":group.net,"pins":group.pins,"replaced_segments":segments,
             }));
-            edits.push(DesignEdit::WireGroup(command));
+            // Wire groups run after explicit placement of their endpoints.
+            wire_edits.push(DesignEdit::WireGroup(command));
         }
     }
     let (preview, project, added) = DesignPreview::prepare(&open.editor, |tx| -> ToolResult<_> {
@@ -402,6 +489,9 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
             edit.execute(tx)?;
         }
         let mut added = Vec::new();
+        for edit in wire_edits {
+            edit.execute(tx)?;
+        }
         for (key, spec) in &doc.add_components {
             let (id, change) = add_component(tx, page, key, spec)?;
             if doc.review_components.contains(key) {
@@ -409,6 +499,13 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
             }
             if let Some(change) = change {
                 added.push(change);
+            }
+        }
+        if let Some(block) = block {
+            for (symbol, before, after) in tx.run(block)? {
+                added.push(json!({"field":"block_position","symbol":symbol,
+                    "component":block_designators[&symbol],
+                    "before":views::point(before),"after":views::point(after)}));
             }
         }
         Ok(added)
@@ -422,7 +519,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
         "preview": preview.id, "base_revision": preview.revision, "diff": diff,
         "verified_pins": verified,
     });
-    if !doc.review_components.is_empty() {
+    if !reviewed.is_empty() {
         payload["annotation_overlaps"] = review_annotations(&project, schematic, &reviewed)?;
     }
     let result =

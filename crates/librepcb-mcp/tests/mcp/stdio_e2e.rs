@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 8);
+    assert_eq!(info["api_capability_version"], 9);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -1265,6 +1265,179 @@ async fn stdio_design_wire_group_keeps_other_connections() {
     assert_eq!(applied["mutation_count"], 0);
     assert_eq!(call_ok(&client, "history", json!({})).await, history);
     assert_eq!(call_ok(&client, "schematic_get", json!({})).await, manual);
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn stdio_design_block_moves_only_selected_symbols_and_stubs() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    let project = call_ok(&client, "project_create", json!({"name":"Bounded layout"})).await;
+    let mut bindings = json!({});
+    for (name, x, y) in [("R1", 0.0, 0.0), ("R2", 25.4, 0.0), ("R3", 0.0, 50.8)] {
+        call_ok(
+            &client,
+            "component_add",
+            json!({"part":"R-0805","designator":name}),
+        )
+        .await;
+        call_ok(
+            &client,
+            "symbol_move",
+            json!({"component":name,"position":{"x":x,"y":y}}),
+        )
+        .await;
+        let component = call_ok(&client, "component_get", json!({"component":name})).await;
+        bindings[name] = json!({"uuid":component["uuid"]});
+    }
+    call_ok(
+        &client,
+        "connect",
+        json!({"net":"EN","pins":["R1.2","R2.1","R3.2"],"max_wire_length":0}),
+    )
+    .await;
+    let before = call_ok(&client, "schematic_get", json!({})).await;
+    let netlist = call_ok(&client, "netlist", json!({})).await;
+    let board = call_ok(&client, "board_get", json!({})).await;
+    let history = call_ok(&client, "history", json!({})).await;
+    let summary = call_ok(&client, "project_summary", json!({})).await;
+    let document = json!({
+        "version":1,"schematic":"Main","components":bindings,
+        "block":{"members":["R2","R1"],"direction":"row","gap":5,
+            "min":{"x":-10,"y":40},"max":{"x":100,"y":65},"baseline":50.8},
+    });
+    let mut invalid = document.clone();
+    invalid["block"]["max"]["x"] = json!(1);
+    assert!(
+        call(&client, "design_preview", invalid)
+            .await
+            .is_error
+            .unwrap_or(false)
+    );
+    let mut column = document.clone();
+    column["block"]["direction"] = json!("column");
+    column["block"]["min"] = json!({"x":35,"y":25});
+    column["block"]["max"] = json!({"x":75,"y":65});
+    column["block"]["baseline"] = json!(50.8);
+    let preview = call_ok(&client, "design_preview", column).await;
+    let diff = preview["diff"].as_array().unwrap();
+    assert_eq!(diff.len(), 2);
+    assert!(diff.iter().all(|d| d["after"]["x"] == 50.8));
+    assert!(diff[0]["after"]["y"].as_f64().unwrap() > diff[1]["after"]["y"].as_f64().unwrap());
+
+    let reply = call(&client, "design_preview", document.clone()).await;
+    assert!(reply.content.iter().any(|item| item.as_image().is_some()));
+    let preview = &reply.structured_content.unwrap()["result"];
+    let diff = preview["diff"].as_array().unwrap();
+    assert_eq!(diff.len(), 2);
+    assert!(
+        diff.iter()
+            .all(|d| d["field"] == "block_position" && d["after"]["y"] == 50.8)
+    );
+    assert!(diff[0]["after"]["x"].as_f64().unwrap() > 0.0);
+    assert!(diff[0]["after"]["x"].as_f64().unwrap() < diff[1]["after"]["x"].as_f64().unwrap());
+    assert_eq!(
+        call_ok(&client, "project_summary", json!({})).await,
+        summary
+    );
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, before);
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":preview["preview"]}),
+    )
+    .await;
+    let after = call_ok(&client, "schematic_get", json!({})).await;
+    let original_segments = before["net_segments"].as_array().unwrap();
+    let new_segments = after["net_segments"].as_array().unwrap();
+    assert_eq!(original_segments.len(), 3);
+    assert_eq!(new_segments.len(), original_segments.len());
+    for segment in original_segments {
+        let new = new_segments
+            .iter()
+            .find(|s| s["uuid"] == segment["uuid"])
+            .unwrap();
+        let line = &segment["lines"][0];
+        let pin = line["from"]["pin"]
+            .as_str()
+            .or(line["to"]["pin"].as_str())
+            .unwrap();
+        if pin.starts_with("R3.") {
+            assert_eq!(new, segment);
+        } else {
+            assert_ne!(
+                new["junctions"][0]["position"],
+                segment["junctions"][0]["position"]
+            );
+            assert_eq!(new["lines"][0]["uuid"], line["uuid"]);
+            assert_eq!(new["labels"][0]["uuid"], segment["labels"][0]["uuid"]);
+        }
+    }
+    let fixed = before["symbols"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["name"] == "R3")
+        .unwrap();
+    assert!(after["symbols"].as_array().unwrap().contains(fixed));
+    assert_eq!(call_ok(&client, "netlist", json!({})).await, netlist);
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, board);
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, before);
+    call_ok(&client, "redo", json!({})).await;
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, after);
+
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    call_ok(&client, "project_open", json!({"path":project["path"]})).await;
+    let history = call_ok(&client, "history", json!({})).await;
+    let repeat = call_ok(&client, "design_preview", document.clone()).await;
+    assert_eq!(repeat["diff"], json!([]));
+    let noop = call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":repeat["preview"]}),
+    )
+    .await;
+    assert_eq!(noop["operation_count"], 0);
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, after);
+
+    let mut wire = document.clone();
+    wire["wire_groups"] = json!([{"net":"EN","pins":["R3.2","R2.1"]}]);
+    assert!(
+        call(&client, "design_preview", wire.clone())
+            .await
+            .is_error
+            .unwrap_or(false)
+    );
+    wire.as_object_mut().unwrap().remove("block");
+    let preview = call_ok(&client, "design_preview", wire).await;
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":preview["preview"]}),
+    )
+    .await;
+    let wired = call_ok(&client, "schematic_get", json!({})).await;
+    let denied = call(&client, "design_preview", document).await;
+    assert!(denied.is_error.unwrap_or(false));
+    assert!(
+        denied
+            .structured_content
+            .unwrap()
+            .to_string()
+            .contains("shares wire segment")
+    );
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, wired);
     client.cancel().await.unwrap();
 }
 

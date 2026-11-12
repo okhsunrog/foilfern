@@ -18,9 +18,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use librepcb_core::library::pkg::Footprint;
 use librepcb_core::library::sym::Symbol;
 use librepcb_core::project::board::{Board, BoardDevice};
+use librepcb_core::project::schematic::{Schematic, SchematicNetSegment};
 use librepcb_core::project::{
-    BoardId, ComponentInstanceId, NetSignalId, Project, ProjectAttributeLookup, SchematicId,
-    SymbolId,
+    BoardId, ComponentInstanceId, NetSegmentId, NetSignalId, Project, ProjectAttributeLookup,
+    SchematicId, SymbolId,
 };
 use librepcb_core::types::{
     Alignment, Angle, HAlign, Layer, Length, Point, PositiveLength, UnsignedLength, VAlign,
@@ -328,6 +329,16 @@ pub(crate) fn schematic_obstacles(
     exclude: &BTreeSet<SymbolId>,
     room: bool,
 ) -> Result<Vec<Rect>> {
+    schematic_obstacles_except(p, schematic, exclude, &BTreeSet::new(), room)
+}
+
+pub(crate) fn schematic_obstacles_except(
+    p: &Project,
+    schematic: SchematicId,
+    exclude: &BTreeSet<SymbolId>,
+    excluded_segments: &BTreeSet<NetSegmentId>,
+    room: bool,
+) -> Result<Vec<Rect>> {
     let s = p
         .schematic(schematic)
         .ok_or_else(|| Error::not_found("Schematic", schematic))?;
@@ -343,31 +354,109 @@ pub(crate) fn schematic_obstacles(
         });
     }
     for (id, segment) in s.net_segments() {
-        for line in segment.lines().values() {
-            let ends = [line.p1(), line.p2()]
-                .map(|a| s.net_line_anchor_position(*id, a, p.view()))
-                .into_iter()
-                .flatten();
-            if let Some(r) = Rect::bounding(ends) {
-                rects.push(r);
-            }
+        if excluded_segments.contains(id) {
+            continue;
         }
-        for junction in segment.junctions().values() {
-            rects.push(Rect {
-                min: junction.position(),
-                max: junction.position(),
-            });
+        rects.extend(segment_obstacles(p, s, segment));
+    }
+    Ok(rects)
+}
+
+pub(crate) fn segment_obstacles(
+    p: &Project,
+    s: &Schematic,
+    segment: &SchematicNetSegment,
+) -> Vec<Rect> {
+    let mut rects = Vec::new();
+    for line in segment.lines().values() {
+        let ends = [line.p1(), line.p2()]
+            .map(|a| s.net_line_anchor_position(segment.id(), a, p.view()))
+            .into_iter()
+            .flatten();
+        if let Some(r) = Rect::bounding(ends) {
+            rects.push(r);
+        }
+    }
+    for junction in segment.junctions().values() {
+        rects.push(Rect {
+            min: junction.position(),
+            max: junction.position(),
+        });
+    }
+    let chars = p
+        .circuit()
+        .net_signal(segment.net())
+        .map_or(8, |n| n.name().as_str().chars().count());
+    for l in segment.labels().values() {
+        let direction = net_label_direction(l.rotation(), l.mirrored());
+        rects.push(net_label_rect(l.position(), direction, chars));
+    }
+    rects
+}
+
+/// Fixed page graphics and buses for bounded block placement.
+pub(crate) fn sheet_annotation_obstacles(p: &Project, s: &Schematic) -> Vec<Rect> {
+    let mut rects = Vec::new();
+    let lookup = ProjectAttributeLookup::for_schematic(p, s, None);
+    for text in s.texts().values() {
+        let value = lookup.substitute(text.text());
+        if !value.is_empty() {
+            rects.push(text_rect(
+                text.position(),
+                *text.height(),
+                text.align(),
+                text.rotation(),
+                value.chars().count(),
+            ));
+        }
+    }
+    for image in s.images().values() {
+        let rect = Rect {
+            min: Point::ORIGIN,
+            max: Point::new(*image.width(), *image.height()),
+        };
+        rects.push(rect.mapped(&Transform::new(image.position(), image.rotation(), false)));
+    }
+    let tolerance = PositiveLength::new(Length::new(10_000)).expect("constant is positive");
+    for polygon in s.polygons().values() {
+        let path = polygon.path().flattened_arcs(tolerance);
+        let points = path.vertices().iter().map(|vertex| vertex.pos);
+        let margin = *polygon.line_width() / 2 + *tolerance;
+        if polygon.is_filled() {
+            rects.extend(Rect::bounding(points).map(|rect| rect.expanded(margin)));
+        } else {
+            rects.extend(
+                points
+                    .clone()
+                    .zip(points.skip(1))
+                    .filter_map(|(from, to)| Rect::bounding([from, to]))
+                    .map(|rect| rect.expanded(margin)),
+            );
+        }
+    }
+    for segment in s.bus_segments().values() {
+        for line in segment.lines().values() {
+            if let (Some(from), Some(to)) = (
+                segment.junction_position(line.p1()),
+                segment.junction_position(line.p2()),
+            ) && let Some(rect) = Rect::bounding([from, to])
+            {
+                rects.push(rect.expanded(*line.width() / 2));
+            }
         }
         let chars = p
             .circuit()
-            .net_signal(segment.net())
-            .map_or(8, |n| n.name().as_str().chars().count());
-        for l in segment.labels().values() {
-            let direction = net_label_direction(l.rotation(), l.mirrored());
-            rects.push(net_label_rect(l.position(), direction, chars));
+            .bus(segment.bus())
+            .map_or(8, |bus| bus.name().as_str().chars().count());
+        for label in segment.labels().values() {
+            rects.push(net_label_rect(
+                label.position(),
+                net_label_direction(label.rotation(), label.mirrored()),
+                chars,
+            ));
         }
     }
-    Ok(rects)
+    rects
 }
 
 /// Area scanned for free schematic positions: from the top left corner

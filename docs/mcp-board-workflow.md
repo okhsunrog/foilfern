@@ -64,9 +64,11 @@ against the schematic and reports conversions that need review.
    schematic pin number. Inspect the library mapping to resolve ambiguity.
    Supply symbols force their net name. Cross-page connections use net labels;
    they do not need geometry spanning sheets.
-6. Use `netlist` and `component_get` to verify actual connectivity, then
-   `schematic_tidy` per page and `render` for each schematic page. Inspect
-   the images for readability, label collisions and circuit grouping.
+6. Use `netlist` and `component_get` to verify actual connectivity. Use
+   `design_preview` with `block` for local placement or `wire_groups` for
+   local wiring, inspect the render, then apply the selected preview. Use
+   `schematic_tidy` when you intend to replace the layout and wiring of an
+   entire sheet. Inspect each sheet for label collisions and circuit grouping.
    Use `symbol_text_move` with `text: "name"`, `text: "value"`, or a text
    UUID from `schematic_get` to adjust an annotation without moving the
    symbol or its pins.

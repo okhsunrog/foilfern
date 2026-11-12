@@ -65,10 +65,13 @@ library_rescan -> library_search (find parts; multi-word queries like \"resistor
 project_create -> component_add (part = name or device/component UUID; placed automatically) -> \
 connect (net + pins, e.g. net \"VCC\", pins [\"J1.1\",\"R1.1\"]; supply symbols like GND/VCC \
 force their net name and unconnected ones of the same name are attached automatically) -> \
-schematic_tidy (re-arranges the page by connectivity for readability) -> erc_run -> \
+design_preview -> design_apply (review local schematic layout) -> erc_run -> \
 board_set_outline (width/height mm) -> device_auto_place (or device_place) -> \
 routing_prepare or routing_compare -> routing_preview -> routing_apply (reviewed builtin; autoroute is direct) -> \
 plane_add (net \"GND\", bottom) -> drc_run -> export_fabrication / jobs_run -> project_save.\n\
+For local schematic layout use design_preview with block (selected members, area, order, \
+row or column) or wire_groups (selected same-net endpoints). Use schematic_tidy only when \
+regenerating the whole page is intended.\n\
 Addressing: designators (\"R1\"), pins \"R1.1\" (pad name) or \"U1.VCC\" (signal name) or a \
 designator alone for single-pin parts (\"GND1\"), net names, schematic/board names or indices; \
 UUIDs work everywhere. Unknown arguments are rejected (invalid_argument). Units: millimeters and degrees \
@@ -709,11 +712,10 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Re-arrange a schematic page for readability: places the symbols by \
-                       connectivity (connected parts next to each other, room for labels), \
-                       supply symbols next to their pins, and draws all nets again (direct \
-                       wires where short, else net labels). Nets and boards are unchanged. \
-                       Run it after connecting all nets."
+        description = "Regenerate layout and wiring of the whole schematic page. Replaces \
+                       hand-drawn placement and wires with connectivity-based positions, \
+                       short direct wires and net labels. Nets and boards are unchanged. \
+                       For a reviewed local edit, use design_preview."
     )]
     async fn schematic_tidy(
         &self,
@@ -1240,7 +1242,7 @@ impl LibrePcbMcp {
     // --- Declarative schematic updates -------------------------------------------
 
     #[tool(
-        description = "Preview a version 1 declarative update of schematic components, including new parts. Verify pin memberships, compare managed values and symbol transforms, draw local wire groups, style embedded symbol outlines, and render the resulting page."
+        description = "Preview a version 1 schematic update and render the resulting page. Verify pin memberships, manage existing fields, add parts, place selected blocks, draw local wire groups, and review annotation overlaps."
     )]
     async fn design_preview(
         &self,

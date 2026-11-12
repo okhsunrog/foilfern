@@ -205,6 +205,24 @@ Omitting a field preserves its current value. When the current value equals
 identifies the managed field. Positions are in millimeters and rotations are in
 degrees.
 
+Use `block` to position selected components inside a rectangle on the sheet.
+Specify `members` in visual order, `min` and `max` corners
+as `{x,y}` in millimeters, `direction` (`row` or `column`), and a minimum `gap`
+in millimeters. A row runs left to right, a column top to bottom. An optional
+`baseline` gives the common Y coordinate for a row or X for a column. Each
+symbol retains its grid phase, so a symbol off the grid can end up slightly
+offset from the baseline. With no baseline, members are packed along the top
+or left edge of the area.
+
+List only the members whose positions the document may change. Surrounding
+components, wires and annotations stay in place. Existing symbol fields and
+independent wire stubs move with their symbol. A shared wire or a bus tap on a
+movable member causes the preview to fail. Keep that member fixed and use
+`wire_groups` for separate, explicitly selected rewiring. Preview placement
+first if the same endpoints also need new wires. Each member requires a
+single symbol on the selected sheet. `block_position` entries report the
+changed positions and the preview reviews annotation overlaps for the block.
+
 Use `wire_groups` for pins that should be joined by visible wires on that
 sheet. Each entry gives an existing `net` and at least two `pins` in the same
 `key.pin` form. Group pins are checked against the circuit just like the
