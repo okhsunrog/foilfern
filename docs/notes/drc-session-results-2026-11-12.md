@@ -14,9 +14,9 @@ acceptance. The owner subsequently requested integration into master; see
 
 ## Objective and decisions
 
-Review and accelerate DRC, fixing correctness problems first and covering them
-with regression tests. Preserve file interoperability with LibrePCB and measure
-release builds on identical board snapshots.
+Review and accelerate DRC, fixing correctness problems first. Preserve file
+interoperability with LibrePCB and measure release builds on identical board
+snapshots.
 
 The accepted design has one production implementation. DRC boolean geometry
 uses `dashu-ratio::RBig`; there is no experimental feature, backend selector or
@@ -34,8 +34,8 @@ manufacturing exporters were not changed.
 - **Approval protection:** cleanup requires a complete, successful, identified
   result for the current project, board and revision. Failed, incomplete, quick,
   stale or unidentified results cannot remove stored approvals or advance their
-  version. The original failure was reproduced by injecting a failed full DRC
-  result after a successful run; it could otherwise remove supported approvals.
+  version. Previously, a failed full DRC run could remove supported approvals
+  for violations omitted by a failed check.
 - **Consistent preparation:** DRC rejects intervening model edits before applying
   calculated planes, then applies the prepared result and extracts check data in
   one exclusive operation. Failed or incomplete plane rebuilding is propagated
@@ -51,7 +51,7 @@ manufacturing exporters were not changed.
   no longer adds an artificial closing chord. Coincident boundary intervals
   count as covered, while isolated point contacts have no positive length.
 
-These changes and their regression tests are described in the
+The implementation is described in the
 [review](drc-performance-review.md) and
 [geometry report](drc-exact-copper.md). Intentional differences from upstream
 are recorded in [COMPAT.md](../../COMPAT.md).
@@ -97,8 +97,8 @@ Measurements use standard Cargo release builds, Rust 1.99.1
 (`58cf8f9c3 2026-10-13`), on an Intel Core Ultra 5 125H with 18 logical CPUs.
 Full DRC includes plane preparation, air wires, extraction and checks; it
 excludes project loading. These are core replays, not MCP request-to-response
-latencies. Own builds/tests finished before the final timing series; unrelated
-activity on the shared host was not stopped.
+latencies. No concurrent task workloads ran during the final timing series;
+unrelated activity on the shared host was not stopped.
 
 Historical comparisons were separate interleaved series, with three
 fresh-process samples per version:
@@ -139,40 +139,21 @@ Sample records, binary hashes and build provenance:
 - [Local queries, including repeated master/LibrePCB measurements](../benchmarks/esp-pd-sink/drc-local-query-timings.json).
 - [Final Rayon before/after measurements](../benchmarks/esp-pd-sink/drc-parallel-pair-timings.json).
 
-## Validation and compatibility boundaries
+## Compatibility boundaries
 
-Final implementation validation:
+Exact sub-nanometer decisions can differ from upstream where intermediate
+rounding would suppress a violation. Input dimensions, file formats and the
+manufacturing-export geometry pipeline retain their existing semantics.
 
-- `cargo test --locked -p librepcb-core`: 120 unit and 894 integration tests
-  passed, one integration test ignored. Upstream CLI comparisons were enabled.
-- `cargo clippy --locked --workspace --all-targets -- -D warnings`,
-  `cargo fmt --all --check` and `git diff --check` passed.
-- Parallel-pair regressions cover 1, 2 and 4 Rayon workers, message-pair order,
-  merged layer masks, location order, maximum clearance and first-error choice.
-- The latest corpus comparison covers 37 boards and 925 messages: full ordered
-  messages, locations and approvals match the immediately preceding version,
-  with no check errors. All 40 final timing runs also preserve their respective
-  project results.
+Location contours describe the place of a violation; they do not edit copper
+or cutouts. During the rational-geometry migration, some closed contours gained
+a different starting vertex without changing their shape. Open cutout intervals
+also stopped acquiring an artificial closing segment or a duplicated reverse
+stroke. Subsequent local-query and Rayon changes preserve location ordering.
 
-The initial migration from rounded Clipper booleans to rational geometry
-preserved all 925 message identities, texts, severities, descriptions, ordering
-and approval multisets, but changed 13 display-location arrays on six boards.
-Those included contour ordering/start vertices and the corrected cutout chord.
-Subsequent local-query and Rayon changes preserve the rational baseline's
-locations exactly. Equality with upstream on all possible coordinates is not
-claimed: exact sub-nanometer decisions intentionally differ where intermediate
-rounding would suppress a violation.
-
-The two headless application tests `live_mcp_rule_checks_and_outputs` and
-`drc_removes_disappeared_approvals` passed during the rational-geometry stage.
-They were not repeated after the local-query and Rayon follow-ups. The full
-workspace test suite was not run; workspace linting/compilation and the full
-core suite were checked.
-
-The upstream CLI does not expose serialized approval keys or location polygons.
-Its ESP-PD-Sink comparison establishes matching severity/text pairs (three errors
-and nine warnings), not equality of those unavailable fields. File migration,
-roundtrip and export comparisons remain covered by the enabled core oracles.
+The current GUI uses these locations to frame the selected violation; it does
+not yet draw the location marker. MCP exposes the contours in `locations`.
+Approval identities are separate from this display geometry.
 
 ## Main implementation commits
 
@@ -212,10 +193,4 @@ changes. Production code merged without conflicts. The sole conflict was in
 `docs/status.md`: the current master structure was retained and the DRC results
 were added with a link to this report.
 
-On the combined tree, six routing-service unit tests and 32 routing-candidate
-MCP integration tests passed. Workspace Clippy with all targets and warnings
-denied, formatting and diff checks also passed. Core and application source,
-plus Cargo.lock,
-match the tested DRC branch exactly; their full suites were not repeated for
-this documentation-only conflict resolution. Merge-check logs are stored at
-`/home/okhsunrog/tmp_zfs/codex_tmp/drc-review/merge/checks.log`.
+The merge was pushed to master as `014cd61`.

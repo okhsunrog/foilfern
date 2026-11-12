@@ -122,8 +122,8 @@ exact dependencies and acceptance rather than adding another task list here.
 The DRC integration merge on 2026-11-12 passed six routing-service unit tests and
 32 routing-candidate MCP integration tests with the configured upstream checkout,
 workspace Clippy with all targets and warnings denied, and formatting. The
-[session report](notes/drc-session-results-2026-11-12.md) separates these merge
-checks from the prior full-core and compatibility results. The Nix addition at
+[session report](notes/drc-session-results-2026-11-12.md) describes the final
+design, performance and compatibility boundaries. The Nix addition at
 `f3c3fda` was evaluated for x86_64-linux and
 aarch64-linux; shell/resource/library checks and `cargo check -p librepcb-i18n`
 ran on x86_64-linux. This was not a full workspace or GUI-in-Nix acceptance run.
