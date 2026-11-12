@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `5`). Its `build` object contains
+`api_capability_version` (currently `6`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -217,9 +217,15 @@ its existing wire geometry.
 
 Use `symbol_styles` to replace rectangular placeholders with native artwork.
 Keys are project library symbol UUIDs from `component_get.symbols[].library_symbol`.
-Supported styles are `capacitor` and `normally_open_push_button`. A style
-expects a single plain rectangle and two aligned, opposing pins. A symbol
-already using the requested outline is a no-op. Other artwork is refused.
+The `capacitor` and `normally_open_push_button` styles accept two aligned,
+opposing pins. The [four-terminal crystal example](examples/esp32-c3-crystal.json)
+uses an object with `style: "crystal"`, `resonator_pins`, and `case_pins`.
+Each pair lists two distinct library pin UUIDs from `component_get.symbols[].pins[].uuid`.
+The template accepts a row of opposing resonator pins and a matching case row
+below it in the library symbol's coordinates. The case leads are drawn
+independently. Any shared ground connection comes from the schematic.
+A style expects a single plain rectangle. A symbol already using the requested
+outline is a no-op. Other artwork is refused.
 The edit affects the shared symbol in the current project's library. The diff
 lists every affected designator, including uses on other sheets. Pins, pin
 names, component text positions, wires and device mappings are preserved.

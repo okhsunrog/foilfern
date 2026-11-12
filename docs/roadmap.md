@@ -85,9 +85,9 @@ and native save/reopen preserve circuit connectivity and the routed board.
 Reapplication gives an empty diff and leaves unmanaged placement intact.
 The document also assigns conventional capacitor and push-button artwork to
 two embedded symbol UUIDs. The preview reports all uses of each shared symbol.
-For symbols with additional terminals, record the pin roles explicitly before
-choosing artwork. The ESP32-C3 crystal is a case with two resonator terminals
-and two grounded case pads.
+The [ESP32-C3 crystal document](examples/esp32-c3-crystal.json) selects artwork
+with explicit roles for two resonator terminals and two case terminals. Net
+assertions verify the existing circuit, including the case ground connections.
 
 Done when:
 

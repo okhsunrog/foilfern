@@ -103,6 +103,10 @@ and reported zero ERC messages, matching the original.
 The document also styles the shared capacitor and push-button symbols in the
 project library. Preview reports all affected components. Pin connections,
 pad mappings and schematic wire geometry are preserved by the artwork edits.
+The [four-terminal crystal document](examples/esp32-c3-crystal.json) styles Y1
+using explicit resonator and case pin UUIDs. Its replay changed only the embedded
+symbol file. Reapplying after save/reopen produced an empty diff, and upstream
+LibrePCB ERC reported zero messages.
 
 ## Evidence and continuation points
 

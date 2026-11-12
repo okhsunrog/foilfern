@@ -79,11 +79,29 @@ pub struct DesignDocument {
     symbol_styles: BTreeMap<String, Artwork>,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, serde::Serialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Deserialize, serde::Serialize, JsonSchema)]
+#[serde(untagged)]
 enum Artwork {
+    Simple(SimpleArtwork),
+    WithRoles(ArtworkWithRoles),
+}
+
+#[derive(Debug, Clone, Deserialize, serde::Serialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+enum SimpleArtwork {
     Capacitor,
     NormallyOpenPushButton,
+}
+
+#[derive(Debug, Clone, Deserialize, serde::Serialize, JsonSchema)]
+#[serde(tag = "style", rename_all = "snake_case", deny_unknown_fields)]
+enum ArtworkWithRoles {
+    Crystal {
+        /// Two library symbol pin UUIDs for the resonator terminals.
+        resonator_pins: [String; 2],
+        /// Two library symbol pin UUIDs for the case terminals.
+        case_pins: [String; 2],
+    },
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -125,8 +143,23 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
             ToolError::not_found(format!("Project library symbol {id} not found."))
         })?;
         let template = match style {
-            Artwork::Capacitor => SymbolStyle::Capacitor,
-            Artwork::NormallyOpenPushButton => SymbolStyle::NormallyOpenPushButton,
+            Artwork::Simple(SimpleArtwork::Capacitor) => SymbolStyle::Capacitor,
+            Artwork::Simple(SimpleArtwork::NormallyOpenPushButton) => {
+                SymbolStyle::NormallyOpenPushButton
+            }
+            Artwork::WithRoles(ArtworkWithRoles::Crystal {
+                resonator_pins: [a, b],
+                case_pins: [c, d],
+            }) => SymbolStyle::Crystal {
+                resonator_pins: [
+                    resolve::required_uuid(a, "resonator pin")?,
+                    resolve::required_uuid(b, "resonator pin")?,
+                ],
+                case_pins: [
+                    resolve::required_uuid(c, "case pin")?,
+                    resolve::required_uuid(d, "case pin")?,
+                ],
+            },
         };
         if let Some(mutation) = template.plan(symbol)? {
             let mut affected: Vec<_> = p

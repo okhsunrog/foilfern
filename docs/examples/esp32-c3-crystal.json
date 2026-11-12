@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "schematic": "Main",
+  "components": {
+    "crystal": {"uuid": "e14b50c5-bd91-4290-9505-cbe2f81fc10f"}
+  },
+  "nets": {
+    "XTAL_P": ["crystal.1"],
+    "XTAL_N": ["crystal.3"],
+    "GND": ["crystal.2", "crystal.4"]
+  },
+  "symbol_styles": {
+    "2d2286cb-81ee-409a-b1ca-d3782b1d8d75": {
+      "style": "crystal",
+      "resonator_pins": ["48d0e5d4-3cd2-4513-b21c-38fe7d0d6b20", "b6bbbe5f-2011-4cb4-9ecb-d684fbda5435"],
+      "case_pins": ["7ed2415e-8d3c-4adf-9233-629def585f55", "bace1861-00ec-4773-ab1b-c64508b1d833"]
+    }
+  }
+}
