@@ -29,6 +29,7 @@ use std::time::{Duration, Instant};
 use clipper::JoinType;
 use clipper::PolyFillType::{EvenOdd, NonZero};
 use librepcb_i18n::{tr, trn};
+use rayon::prelude::*;
 use rstar::{
     AABB, Envelope, RTree,
     primitives::{GeomWithData, Rectangle},
@@ -522,12 +523,120 @@ fn copper_layer_mask(start: Layer, end: Layer, layers: &BTreeSet<Layer>) -> u64 
 }
 
 /// A copper clearance violation (merged per object pair).
+#[derive(Debug, PartialEq, Eq)]
 struct CopperViolation {
     obj1: usize,
     obj2: usize,
     layers: u64,
     clearance: Length,
     locations: Vec<Path>,
+}
+
+/// Evaluate independent groups of copper pairs in parallel, then merge in the
+/// original (i, k) order so messages, locations and approvals remain stable.
+fn check_copper_pairs(
+    items: &[CopperItem<'_>],
+    layers: &BTreeSet<Layer>,
+) -> Result<Vec<CopperViolation>> {
+    // Index both areas: custom clearances require checking either direction.
+    // i128 accommodates areas and squared distances over the full input range.
+    let envelopes = items
+        .iter()
+        .map(|item| copper_envelope(&item.copper_area, &item.clearance_area))
+        .collect::<Result<Vec<_>>>()?;
+    let index = RTree::bulk_load(
+        envelopes
+            .iter()
+            .enumerate()
+            .filter_map(|(i, bounds)| {
+                bounds.map(|bounds| GeomWithData::new(Rectangle::from_aabb(bounds), i))
+            })
+            .collect(),
+    );
+    let layer_masks: Vec<u64> = items
+        .iter()
+        .map(|item| copper_layer_mask(item.start_layer, item.end_layer, layers))
+        .collect();
+
+    // Now check for intersections.
+    // Indexed parallel collection retains the original i order, including errors.
+    // Each worker keeps only violations, not a board-wide quadratic pair list.
+    let results: Vec<Result<Vec<CopperViolation>>> = (0..items.len())
+        .into_par_iter()
+        .map(|i| {
+            let mut violations = Vec::new();
+            let Some(envelope) = &envelopes[i] else {
+                return Ok(violations);
+            };
+            let mut candidates: Vec<_> = index
+                .locate_in_envelope_intersecting(*envelope)
+                .map(|entry| entry.data)
+                .filter(|&k| k > i)
+                .collect();
+            // Tree traversal order must not affect messages or approval handling.
+            candidates.sort_unstable();
+            for k in candidates {
+                let (it1, it2) = (&items[i], &items[k]);
+                if !(((it1.clearance > Length::ZERO) || (it2.clearance > Length::ZERO))
+                    && ((it1.net != it2.net) || it1.net.is_none() || it2.net.is_none()))
+                {
+                    continue;
+                }
+                let overlapping = layer_masks[i] & layer_masks[k];
+                if overlapping == 0 {
+                    continue;
+                }
+                let mut locations = exact_intersection(&it1.copper_area, &it2.clearance_area)?;
+                // Perform the check the other way around only if:
+                //  - Either the two items have individual clearances
+                //  - Or there are any intersections -> show both violations
+                if (it1.clearance != it2.clearance) || !locations.is_empty() {
+                    locations.extend(exact_intersection(&it2.copper_area, &it1.clearance_area)?);
+                }
+                if locations.is_empty() {
+                    continue;
+                }
+                let clearance = it1.clearance.max(it2.clearance);
+                violations.push(CopperViolation {
+                    obj1: i,
+                    obj2: k,
+                    layers: overlapping,
+                    clearance,
+                    locations,
+                });
+            }
+            Ok(violations)
+        })
+        .collect();
+    merge_copper_violations(items, results)
+}
+
+/// Merge in input order after every worker has finished. In particular, do not
+/// collect the parallel iterator into Result: its chosen error is unspecified.
+fn merge_copper_violations(
+    items: &[CopperItem<'_>],
+    results: impl IntoIterator<Item = Result<Vec<CopperViolation>>>,
+) -> Result<Vec<CopperViolation>> {
+    let mut violations: Vec<CopperViolation> = Vec::new();
+    for result in results {
+        for next in result? {
+            let (it1, it2) = (&items[next.obj1], &items[next.obj2]);
+            let existing = violations.iter_mut().find(|v| {
+                let (s1, s2) = (&items[v.obj1].serialized, &items[v.obj2].serialized);
+                ((&it1.serialized == s1) && (&it2.serialized == s2))
+                    || ((&it1.serialized == s2) && (&it2.serialized == s1))
+            });
+            match existing {
+                Some(v) => {
+                    v.layers |= next.layers;
+                    v.clearance = v.clearance.max(next.clearance);
+                    v.locations.extend(next.locations);
+                }
+                None => violations.push(next),
+            }
+        }
+    }
+    Ok(violations)
 }
 
 impl<'a> CopperItem<'a> {
@@ -845,86 +954,7 @@ impl Checker<'_> {
             }
         }
 
-        // Index both areas: custom clearances require checking either direction.
-        // i128 accommodates areas and squared distances over the full input range.
-        let envelopes = items
-            .iter()
-            .map(|item| copper_envelope(&item.copper_area, &item.clearance_area))
-            .collect::<Result<Vec<_>>>()?;
-        let index = RTree::bulk_load(
-            envelopes
-                .iter()
-                .enumerate()
-                .filter_map(|(i, bounds)| {
-                    bounds.map(|bounds| GeomWithData::new(Rectangle::from_aabb(bounds), i))
-                })
-                .collect(),
-        );
-        let layer_masks: Vec<u64> = items
-            .iter()
-            .map(|item| copper_layer_mask(item.start_layer, item.end_layer, &data.copper_layers))
-            .collect();
-
-        // Memorize violations since we want to emit messages only once per
-        // object1<->object2 pair.
-        let mut violations: Vec<CopperViolation> = Vec::new();
-
-        // Now check for intersections.
-        for i in 0..items.len() {
-            let Some(envelope) = &envelopes[i] else {
-                continue;
-            };
-            let mut candidates: Vec<_> = index
-                .locate_in_envelope_intersecting(*envelope)
-                .map(|entry| entry.data)
-                .filter(|&k| k > i)
-                .collect();
-            // Tree traversal order must not affect messages or approval handling.
-            candidates.sort_unstable();
-            for k in candidates {
-                let (it1, it2) = (&items[i], &items[k]);
-                if !(((it1.clearance > Length::ZERO) || (it2.clearance > Length::ZERO))
-                    && ((it1.net != it2.net) || it1.net.is_none() || it2.net.is_none()))
-                {
-                    continue;
-                }
-                let overlapping = layer_masks[i] & layer_masks[k];
-                if overlapping == 0 {
-                    continue;
-                }
-                let mut locations = exact_intersection(&it1.copper_area, &it2.clearance_area)?;
-                // Perform the check the other way around only if:
-                //  - Either the two items have individual clearances
-                //  - Or there are any intersections -> show both violations
-                if (it1.clearance != it2.clearance) || !locations.is_empty() {
-                    locations.extend(exact_intersection(&it2.copper_area, &it1.clearance_area)?);
-                }
-                if locations.is_empty() {
-                    continue;
-                }
-                let clearance = it1.clearance.max(it2.clearance);
-                let existing = violations.iter_mut().find(|v| {
-                    let (s1, s2) = (&items[v.obj1].serialized, &items[v.obj2].serialized);
-                    ((&it1.serialized == s1) && (&it2.serialized == s2))
-                        || ((&it1.serialized == s2) && (&it2.serialized == s1))
-                });
-                match existing {
-                    Some(v) => {
-                        // Merge with existing violation.
-                        v.layers |= overlapping;
-                        v.clearance = v.clearance.max(clearance);
-                        v.locations.extend(locations);
-                    }
-                    None => violations.push(CopperViolation {
-                        obj1: i,
-                        obj2: k,
-                        layers: overlapping,
-                        clearance,
-                        locations,
-                    }),
-                }
-            }
-        }
+        let violations = check_copper_pairs(&items, &data.copper_layers)?;
 
         // Emit messages.
         for v in violations {
@@ -3111,6 +3141,106 @@ mod exact_geometry_tests {
         }])
         .unwrap()
         .0
+    }
+
+    #[test]
+    fn parallel_pairs_preserve_order_locations_and_multilayer_merging() {
+        let polygons: Vec<_> = (0..3)
+            .map(|_| DrcPolygon {
+                uuid: crate::types::Uuid::new_random(),
+                layer: Layer::TOP_COPPER,
+                line_width: unsigned(Length::ZERO).unwrap(),
+                filled: true,
+                path: Path::default(),
+            })
+            .collect();
+        // The same three objects on two layers must yield three merged messages,
+        // in the original pair order, retaining locations from both layers.
+        let items: Vec<_> = (0..6)
+            .map(|i| {
+                let layer = if i < 3 {
+                    Layer::TOP_COPPER
+                } else {
+                    Layer::BOT_COPPER
+                };
+                CopperItem::new(
+                    CopperObject::Polygon(&polygons[i % 3], None),
+                    (layer, layer),
+                    None,
+                    Length::new(10 + i as i64),
+                    rectangle(i as i64, 0, 20, 20),
+                    rectangle(-10, -10, 50, 50),
+                )
+            })
+            .collect();
+        let layers = [Layer::TOP_COPPER, Layer::BOT_COPPER].into();
+        let mut expected = None;
+        for threads in [1, 2, 4] {
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap();
+            for _ in 0..3 {
+                let actual = pool
+                    .install(|| check_copper_pairs(&items, &layers))
+                    .unwrap();
+                assert_eq!(
+                    actual.iter().map(|v| (v.obj1, v.obj2)).collect::<Vec<_>>(),
+                    [(0, 1), (0, 2), (1, 2)]
+                );
+                for (v, width) in actual.iter().zip([14, 15, 15]) {
+                    assert_eq!(v.layers, 1 | (1u64 << 63));
+                    assert_eq!(v.clearance, Length::new(width));
+                    assert_eq!(v.locations.len(), 4);
+                    let mut locations = Vec::new();
+                    for offset in [0, 3] {
+                        locations.extend(
+                            exact_intersection(
+                                &items[v.obj1 + offset].copper_area,
+                                &items[v.obj2 + offset].clearance_area,
+                            )
+                            .unwrap(),
+                        );
+                        locations.extend(
+                            exact_intersection(
+                                &items[v.obj2 + offset].copper_area,
+                                &items[v.obj1 + offset].clearance_area,
+                            )
+                            .unwrap(),
+                        );
+                    }
+                    assert_eq!(v.locations, locations);
+                }
+                if let Some(expected) = &expected {
+                    assert_eq!(&actual, expected);
+                } else {
+                    expected = Some(actual);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn parallel_pair_errors_are_reported_in_input_order() {
+        // Completion order cannot choose the error or turn a failed check into
+        // a partial success (which could otherwise clear stored approvals).
+        let results = vec![
+            Ok(Vec::new()),
+            Err(Error::IncompletePlaneRebuild),
+            Err(Error::StaleSnapshot),
+        ];
+        assert!(matches!(
+            merge_copper_violations(&[], results),
+            Err(Error::IncompletePlaneRebuild)
+        ));
+        let results = vec![
+            Err(Error::StaleSnapshot),
+            Err(Error::IncompletePlaneRebuild),
+        ];
+        assert!(matches!(
+            merge_copper_violations(&[], results),
+            Err(Error::StaleSnapshot)
+        ));
     }
 
     #[test]
