@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use librepcb_core::attribute::{Attribute, AttributeKey, AttributeType};
 use librepcb_core::project::{
     ComponentInstanceId, ComponentSignalRef, LibraryElementKind, NetSignalId, Project, SchematicId,
+    SymbolRef,
 };
 use librepcb_editor::Transaction;
 use librepcb_editor::commands::{
@@ -62,6 +63,9 @@ pub struct ExistingComponent {
     /// Managed rotation of its single symbol on this sheet, in degrees.
     /// Omission preserves manual rotation.
     rotation: Option<ManagedRotation>,
+    /// Managed absolute positions of symbol fields keyed by text UUID from schematic_get.
+    #[serde(default)]
+    text_positions: BTreeMap<String, ManagedPosition>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -87,6 +91,9 @@ pub struct DesignDocument {
     /// symbol UUID (see component_get). All instances using that symbol change.
     #[serde(default)]
     symbol_styles: BTreeMap<String, Artwork>,
+    /// Optional annotation-overlap review focused on these component keys.
+    #[serde(default)]
+    review_components: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -158,6 +165,14 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     let mut edits = Vec::new();
     let mut diff = Vec::new();
     let mut styled = BTreeSet::new();
+    for key in &doc.review_components {
+        if !doc.components.contains_key(key) && !doc.add_components.contains_key(key) {
+            return Err(ToolError::invalid(format!(
+                "Unknown review component key {key:?}."
+            )));
+        }
+    }
+    let mut reviewed = BTreeSet::new();
     for key in doc.add_components.keys() {
         if key.is_empty() || key.contains('.') || doc.components.contains_key(key) {
             return Err(ToolError::invalid(format!(
@@ -235,6 +250,9 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
             .component_instance(id)
             .ok_or_else(|| ToolError::not_found(format!("Component {key} ({id}) not found.")))?;
         bindings.insert(key.as_str(), id);
+        if doc.review_components.contains(key) {
+            reviewed.insert(id);
+        }
         if let Some(value) = &spec.value
             && component.value() != &value.set
         {
@@ -258,6 +276,43 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 assembly_options: None,
                 lock_assembly: None,
             }));
+        }
+        if !spec.text_positions.is_empty() && (spec.position.is_some() || spec.rotation.is_some()) {
+            return Err(ToolError::invalid(format!(
+                "{key}: preview symbol transforms and absolute text positions in separate edits."
+            )));
+        }
+        for (text, position) in &spec.text_positions {
+            let uuid = resolve::required_uuid(text, "symbol text")?;
+            let (symbol, text) = schematic
+                .symbols()
+                .values()
+                .filter(|symbol| symbol.component() == id)
+                .find_map(|symbol| Some((symbol.id(), symbol.texts().get(&uuid)?)))
+                .ok_or_else(|| {
+                    ToolError::not_found(format!("Text {uuid} was not found on {key}."))
+                })?;
+            let desired = position.set.to_point()?;
+            if text.position() == desired {
+                continue;
+            }
+            if text.position() != position.expected.to_point()? {
+                return Err(ToolError::new(
+                    ErrorKind::Conflict,
+                    format!("{key}: text {uuid} has moved since the expected position."),
+                ));
+            }
+            diff.push(json!({"component":key,"field":"text_position","text":uuid,
+                "before":views::point(text.position()),"after":views::point(desired)}));
+            let mut text = text.clone();
+            text.set_position(desired);
+            edits.push(DesignEdit::SymbolText {
+                symbol: SymbolRef {
+                    schematic: page,
+                    symbol,
+                },
+                text,
+            });
         }
         if spec.position.is_some() || spec.rotation.is_some() {
             let mut symbols = schematic.symbols().values().filter(|s| s.component() == id);
@@ -348,7 +403,11 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
         }
         let mut added = Vec::new();
         for (key, spec) in &doc.add_components {
-            if let Some(change) = add_component(tx, page, key, spec)? {
+            let (id, change) = add_component(tx, page, key, spec)?;
+            if doc.review_components.contains(key) {
+                reviewed.insert(id);
+            }
+            if let Some(change) = change {
                 added.push(change);
             }
         }
@@ -359,26 +418,81 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
         .schematic(page)
         .ok_or_else(|| ToolError::not_found("Preview schematic not found."))?;
     let image = super::output::render_schematic_preview(&project, schematic, 1600, 1200)?;
-    let result = ToolOutput::new(
-        format!("{} schematic changes.", diff.len()),
-        json!({
-            "preview": preview.id, "base_revision": preview.revision, "diff": diff,
-            "verified_pins": verified,
-        }),
-    )?
-    .image(image);
+    let mut payload = json!({
+        "preview": preview.id, "base_revision": preview.revision, "diff": diff,
+        "verified_pins": verified,
+    });
+    if !doc.review_components.is_empty() {
+        payload["annotation_overlaps"] = review_annotations(&project, schematic, &reviewed)?;
+    }
+    let result =
+        ToolOutput::new(format!("{} schematic changes.", diff.len()), payload)?.image(image);
     open.design_preview = Some(preview);
     Ok(result)
 }
 
 const DESIGN_KEY: &str = "FOILFERN_DESIGN_KEY";
 
+fn review_annotations(
+    project: &Project,
+    schematic: &librepcb_core::project::schematic::Schematic,
+    components: &BTreeSet<ComponentInstanceId>,
+) -> ToolResult<serde_json::Value> {
+    use librepcb_scene::{ColorScheme, SchematicObject, SchematicScene, annotation_overlaps};
+    let symbols: BTreeSet<_> = schematic
+        .symbols()
+        .iter()
+        .filter(|(_, symbol)| components.contains(&symbol.component()))
+        .map(|(id, _)| *id)
+        .collect();
+    for component in components {
+        if !schematic
+            .symbols()
+            .values()
+            .any(|symbol| symbol.component() == *component)
+        {
+            return Err(ToolError::invalid(format!(
+                "Review component {} has no symbols on the selected sheet.",
+                resolve::designator(project, *component)
+            )));
+        }
+    }
+    let segments = schematic
+        .net_segments()
+        .iter()
+        .filter(|(_, segment)| {
+            segment
+                .connected_pins()
+                .iter()
+                .any(|(symbol, _)| symbols.contains(symbol))
+        })
+        .map(|(id, _)| *id)
+        .collect();
+    let scene = SchematicScene::build(project, schematic.id(), &ColorScheme::SCHEMATIC_LIGHT)?;
+    let describe = |object| match object {
+        SchematicObject::SymbolText(symbol, text) => {
+            let placed = &schematic.symbols()[&symbol];
+            let layer = placed.texts().get(&text).map(|t| t.layer().id());
+            json!({"kind":"symbol_text","component":resolve::designator(project, placed.component()),"symbol":symbol,"text":text,"layer":layer})
+        }
+        SchematicObject::NetLabel(segment, label) => {
+            let net = schematic.net_segments()[&segment].net();
+            json!({"kind":"net_label","net":resolve::net_name(project, net),"segment":segment,"label":label})
+        }
+        SchematicObject::Text(text) => json!({"kind":"schematic_text","text":text}),
+        _ => unreachable!("overlaps only contain annotations"),
+    };
+    Ok(json!(annotation_overlaps(&scene, Some((&symbols, &segments))).into_iter().map(|overlap|
+        json!({"first":describe(overlap.first),"second":describe(overlap.second),"bounds_mm":overlap.bounds})
+    ).collect::<Vec<_>>()))
+}
+
 fn add_component(
     tx: &mut Transaction<'_>,
     page: SchematicId,
     key: &str,
     spec: &NewComponent,
-) -> ToolResult<Option<serde_json::Value>> {
+) -> ToolResult<(ComponentInstanceId, Option<serde_json::Value>)> {
     let component = resolve::required_uuid(&spec.library_component, "library component")?;
     let device = resolve::required_uuid(&spec.device, "device")?;
     let name = super::schematic_edit::identifier(&spec.designator, "designator")?;
@@ -527,7 +641,7 @@ fn add_component(
             .push(json!({"pad":pad,"pad_uuid":physical.uuid(),"signal":signal,"net":net_name}));
     }
     if !created {
-        return Ok(None);
+        return Ok((id, None));
     }
     let package_id = lib_device.package_uuid();
     for (signal, net) in signals {
@@ -541,9 +655,12 @@ fn add_component(
             net,
         )?;
     }
-    Ok(Some(
-        json!({"field":"add_component","component":key,"designator":designator,
+    Ok((
+        id,
+        Some(
+            json!({"field":"add_component","component":key,"designator":designator,
         "uuid":id,"library_component":component,"device":device,"package":package_id,"value":spec.value,"connections":endpoints}),
+        ),
     ))
 }
 

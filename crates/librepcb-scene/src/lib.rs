@@ -43,6 +43,7 @@ mod footprint;
 mod render;
 pub mod resources;
 mod schematic;
+mod schematic_readability;
 mod shapes;
 mod symbol;
 mod sync;
@@ -58,6 +59,7 @@ pub use render::{
     render_scene, render_schematic_png, render_schematic_scene, visible_bounds,
 };
 pub use schematic::{SchematicObject, SchematicScene};
+pub use schematic_readability::{AnnotationOverlap, annotation_overlaps};
 pub use symbol::{SymbolScene, SymbolSceneObject};
 pub use sync::{IncrementalScene, SceneSync};
 

@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 7);
+    assert_eq!(info["api_capability_version"], 8);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -1367,5 +1367,62 @@ async fn stdio_design_add_component_replays_library_and_keeps_identity() {
     let component = call_ok(&client, "component_get", json!({"component":"C7"})).await;
     assert_eq!(&component["uuid"], id);
     assert_eq!(component["symbols"][0]["position"], moved);
+    call_ok(
+        &client,
+        "component_add",
+        json!({"part":"C-0805","designator":"C8"}),
+    )
+    .await;
+    let mut target_text = Value::Null;
+    for component in ["C7", "C8"] {
+        call_ok(
+            &client,
+            "symbol_text_move",
+            json!({
+                "component":component,"text":"name","position":{"x":50,"y":48},"height":3.0,"rotation":0
+            }),
+        )
+        .await.clone_into(&mut target_text);
+    }
+    let reviewed = call_ok(
+        &client,
+        "design_preview",
+        json!({
+            "version":1,"schematic":"Main","components":{"cap":{"uuid":id}},
+            "review_components":["cap"]
+        }),
+    )
+    .await;
+    assert_eq!(reviewed["diff"], json!([]));
+    assert!(
+        reviewed["annotation_overlaps"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|overlap| {
+                [
+                    overlap["first"]["component"].as_str(),
+                    overlap["second"]["component"].as_str(),
+                ]
+                .contains(&Some("C8"))
+            }),
+        "{reviewed}"
+    );
+    let component = call_ok(&client, "component_get", json!({"component":"C8"})).await;
+    let moved = call_ok(
+        &client,
+        "design_preview",
+        json!({
+            "version":1,"schematic":"Main","review_components":["cap"],
+            "components":{"cap":{"uuid":component["uuid"],
+                "text_positions":{(target_text["uuid"].as_str().unwrap()):{
+                    "expected":{"x":50,"y":48},"set":{"x":70,"y":70}
+                }}
+            }}
+        }),
+    )
+    .await;
+    assert_eq!(moved["diff"][0]["field"], "text_position");
+    assert_eq!(moved["annotation_overlaps"], json!([]));
     client.cancel().await.unwrap();
 }

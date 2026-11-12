@@ -91,6 +91,11 @@ assertions verify the existing circuit, including the case ground connections.
 The [decoupler document](examples/esp32-c3-add-decoupler.json) adds a component
 to an existing sheet and connects exact package pads to existing nets. The
 frozen preview includes any required project library additions.
+The ESP-PD-Sink USB Power Delivery block is the readability reference.
+Preview can report annotation overlaps for a selected group of components and
+move a reference or value independently with an expected-position check.
+The next layout step is to derive placement and wire groups from explicit
+functional blocks and validate wire crossings as well as annotation spacing.
 
 Done when:
 

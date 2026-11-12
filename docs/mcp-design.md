@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `7`). Its `build` object contains
+`api_capability_version` (currently `8`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -244,6 +244,16 @@ membership reports a conflict. The key is stored in the component's native
 `FOILFERN_DESIGN_KEY` attribute. Apply and undo include the embedded library
 files. This operation adds schematic connections and an assembly option.
 PCB placement, new nets and rewiring existing components are separate operations.
+
+Set `review_components` to document keys to check annotation overlaps in the
+preview. The report gives the object IDs, designators or net names and the
+intersection in sheet coordinates. It checks rendered bounding boxes of
+symbol fields, page text and net labels touching the selected symbols or
+their connected wire segments. It is advisory and covers annotation spacing.
+Use `text_positions` under an existing component to move its reference or
+value independently of the symbol. Each entry is keyed by the text UUID from
+`schematic_get` and uses `expected` and `set` positions in millimeters.
+Preview symbol moves and absolute text positions in separate requests.
 
 Library:
 `library_search` (query, kind: component|device|package|symbol, limit;

@@ -1,7 +1,8 @@
 //! Exact, revision-bound model changes for declarative schematic updates.
 
 use librepcb_core::fileio::FilePath;
-use librepcb_core::project::{Mutation, Project, SymbolArtwork};
+use librepcb_core::geometry::Text;
+use librepcb_core::project::{Mutation, Project, SchematicMutation, SymbolArtwork, SymbolRef};
 use librepcb_core::types::Uuid;
 
 use crate::commands::{EditComponent, MoveSymbol, WireGroup};
@@ -11,6 +12,7 @@ use crate::{Error, Operation, ProjectEditor, Result, Transaction};
 pub enum DesignEdit {
     Component(EditComponent),
     Symbol(MoveSymbol),
+    SymbolText { symbol: SymbolRef, text: Text },
     WireGroup(WireGroup),
     LibrarySymbolArtwork(SymbolArtwork),
 }
@@ -22,6 +24,12 @@ impl DesignEdit {
                 tx.run(command)?;
             }
             Self::Symbol(command) => tx.run(command)?,
+            Self::SymbolText { symbol, text } => {
+                tx.apply(Mutation::Schematic(SchematicMutation::UpdateSymbolText {
+                    symbol,
+                    text,
+                }))?;
+            }
             Self::WireGroup(command) => tx.run(command)?,
             Self::LibrarySymbolArtwork(artwork) => {
                 tx.apply(Mutation::SetLibrarySymbolArtwork(artwork))?

@@ -53,7 +53,7 @@ impl GlobalLabel {
     /// label anchor. Dimensions use the native font's approximate advance.
     pub fn geometry(&self, label: &NetLabel, name: &str) -> (Path, Point, Angle, Alignment) {
         let height = self.height.to_nm().clamp(1, 100_000_000);
-        let half = height * 3 / 4;
+        let half = height * 3 / 5;
         let advance = height * 11 / 20;
         let count = extract_overlines(name).0.chars().count().min(1000) as i64;
         let inset = if self.input { half } else { 0 };
