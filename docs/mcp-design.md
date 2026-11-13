@@ -161,13 +161,13 @@ backend and checks the realistic board PDF.
 
 ## Tool surface
 
-At the reviewed revision, `server.rs` registers 82 tools. The schemas advertised
+At the reviewed revision, `server.rs` registers 84 tools. The schemas advertised
 by `tools/list` are authoritative; the historical target of fewer than 60 tools
 is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `16`). Its `build` object contains
+`api_capability_version` (currently `17`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -178,10 +178,11 @@ custom profiles by inheritance. `cargo_opt_level` reports Cargo's optimization
 setting for the MCP crate. Record the actual build command for timing comparisons.
 
 Declarative schematic creation (P1) starts with an open native project and
-sheet. Persisted enforced requirements (P2), worker jobs/cancellation (P3) and
-visual candidate review (P5) are not current MCP capabilities.
-`routing_compare` already ranks builtin-order candidates; runtime
-candidate capacity does not limit the number of active preparation workers.
+sheet. Persisted enforced requirements (P2) and visual candidate review (P5)
+are planned.
+`routing_compare` ranks builtin-order candidates. Local repair search has
+one active job per open project, progress polling and cooperative cancellation.
+Other preparation tools continue to use their existing worker lifecycle.
 
 Session / project:
 `server_info`, `workspace_open`, `workspace_create`, `project_create`,
@@ -728,6 +729,43 @@ For a two-stage repair, route the neighbors first by omitting `improve_net`
 and using only their nets in `route.nets`. Pass that candidate and the
 original target net to `routing_copper_prepare` for continuation. Apply only
 the reviewed combined patch.
+
+`routing_repair_start` runs local alternatives without editing the live
+board. Supply a `target` net and one to eight `groups` of trace and via
+UUIDs explicitly authorized for removal. The lists from
+`routing_diagnose.repair.proposals[].region_request.rip_up` are suitable
+inputs after review. Include all attached traces in any group containing a
+via. The service deduplicates groups and pairwise unions. It tries singles
+before pairs and smaller removals first within each tier.
+
+Use `rip_up_region` to bound original copper removals, `neighbor_region`
+to bound replacement copper (defaults to `rip_up_region`), and `region`
+to bound new target copper. Both routing rectangles must contain
+`rip_up_region`. Pass independent builtin settings under `neighbor_route`
+and `route`. The selected group determines neighbor nets, and `target`
+determines the target net. Include `expected_revision` to bind the search
+to the reviewed revision.
+
+`max_objects` caps each removal set (1–16, default 12), `max_trials`
+limits distinct trials (1–36, default 24), and `max_candidates` reserves
+up to three candidate slots (default 2). Each trial starts from the same
+detached snapshot, reroutes neighbors first and rebuilds connectivity before
+routing the target. Only complete checks, no new errors, no net connectivity
+regression, and fewer opens on the target produce a candidate. Candidates
+are ranked by target opens, new warnings, affected objects, board via count
+and board trace length. Use measured preview for pad-pair path costs.
+
+Poll `routing_repair_status` with the returned `search` UUID. It reports
+the phase, budget, checked trials, failure samples and the retained candidate
+IDs after the worker stops. Set `cancel: true` on that call to request
+cancellation. `max_time_ms` (1–300000, default 120000) and cancellation
+are cooperative. A* polls at each connection and every 1,024 expansions.
+DRC skips checks that have not started and joins checks already running.
+In-flight model preparation and plane fill finish before the worker stops.
+Trials whose validation has completed remain available on time limit or
+cancellation if the source is still current. Edits, save-context changes or
+project replacement prevent stale publication. A subsequent search replaces
+the previous status while published candidates keep their normal lifecycle.
 
 See [routing service design](routing-service-design.md) for subsequent stages.
 The existing `autoroute` compatibility path continues to apply directly.

@@ -26,6 +26,7 @@ use crate::units::PointMm;
 mod diagnose_image;
 mod explicit_copper;
 mod repair;
+pub(crate) mod repair_search;
 pub use explicit_copper::{RoutingCopperArgs, prepare_copper_job};
 
 /// Builtin-only options; external backends are deliberately not accepted.
@@ -268,7 +269,9 @@ impl PlaneProbes {
 fn routing_error(error: RoutingError) -> ToolError {
     match error {
         RoutingError::Editor(e) => e.into(),
-        error @ RoutingError::NotFound(_) => ToolError::new(ErrorKind::NotFound, error.to_string()),
+        error @ (RoutingError::NotFound(_) | RoutingError::RepairSearchNotFound(_)) => {
+            ToolError::new(ErrorKind::NotFound, error.to_string())
+        }
         error @ RoutingError::StaleRevision { .. } => {
             ToolError::new(ErrorKind::StaleRevision, error.to_string())
         }
@@ -1062,10 +1065,11 @@ pub struct RoutingTraceReplacementArgs {
 }
 
 /// Builtin settings for a regional or post-edit trial.
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RoutingEditRouteArgs {
     /// At least one target net name or UUID.
+    #[serde(default)]
     pub nets: Vec<String>,
     /// Allowed copper layers. Empty means all.
     #[serde(default)]

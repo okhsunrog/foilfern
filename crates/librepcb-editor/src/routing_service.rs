@@ -20,17 +20,23 @@ use crate::commands::{
     Autoroute, AutorouteResult, ConnectLocalVia, EditRoutingGeometry, LocalViaConnection,
     PlaneStitch, StitchPlaneIsland,
 };
-use crate::routing_validation::{RoutingSnapshot, RoutingValidation, capture_routing_state};
+use crate::routing_validation::{
+    RoutingSnapshot, RoutingValidation, capture_routing_state, capture_routing_state_with_cancel,
+};
 
 mod comparison;
 mod copper;
 mod region;
+mod repair_search;
 mod staged;
 pub use comparison::{
     RoutingComparison, RoutingComparisonJob, RoutingTrial, RoutingTrials, TracePreference,
 };
 pub use copper::{CopperEndpoint, CopperPlan, PlannedPlacement, PlannedTrace};
 pub use region::{RegionalRepairProposal, RegionalRoutingRequest};
+pub use repair_search::{
+    RepairSearchJob, RepairSearchRequest, RepairSearchResults, RepairSearchStatus,
+};
 pub use staged::StagedRoutingRequest;
 
 /// Bounded session-local storage; callers explicitly discard unwanted candidates.
@@ -45,6 +51,8 @@ pub enum RoutingError {
     Editor(#[from] crate::Error),
     #[error("Routing candidate not found: {0}")]
     NotFound(Uuid),
+    #[error("Local repair search not found: {0}")]
+    RepairSearchNotFound(Uuid),
     #[error("Routing candidate belongs to a different project session.")]
     WrongSession,
     #[error("Project save time or location changed; prepare a new routing candidate.")]
@@ -94,6 +102,9 @@ pub enum RoutingCandidateDetails {
     Regional {
         regional: Box<RegionalRoutingRequest>,
         routing: Box<AutorouteResult>,
+    },
+    Repair {
+        repair: Box<repair_search::RepairCandidateDetails>,
     },
     Staged {
         staged: Box<staged::StagedRoutingResult>,
@@ -152,6 +163,9 @@ impl RoutingCandidateDetails {
             Self::Regional { regional, .. } => regional
                 .improve_net
                 .is_none_or(|net| after.unrouted_for(net) < before.unrouted_for(net)),
+            Self::Repair { repair } => {
+                after.unrouted_for(repair.target) < before.unrouted_for(repair.target)
+            }
             _ => true,
         };
         let mut validation = RoutingValidation::compare_candidate(before, after);
@@ -400,7 +414,33 @@ fn rebuild_connectivity(editor: &mut ProjectEditor, board: BoardId) -> Result<()
 }
 
 impl RoutingSource {
+    fn fork(&self) -> Result<Self, RoutingError> {
+        Ok(Self {
+            owner: self.owner,
+            project: self.project,
+            base_revision: self.base_revision,
+            source_context: self.source_context.clone(),
+            baseline: None,
+            baseline_reused: self.baseline_reused,
+            sandbox: ProjectEditor::with_source(
+                self.sandbox
+                    .project()
+                    .snapshot()
+                    .map_err(crate::Error::from)?,
+                Arc::clone(self.sandbox.source()),
+            ),
+        })
+    }
+
     fn capture_before(&mut self, board: BoardId) -> Result<RoutingSnapshot, RoutingError> {
+        self.capture_before_with_cancel(board, &|| false)
+    }
+
+    fn capture_before_with_cancel(
+        &mut self,
+        board: BoardId,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Result<RoutingSnapshot, RoutingError> {
         let cached = self.baseline.take().filter(|baseline| {
             baseline.project == self.project
                 && baseline.revision == self.base_revision
@@ -412,7 +452,11 @@ impl RoutingSource {
             self.baseline_reused = true;
             Ok(baseline.snapshot)
         } else {
-            Ok(capture_routing_state(&mut self.sandbox, board)?)
+            Ok(capture_routing_state_with_cancel(
+                &mut self.sandbox,
+                board,
+                cancelled,
+            )?)
         }
     }
 
@@ -474,6 +518,7 @@ pub struct RoutingService {
     owner: Uuid,
     candidates: BTreeMap<Uuid, RoutingCandidate>,
     baseline: Option<RoutingBaseline>,
+    repair_search: Option<Arc<repair_search::ActiveRepairSearch>>,
 }
 
 impl Default for RoutingService {
@@ -482,6 +527,7 @@ impl Default for RoutingService {
             owner: Uuid::new_random(),
             candidates: BTreeMap::new(),
             baseline: None,
+            repair_search: None,
         }
     }
 }
@@ -738,6 +784,7 @@ impl RoutingService {
             match candidate.info.details {
                 RoutingCandidateDetails::Builtin { .. }
                 | RoutingCandidateDetails::Regional { .. }
+                | RoutingCandidateDetails::Repair { .. }
                 | RoutingCandidateDetails::Staged { .. }
                 | RoutingCandidateDetails::LocalVia { .. } => {
                     librepcb_i18n::tr!("Autorouter", "Autoroute Board")
@@ -782,7 +829,11 @@ impl RoutingService {
     }
 
     fn check_capacity(&self, slots: usize) -> Result<(), RoutingError> {
-        if slots > MAX_CANDIDATES - self.candidates.len() {
+        let reserved = self
+            .repair_search
+            .as_ref()
+            .map_or(0, |search| search.reserved_slots());
+        if slots > MAX_CANDIDATES - self.candidates.len() - reserved {
             Err(RoutingError::Refused(format!(
                 "Candidate storage needs {slots} free slot(s); discard existing candidates and retry."
             )))

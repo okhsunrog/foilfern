@@ -33,8 +33,8 @@ because its tools exist or one board has zero air wires.
 | P0 | Identifiable builds, concise responses and measured operation costs | Existing API | Complete; [release replay](benchmarks/esp-pd-sink/review/performance/p0/REPORT.md) |
 | P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; 36-component creation and local rewiring verified |
 | P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | Planned; external review prototypes only |
-| P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | Planned; router callback only |
-| P4 | Diagnosed local repair with bounded placement alternatives | P2, P3 | Planned; explicit repair primitives already implemented |
+| P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | In progress; local repair search can be polled and cancelled |
+| P4 | Diagnosed local repair with bounded placement alternatives | P2, P3 | In progress; authorized copper repair trials implemented |
 | P5 | Visual candidate review in the desktop editor | Existing candidates; P2/P4 extend the displayed evidence | Planned |
 | P6 | Reproducible end-to-end acceptance across boards | P1–P5 for final acceptance | Corpus/evidence partly available |
 

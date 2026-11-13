@@ -1063,6 +1063,50 @@ impl LibrePcbMcp {
     }
 
     #[tool(
+        description = "Start a bounded local repair search. Try authorized trace/via groups and pairs, reroute neighbors then the target, and retain fully checked candidates. Use routing_repair_status to poll or cancel, and routing_preview to inspect the selected result."
+    )]
+    async fn routing_repair_start(
+        &self,
+        Parameters(args): Parameters<crate::tools::routing::repair_search::RepairSearchArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        use crate::tools::routing::repair_search;
+        self.run({
+            let state = self.state.clone();
+            let runtime = tokio::runtime::Handle::current();
+            move |session| {
+                let (id, output, job) = repair_search::start(session, args)?;
+                runtime.spawn(async move {
+                    let result = tokio::task::spawn_blocking(move || job.run()).await;
+                    let result = result.unwrap_or_else(|error| {
+                        Err(librepcb_editor::routing_service::RoutingError::Refused(
+                            format!("Repair worker failed: {error}"),
+                        ))
+                    });
+                    let _ = tokio::task::spawn_blocking(move || {
+                        state.call("routing_repair_start", |session| {
+                            repair_search::finish(session, id, result)
+                        });
+                    })
+                    .await;
+                });
+                Ok(output)
+            }
+        })
+        .await
+    }
+
+    #[tool(
+        description = "Poll a local repair search. Set cancel to stop at the next checkpoint and retain already checked candidates."
+    )]
+    async fn routing_repair_status(
+        &self,
+        Parameters(args): Parameters<crate::tools::routing::repair_search::RepairStatusArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| crate::tools::routing::repair_search::status(s, args))
+            .await
+    }
+
+    #[tool(
         description = "Prepare checked via, junction, or trace path edits and optionally try builtin routing of selected nets on the edited board. Use routing_preview then routing_apply. Positions and dimensions are in millimeters."
     )]
     async fn routing_edit_prepare(

@@ -175,7 +175,16 @@ pub fn capture_routing_state(
     editor: &mut ProjectEditor,
     board: BoardId,
 ) -> Result<RoutingSnapshot> {
-    let result = editor.update_derived_data(|p| p.run_drc(board, None, false, &|_| {}))?;
+    capture_routing_state_with_cancel(editor, board, &|| false)
+}
+
+pub(crate) fn capture_routing_state_with_cancel(
+    editor: &mut ProjectEditor,
+    board: BoardId,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<RoutingSnapshot> {
+    let result = editor
+        .update_derived_data(|p| p.run_drc_with_cancel(board, None, false, &|_| {}, cancelled))?;
     let p = editor.project();
     let approvals = p.board(board).map(|b| b.drc_approvals());
     let mut checks = RoutingCheckSummary {

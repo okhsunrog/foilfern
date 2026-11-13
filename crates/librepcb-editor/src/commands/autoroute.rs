@@ -318,6 +318,16 @@ impl Command for Autoroute {
     }
 
     fn execute(self, tx: &mut Transaction<'_>) -> Result<AutorouteResult> {
+        self.execute_with_cancel(tx, || false)
+    }
+}
+
+impl Autoroute {
+    pub(crate) fn execute_with_cancel(
+        self,
+        tx: &mut Transaction<'_>,
+        cancelled: impl Fn() -> bool,
+    ) -> Result<AutorouteResult> {
         let board = resolve::board(tx.project(), self.board)?.id();
         let nets = match &self.nets {
             Some(refs) => Some(
@@ -334,7 +344,11 @@ impl Command for Autoroute {
             started.elapsed().as_micros()
         );
         let started = std::time::Instant::now();
-        let result = librepcb_autoroute::route(&extracted.problem)?;
+        let result = librepcb_autoroute::route_with_control(
+            &extracted.problem,
+            |_| std::ops::ControlFlow::Continue(()),
+            cancelled,
+        )?;
         log::debug!("routing_stage search {} us", started.elapsed().as_micros());
         let (traces, vias) = apply_result(tx, board, &extracted, &result)?;
 

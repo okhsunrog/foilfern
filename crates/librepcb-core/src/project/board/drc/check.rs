@@ -192,6 +192,8 @@ type Stage2Check<'a> = fn(&Checker<'a>, &BoardDrcData, &CalculatedJobData) -> Me
 /// Runs the checks and reports progress.
 struct Checker<'a> {
     progress: DrcProgressCallback<'a>,
+    cancelled: &'a (dyn Fn() -> bool + Sync),
+    skipped: std::sync::atomic::AtomicBool,
     /// Total weight and weight of the finished jobs.
     counter: Mutex<(u32, u32)>,
 }
@@ -209,6 +211,11 @@ impl Checker<'_> {
     /// the progress.
     fn try_run(&self, weight: u32, job: impl FnOnce() -> Messages) -> DrcResult {
         let mut result = DrcResult::default();
+        if (self.cancelled)() {
+            self.skipped
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+            return result;
+        }
         match job() {
             Ok(messages) => result.messages = messages,
             Err(e) => {
@@ -239,9 +246,20 @@ fn append(result: &mut DrcResult, other: DrcResult) {
 
 /// Runs the design rule check on `data` (upstream `BoardDesignRuleCheck::run()`).
 pub fn run_drc(data: &BoardDrcData, progress: DrcProgressCallback<'_>) -> DrcResult {
+    run_drc_with_cancel(data, progress, &|| false)
+}
+
+/// Stop starting checks after cancellation, joining checks already in flight.
+fn run_drc_with_cancel(
+    data: &BoardDrcData,
+    progress: DrcProgressCallback<'_>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> DrcResult {
     let timer = Instant::now();
     let checker = Checker {
         progress,
+        cancelled,
+        skipped: std::sync::atomic::AtomicBool::new(false),
         counter: Mutex::new((0, 0)),
     };
     checker.percent(15);
@@ -373,6 +391,9 @@ pub fn run_drc(data: &BoardDrcData, progress: DrcProgressCallback<'_>) -> DrcRes
 
     // Finished!
     result.elapsed = timer.elapsed();
+    if checker.skipped.load(std::sync::atomic::Ordering::Relaxed) {
+        result.errors.push("DRC cancelled.".to_owned());
+    }
     log::debug!(
         "{} {} after {} ms.",
         if data.quick { "Quick check" } else { "DRC" },
@@ -411,6 +432,18 @@ impl Project {
         quick: bool,
         progress: DrcProgressCallback<'_>,
     ) -> Result<DrcResult> {
+        self.run_drc_with_cancel(board, settings, quick, progress, &|| false)
+    }
+
+    /// Run DRC with a cooperative stop check at each check boundary.
+    pub fn run_drc_with_cancel(
+        &mut self,
+        board: BoardId,
+        settings: Option<&BoardDesignRuleCheckSettings>,
+        quick: bool,
+        progress: DrcProgressCallback<'_>,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Result<DrcResult> {
         progress(DrcProgress::Percent(1));
 
         let job = self.drc_job(board, settings, quick)?;
@@ -421,7 +454,7 @@ impl Project {
         progress(DrcProgress::Percent(7));
         let data = prepared.apply(self)?;
         progress(DrcProgress::Percent(12));
-        Ok(run_drc(&data, progress))
+        Ok(run_drc_with_cancel(&data, progress, cancelled))
     }
 
     /// Detects DRC message approvals which became obsolete (port of

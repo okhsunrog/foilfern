@@ -184,6 +184,14 @@ pub(super) struct Copper {
 }
 
 impl Copper {
+    pub(super) fn net(&self) -> Option<NetSignalId> {
+        self.net
+    }
+
+    pub(super) fn fits(&self, region: RoutingRegion) -> bool {
+        self.geometry.fits(region)
+    }
+
     pub(super) fn select_via(
         &self,
         uuid: Uuid,
@@ -308,6 +316,15 @@ impl RegionalRoutingRequest {
         editor: &mut ProjectEditor,
         board_id: BoardId,
     ) -> std::result::Result<AutorouteResult, RoutingError> {
+        self.run_with_cancel(editor, board_id, || false)
+    }
+
+    pub(super) fn run_with_cancel(
+        &self,
+        editor: &mut ProjectEditor,
+        board_id: BoardId,
+        cancelled: impl Fn() -> bool,
+    ) -> std::result::Result<AutorouteResult, RoutingError> {
         let bounds = self
             .request
             .region
@@ -376,7 +393,9 @@ impl RegionalRoutingRequest {
         }
         let mut request = self.request.clone();
         request.board = Some(board_id);
-        let result = editor.execute(request)?;
+        let result = editor.execute_atomic(request.text(), |tx| {
+            request.execute_with_cancel(tx, cancelled)
+        })?;
         let project = editor.project();
         let board = crate::commands::resolve_board(project, Some(board_id))?;
         let after = copper(project, board)?;

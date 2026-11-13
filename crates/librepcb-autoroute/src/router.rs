@@ -910,6 +910,7 @@ impl<'p> Router<'p> {
         w: usize,
         soft: bool,
         frontier: &mut Vec<FrontierSample>,
+        cancelled: &dyn Fn() -> bool,
     ) -> (Result<(), UnroutedReason>, Vec<usize>) {
         if !soft {
             frontier.clear();
@@ -948,15 +949,16 @@ impl<'p> Router<'p> {
         };
         self.stats.searches += 1;
         let collect = self.problem.rules.search_evidence && !soft;
-        let found = match self.search.run(&query, collect) {
+        let found = match self.search.run(&query, collect, cancelled) {
             Ok(path) => path,
             Err(failure) => {
-                if collect {
+                if collect && failure != SearchFailure::Cancelled {
                     self.collect_frontier(wire.net, h, frontier);
                 }
                 let reason = match failure {
                     SearchFailure::Exhausted => UnroutedReason::NoPath,
                     SearchFailure::Budget => UnroutedReason::SearchBudget,
+                    SearchFailure::Cancelled => UnroutedReason::Cancelled,
                 };
                 return (Err(reason), Vec::new());
             }
@@ -1401,7 +1403,11 @@ impl<'p> Router<'p> {
             .collect()
     }
 
-    pub fn run(mut self, progress: &mut dyn FnMut(Progress) -> ControlFlow<()>) -> RoutingResult {
+    pub fn run(
+        mut self,
+        progress: &mut dyn FnMut(Progress) -> ControlFlow<()>,
+        stop: &dyn Fn() -> bool,
+    ) -> RoutingResult {
         let problem = self.problem;
         let policy = match problem.rules.order {
             RoutingOrder::Auto if problem.rules.pad_escape => RoutingOrder::ConstrainedFirst,
@@ -1453,14 +1459,14 @@ impl<'p> Router<'p> {
         let mut failed: Vec<usize> = Vec::new();
         let mut cancelled = false;
         while let Some(w) = queue.pop_front() {
-            if self.report(progress).is_break() {
+            if stop() || self.report(progress).is_break() {
                 cancelled = true;
                 break;
             }
             if self.wire_route[w].is_some() || self.is_connected(w) {
                 continue;
             }
-            match self.try_route(w, false, &mut failures[w].frontier).0 {
+            match self.try_route(w, false, &mut failures[w].frontier, stop).0 {
                 Ok(()) => {
                     failures[w] = AttemptFailures::default();
                     continue;
@@ -1470,16 +1476,24 @@ impl<'p> Router<'p> {
                     failed.push(w);
                     continue;
                 }
+                Err(UnroutedReason::Cancelled) => {
+                    cancelled = true;
+                    break;
+                }
                 Err(reason) => failures[w].strict = Some(reason),
             }
             if soft_tries[w] < max {
                 soft_tries[w] += 1;
-                let (outcome, ripped) = self.try_route(w, true, &mut failures[w].frontier);
+                let (outcome, ripped) = self.try_route(w, true, &mut failures[w].frontier, stop);
                 queue.extend(ripped);
                 match outcome {
                     Ok(()) => {
                         failures[w] = AttemptFailures::default();
                         continue;
+                    }
+                    Err(UnroutedReason::Cancelled) => {
+                        cancelled = true;
+                        break;
                     }
                     Err(reason) => failures[w].soft = Some(reason),
                 }
@@ -1489,13 +1503,17 @@ impl<'p> Router<'p> {
         // Retry failed wires once, the situation may have changed.
         if !cancelled {
             for &w in &failed {
-                if self.report(progress).is_break() {
+                if stop() || self.report(progress).is_break() {
                     cancelled = true;
                     break;
                 }
                 if self.wire_route[w].is_none() && !self.is_connected(w) {
-                    match self.try_route(w, false, &mut failures[w].frontier).0 {
+                    match self.try_route(w, false, &mut failures[w].frontier, stop).0 {
                         Ok(()) => failures[w] = AttemptFailures::default(),
+                        Err(UnroutedReason::Cancelled) => {
+                            cancelled = true;
+                            break;
+                        }
                         Err(reason) => failures[w].strict = Some(reason),
                     }
                 }

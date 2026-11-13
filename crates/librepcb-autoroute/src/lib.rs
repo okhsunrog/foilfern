@@ -96,9 +96,18 @@ pub fn route(problem: &RoutingProblem) -> Result<RoutingResult> {
 /// [`UnroutedReason::Cancelled`].
 pub fn route_with_progress(
     problem: &RoutingProblem,
-    mut progress: impl FnMut(Progress) -> ControlFlow<()>,
+    progress: impl FnMut(Progress) -> ControlFlow<()>,
 ) -> Result<RoutingResult> {
-    Ok(router::Router::new(problem)?.run(&mut progress))
+    route_with_control(problem, progress, || false)
+}
+
+/// Like [route_with_progress], also polling for cancellation during A*.
+pub fn route_with_control(
+    problem: &RoutingProblem,
+    mut progress: impl FnMut(Progress) -> ControlFlow<()>,
+    cancelled: impl Fn() -> bool,
+) -> Result<RoutingResult> {
+    Ok(router::Router::new(problem)?.run(&mut progress, &cancelled))
 }
 
 /// An indexed input object blocking a local clearance probe.

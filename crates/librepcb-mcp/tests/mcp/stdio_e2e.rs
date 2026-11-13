@@ -41,13 +41,100 @@ async fn call_ok(
 }
 
 #[tokio::test]
+async fn stdio_repair_search_deduplicates_groups_and_publishes_a_checked_candidate() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    call_ok(&client, "project_create", json!({"name":"Repair search"})).await;
+    for (designator, x) in [("R1", 5), ("R2", 15)] {
+        call_ok(
+            &client,
+            "component_add",
+            json!({"part":"R-0805","designator":designator}),
+        )
+        .await;
+        call_ok(
+            &client,
+            "device_place",
+            json!({"component":designator,"position":{"x":x,"y":10},"rotation":90}),
+        )
+        .await;
+    }
+    for (net, pins) in [("A", ["R1.1", "R2.1"]), ("B", ["R1.2", "R2.2"])] {
+        call_ok(&client, "connect", json!({"net":net,"pins":pins})).await;
+    }
+    call_ok(
+        &client,
+        "board_set_outline",
+        json!({"width":30,"height":20}),
+    )
+    .await;
+    let trace = call_ok(
+        &client,
+        "trace_add",
+        json!({"from":"R1.2","to":"R2.2","layer":"top","width":0.2}),
+    )
+    .await;
+    let id = &trace["traces"][0]["uuid"];
+    let before = call_ok(&client, "board_get", json!({})).await;
+    let history = call_ok(&client, "history", json!({})).await;
+    let request = json!({
+        "target":"A", "groups":[[id],[id]],
+        "region":{"min":{"x":3,"y":7},"max":{"x":17,"y":13}},
+        "rip_up_region":{"min":{"x":4,"y":10.5},"max":{"x":16,"y":12}},
+        "route":{"layers":["top"]},"neighbor_route":{"layers":["top"]},
+    });
+    let started = call_ok(&client, "routing_repair_start", request.clone()).await;
+    assert_eq!(started["planned_trials"], 1);
+    let search = started["search"].clone();
+    let status = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        loop {
+            let status = call_ok(&client, "routing_repair_status", json!({"search":search})).await;
+            if status["phase"] == "finished" {
+                break status;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(status["stop_reason"], "completed", "{status:#}");
+    assert_eq!(status["completed_trials"], 1);
+    assert_eq!(status["trials"][0]["validation"]["acceptable"], true);
+    assert_eq!(status["candidates"][0]["groups"], json!([0]));
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
+    let candidate = &status["candidates"][0]["candidate"];
+    assert!(
+        call_ok(&client, "routing_preview", json!({"candidate":candidate})).await["mutation_count"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+    assert_eq!(
+        call_ok(&client, "routing_apply", json!({"candidate":candidate})).await["validation"]["after"]
+            ["unrouted"],
+        0
+    );
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
 async fn stdio_server_info_reports_embedded_build_identity() {
     let tmp = tempfile::tempdir().unwrap();
     let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 16);
+    assert_eq!(info["api_capability_version"], 17);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(

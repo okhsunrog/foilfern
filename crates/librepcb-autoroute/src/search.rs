@@ -105,6 +105,7 @@ pub(crate) struct Found {
 pub(crate) enum SearchFailure {
     Exhausted,
     Budget,
+    Cancelled,
 }
 
 /// A rejected grid step, indexed in the same coordinates as the query maps.
@@ -153,8 +154,13 @@ pub(crate) struct Search {
 }
 
 impl Search {
-    pub fn run(&mut self, q: &Query<'_>, collect_evidence: bool) -> Result<Found, SearchFailure> {
-        self.run_with_limit(q, MAX_EXPANSIONS, collect_evidence)
+    pub fn run(
+        &mut self,
+        q: &Query<'_>,
+        collect_evidence: bool,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<Found, SearchFailure> {
+        self.run_with_limit(q, MAX_EXPANSIONS, collect_evidence, cancelled)
     }
 
     pub fn frontier(&self) -> impl Iterator<Item = BlockedStep> + '_ {
@@ -170,7 +176,11 @@ impl Search {
         q: &Query<'_>,
         limit: usize,
         collect_evidence: bool,
+        cancelled: &dyn Fn() -> bool,
     ) -> Result<Found, SearchFailure> {
+        if cancelled() {
+            return Err(SearchFailure::Cancelled);
+        }
         for samples in &mut self.frontier.samples {
             samples.clear();
         }
@@ -261,6 +271,9 @@ impl Search {
                 self.node_g[node] = g;
             }
             expansions += 1;
+            if expansions % 1024 == 0 && cancelled() {
+                return Err(SearchFailure::Cancelled);
+            }
             if expansions > limit {
                 break;
             }
@@ -433,13 +446,24 @@ mod tests {
         };
         let mut search = Search::default();
         assert_eq!(
-            search.run_with_limit(&query, 1, false).unwrap_err(),
+            search
+                .run_with_limit(&query, 1, false, &|| false)
+                .unwrap_err(),
             SearchFailure::Budget
         );
-        assert_eq!(search.run(&query, false).unwrap().nodes, vec![0, 1, 2]);
+        assert_eq!(
+            search.run(&query, false, &|| false).unwrap().nodes,
+            vec![0, 1, 2]
+        );
+        assert_eq!(
+            search.run(&query, false, &|| true).unwrap_err(),
+            SearchFailure::Cancelled
+        );
         query.trace_fixed = &[FREE, BLOCKED, FREE];
         assert_eq!(
-            search.run_with_limit(&query, 1, true).unwrap_err(),
+            search
+                .run_with_limit(&query, 1, true, &|| false)
+                .unwrap_err(),
             SearchFailure::Exhausted
         );
         assert_eq!(
@@ -483,20 +507,20 @@ mod tests {
             targets: &HashMap::from([(cell(15, 3) as u32, 0)]),
         };
         let mut search = Search::default();
-        let path = search.run(&query, false).unwrap();
+        let path = search.run(&query, false, &|| false).unwrap();
         assert!(path.nodes.contains(&(hot as u32)));
         let mut history = Congestion::new(grid, 1);
         for _ in 0..3 {
             history.record(vec![history.tile(0, hot)]);
         }
         query.congestion = Some(&history);
-        let path = search.run(&query, false).unwrap();
+        let path = search.run(&query, false, &|| false).unwrap();
         assert!(path.nodes.contains(&(alternative as u32)));
         assert!(!path.nodes.contains(&(hot as u32)));
         query.soft = false;
         query.congestion = None;
         assert_eq!(
-            search.run(&query, false).unwrap_err(),
+            search.run(&query, false, &|| false).unwrap_err(),
             SearchFailure::Exhausted
         );
     }

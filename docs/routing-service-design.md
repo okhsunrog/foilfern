@@ -15,7 +15,7 @@ retain the evidence for individual changes.
 | Local repair | Trace replacement, junction/via moves, regional rip-up, local via search, explicit unlocked-device moves/rotations with copper | Diagnosed bounded placement search; connected side changes are unsupported |
 | Router | Pad escape, critical-net ordering, neckdown, congestion history | Joint fanout planning and benchmark-driven refinements (P4) |
 | Planes and measurements | Split diagnostics, stitching, geometric reference coverage, trace-only path length | Electrical return-path analysis and broader measurement semantics |
-| Runtime | Detached workers, guarded baseline reuse, bounded retained candidate store | Worker admission, job progress and cancellation (P3) |
+| Runtime | Detached workers, guarded baseline reuse, bounded retained candidate store, pollable local repair jobs | Shared worker admission, job progress and cancellation for other routing operations (P3) |
 
 ## Purpose and scope
 
@@ -240,14 +240,13 @@ revision change; its already-completed detached checks are reused. A post-commit
 to claim the commit never occurred or that the candidate remains reusable.
 
 Preview in R1 is structured mutation/geometry data, not a PNG or GUI overlay.
-Preparation is an asynchronous MCP call backed by `spawn_blocking`, not a new
-background-job protocol. There are no job IDs, progress polling/cancellation
-tools or a new GUI review panel. `routing_compare` does rank and recommend
-retained candidates from two or three builtin order trials. Long-worker
-cancellation and visual review remain planned. The eight-candidate cap bounds
-retained patches only; it does not currently limit concurrent preparation workers
-or total snapshot memory. Admission control and cancellation are operational
-follow-up work.
+Single-candidate preparation is an asynchronous MCP call backed by
+`spawn_blocking`. `routing_compare` ranks retained candidates from two or
+three builtin order trials. Local repair search has a pollable job ID,
+cooperative cancellation and an admission limit of one per open project.
+It reserves its candidate slots before starting. Other workers share the
+retained-candidate cap and continue to use their existing lifecycle.
+Visual review remains planned.
 
 Staged preparation uses the same source binding and final apply gate.
 Each accepted batch supplies fixed copper for the next search. Rejected

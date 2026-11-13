@@ -1,7 +1,6 @@
 //! Compare builtin search settings against one immutable board baseline.
 
 use std::collections::BTreeSet;
-use std::sync::Arc;
 
 use librepcb_core::project::board::TracePath;
 use librepcb_core::project::{BoardId, ComponentInstanceId, NetSignalId, Project};
@@ -236,18 +235,7 @@ impl RoutingComparisonJob {
         let before = source.capture_before(board)?;
         let mut candidates = Vec::with_capacity(self.trials.len());
         for settings in self.trials {
-            let mut trial = RoutingSource {
-                owner: source.owner,
-                project: source.project,
-                base_revision: source.base_revision,
-                source_context: source.source_context.clone(),
-                baseline: None,
-                baseline_reused: source.baseline_reused,
-                sandbox: ProjectEditor::with_source(
-                    source.sandbox.project().snapshot().map_err(Error::from)?,
-                    Arc::clone(source.sandbox.source()),
-                ),
-            };
+            let mut trial = source.fork()?;
             trial
                 .sandbox
                 .update_derived_data(|project| project.rebuild_planes(board, None))?
@@ -305,7 +293,10 @@ impl RoutingComparisonJob {
     }
 }
 
-fn copper_cost(project: &Project, board: BoardId) -> Result<(usize, Option<f64>), Error> {
+pub(super) fn copper_cost(
+    project: &Project,
+    board: BoardId,
+) -> Result<(usize, Option<f64>), Error> {
     let board = resolve_board(project, Some(board))?;
     let mut length_nm = Some(0_i128);
     let mut vias = 0;
