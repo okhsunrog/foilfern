@@ -75,7 +75,8 @@ The editor owns one `RoutingService` per open project; MCP is its transport.
   Optional repair diagnosis groups blockers into local regional requests
   with exact copper UUIDs and retained anchors for separate preparation.
   Local repair search tries authorized groups and pairs on a detached
-  board, with polling, cooperative cancellation and ranked checked patches.
+  board, with sequential and optional joint passes, polling, cooperative
+  cancellation and ranked checked patches.
 - Connected via/junction edits, path replacement, explicit copper batches and
   moves/rotations of unlocked devices with their copper in one candidate.
   A rejected candidate can be extended with a checked repair via `base_candidate`.

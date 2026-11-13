@@ -35,9 +35,11 @@ pub struct RepairSearchArgs {
     /// Neighbor routing options. The nets come from the selected copper.
     #[serde(default)]
     pub neighbor_route: RoutingEditRouteArgs,
+    /// Also try routing the target and neighbors together, with these builtin settings.
+    pub joint_route: Option<RoutingEditRouteArgs>,
     /// Limit on distinct removals per trial, 1–16. Default 12.
     pub max_objects: Option<usize>,
-    /// Limit on distinct trials, 1–36. Default 24.
+    /// Total trial limit across both strategies, 1–72. Default 24.
     pub max_trials: Option<usize>,
     /// Maximum number of checked candidates to retain, 1–3. Default 2.
     pub max_candidates: Option<usize>,
@@ -64,7 +66,13 @@ pub fn start(
     write::check_revision(project, args.expected_revision)?;
     let board = board_edit::board_id(project, args.board.as_deref())?;
     let (target, _) = crate::resolve::net(project, &args.target)?;
-    if !args.route.nets.is_empty() || !args.neighbor_route.nets.is_empty() {
+    if !args.route.nets.is_empty()
+        || !args.neighbor_route.nets.is_empty()
+        || args
+            .joint_route
+            .as_ref()
+            .is_some_and(|route| !route.nets.is_empty())
+    {
         return Err(ToolError::invalid(
             "Use target and groups to select the nets for repair.",
         ));
@@ -72,6 +80,10 @@ pub fn start(
     let mut route = args.route.command(project, board)?;
     route.region = Some(args.region.bounds()?);
     let mut neighbor_route = args.neighbor_route.command(project, board)?;
+    let joint_route = args
+        .joint_route
+        .map(|route| route.command(project, board))
+        .transpose()?;
     neighbor_route.region = args
         .neighbor_region
         .as_ref()
@@ -105,6 +117,7 @@ pub fn start(
                 target,
                 route,
                 neighbor_route,
+                joint_route,
                 rip_up_region: args.rip_up_region.bounds()?,
                 groups,
                 max_objects: args.max_objects.unwrap_or(12),

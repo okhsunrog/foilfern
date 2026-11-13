@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `17`). Its `build` object contains
+`api_capability_version` (currently `18`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -746,11 +746,19 @@ and `route`. The selected group determines neighbor nets, and `target`
 determines the target net. Include `expected_revision` to bind the search
 to the reviewed revision.
 
+`joint_route` optionally adds a joint pass with its own builtin settings
+for the same target and neighbor nets. The sequential pass routes
+neighbors first and rebuilds connectivity before routing the target.
+The joint pass searches within `region` and also checks that all new
+neighbor copper fits `neighbor_region`. Both use the exact same removal
+set and `rip_up_region`. Each attempt starts from the same detached
+snapshot. When enabled, the joint attempt follows its sequential attempt
+for each set, and the status and candidate identify their `strategy`.
+
 `max_objects` caps each removal set (1–16, default 12), `max_trials`
-limits distinct trials (1–36, default 24), and `max_candidates` reserves
-up to three candidate slots (default 2). Each trial starts from the same
-detached snapshot, reroutes neighbors first and rebuilds connectivity before
-routing the target. Only complete checks, no new errors, no net connectivity
+counts attempts across both strategies (1–72, default 24), and
+`max_candidates` reserves up to three candidate slots (default 2).
+Only complete checks, no new errors, no net connectivity
 regression, and fewer opens on the target produce a candidate. Candidates
 are ranked by target opens, new warnings, affected objects, board via count
 and board trace length. Use measured preview for pad-pair path costs.

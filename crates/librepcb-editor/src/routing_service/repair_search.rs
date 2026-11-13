@@ -1,4 +1,4 @@
-//! Bounded trials of authorized neighbor repairs followed by target routing.
+//! Bounded trials of authorized local repairs using the builtin router.
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -25,6 +25,8 @@ pub struct RepairSearchRequest {
     pub target: NetSignalId,
     pub route: Autoroute,
     pub neighbor_route: Autoroute,
+    /// Optional settings for routing the target and neighbors in a single pass.
+    pub joint_route: Option<Autoroute>,
     pub rip_up_region: RoutingBounds,
     pub groups: Vec<BTreeSet<Uuid>>,
     pub max_objects: usize,
@@ -37,9 +39,22 @@ pub struct RepairSearchRequest {
 pub struct RepairCandidateDetails {
     pub target: NetSignalId,
     pub groups: Vec<usize>,
-    pub neighbor: RegionalRoutingRequest,
+    pub strategy: RepairStrategy,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub neighbor: Option<RegionalRoutingRequest>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub joint: Option<RegionalRoutingRequest>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub neighbor_region: Option<RoutingBounds>,
     pub route: Autoroute,
     pub routing: AutorouteResult,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RepairStrategy {
+    Sequential,
+    Joint,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -49,6 +64,7 @@ pub enum RepairSearchPhase {
     Baseline,
     Neighbors,
     Target,
+    Joint,
     Validation,
     Finished,
 }
@@ -77,6 +93,7 @@ pub struct RepairSearchStatus {
     pub completed_trials: usize,
     pub planned_trials: usize,
     pub current_groups: Vec<usize>,
+    pub current_strategy: Option<RepairStrategy>,
     pub cancel_requested: bool,
     stop_reason: Option<StopReason>,
     pub trials: Vec<RepairTrial>,
@@ -87,6 +104,7 @@ pub struct RepairSearchStatus {
 #[derive(Debug, Clone, Serialize)]
 pub struct RepairTrial {
     pub groups: Vec<usize>,
+    pub strategy: RepairStrategy,
     pub rip_up: BTreeSet<Uuid>,
     pub target_unrouted: Option<usize>,
     pub validation: Option<RoutingValidation>,
@@ -102,7 +120,10 @@ pub struct RepairFailure {
     pub reason: String,
 }
 
-fn summarize_failures(result: &AutorouteResult) -> Vec<RepairFailure> {
+fn summarize_failures(
+    result: &AutorouteResult,
+    include: impl Fn(&UnroutedAirWire) -> bool,
+) -> Vec<RepairFailure> {
     let summarize = |failure: &UnroutedAirWire| RepairFailure {
         net: failure.net,
         name: failure.net_name.clone(),
@@ -112,6 +133,7 @@ fn summarize_failures(result: &AutorouteResult) -> Vec<RepairFailure> {
         .failed_requests
         .iter()
         .chain(&result.skipped_outside_region)
+        .filter(|failure| include(failure))
         .take(8)
         .map(summarize)
         .collect()
@@ -121,6 +143,7 @@ fn summarize_failures(result: &AutorouteResult) -> Vec<RepairFailure> {
 pub struct RepairChoice {
     pub candidate: Uuid,
     pub groups: Vec<usize>,
+    pub strategy: RepairStrategy,
     pub target_unrouted: usize,
     pub affected_objects: usize,
     pub new_warnings: usize,
@@ -143,6 +166,7 @@ impl RepairChoice {
 struct Progress {
     phase: RepairSearchPhase,
     groups: Vec<usize>,
+    strategy: Option<RepairStrategy>,
     trials: Vec<RepairTrial>,
     stop: Option<StopReason>,
     candidates: Vec<RepairChoice>,
@@ -192,6 +216,7 @@ impl ActiveRepairSearch {
             completed_trials: progress.trials.len(),
             planned_trials: self.planned,
             current_groups: progress.groups.clone(),
+            current_strategy: progress.strategy,
             cancel_requested: self.cancel.load(Ordering::Relaxed),
             stop_reason: progress.stop,
             trials: progress.trials.clone(),
@@ -252,6 +277,7 @@ impl RoutingService {
         let project = editor.project();
         let board = resolve_board(project, request.route.board)?;
         let trials = request.plan(project, board)?;
+        let strategy_count = 1 + usize::from(request.joint_route.is_some());
         let source = self.capture_source(editor, request.max_candidates)?;
         let state = Arc::new(ActiveRepairSearch {
             id: Uuid::new_random(),
@@ -263,12 +289,13 @@ impl RoutingService {
             context: source.source_context.clone(),
             started: Instant::now(),
             budget: request.time_budget,
-            planned: trials.len().min(request.max_trials),
+            planned: (trials.len() * strategy_count).min(request.max_trials),
             reserved: request.max_candidates,
             cancel: AtomicBool::new(false),
             progress: Mutex::new(Progress {
                 phase: RepairSearchPhase::Queued,
                 groups: Vec::new(),
+                strategy: None,
                 trials: Vec::new(),
                 stop: None,
                 candidates: Vec::new(),
@@ -342,6 +369,7 @@ impl RoutingService {
         progress.phase = RepairSearchPhase::Finished;
         progress.elapsed = Some(state.started.elapsed());
         progress.groups.clear();
+        progress.strategy = None;
         match result {
             Ok(result) => {
                 progress.stop = Some(if state.cancel.load(Ordering::Relaxed) {
@@ -377,7 +405,7 @@ impl RepairSearchRequest {
     ) -> Result<Vec<Trial>, RoutingError> {
         if !(1..=8).contains(&self.groups.len())
             || !(1..=16).contains(&self.max_objects)
-            || !(1..=36).contains(&self.max_trials)
+            || !(1..=72).contains(&self.max_trials)
             || !(1..=3).contains(&self.max_candidates)
             || self.time_budget.is_zero()
             || self.time_budget > Duration::from_secs(300)
@@ -457,6 +485,106 @@ impl RepairSearchRequest {
 }
 
 impl RepairSearchJob {
+    fn run_trial(
+        &self,
+        sandbox: &mut ProjectEditor,
+        trial: &Trial,
+        report: &mut RepairTrial,
+    ) -> Result<Option<RepairCandidateDetails>, RoutingError> {
+        let board = self.state.board;
+        let target = self.state.target;
+        let cancelled = || self.state.stop().is_some();
+        let neighbor_bounds = self
+            .request
+            .neighbor_route
+            .region
+            .unwrap_or(self.request.rip_up_region);
+        let rip_up = trial.rip_up.iter().copied().collect();
+        let (neighbor, joint, route, routing) = match report.strategy {
+            RepairStrategy::Sequential => {
+                let neighbor = RegionalRoutingRequest {
+                    request: Autoroute {
+                        board: Some(board),
+                        nets: Some(trial.nets.iter().copied().map(NetRef::Id).collect()),
+                        region: Some(neighbor_bounds),
+                        ..self.request.neighbor_route.clone()
+                    },
+                    rip_up,
+                    rip_up_region: Some(self.request.rip_up_region),
+                    improve_net: None,
+                };
+                let result = neighbor.run_with_cancel(sandbox, board, cancelled)?;
+                report.neighbor_failures = summarize_failures(&result, |_| true);
+                if cancelled() {
+                    return Ok(None);
+                }
+                rebuild_connectivity(sandbox, board)?;
+                if cancelled() {
+                    return Ok(None);
+                }
+                self.state.phase(RepairSearchPhase::Target);
+                let route = Autoroute {
+                    board: Some(board),
+                    nets: Some(vec![NetRef::Id(target)]),
+                    ..self.request.route.clone()
+                };
+                let request = RegionalRoutingRequest {
+                    request: route.clone(),
+                    rip_up: Vec::new(),
+                    rip_up_region: None,
+                    improve_net: Some(target),
+                };
+                let routing = request.run_with_cancel(sandbox, board, cancelled)?;
+                (Some(neighbor), None, route, routing)
+            }
+            RepairStrategy::Joint => {
+                let Some(settings) = &self.request.joint_route else {
+                    return Err(Error::InvalidArgument(
+                        "Joint routing settings are required.".into(),
+                    )
+                    .into());
+                };
+                let route = Autoroute {
+                    board: Some(board),
+                    nets: Some(
+                        std::iter::once(target)
+                            .chain(trial.nets.iter().copied())
+                            .map(NetRef::Id)
+                            .collect(),
+                    ),
+                    region: self.request.route.region,
+                    ..settings.clone()
+                };
+                let request = RegionalRoutingRequest {
+                    request: route.clone(),
+                    rip_up,
+                    rip_up_region: Some(self.request.rip_up_region),
+                    improve_net: Some(target),
+                };
+                let routing = request.run_with_neighbor_bounds(
+                    sandbox,
+                    board,
+                    Some((target, neighbor_bounds.region()?)),
+                    cancelled,
+                )?;
+                report.neighbor_failures =
+                    summarize_failures(&routing, |failure| failure.net != target);
+                (None, Some(request), route, routing)
+            }
+        };
+        report.target_failures = summarize_failures(&routing, |failure| failure.net == target);
+        Ok(Some(RepairCandidateDetails {
+            target,
+            groups: trial.groups.clone(),
+            strategy: report.strategy,
+            neighbor,
+            joint,
+            neighbor_region: (report.strategy == RepairStrategy::Joint).then_some(neighbor_bounds),
+            route,
+            routing,
+        }))
+    }
+
     pub fn run(mut self) -> Result<RepairSearchResults, RoutingError> {
         let board = self.state.board;
         let target = self.state.target;
@@ -490,7 +618,13 @@ impl RepairSearchJob {
                 "The repair target has no open connections.".into(),
             ));
         }
-        for (i, trial) in self.trials.iter().enumerate() {
+        let strategies = [RepairStrategy::Sequential, RepairStrategy::Joint];
+        let strategies = &strategies[..1 + usize::from(self.request.joint_route.is_some())];
+        let trials = self
+            .trials
+            .iter()
+            .flat_map(|trial| strategies.iter().map(move |&strategy| (trial, strategy)));
+        for (i, (trial, strategy)) in trials.enumerate() {
             if let Some(reason) = self.state.stop() {
                 stop = reason;
                 break;
@@ -499,27 +633,19 @@ impl RepairSearchJob {
                 stop = StopReason::TrialLimit;
                 break;
             }
-            self.state.progress.lock().groups.clone_from(&trial.groups);
-            self.state.phase(RepairSearchPhase::Neighbors);
+            {
+                let mut progress = self.state.progress.lock();
+                progress.groups.clone_from(&trial.groups);
+                progress.strategy = Some(strategy);
+                progress.phase = match strategy {
+                    RepairStrategy::Sequential => RepairSearchPhase::Neighbors,
+                    RepairStrategy::Joint => RepairSearchPhase::Joint,
+                };
+            }
             let mut source = self.source.fork()?;
-            let neighbors = RegionalRoutingRequest {
-                request: Autoroute {
-                    board: Some(board),
-                    nets: Some(trial.nets.iter().copied().map(NetRef::Id).collect()),
-                    region: Some(
-                        self.request
-                            .neighbor_route
-                            .region
-                            .unwrap_or(self.request.rip_up_region),
-                    ),
-                    ..self.request.neighbor_route.clone()
-                },
-                rip_up: trial.rip_up.iter().copied().collect(),
-                rip_up_region: Some(self.request.rip_up_region),
-                improve_net: None,
-            };
             let mut report = RepairTrial {
                 groups: trial.groups.clone(),
+                strategy,
                 rip_up: trial.rip_up.clone(),
                 target_unrouted: None,
                 validation: None,
@@ -527,53 +653,26 @@ impl RepairSearchJob {
                 neighbor_failures: Vec::new(),
                 target_failures: Vec::new(),
             };
-            let neighbor_result = neighbors
-                .run_with_cancel(&mut source.sandbox, board, || self.state.stop().is_some());
+            let routed = self.run_trial(&mut source.sandbox, trial, &mut report);
             if let Some(reason) = self.state.stop() {
                 stop = reason;
                 break;
             }
-            match neighbor_result {
-                Ok(result) => report.neighbor_failures = summarize_failures(&result),
-                Err(error) => {
-                    report.failure = Some(error.to_string());
-                    self.state.progress.lock().trials.push(report);
-                    continue;
+            let details = match routed {
+                Ok(Some(details)) => RoutingCandidateDetails::Repair {
+                    repair: Box::new(details),
+                },
+                Ok(None) => {
+                    // run_trial returns None only after observing cancellation.
+                    stop = self.state.stop().unwrap_or(StopReason::Cancelled);
+                    break;
                 }
-            }
-            rebuild_connectivity(&mut source.sandbox, board)?;
-            if let Some(reason) = self.state.stop() {
-                stop = reason;
-                break;
-            }
-            self.state.phase(RepairSearchPhase::Target);
-            let route = Autoroute {
-                board: Some(board),
-                nets: Some(vec![NetRef::Id(target)]),
-                ..self.request.route.clone()
-            };
-            // The same regional path also verifies the bounds of generated target copper.
-            let target_request = RegionalRoutingRequest {
-                request: route.clone(),
-                rip_up: Vec::new(),
-                rip_up_region: None,
-                improve_net: Some(target),
-            };
-            let routed = target_request
-                .run_with_cancel(&mut source.sandbox, board, || self.state.stop().is_some());
-            if let Some(reason) = self.state.stop() {
-                stop = reason;
-                break;
-            }
-            let routing = match routed {
-                Ok(routing) => routing,
                 Err(error) => {
                     report.failure = Some(error.to_string());
                     self.state.progress.lock().trials.push(report);
                     continue;
                 }
             };
-            report.target_failures = summarize_failures(&routing);
             self.state.phase(RepairSearchPhase::Validation);
             let after = capture_routing_state_with_cancel(&mut source.sandbox, board, &|| {
                 self.state.stop().is_some()
@@ -586,15 +685,6 @@ impl RepairSearchJob {
             }
             let target_unrouted = after.unrouted_for(target);
             report.target_unrouted = Some(target_unrouted);
-            let details = RoutingCandidateDetails::Repair {
-                repair: Box::new(RepairCandidateDetails {
-                    target,
-                    groups: trial.groups.clone(),
-                    neighbor: neighbors,
-                    route,
-                    routing,
-                }),
-            };
             let validation = details.validate(&before, &after);
             if validation.acceptable {
                 let (vias, trace_length_mm) = copper_cost(source.sandbox.project(), board)?;
@@ -602,6 +692,7 @@ impl RepairSearchJob {
                 let choice = RepairChoice {
                     candidate: candidate.info().candidate,
                     groups: trial.groups.clone(),
+                    strategy,
                     target_unrouted,
                     affected_objects: trial.rip_up.len(),
                     new_warnings: validation.new_warning_count,

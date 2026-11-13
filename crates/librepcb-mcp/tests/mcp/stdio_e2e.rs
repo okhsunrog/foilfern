@@ -89,9 +89,10 @@ async fn stdio_repair_search_deduplicates_groups_and_publishes_a_checked_candida
         "region":{"min":{"x":3,"y":7},"max":{"x":17,"y":13}},
         "rip_up_region":{"min":{"x":4,"y":10.5},"max":{"x":16,"y":12}},
         "route":{"layers":["top"]},"neighbor_route":{"layers":["top"]},
+        "joint_route":{"layers":["top"]},
     });
     let started = call_ok(&client, "routing_repair_start", request.clone()).await;
-    assert_eq!(started["planned_trials"], 1);
+    assert_eq!(started["planned_trials"], 2);
     let search = started["search"].clone();
     let status = tokio::time::timeout(std::time::Duration::from_secs(10), async {
         loop {
@@ -105,18 +106,29 @@ async fn stdio_repair_search_deduplicates_groups_and_publishes_a_checked_candida
     .await
     .unwrap();
     assert_eq!(status["stop_reason"], "completed", "{status:#}");
-    assert_eq!(status["completed_trials"], 1);
+    assert_eq!(status["completed_trials"], 2);
     assert_eq!(status["trials"][0]["validation"]["acceptable"], true);
+    assert_eq!(status["trials"][0]["strategy"], "sequential");
+    assert_eq!(status["trials"][1]["strategy"], "joint");
+    assert_eq!(
+        status["trials"][1]["validation"]["acceptable"], true,
+        "{status:#}"
+    );
+    assert_eq!(status["trials"][0]["rip_up"], status["trials"][1]["rip_up"]);
     assert_eq!(status["candidates"][0]["groups"], json!([0]));
     assert_eq!(call_ok(&client, "history", json!({})).await, history);
     assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
-    let candidate = &status["candidates"][0]["candidate"];
-    assert!(
-        call_ok(&client, "routing_preview", json!({"candidate":candidate})).await["mutation_count"]
-            .as_u64()
-            .unwrap()
-            > 0
-    );
+    let joint = status["candidates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|choice| choice["strategy"] == "joint")
+        .unwrap();
+    let candidate = &joint["candidate"];
+    let preview = call_ok(&client, "routing_preview", json!({"candidate":candidate})).await;
+    assert!(preview["mutation_count"].as_u64().unwrap() > 0);
+    assert_eq!(preview["repair"]["strategy"], "joint");
+    assert_eq!(preview["repair"]["joint"]["rip_up"], json!([id]));
     assert_eq!(
         call_ok(&client, "routing_apply", json!({"candidate":candidate})).await["validation"]["after"]
             ["unrouted"],
@@ -134,7 +146,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 17);
+    assert_eq!(info["api_capability_version"], 18);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(

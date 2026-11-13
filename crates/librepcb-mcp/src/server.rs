@@ -1063,7 +1063,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Start a bounded local repair search. Try authorized trace/via groups and pairs, reroute neighbors then the target, and retain fully checked candidates. Use routing_repair_status to poll or cancel, and routing_preview to inspect the selected result."
+        description = "Start a bounded local repair search over authorized trace/via groups and pairs. Route neighbors then the target, and optionally try both together with joint_route. Use routing_repair_status to poll or cancel and routing_preview to inspect checked candidates."
     )]
     async fn routing_repair_start(
         &self,

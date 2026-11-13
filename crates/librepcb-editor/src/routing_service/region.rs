@@ -325,6 +325,17 @@ impl RegionalRoutingRequest {
         board_id: BoardId,
         cancelled: impl Fn() -> bool,
     ) -> std::result::Result<AutorouteResult, RoutingError> {
+        self.run_with_neighbor_bounds(editor, board_id, None, cancelled)
+    }
+
+    /// Verify the separate bound on newly routed neighbor copper in a joint pass.
+    pub(super) fn run_with_neighbor_bounds(
+        &self,
+        editor: &mut ProjectEditor,
+        board_id: BoardId,
+        neighbor_bounds: Option<(NetSignalId, RoutingRegion)>,
+        cancelled: impl Fn() -> bool,
+    ) -> std::result::Result<AutorouteResult, RoutingError> {
         let bounds = self
             .request
             .region
@@ -401,11 +412,20 @@ impl RegionalRoutingRequest {
         let after = copper(project, board)?;
         ensure_preserved_copper(&before, &after, &selected)?;
         for (uuid, item) in after {
-            if (!before.contains_key(&uuid) || selected.contains(&uuid))
-                && !item.geometry.fits(area)
-            {
+            if before.contains_key(&uuid) && !selected.contains(&uuid) {
+                continue;
+            }
+            if !item.geometry.fits(area) {
                 return Err(RoutingError::Refused(format!(
                     "Routed copper {uuid} extends outside the region."
+                )));
+            }
+            if let Some((target, bounds)) = neighbor_bounds
+                && item.net != Some(target)
+                && !item.geometry.fits(bounds)
+            {
+                return Err(RoutingError::Refused(format!(
+                    "Routed neighbor copper {uuid} extends outside neighbor_region."
                 )));
             }
         }
