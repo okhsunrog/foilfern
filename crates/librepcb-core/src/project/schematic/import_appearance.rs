@@ -6,7 +6,7 @@ use super::Schematic;
 use crate::fileio::FileSystem;
 use crate::geometry::{NetLabel, Path};
 use crate::project::Project;
-use crate::types::{Alignment, Angle, HAlign, Length, Point, Uuid, VAlign};
+use crate::types::{Alignment, Angle, HAlign, Length, Point, UnsignedLength, Uuid, VAlign};
 use crate::utils::overline_markup_parser::extract_overlines;
 
 /// Optional appearance, keyed by native object IDs so electrical data stays in
@@ -17,6 +17,8 @@ pub struct ImportAppearance {
     pub pin_numbers: BTreeMap<Uuid, BTreeMap<Uuid, String>>,
     #[serde(default)]
     pub pin_names: BTreeMap<Uuid, BTreeMap<Uuid, String>>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub pin_text_heights: BTreeMap<Uuid, BTreeMap<Uuid, PinTextHeights>>,
     pub no_connects: BTreeMap<Uuid, BTreeSet<Uuid>>,
     pub unpopulated: BTreeSet<Uuid>,
     #[serde(flatten)]
@@ -46,6 +48,15 @@ impl ImportAppearance {
         Ok(serde_json::from_slice(&data)?)
     }
 
+    /// Line heights for this placed pin's legends, when the import supplies them.
+    pub fn pin_text_heights(&self, symbol: Uuid, pin: Uuid) -> PinTextHeights {
+        self.pin_text_heights
+            .get(&symbol)
+            .and_then(|pins| pins.get(&pin))
+            .copied()
+            .unwrap_or_default()
+    }
+
     /// Returns whether this placed pin is marked as intentionally unconnected.
     pub fn is_no_connect(&self, symbol: Uuid, pin: Uuid) -> bool {
         self.no_connects
@@ -67,6 +78,16 @@ impl ImportAppearance {
         }
         changed
     }
+}
+
+/// Native line-height equivalents of the two KiCad pin font sizes.
+/// A zero height suppresses that legend.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct PinTextHeights {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<UnsignedLength>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub number: Option<UnsignedLength>,
 }
 
 /// Shape and size of a KiCad global label.

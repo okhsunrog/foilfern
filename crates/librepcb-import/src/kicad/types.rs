@@ -733,6 +733,10 @@ pub struct KiCadSymbolPin {
     pub name: String,
     /// Number (pad name).
     pub number: String,
+    /// Name glyph height in millimeters, when specified.
+    pub name_height: Option<f64>,
+    /// Number glyph height in millimeters, when specified.
+    pub number_height: Option<f64>,
     /// Whether the pin is hidden in KiCad.
     pub hidden: bool,
 }
@@ -884,6 +888,8 @@ impl KiCadSymbolGate {
                         length: child_f64(child, "length/@0")?,
                         name: value(child, "name/@0")?.to_owned(),
                         number: value(child, "number/@0")?.to_owned(),
+                        name_height: opt_f64(child, "name/effects/font/size/@1")?,
+                        number_height: opt_f64(child, "number/effects/font/size/@1")?,
                         hidden: opt_value(child, "hide/@0")?
                             .map_or_else(|| has_token(child, "hide"), |v| v == "yes"),
                     });

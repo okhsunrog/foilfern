@@ -49,8 +49,8 @@ the next task merely because their last paragraph once said "next".
   and board placement/outline/zones/supported rules for rerouting. Full routed
   KiCad PCB and hierarchical schematic import remain outside that contract.
   The flat schematic import preserves instance field orientation and alignment,
-  pin legends, global label outlines, DNP and no-connect marks in Foilfern
-  renders. Imported bitmap images are included in MCP PNG previews.
+  pin legends and their sizes, global label outlines, DNP and no-connect marks
+  in Foilfern renders. Imported bitmap images are included in MCP PNG previews.
 - **Desktop:** Slint schematic/board editors, tool FSMs, dialogs, library tabs,
   workspace/project lifecycle, shared live MCP editing, rule-check panels,
   output jobs and read-only `.lppz` opening. Detailed UI gaps remain in COMPAT.md.
@@ -119,6 +119,10 @@ record empty replay after save/reopen and preservation of unrelated geometry.
 The [schematic requirements tools](mcp-design.md#schematic-requirements) store
 UUID-bound positions, regions and net memberships with explicit evidence and
 enforce hard requirements on declarative apply.
+Schematic previews report introduced, inherited and resolved ERC findings,
+run in a detached worker with status and cancellation, and can return matched
+before/after PNGs cropped to one area. The [ESP32-C3 schematic replay](benchmarks/esp32-c3-schematic/README.md)
+exercises the complete native schematic workflow and upstream ERC.
 
 ## Evidence and continuation points
 

@@ -98,12 +98,16 @@ pub fn schematic_drawing(
             } else {
                 lib.name_alignment()
             };
+            let heights = appearance.pin_text_heights(symbol.uuid(), pin.uuid());
             drawing.markup_label(
                 transform.map(
                     &(lib.position() + lib.name_position().rotated(lib.rotation(), Point::ORIGIN)),
                 ),
                 transform.map_non_mirrorable(lib.rotation() + lib.name_rotation()),
-                lib.name_height().to_mm(),
+                heights
+                    .name
+                    .map_or(*lib.name_height(), |height| *height)
+                    .to_mm(),
                 name_align,
                 appearance
                     .pin_names
@@ -140,7 +144,10 @@ pub fn schematic_drawing(
                             .rotated(lib.rotation(), Point::ORIGIN)),
                 ),
                 rotation,
-                SymbolPin::numbers_height().to_mm(),
+                heights
+                    .number
+                    .map_or(*SymbolPin::numbers_height(), |height| *height)
+                    .to_mm(),
                 pin.numbers_alignment(),
                 &numbers,
                 settings.color("schematic_pin_numbers"),

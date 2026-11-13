@@ -10,7 +10,9 @@ use librepcb_core::geometry::{
 };
 use librepcb_core::library::LibraryBaseElement;
 use librepcb_core::project::circuit::{ComponentInstance, NetClass, NetSignal};
-use librepcb_core::project::schematic::import_appearance::{GlobalLabel, ImportAppearance};
+use librepcb_core::project::schematic::import_appearance::{
+    GlobalLabel, ImportAppearance, PinTextHeights,
+};
 use librepcb_core::project::schematic::{Schematic, SchematicNetSegment, SchematicSymbol};
 use librepcb_core::project::{
     ComponentInstanceId, ComponentSignalRef, Mutation, NetClassId, NetSignalId, Project,
@@ -421,6 +423,20 @@ fn import_instance(
             .pins
             .iter()
             .find(|p| !p.hidden && p.position == source_pin.position && p.name == source_pin.name);
+        if let Some(visible_pin) = visible_pin {
+            let heights = PinTextHeights {
+                name: pin_text_height(visible_pin.name_height)?,
+                number: pin_text_height(visible_pin.number_height)?,
+            };
+            if heights != PinTextHeights::default() {
+                graph
+                    .appearance
+                    .pin_text_heights
+                    .entry(uuid)
+                    .or_default()
+                    .insert(pin.uuid(), heights);
+            }
+        }
         let display_number = if lib.definition.hide_pin_numbers {
             String::new()
         } else {
@@ -476,8 +492,17 @@ fn import_instance(
 }
 
 fn project_text_height(mm: f64) -> Result<PositiveLength> {
+    Ok(PositiveLength::new(project_line_height(mm)?)?)
+}
+
+fn pin_text_height(mm: Option<f64>) -> Result<Option<UnsignedLength>> {
+    mm.map(|mm| Ok(UnsignedLength::new(project_line_height(mm)?)?))
+        .transpose()
+}
+
+fn project_line_height(mm: f64) -> Result<Length> {
     // KiCad specifies the glyph height. Native schematic text uses line height.
-    Ok(PositiveLength::new(Length::from_mm(mm * 1.5)?)?)
+    Ok(Length::from_mm(mm * 1.5)?)
 }
 
 fn field_orientation(

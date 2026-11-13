@@ -206,7 +206,7 @@ fn kicad_project_import_preserves_numbered_unnamed_pins_and_direct_labels() {
       (property "Reference" "U" (at 0 0 0) (effects (font (size 1 1))))
       (symbol "Part_1_1"
         (pin passive line (at 0 2 270) (length 1)
-          (name "" (effects (font (size 1 1)))) (number "1" (effects (font (size 1 1)))))
+          (name "" (effects (font (size 1 0)))) (number "1" (effects (font (size 1 0.8)))))
         (pin passive line (at 0 -2 90) (length 1)
           (name "" (effects (font (size 1 1)))) (number "2" (effects (font (size 1 1))))))))
   (symbol (lib_id "Fixture:Part") (at 20 20 270) (mirror x) (unit 1)
@@ -254,6 +254,18 @@ fn kicad_project_import_preserves_numbered_unnamed_pins_and_direct_labels() {
             .sum::<usize>(),
         4
     );
+    for (symbol, pins) in &appearance.pin_numbers {
+        for (pin, number) in pins {
+            let heights = appearance.pin_text_heights(*symbol, *pin);
+            let (name_height, number_height) = match number.as_str() {
+                "1" => (0, 1_200_000),
+                "2" => (1_500_000, 1_500_000),
+                other => panic!("unexpected pin number {other}"),
+            };
+            assert_eq!(heights.name.unwrap().to_nm(), name_height);
+            assert_eq!(heights.number.unwrap().to_nm(), number_height);
+        }
+    }
     let rotated = sheet
         .symbols()
         .values()

@@ -760,6 +760,7 @@ impl Builder<'_> {
         let lib_pin = pin.lib_pin();
         let rotation = pin.rotation();
         let start = pin.position();
+        let heights = self.appearance.pin_text_heights(symbol.uuid(), pin.uuid());
 
         // Line.
         if let Some(layer) = SchematicScene::layer_id("schematic_pin_lines") {
@@ -789,7 +790,10 @@ impl Builder<'_> {
                     .map_or_else(|| pin.name(), String::as_str),
                 pos,
                 TextStyle {
-                    height: lib_pin.name_height().to_mm(),
+                    height: heights
+                        .name
+                        .map_or(*lib_pin.name_height(), |height| *height)
+                        .to_mm(),
                     align,
                     rotation: transform
                         .map_non_mirrorable(lib_pin.rotation() + lib_pin.name_rotation()),
@@ -823,7 +827,10 @@ impl Builder<'_> {
                 &numbers,
                 pos,
                 TextStyle {
-                    height: SymbolPin::numbers_height().to_mm(),
+                    height: heights
+                        .number
+                        .map_or(*SymbolPin::numbers_height(), |height| *height)
+                        .to_mm(),
                     align: pin.numbers_alignment(),
                     rotation: transform.map_non_mirrorable(lib_pin.rotation()),
                     auto_rotate: true,
