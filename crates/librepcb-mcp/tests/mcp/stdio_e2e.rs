@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 31);
+    assert_eq!(info["api_capability_version"], 32);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -2743,5 +2743,98 @@ async fn stdio_design_add_component_replays_library_and_keeps_identity() {
         live["annotation_overlaps"]
     );
     assert_eq!(reverted["annotation_changes"]["inherited"], json!([]));
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn stdio_places_one_symbol_field_within_bounds() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    let project = call_ok(&client, "project_create", json!({"name":"Field placement"})).await;
+    for (name, x) in [("R1", 0), ("R2", 20)] {
+        call_ok(
+            &client,
+            "component_add",
+            json!({"part":"R-0805","designator":name,"position":{"x":x,"y":0}}),
+        )
+        .await;
+        call_ok(&client, "symbol_text_move", json!({"component":name,"text":"name","position":{"x":10,"y":8},"height":3.0,"rotation":0})).await;
+    }
+    call_ok(
+        &client,
+        "connect",
+        json!({"net":"LINK","pins":["R1.2","R2.1"]}),
+    )
+    .await;
+    let before = call_ok(&client, "schematic_get", json!({})).await;
+    let netlist = call_ok(&client, "netlist", json!({})).await;
+    let history = call_ok(&client, "history", json!({})).await;
+    let request = json!({"version":1,"schematic":"Main","components":{"part":{"designator":"R1"}},
+        "place_text":{"component":"part","text":"name","min":{"x":5,"y":4},"max":{"x":15,"y":12}}});
+    let mut too_dense = request.clone();
+    too_dense["place_text"]["step_mm"] = json!(0.001);
+    let refused = call(&client, "design_preview", too_dense).await;
+    assert_eq!(
+        refused.structured_content.unwrap()["error"]["kind"],
+        "invalid_argument"
+    );
+    let mut too_small = request.clone();
+    too_small["place_text"]["max"] = json!({"x":5.01,"y":4.01});
+    let no_fit = call_ok(&client, "design_preview", too_small).await;
+    assert_eq!(no_fit["text_placement"]["status"], "no_fit");
+    assert_eq!(no_fit["diff"], json!([]));
+    let proposed = call_ok(&client, "design_preview", request.clone()).await;
+    assert_eq!(proposed["text_placement"]["status"], "moved");
+    assert_eq!(proposed["diff"].as_array().unwrap().len(), 1);
+    assert_eq!(proposed["diff"][0]["field"], "text_position");
+    assert_eq!(proposed["annotation_changes"]["introduced"], json!([]));
+    assert_eq!(
+        proposed["annotation_changes"]["resolved"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, before);
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":proposed["preview"]}),
+    )
+    .await;
+    let after = call_ok(&client, "schematic_get", json!({})).await;
+    let mut expected = before.clone();
+    let text = expected["symbols"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|symbol| symbol["component"] == "R1")
+        .unwrap()["texts"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|text| text["uuid"] == proposed["text_placement"]["text"])
+        .unwrap();
+    text["position"] = proposed["text_placement"]["position"].clone();
+    assert_eq!(after, expected);
+    assert_eq!(call_ok(&client, "netlist", json!({})).await, netlist);
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, before);
+    call_ok(&client, "redo", json!({})).await;
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    call_ok(&client, "project_open", json!({"path":project["path"]})).await;
+    let repeated = call_ok(&client, "design_preview", request).await;
+    assert_eq!(repeated["text_placement"]["status"], "unchanged");
+    assert_eq!(repeated["diff"], json!([]));
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, after);
     client.cancel().await.unwrap();
 }

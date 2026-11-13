@@ -33,6 +33,7 @@ use crate::{resolve, units, units::PointMm, views};
 
 mod erc;
 mod no_connect;
+mod text_placement;
 mod topology;
 mod work;
 pub use work::CancelArgs;
@@ -161,6 +162,8 @@ pub struct DesignDocument {
     /// Optional annotation-overlap review focused on these component keys.
     #[serde(default)]
     review_components: Vec<String>,
+    /// Find a position for one symbol field within a caller-supplied area.
+    place_text: Option<text_placement::PlaceText>,
     /// Bounded row/column placement of selected existing components.
     block: Option<SchematicBlock>,
 }
@@ -708,7 +711,7 @@ pub(crate) fn prepare(
     } else {
         None
     };
-    let (preview, before, project, (added, verified, topology)) = snapshot.prepare(
+    let (preview, before, project, (added, verified, topology, text_placement)) = snapshot.prepare(
         |tx| -> ToolResult<_> {
             let mut added = Vec::new();
             if let Some(schematic) = new_page {
@@ -900,7 +903,15 @@ pub(crate) fn prepare(
             }
             no_connect::update(tx, page, &bindings, &doc.no_connects, &mut added)?;
             topology.remove_unused_nets(tx, &doc.add_nets)?;
-            Ok((added, verified.len(), topology))
+            let text_placement = doc.place_text.as_ref().map(|placement| {
+                checkpoint(Stage::Plan)?;
+                let evidence = placement.place(tx, page, &bindings, &doc.components, || checkpoint(Stage::Plan), &mut added)?;
+                if let Some(component) = bindings.get(placement.component()) {
+                    reviewed.insert(*component);
+                }
+                Ok::<_, ToolError>(evidence)
+            }).transpose()?;
+            Ok((added, verified.len(), topology, text_placement))
         },
     )?;
     checkpoint(Stage::Check)?;
@@ -912,6 +923,9 @@ pub(crate) fn prepare(
         "preview": preview.id, "base_revision": preview.revision, "diff": diff,
         "verified_pins": verified, "erc": erc::compare(&before, &project), "schematic": page,
     });
+    if let Some(placement) = text_placement {
+        payload["text_placement"] = placement;
+    }
     let copper = topology::copper_impact(&before, &project, &topology);
     if !copper.is_empty() {
         payload["board_impact"] = json!(copper);

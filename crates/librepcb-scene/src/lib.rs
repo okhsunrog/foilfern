@@ -60,7 +60,9 @@ pub use render::{
     visible_bounds,
 };
 pub use schematic::{SchematicObject, SchematicScene};
-pub use schematic_readability::{Annotation, AnnotationOverlap, annotation_overlaps};
+pub use schematic_readability::{
+    Annotation, AnnotationOverlap, SymbolTextPlacement, annotation_overlaps,
+};
 pub use symbol::{SymbolScene, SymbolSceneObject};
 pub use sync::{IncrementalScene, SceneSync};
 

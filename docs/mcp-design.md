@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `31`). Its `build` object contains
+`api_capability_version` (currently `32`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -419,6 +419,39 @@ Use `text_positions` under an existing component to move its reference or
 value independently of the symbol. Each entry is keyed by the text UUID from
 `schematic_get` and uses `expected` and `set` positions in millimeters.
 Preview symbol moves and absolute text positions in separate requests.
+
+Use `place_text` to fit one symbol field inside a rectangle on the selected
+sheet. Bind the part in `components` or `add_components` and pass its document
+key, `text` (`name`, `value`, or a placed text UUID), and `min` and `max` in
+sheet millimeters. For example, to place the value of an existing U6:
+
+```json
+{
+  "version": 1,
+  "schematic": "esp-pd",
+  "components": {"monitor": {"designator": "U6"}},
+  "place_text": {
+    "component": "monitor", "text": "value",
+    "min": {"x": 208, "y": -161}, "max": {"x": 263, "y": -125},
+    "step_mm": 0.8
+  }
+}
+```
+
+The field stays where it is if its bounds already fit with the requested
+clearance. Otherwise the planner checks a grid from the lower corner,
+including the upper edges, in order of distance from the current anchor.
+Ties use X then Y. The default step is 0.635 mm and the default clearance
+from visible geometry is 0.5 mm. A grid may contain up to 4096 positions.
+The search runs after other edits in the document and checks the resulting
+schematic scene. Supply a text UUID for multi-gate components. A field can
+use either `place_text` or an explicit `text_positions` entry.
+
+`text_placement` reports the field UUID, position, trials and status (`moved`,
+`unchanged`, `no_fit`, `locked`, or `not_visible`). A move appears in `diff`
+as `text_position`, and the preview includes annotation changes for the target
+component. On sheets with embedded images the planner also checks the export
+geometry and font used by the PNG preview.
 
 ### Schematic requirements
 

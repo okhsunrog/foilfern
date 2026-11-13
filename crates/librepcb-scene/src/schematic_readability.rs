@@ -2,12 +2,63 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use librepcb_canvas::SelectionMode;
 use librepcb_canvas::kurbo::Rect;
+use librepcb_canvas::{SelectionMode, convert};
 use librepcb_core::project::{NetSegmentId, SymbolId};
-use librepcb_core::types::Uuid;
+use librepcb_core::types::{Point, Uuid};
 
 use crate::{SchematicObject, SchematicScene};
+
+/// Checks translations of a placed symbol field against the visible sheet.
+pub struct SymbolTextPlacement<'a> {
+    scene: &'a SchematicScene,
+    target: SchematicObject,
+    relative_bounds: Rect,
+}
+
+impl<'a> SymbolTextPlacement<'a> {
+    /// Returns `None` if the field has no visible text in the scene.
+    pub fn new(
+        scene: &'a SchematicScene,
+        symbol: SymbolId,
+        text: Uuid,
+        position: Point,
+    ) -> Option<Self> {
+        let target = SchematicObject::SymbolText(symbol, text);
+        let bounds = scene
+            .scene()
+            .items()
+            .filter(|(id, item)| {
+                scene.object(*id) == Some(target)
+                    && scene
+                        .scene()
+                        .layer(item.layer)
+                        .is_some_and(|layer| layer.visible)
+            })
+            .map(|(_, item)| item.bounding_box())
+            .reduce(|a, b| a.union(b))?;
+        Some(Self {
+            scene,
+            target,
+            relative_bounds: bounds - convert::point(position).to_vec2(),
+        })
+    }
+
+    /// Tests the field's full bounds and a margin around its visible geometry.
+    pub fn fits(&self, position: Point, min: Point, max: Point, clearance_mm: f64) -> bool {
+        let bounds = self.relative_bounds + convert::point(position).to_vec2();
+        let region = Rect::from_points(convert::point(min), convert::point(max));
+        if !region.contains_rect(bounds) {
+            return false;
+        }
+        let clearance = bounds.inflate(clearance_mm, clearance_mm);
+        self.scene
+            .scene()
+            .items_in_rect(clearance, SelectionMode::Intersects)
+            .into_iter()
+            .all(|id| self.scene.object(id) == Some(self.target))
+    }
+}
 
 /// An annotation and its overlapping neighbor, in schematic coordinates.
 #[derive(Debug)]

@@ -79,6 +79,7 @@ when regenerating the whole page is intended.\n\
 Use no_connects in a design document to mark explicitly unused pins. \
 Use image_region on render or design_preview to inspect a schematic block at a larger scale. \
 Use schematic_review to find overlapping annotations on the live sheet. \
+Use design_preview with place_text to find a clear position for one symbol field in a selected area. \
 Before design_apply, review the preview's diff, ERC changes, board impact and schematic \
 requirements when present. Use requirements_get and requirements_check to read saved rules.\n\
 Addressing: designators (\"R1\"), pins \"R1.1\" (pad name) or \"U1.VCC\" (signal name) or a \
@@ -1265,7 +1266,7 @@ impl LibrePcbMcp {
     // --- Declarative schematic updates -------------------------------------------
 
     #[tool(
-        description = "Preview a version 1 schematic document and render the resulting page. Create a sheet, nets and parts, manage existing fields, place selected blocks, draw local wire paths and review topology changes. Reports ERC changes, affected board objects, schematic requirements and requested annotation overlaps."
+        description = "Preview a version 1 schematic document and render the resulting page. Create a sheet, nets and parts, manage fields, find a clear field position with place_text, place selected blocks and draw local wire paths. Reports ERC changes, affected board objects, schematic requirements and reviewed annotation overlaps."
     )]
     async fn design_preview(
         &self,
