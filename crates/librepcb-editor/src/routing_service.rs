@@ -35,8 +35,8 @@ pub use comparison::{
 };
 pub use copper::{CopperEndpoint, CopperPlan, PlannedPlacement, PlannedTrace};
 pub use placement::{
-    PlacementComparison, PlacementJob, PlacementRequest, PlacementResults, PlacementTarget,
-    PlacementTrace, PlacementVia,
+    PlacementComparison, PlacementJob, PlacementRequest, PlacementResults, PlacementSearchStatus,
+    PlacementSites, PlacementTarget, PlacementTrace, PlacementVia,
 };
 pub use region::{RegionalRepairProposal, RegionalRoutingRequest};
 pub use repair_search::{
@@ -58,6 +58,8 @@ pub enum RoutingError {
     NotFound(Uuid),
     #[error("Local repair search not found: {0}")]
     RepairSearchNotFound(Uuid),
+    #[error("Placement search not found: {0}")]
+    PlacementSearchNotFound(Uuid),
     #[error("Routing candidate belongs to a different project session.")]
     WrongSession,
     #[error("Project save time or location changed; prepare a new routing candidate.")]
@@ -339,6 +341,7 @@ impl RoutingJob {
                     plan_counts,
                     (vias, trace_segments),
                     route.map(|request| *request),
+                    || false,
                 )?
             }
             RoutingWork::LocalVia(request) => {
@@ -500,6 +503,7 @@ pub struct RoutingService {
     candidates: BTreeMap<Uuid, RoutingCandidate>,
     baseline: Option<RoutingBaseline>,
     repair_search: Option<Arc<repair_search::ActiveRepairSearch>>,
+    placement_search: Option<Arc<placement::ActivePlacementSearch>>,
 }
 
 impl Default for RoutingService {
@@ -509,6 +513,7 @@ impl Default for RoutingService {
             candidates: BTreeMap::new(),
             baseline: None,
             repair_search: None,
+            placement_search: None,
         }
     }
 }
@@ -813,7 +818,11 @@ impl RoutingService {
         let reserved = self
             .repair_search
             .as_ref()
-            .map_or(0, |search| search.reserved_slots());
+            .map_or(0, |search| search.reserved_slots())
+            + self
+                .placement_search
+                .as_ref()
+                .map_or(0, |search| search.reserved_slots());
         if slots > MAX_CANDIDATES - self.candidates.len() - reserved {
             Err(RoutingError::Refused(format!(
                 "Candidate storage needs {slots} free slot(s); discard existing candidates and retry."

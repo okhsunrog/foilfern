@@ -8,7 +8,7 @@ use librepcb_core::types::{Angle, Layer, Point, PositiveLength, Uuid};
 use crate::commands::{
     AddTrace, AddVia, Autoroute, BoardSelection, MoveDevice, NetRef, TraceEndpoint, resolve_board,
 };
-use crate::{Error, ProjectEditor, Result};
+use crate::{Command, Error, ProjectEditor, Result};
 
 use super::{CopperAddition, RoutingCandidateDetails, RoutingEditTrial, RoutingError, region};
 
@@ -180,6 +180,7 @@ pub(super) fn finish_copper(
     counts: PlanCounts,
     (vias, trace_segments): (usize, usize),
     route: Option<Autoroute>,
+    cancelled: impl Fn() -> bool,
 ) -> std::result::Result<RoutingCandidateDetails, RoutingError> {
     let route = if let Some(mut request) = route {
         let existing = |editor: &ProjectEditor| {
@@ -191,7 +192,9 @@ pub(super) fn finish_copper(
         sandbox
             .update_derived_data(|project| project.rebuild_planes(board, None))?
             .map_err(Error::from_export)?;
-        let routing = sandbox.execute(request.clone())?;
+        let routing = sandbox.execute_atomic(request.text(), |tx| {
+            request.clone().execute_with_cancel(tx, cancelled)
+        })?;
         region::ensure_preserved_copper(&protected, &existing(sandbox)?, &BTreeSet::new())?;
         Some(Box::new(RoutingEditTrial { request, routing }))
     } else {

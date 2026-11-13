@@ -475,8 +475,10 @@ algorithm runs rather than submitting thousands of individual coordinates.
 `routing_copper_prepare` already combines explicitly selected unlocked-device
 moves/rotations and copper changes in one checked candidate and undo operation.
 `routing_placement_compare` tries supplied centers and angles in one call and
-ranks the validated patches by connectivity and declared path lengths. Generation
-from permitted regions and durable sourced requirements are planned in P4 and P2.
+ranks the validated patches by connectivity and declared path lengths.
+`routing_placement_start` also samples grids in permitted regions with a trial
+budget, progress and cancellation. Using diagnosed blockers to propose new
+sites and storing sourced requirements remain part of P4 and P2.
 Pin swaps require an explicitly permitted mapping, circuit updates and a firmware
 pin-map consequence; changing board labels is insufficient. Circuit templates
 remain deferred. Native file compatibility applies to all of these extensions.

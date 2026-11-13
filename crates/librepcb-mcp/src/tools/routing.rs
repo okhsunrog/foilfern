@@ -25,7 +25,7 @@ use crate::units::PointMm;
 
 mod diagnose_image;
 mod explicit_copper;
-mod placement;
+pub(crate) mod placement;
 mod repair;
 pub(crate) mod repair_search;
 pub use explicit_copper::{RoutingCopperArgs, prepare_copper_job};
@@ -292,7 +292,9 @@ impl PlaneProbes {
 fn routing_error(error: RoutingError) -> ToolError {
     match error {
         RoutingError::Editor(e) => e.into(),
-        error @ (RoutingError::NotFound(_) | RoutingError::RepairSearchNotFound(_)) => {
+        error @ (RoutingError::NotFound(_)
+        | RoutingError::RepairSearchNotFound(_)
+        | RoutingError::PlacementSearchNotFound(_)) => {
             ToolError::new(ErrorKind::NotFound, error.to_string())
         }
         error @ RoutingError::StaleRevision { .. } => {

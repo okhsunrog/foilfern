@@ -282,7 +282,9 @@ impl Session {
     /// holds it any more.
     pub fn close_project(&mut self, discard: bool) -> ToolResult<()> {
         self.check_close_project(discard)?;
-        self.project()?.routing.cancel_repair_search();
+        let routing = &self.project()?.routing;
+        routing.cancel_repair_search();
+        routing.cancel_placement_search();
         self.project = None;
         Ok(())
     }

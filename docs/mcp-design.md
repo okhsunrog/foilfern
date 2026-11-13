@@ -161,13 +161,13 @@ backend and checks the realistic board PDF.
 
 ## Tool surface
 
-At the reviewed revision, `server.rs` registers 85 tools. The schemas advertised
+At the reviewed revision, `server.rs` registers 87 tools. The schemas advertised
 by `tools/list` are authoritative; the historical target of fewer than 60 tools
 is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `19`). Its `build` object contains
+`api_capability_version` (currently `20`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -182,7 +182,8 @@ sheet. Persisted enforced requirements (P2) and visual candidate review (P5)
 are planned.
 `routing_compare` ranks builtin-order candidates. Local repair search has
 one active job per open project, progress polling and cooperative cancellation.
-Other preparation tools continue to use their existing worker lifecycle.
+Region-based placement search also exposes a worker lifecycle through
+`routing_placement_start` and `routing_placement_status`.
 
 Session / project:
 `server_info`, `workspace_open`, `workspace_create`, `project_create`,
@@ -634,6 +635,33 @@ checks. It retains the best one to three patches (default two). The default
 30-second budget is checked between trials and can be increased to 120 seconds.
 Use `routing_preview` and `routing_apply` to review and apply a patch or
 `routing_discard` to free its slot. Unlisted copper and placements are protected.
+
+`routing_placement_start` accepts the same copper template and requirements.
+For each target, give explicit `positions` or a `region` with a positive
+`pitch_mm`. The region bounds footprint **centers**. Grid coordinates start
+at `region.min` and advance by the pitch up to `region.max`, inclusive
+when it falls on the grid. Up to 64 center/rotation choices per device
+form at most 4,096 joint poses. The worker tries at most `max_trials`
+(default 16, maximum 64). When a region is used it orders poses by the
+summed straight-line distance of `minimize` pad pairs, then distance from
+region centers, and keeps grid order for ties. Actual routing, copper
+clearance and engineering checks determine which of the trials are viable.
+
+Pass the returned UUID as `search` to `routing_placement_status`.
+It reports the stage, current poses, planned and completed trial counts,
+elapsed budget and final stop reason. Set `cancel: true` on status to
+request a cooperative stop. The budget and cancellation are checked during
+builtin search, at DRC check boundaries, and between detached work stages.
+Snapshots, started DRC checks, plane builds and plane diagnostics can finish
+before the worker stops. Completed validated patches can be published after
+cancellation or budget expiry. An interrupted trial yields no patch.
+`stop_reason` reports `completed`, `trial_limit`, `time_limit`, `cancelled`
+or `failed`. `comparison` is available at finish if the worker completed
+its baseline and the source revision, session and save context still match.
+The search reserves one to three candidate slots before starting. One
+placement and one repair search may run per project, within the shared
+candidate capacity. Starting the next placement search replaces the status
+of the previous one. Published candidates retain their normal lifecycle.
 
 Preparation retains one complete source DRC result per open project session.
 Later candidates may reuse it only for the same project, board, revision and

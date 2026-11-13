@@ -146,7 +146,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 19);
+    assert_eq!(info["api_capability_version"], 20);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -2000,5 +2000,125 @@ async fn stdio_design_add_component_replays_library_and_keeps_identity() {
     .await;
     assert_eq!(moved["diff"][0]["field"], "text_position");
     assert_eq!(moved["annotation_overlaps"], json!([]));
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn stdio_placement_search_generates_poses_and_stops_on_budget_or_cancel() {
+    use std::time::Duration;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    call_ok(
+        &client,
+        "project_create",
+        json!({"name":"Placement search"}),
+    )
+    .await;
+    for (designator, x) in [("R1", 5), ("R2", 15)] {
+        call_ok(
+            &client,
+            "component_add",
+            json!({"part":"R-0805","designator":designator}),
+        )
+        .await;
+        call_ok(
+            &client,
+            "device_place",
+            json!({"component":designator,"position":{"x":x,"y":10},"rotation":90}),
+        )
+        .await;
+    }
+    call_ok(
+        &client,
+        "connect",
+        json!({"net":"A","pins":["R1.1","R2.1"]}),
+    )
+    .await;
+    call_ok(
+        &client,
+        "board_set_outline",
+        json!({"width":30,"height":20}),
+    )
+    .await;
+    let before = call_ok(&client, "board_get", json!({})).await;
+    let mut request = json!({
+        "targets":[{"component":"R2",
+            "region":{"min":{"x":9,"y":10},"max":{"x":12,"y":10.5}}, "pitch_mm":1
+        }],
+        "trace_requirements":[{"requirement":{"path":{"from":"R1.1","to":"R2.1"}},"minimize":true}],
+        "copper":{"route":{"nets":["A"],"layers":["top"]}},
+        "max_trials":2
+    });
+    let started = call_ok(&client, "routing_placement_start", request.clone()).await;
+    assert_eq!(started["total_poses"], 4);
+    assert_eq!(started["planned_trials"], 2);
+    let poll = |search: Value| {
+        let client = &client;
+        async move {
+            tokio::time::timeout(Duration::from_secs(10), async {
+                loop {
+                    let status =
+                        call_ok(client, "routing_placement_status", json!({"search":search})).await;
+                    if status["phase"] == "finished" {
+                        break status;
+                    }
+                    tokio::time::sleep(Duration::from_millis(5)).await;
+                }
+            })
+            .await
+            .unwrap()
+        }
+    };
+    let finished = poll(started["search"].clone()).await;
+    assert_eq!(finished["stop_reason"], "trial_limit", "{finished:#}");
+    assert_eq!(finished["completed_trials"], 2);
+    let result = &finished["comparison"];
+    assert_eq!(
+        result["trials"][0]["placements"][0]["position_mm"],
+        json!([9.0, 10.0])
+    );
+    assert_eq!(
+        result["trials"][1]["placements"][0]["position_mm"],
+        json!([10.0, 10.0])
+    );
+    let candidate = &result["recommended"];
+    let preview = call_ok(&client, "routing_preview", json!({"candidate":candidate})).await;
+    assert_eq!(preview["validation"]["after"]["unrouted"], 0);
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
+
+    request["max_time_ms"] = json!(1);
+    let started = call_ok(&client, "routing_placement_start", request.clone()).await;
+    let finished = poll(started["search"].clone()).await;
+    assert_eq!(finished["stop_reason"], "time_limit", "{finished:#}");
+    assert_eq!(finished["completed_trials"], 0);
+
+    request["targets"][0]["region"]["max"] = json!({"x":15,"y":16});
+    request["max_trials"] = json!(49);
+    request["max_time_ms"] = json!(10_000);
+    let started = call_ok(&client, "routing_placement_start", request).await;
+    let search = started["search"].clone();
+    let acknowledgement = call_ok(
+        &client,
+        "routing_placement_status",
+        json!({"search":search,"cancel":true}),
+    )
+    .await;
+    assert_eq!(acknowledgement["cancel_requested"], true);
+    let stopped = poll(search).await;
+    assert_eq!(stopped["stop_reason"], "cancelled");
+    assert!(stopped["completed_trials"].as_u64().unwrap() < 49);
+
+    let applied = call_ok(&client, "routing_apply", json!({"candidate":candidate})).await;
+    assert_eq!(applied["validation"]["after"]["unrouted"], 0);
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
     client.cancel().await.unwrap();
 }

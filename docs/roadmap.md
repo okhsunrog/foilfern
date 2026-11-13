@@ -33,8 +33,8 @@ because its tools exist or one board has zero air wires.
 | P0 | Identifiable builds, concise responses and measured operation costs | Existing API | Complete; [release replay](benchmarks/esp-pd-sink/review/performance/p0/REPORT.md) |
 | P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; 36-component creation and local rewiring verified |
 | P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | Planned; external review prototypes only |
-| P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | In progress; local repair search can be polled and cancelled |
-| P4 | Diagnosed local repair with bounded placement alternatives | P2, P3 | In progress; authorized copper repair and supplied-pose placement trials implemented |
+| P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | In progress; local repair and placement searches can be polled and cancelled |
+| P4 | Diagnosed local repair with bounded placement alternatives | P2, P3 | In progress; authorized copper repair and region-based placement trials implemented |
 | P5 | Visual candidate review in the desktop editor | Existing candidates; P2/P4 extend the displayed evidence | Planned |
 | P6 | Reproducible end-to-end acceptance across boards | P1–P5 for final acceptance | Corpus/evidence partly available |
 
@@ -235,10 +235,12 @@ rip-up, rotation and allowed-area movement alternatives. Build on the existing
 candidate service, pad escape and exact checks. Do not change hard requirements
 internally to make a route succeed.
 
-Shipped: compare supplied centers and angles for up to two devices, with
-protected copper, device-relative return vias, checked plane contacts and
-pad-to-pad limits. Generating the pose list from a permitted region and diagnosed
-blockers remains part of P4.
+Shipped: compare supplied or region-generated centers and angles for up to
+two devices, with protected copper, device-relative return vias, checked plane
+contacts and pad-to-pad limits. The background worker orders generated poses
+by the requested path objectives and rejects fixed copper conflicts before
+routing. Deriving useful trial sites directly from diagnosed blockers remains
+part of P4.
 
 Done when:
 

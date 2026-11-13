@@ -1,6 +1,6 @@
 //! Compare authorized local device poses on independent native snapshots.
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::{Duration, Instant};
 
 use librepcb_core::project::board::PlaneFragmentStatus;
@@ -17,10 +17,20 @@ use super::copper::{PlanCounts, finish_copper};
 use super::{CopperPlan, PlannedPlacement, RoutingCandidate, RoutingError, RoutingService};
 use super::{RoutingSource, SourceContext, TracePreference};
 use crate::commands::{Autoroute, NetRef, resolve_board};
-use crate::routing_validation::{RoutingCheckSummary, RoutingValidation, capture_routing_state};
+use crate::routing_validation::{
+    RoutingCheckSummary, RoutingValidation, capture_routing_state_with_cancel,
+};
 use crate::{Error, ProjectEditor, Result};
 
-const MAX_POSES: usize = 16;
+mod poses;
+mod worker;
+pub use poses::PlacementSites;
+use poses::{Pose, poses, rank_generated};
+pub(super) use worker::ActivePlacementSearch;
+pub use worker::PlacementSearchStatus;
+use worker::{Phase, StopReason};
+
+const MAX_COMPARE_POSES: usize = 16;
 
 #[derive(Debug)]
 pub struct PlacementRequest {
@@ -36,7 +46,7 @@ pub struct PlacementRequest {
 #[derive(Debug)]
 pub struct PlacementTarget {
     pub component: ComponentInstanceId,
-    pub positions: Vec<Point>,
+    pub sites: PlacementSites,
     pub rotations: Vec<Angle>,
 }
 
@@ -60,6 +70,16 @@ pub struct PlacementPose {
     pub component: ComponentInstanceId,
     pub position_mm: (f64, f64),
     pub rotation_deg: f64,
+}
+
+impl From<Pose> for PlacementPose {
+    fn from(pose: Pose) -> Self {
+        Self {
+            component: pose.component,
+            position_mm: pose.position.to_mm(),
+            rotation_deg: pose.rotation.to_deg(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -109,13 +129,17 @@ pub struct PlacementJob {
     source: RoutingSource,
     request: PlacementRequest,
     mirrored: BTreeMap<ComponentInstanceId, bool>,
+    poses: Vec<Vec<Pose>>,
+    worker: Option<std::sync::Arc<ActivePlacementSearch>>,
 }
 
 #[derive(Debug)]
 pub struct PlacementResults {
     owner: Uuid,
+    project: Uuid,
     context: SourceContext,
-    report: PlacementComparison,
+    report: Option<PlacementComparison>,
+    stop: StopReason,
     candidates: Vec<RoutingCandidate>,
 }
 
@@ -125,6 +149,24 @@ fn invalid(message: &str) -> Error {
 
 impl RoutingService {
     pub fn prepare_placement_comparison(
+        &self,
+        editor: &ProjectEditor,
+        request: PlacementRequest,
+    ) -> std::result::Result<PlacementJob, RoutingError> {
+        let job = self.prepare_placement(editor, request)?;
+        if job.poses.len() > MAX_COMPARE_POSES
+            || job
+                .request
+                .targets
+                .iter()
+                .any(|target| matches!(target.sites, PlacementSites::Grid { .. }))
+        {
+            return Err(invalid("Compare up to 16 explicit poses here. Use placement search for a region or larger set.").into());
+        }
+        Ok(job)
+    }
+
+    fn prepare_placement(
         &self,
         editor: &ProjectEditor,
         request: PlacementRequest,
@@ -145,29 +187,7 @@ impl RoutingService {
         }
         let board = resolve_board(editor.project(), Some(request.copper.board))?;
         let mut mirrored = BTreeMap::new();
-        let mut count = 1usize;
         for target in &request.targets {
-            let positions = target.positions.iter().copied().collect::<HashSet<_>>();
-            let rotations = target
-                .rotations
-                .iter()
-                .copied()
-                .map(Angle::mapped_to_180deg)
-                .collect::<HashSet<_>>();
-            count = count
-                .saturating_mul(target.positions.len())
-                .saturating_mul(target.rotations.len());
-            if count == 0
-                || count > MAX_POSES
-                || positions.len() != target.positions.len()
-                || rotations.len() != target.rotations.len()
-            {
-                return Err(invalid(
-                    "Supply distinct positions and rotations forming 1–16 joint poses.",
-                )
-                .into());
-            }
-
             let device = board
                 .device(target.component)
                 .ok_or_else(|| Error::not_found("Device", target.component))?;
@@ -214,7 +234,17 @@ impl RoutingService {
             }
         }
 
+        let mut poses = poses(&request.targets)?;
+        rank_generated(
+            &mut poses,
+            &request.targets,
+            &request.traces,
+            board,
+            editor.project(),
+        )?;
         Ok(PlacementJob {
+            poses,
+            worker: None,
             source: self.capture_source(editor, request.max_candidates)?,
             request,
             mirrored,
@@ -231,7 +261,11 @@ impl RoutingService {
             context,
             report,
             candidates,
+            ..
         } = results;
+        let report = report.ok_or_else(|| {
+            RoutingError::Refused("Placement search stopped during baseline checks.".into())
+        })?;
         self.check_source_identity(
             project,
             owner,
@@ -250,44 +284,16 @@ impl RoutingService {
     }
 }
 
-#[derive(Clone, Copy)]
-struct Pose {
-    component: ComponentInstanceId,
-    position: Point,
-    rotation: Angle,
-}
-
-fn poses(targets: &[PlacementTarget]) -> Vec<Vec<Pose>> {
-    let mut joint = vec![Vec::new()];
-    for target in targets {
-        let mut expanded = Vec::new();
-        for prefix in joint {
-            for &position in &target.positions {
-                for &rotation in &target.rotations {
-                    let mut combined = prefix.clone();
-                    combined.push(Pose {
-                        component: target.component,
-                        position,
-                        rotation,
-                    });
-                    expanded.push(combined);
-                }
-            }
-        }
-        joint = expanded;
-    }
-    joint
-}
-
 /// Quick native DRC on fixed copper, before builtin can spend time searching
 /// around an impossible placement. Only explicit copper clearances are used:
 /// this check omits planes, and disconnected copper is normal during staging.
 fn clearance_errors(
     editor: &mut ProjectEditor,
     board: BoardId,
+    cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<Option<BTreeMap<SExpression, String>>> {
     let check = editor
-        .update_derived_data(|p| p.run_drc(board, None, true, &|_| {}))?
+        .update_derived_data(|p| p.run_drc_with_cancel(board, None, true, &|_| {}, cancelled))?
         .map_err(|error| Error::InvalidArgument(error.to_string()))?;
     let approvals = resolve_board(editor.project(), Some(board))?.drc_approvals();
     Ok(check.errors.is_empty().then(|| {
@@ -371,33 +377,70 @@ impl PlacementJob {
     pub fn run(mut self) -> std::result::Result<PlacementResults, RoutingError> {
         let started = Instant::now();
         let board = self.request.copper.board;
-        let before = self.source.capture_before(board)?;
+        let worker = self.worker.take();
+        let stop = || match &worker {
+            Some(state) => state.stop_requested(),
+            None => (started.elapsed() >= self.request.max_time).then_some(StopReason::TimeLimit),
+        };
+        // Keep the synchronous comparison's between-trial budget. Only the
+        // background worker can interrupt a trial that is already in flight.
+        let interrupted = || worker.is_some() && stop().is_some();
+        let phase = |phase| {
+            if let Some(state) = &worker {
+                state.phase(phase);
+            }
+        };
+        let stopped_before_trials = |source: RoutingSource, reason| PlacementResults {
+            owner: source.owner,
+            project: source.project,
+            context: source.source_context,
+            report: None,
+            stop: reason,
+            candidates: Vec::new(),
+        };
+        phase(Phase::Baseline);
+        if let Some(reason) = stop().filter(|_| worker.is_some()) {
+            return Ok(stopped_before_trials(self.source, reason));
+        }
+        let before = self
+            .source
+            .capture_before_with_cancel(board, &interrupted)?;
+        if let Some(reason) = stop().filter(|_| worker.is_some()) {
+            return Ok(stopped_before_trials(self.source, reason));
+        }
         let (before_traces, before_objective_length_mm) =
             measure_traces(self.source.sandbox.project(), board, &self.request.traces)?;
-        let clearance_baseline = clearance_errors(&mut self.source.sandbox, board)
+        let clearance_baseline = clearance_errors(&mut self.source.sandbox, board, &interrupted)
             .ok()
             .flatten();
-        let poses = poses(&self.request.targets);
-        let total_poses = poses.len();
+        let total_poses = self.poses.len();
+        let max_trials = worker
+            .as_ref()
+            .map_or(total_poses, |state| state.planned_trials());
         let mut winners = Vec::new();
         let mut trials = Vec::new();
+        let record = |trials: &mut Vec<PlacementTrial>, trial| {
+            trials.push(trial);
+            if let Some(state) = &worker {
+                state.complete_trial();
+            }
+        };
         let mut clearance_rejections = 0;
         let mut full_checks = 0;
 
-        for placements in poses {
-            if started.elapsed() >= self.request.max_time {
+        for placements in self.poses.into_iter().take(max_trials) {
+            if stop().is_some() {
                 break;
+            }
+            if let Some(state) = &worker {
+                state.begin_trial(&placements);
             }
             let mut source = self.source.fork()?;
             let mut trial = PlacementTrial::default();
             let mut plan = self.request.copper.clone();
             let mut transforms = BTreeMap::new();
             for pose in placements {
-                trial.placements.push(PlacementPose {
-                    component: pose.component,
-                    position_mm: pose.position.to_mm(),
-                    rotation_deg: pose.rotation.to_deg(),
-                });
+                trial.placements.push(pose.into());
                 transforms.insert(
                     pose.component,
                     Transform::new(pose.position, pose.rotation, self.mirrored[&pose.component]),
@@ -423,13 +466,17 @@ impl PlacementJob {
                 Ok(added) => added,
                 Err(error) => {
                     trial.rejection = Some(error.to_string());
-                    trials.push(trial);
+                    record(&mut trials, trial);
                     continue;
                 }
             };
 
+            if interrupted() {
+                break;
+            }
+            phase(Phase::Clearance);
             if let Some(baseline) = &clearance_baseline
-                && let Ok(Some(errors)) = clearance_errors(&mut source.sandbox, board)
+                && let Ok(Some(errors)) = clearance_errors(&mut source.sandbox, board, &interrupted)
             {
                 trial.clearance_errors = errors
                     .into_iter()
@@ -439,11 +486,15 @@ impl PlacementJob {
                 if !trial.clearance_errors.is_empty() {
                     trial.rejection = Some("staged_copper_clearance".into());
                     clearance_rejections += 1;
-                    trials.push(trial);
+                    record(&mut trials, trial);
                     continue;
                 }
             }
 
+            if interrupted() {
+                break;
+            }
+            phase(Phase::Routing);
             let details = match finish_copper(
                 &mut source.sandbox,
                 board,
@@ -451,16 +502,25 @@ impl PlacementJob {
                 counts,
                 added,
                 self.request.route.clone(),
+                interrupted,
             ) {
                 Ok(details) => details,
                 Err(error) => {
                     trial.rejection = Some(error.to_string());
-                    trials.push(trial);
+                    record(&mut trials, trial);
                     continue;
                 }
             };
+            if interrupted() {
+                break;
+            }
+            phase(Phase::Validation);
             full_checks += 1;
-            let after = capture_routing_state(&mut source.sandbox, board)?;
+            let after =
+                capture_routing_state_with_cancel(&mut source.sandbox, board, &interrupted)?;
+            if interrupted() {
+                break;
+            }
             let validation = details.validate(&before, &after);
             let (traces, length) =
                 measure_traces(source.sandbox.project(), board, &self.request.traces)?;
@@ -469,6 +529,9 @@ impl PlacementJob {
             if after.checks.complete {
                 trial.plane_contacts =
                     measure_contacts(source.sandbox.project(), board, &required)?;
+            }
+            if interrupted() {
+                break;
             }
             let rejection = if !validation.acceptable {
                 Some("validation")
@@ -509,7 +572,7 @@ impl PlacementJob {
                 }
             }
             trial.validation = Some(validation);
-            trials.push(trial);
+            record(&mut trials, trial);
         }
 
         let candidates: Vec<_> = winners
@@ -520,11 +583,20 @@ impl PlacementJob {
             })
             .collect();
         let recommended = candidates.first().map(|candidate| candidate.info.candidate);
+        let stop = if trials.len() == total_poses {
+            StopReason::Completed
+        } else if trials.len() == max_trials {
+            StopReason::TrialLimit
+        } else {
+            stop().unwrap_or(StopReason::TrialLimit)
+        };
         Ok(PlacementResults {
             owner: self.source.owner,
+            project: self.source.project,
             context: self.source.source_context,
             candidates,
-            report: PlacementComparison {
+            stop,
+            report: Some(PlacementComparison {
                 project: self.source.project,
                 board,
                 base_revision: self.source.base_revision,
@@ -534,11 +606,11 @@ impl PlacementJob {
                 before_objective_length_mm,
                 recommended,
                 total_poses,
-                timed_out: trials.len() < total_poses,
+                timed_out: stop == StopReason::TimeLimit,
                 clearance_rejections,
                 full_checks,
                 trials,
-            },
+            }),
         })
     }
 }

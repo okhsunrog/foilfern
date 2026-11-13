@@ -72,7 +72,7 @@ routing_prepare, routing_compare or routing_staged_prepare -> routing_preview ->
 (reviewed builtin; autoroute is direct) -> \
 plane_add (net \"GND\", bottom) -> drc_run -> export_fabrication / jobs_run -> project_save.\n\
 With existing pours, use routing_staged_prepare with explicit ordinary nets to check each batch before keeping it.\n\
-For local device moves, compare allowed poses with routing_placement_compare and review the checked patch before applying.\n\
+For local device moves, use routing_placement_start for an allowed region, poll routing_placement_status, then review the checked patch.\n\
 For precise schematics, place and rotate components, use connect with assign_only:true, \
 then read pin coordinates with schematic_get. In design_preview use wire_groups with paths \
 (pin names and {x,y} vertices in mm), label positions and notes. Branch endpoints on another \
@@ -1033,6 +1033,50 @@ impl LibrePcbMcp {
             routing::finish_placement,
         )
         .await
+    }
+
+    #[tool(
+        description = "Start a bounded placement search in the background. For each authorized device give positions or a region and pitch_mm to generate them. Poll routing_placement_status for progress and checked alternatives."
+    )]
+    async fn routing_placement_start(
+        &self,
+        Parameters(args): Parameters<crate::tools::routing::RoutingPlacementArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        use crate::tools::routing::placement;
+        self.run({
+            let state = self.state.clone();
+            let runtime = tokio::runtime::Handle::current();
+            move |session| {
+                let (id, output, job) = placement::start(session, args)?;
+                runtime.spawn(async move {
+                    let result = tokio::task::spawn_blocking(move || job.run()).await;
+                    let result = result.unwrap_or_else(|error| {
+                        Err(librepcb_editor::routing_service::RoutingError::Refused(
+                            format!("Placement worker failed: {error}"),
+                        ))
+                    });
+                    let _ = tokio::task::spawn_blocking(move || {
+                        state.call("routing_placement_start", |session| {
+                            placement::finish(session, id, result)
+                        });
+                    })
+                    .await;
+                });
+                Ok(output)
+            }
+        })
+        .await
+    }
+
+    #[tool(
+        description = "Poll a placement search. Set cancel to stop at the next checkpoint and retain already checked candidates. Finished status includes the comparison with previewable candidate IDs."
+    )]
+    async fn routing_placement_status(
+        &self,
+        Parameters(args): Parameters<crate::tools::routing::placement::PlacementStatusArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| crate::tools::routing::placement::status(s, args))
+            .await
     }
 
     #[tool(

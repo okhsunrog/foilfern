@@ -394,6 +394,7 @@ impl RoutingService {
 impl Drop for RoutingService {
     fn drop(&mut self) {
         self.cancel_repair_search();
+        self.cancel_placement_search();
     }
 }
 
