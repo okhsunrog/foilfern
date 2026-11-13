@@ -58,6 +58,7 @@ use crate::tools::{
 pub const INSTRUCTIONS: &str = "LibrePCB MCP server: design schematics and PCBs end to end; \
 the files open in upstream LibrePCB. One workspace (libraries) and one project are open at a \
 time.\n\
+Check server_info for an open workspace and project before opening either. \
 Read the MCP resource librepcb://guides/board-design for the full design workflow, \
 multi-gate components, multi-page schematics, layer settings and recovery.\n\
 Workflow: workspace_open/workspace_create -> library_install (e.g. [\"LibrePCB Base\"]) or \
@@ -69,9 +70,11 @@ design_preview -> design_apply (review local schematic layout) -> erc_run -> \
 board_set_outline (width/height mm) -> device_auto_place (or device_place) -> \
 routing_prepare or routing_compare -> routing_preview -> routing_apply (reviewed builtin; autoroute is direct) -> \
 plane_add (net \"GND\", bottom) -> drc_run -> export_fabrication / jobs_run -> project_save.\n\
-For local schematic layout use design_preview with block (selected members, area, order, \
-row or column) or wire_groups (selected same-net endpoints). Use schematic_tidy only when \
-regenerating the whole page is intended.\n\
+For precise schematics, place and rotate components, use connect with assign_only:true, \
+then read pin coordinates with schematic_get. In design_preview use wire_groups with paths \
+(pin names and {x,y} vertices in mm), label positions and notes. Branch endpoints on another \
+path become junctions. Omit paths to request automatic local wiring. Use schematic_tidy \
+when regenerating the whole page is intended.\n\
 Addressing: designators (\"R1\"), pins \"R1.1\" (pad name) or \"U1.VCC\" (signal name) or a \
 designator alone for single-pin parts (\"GND1\"), net names, schematic/board names or indices; \
 UUIDs work everywhere. Unknown arguments are rejected (invalid_argument). Units: millimeters and degrees \
@@ -633,7 +636,8 @@ impl LibrePcbMcp {
                        net label placed clear of other items. Pins: \"R1.1\" (pad), \"U1.VCC\" \
                        (signal) or \"GND1\" (single-pin part). Unconnected supply symbols \
                        whose net name equals the net are attached (placed next to a pin). \
-                       Call once per net with all its pins."
+                       Call once per net with all its pins. Set assign_only for connectivity \
+                       without drawing, then use design_preview for explicit paths."
     )]
     async fn connect(
         &self,
@@ -1242,7 +1246,7 @@ impl LibrePcbMcp {
     // --- Declarative schematic updates -------------------------------------------
 
     #[tool(
-        description = "Preview a version 1 schematic update and render the resulting page. Verify pin memberships, manage existing fields, add parts, place selected blocks, draw local wire groups, and review annotation overlaps."
+        description = "Preview a version 1 schematic update and render the resulting page. Verify pin memberships, manage existing fields, add parts and page notes, place selected blocks, draw automatic or explicit local wire paths, and review annotation overlaps."
     )]
     async fn design_preview(
         &self,

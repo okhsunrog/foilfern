@@ -49,6 +49,7 @@ fn connect(session: &mut Session, net: Option<&str>, pins: &[&str]) -> ToolOutpu
             net: net.map(Into::into),
             pins: pins.iter().map(|p| p.to_string()).collect(),
             max_wire_length: None,
+            assign_only: false,
             expected_revision: None,
         },
     )
@@ -231,6 +232,7 @@ fn design_rc_circuit_with_populated_library() {
             net: Some("GND".into()),
             pins: vec!["R1".into()],
             max_wire_length: None,
+            assign_only: false,
             expected_revision: None,
         },
     )

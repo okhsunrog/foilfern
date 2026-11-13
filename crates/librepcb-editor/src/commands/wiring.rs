@@ -37,6 +37,9 @@ use super::schematic::{
 use crate::editor::{Command, Transaction};
 use crate::error::{Error, Result};
 
+mod explicit;
+pub use explicit::{DrawWirePaths, WirePathPoint, WirePathSpec};
+
 /// A placed symbol pin of a component signal.
 #[derive(Debug, Clone, Copy)]
 struct PlacedPin {
@@ -357,6 +360,27 @@ impl Command for ConnectNet {
     }
 
     fn execute(self, tx: &mut Transaction<'_>) -> Result<ConnectedNet> {
+        self.execute_with_geometry(tx, true)
+    }
+}
+
+/// Assign circuit nets before drawing explicit schematic wires.
+pub struct AssignNet(pub ConnectNet);
+
+impl Command for AssignNet {
+    type Output = ConnectedNet;
+
+    fn text(&self) -> String {
+        self.0.text()
+    }
+
+    fn execute(self, tx: &mut Transaction<'_>) -> Result<ConnectedNet> {
+        self.0.execute_with_geometry(tx, false)
+    }
+}
+
+impl ConnectNet {
+    fn execute_with_geometry(self, tx: &mut Transaction<'_>, draw: bool) -> Result<ConnectedNet> {
         if self.signals.is_empty() {
             return Err(Error::InvalidArgument("No pins to connect.".to_owned()));
         }
@@ -469,6 +493,18 @@ impl Command for ConnectNet {
         for (name, signal) in supplies {
             signals.push(signal);
             result.attached_supplies.push(name);
+        }
+
+        if !draw {
+            for signal in signals {
+                if current_net(tx.project(), &signal) != Some(target) {
+                    set_component_signal_net(tx, signal, Some(target))?;
+                }
+            }
+            remove_unused_nets(tx)?;
+            result.net = Some(target);
+            result.name = net_name.to_string();
+            return Ok(result);
         }
 
         // Placed pins per schematic.
@@ -810,7 +846,7 @@ struct WireGroupPlan {
 }
 
 impl WireGroup {
-    fn resolve(&self, p: &Project) -> Result<Option<WireGroupPlan>> {
+    fn resolve_pins(&self, p: &Project) -> Result<WireGroupPlan> {
         let sheet = p
             .schematic(self.schematic)
             .ok_or_else(|| Error::not_found("Schematic", self.schematic))?;
@@ -849,21 +885,15 @@ impl WireGroup {
             }
             pins.push(pin);
         }
-        if pins.len() < 2 {
-            return Err(Error::InvalidArgument(
-                "A wire group needs at least two pins.".into(),
-            ));
-        }
-        // An existing physical connection satisfies the request, including
-        // when the pins already share a larger manually wired segment.
-        if segments.len() == 1
-            && pins
-                .iter()
-                .all(|p| sheet.pin_net_segment(p.symbol, p.pin).is_some())
-        {
-            return Ok(None);
-        }
-        for id in &segments {
+        Ok(WireGroupPlan { pins, segments })
+    }
+
+    fn check_replacement(&self, p: &Project, plan: &WireGroupPlan) -> Result<()> {
+        let sheet = p
+            .schematic(self.schematic)
+            .ok_or_else(|| Error::not_found("Schematic", self.schematic))?;
+        let anchors = plan.pins.iter().map(|pin| (pin.symbol, pin.pin)).collect();
+        for id in &plan.segments {
             let segment = &sheet.net_segments()[id];
             if !segment.connected_pins().is_subset(&anchors)
                 || !segment.connected_bus_junctions().is_empty()
@@ -873,7 +903,31 @@ impl WireGroup {
                 )));
             }
         }
-        Ok(Some(WireGroupPlan { pins, segments }))
+        Ok(())
+    }
+
+    fn resolve(&self, p: &Project) -> Result<Option<WireGroupPlan>> {
+        let plan = self.resolve_pins(p)?;
+        if plan.pins.len() < 2 {
+            return Err(Error::InvalidArgument(
+                "A wire group needs at least two pins.".into(),
+            ));
+        }
+        // An existing physical connection satisfies the request, including
+        // when the pins already share a larger manually wired segment.
+        let sheet = p
+            .schematic(self.schematic)
+            .ok_or_else(|| Error::not_found("Schematic", self.schematic))?;
+        if plan.segments.len() == 1
+            && plan
+                .pins
+                .iter()
+                .all(|p| sheet.pin_net_segment(p.symbol, p.pin).is_some())
+        {
+            return Ok(None);
+        }
+        self.check_replacement(p, &plan)?;
+        Ok(Some(plan))
     }
 
     /// Returns the segments to replace, or `None` for an existing physical connection.

@@ -14,8 +14,8 @@ project; opening another project is a lifecycle operation, not a prerequisite
 for every task. Use the existing session instead of launching a standalone
 server against a project already open in the application.
 
-For a new design, open or create a workspace with `workspace_open` or
-`workspace_create`, then call `project_create`. It creates a first page
+For a new design, reuse the workspace reported by `server_info` or open or
+create one if none is open. Then call `project_create`. It creates a first page
 and board by default. A workspace is needed to discover and install parts;
 projects keep their own copies of library elements.
 
@@ -60,13 +60,21 @@ against the schematic and reports conversions that need review.
    model. Use `symbol_move` with `gate` (suffix, index or UUID) to position
    an individual gate. `component_get` lists the actual placed gates and pins.
 5. Connect by electrical intent: `{"net":"VCC","pins":["J1.1","R1.1"]}`.
+   Include `"assign_only":true` when you plan to draw explicit paths in step 6.
    A pin address uses a pad number or component signal name, not an assumed
    schematic pin number. Inspect the library mapping to resolve ambiguity.
    Supply symbols force their net name. Cross-page connections use net labels;
    they do not need geometry spanning sheets.
-6. Use `netlist` and `component_get` to verify actual connectivity. Use
-   `design_preview` with `block` for local placement or `wire_groups` for
-   local wiring, inspect the render, then apply the selected preview. Use
+6. Use `netlist` and `component_get` to verify actual connectivity. For
+   precise wiring, pass `assign_only: true` to `connect`, then read the pin
+   coordinates with `schematic_get`. In `design_preview`, bind keys to
+   component UUIDs and use `wire_groups` with explicit paths. For example,
+   with `r` bound to R1, a labeled stub on EN can use
+   `{"net":"EN","pins":["r.1"],"paths":[["r.1",{"x":35.56,"y":50.8}]],"label":{"x":35.56,"y":50.8}}`
+   if the pin lies on the same row or column as the endpoint. Branch endpoints
+   on another path become junctions. Add `notes` with `text`, `position` and
+   `height` in mm for page annotations. Inspect the render, then use
+   `design_apply`. Use `block` for local placement and
    `schematic_tidy` when you intend to replace the layout and wiring of an
    entire sheet. Inspect each sheet for label collisions and circuit grouping.
    Use `symbol_text_move` with `text: "name"`, `text: "value"`, or a text

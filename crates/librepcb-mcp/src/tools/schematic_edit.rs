@@ -18,9 +18,9 @@ use librepcb_core::types::{
 };
 use librepcb_core::workspace::{ElementKind, SearchQuery};
 use librepcb_editor::commands::{
-    AddComponent, AddNetClass, AddSchematic, ApplyMutations, AutoPlaceSymbols, ConnectNet,
-    DisconnectSignals, EditComponent, EditNet, EditNetClass, MoveSymbol, NetRef, RemoveComponent,
-    SymbolPlacement, TidySchematic,
+    AddComponent, AddNetClass, AddSchematic, ApplyMutations, AssignNet, AutoPlaceSymbols,
+    ConnectNet, DisconnectSignals, EditComponent, EditNet, EditNetClass, MoveSymbol, NetRef,
+    RemoveComponent, SymbolPlacement, TidySchematic,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -154,6 +154,10 @@ pub struct ConnectArgs {
     /// labels only).
     #[serde(default)]
     pub max_wire_length: Option<f64>,
+    /// Assign the net without drawing wires, labels or moving supply symbols.
+    /// Use explicit wire_groups in design_preview to draw the selected pins afterward.
+    #[serde(default)]
+    pub assign_only: bool,
     /// Fail with `stale_revision` if the project revision differs.
     #[serde(default)]
     pub expected_revision: Option<u64>,
@@ -826,6 +830,11 @@ fn resolve_pins(session: &Session, pins: &[String]) -> ToolResult<Vec<ComponentS
 
 /// `connect`.
 pub fn connect(session: &mut Session, args: ConnectArgs) -> ToolResult<ToolOutput> {
+    if args.assign_only && args.max_wire_length.is_some() {
+        return Err(ToolError::invalid(
+            "assign_only does not use max_wire_length.",
+        ));
+    }
     let signals = resolve_pins(session, &args.pins)?;
     let net = args
         .net
@@ -841,11 +850,16 @@ pub fn connect(session: &mut Session, args: ConnectArgs) -> ToolResult<ToolOutpu
         })
         .transpose()?;
     let done = write(session, "connect", args.expected_revision, |tx| {
-        Ok(tx.run(ConnectNet {
+        let command = ConnectNet {
             net,
             signals,
             max_wire_length,
-        })?)
+        };
+        Ok(if args.assign_only {
+            tx.run(AssignNet(command))?
+        } else {
+            tx.run(command)?
+        })
     })?;
     let open = session.project()?;
     let r = &done.value;

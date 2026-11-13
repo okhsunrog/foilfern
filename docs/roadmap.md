@@ -96,9 +96,11 @@ Preview can report annotation overlaps for a selected group of components and
 move a reference or value independently with an expected-position check.
 `design_preview` can place selected members in a bounded row or column with
 an optional alignment coordinate. It keeps unrelated geometry fixed and
-carries each movable symbol's independent wire stubs with it. The next layout
-step is to arrange and wire connected functional blocks around fixed pins in
-one preview, with crossing checks and annotation spacing on the result.
+carries each movable symbol's independent wire stubs with it. A preview can
+also draw explicit orthogonal wire paths, junctions and notes around existing
+pins, with checks for new wire crossings and symbol collisions. The next
+layout step is to combine placement and wiring of already connected blocks
+around fixed pins in one preview.
 
 Done when:
 

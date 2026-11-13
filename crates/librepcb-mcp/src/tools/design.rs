@@ -3,14 +3,17 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use librepcb_core::attribute::{Attribute, AttributeKey, AttributeType};
+use librepcb_core::geometry::Text;
 use librepcb_core::project::{
-    ComponentInstanceId, ComponentSignalRef, LibraryElementKind, NetSignalId, Project, SchematicId,
-    SymbolRef,
+    ComponentInstanceId, ComponentSignalRef, LibraryElementKind, Mutation, NetSignalId, Project,
+    SchematicId, SchematicMutation, SymbolRef,
 };
+use librepcb_core::types::{Alignment, Angle, Layer, PositiveLength, Uuid};
 use librepcb_editor::Transaction;
 use librepcb_editor::commands::{
-    AddComponent, AddLibraryElement, AutoPlaceSymbols, BlockDirection, EditComponent, MoveSymbol,
-    PlaceSchematicBlock, Rect, SymbolPlacement, SymbolStyle, WireGroup, connect_design_pin,
+    AddComponent, AddLibraryElement, AutoPlaceSymbols, BlockDirection, DrawWirePaths,
+    EditComponent, MoveSymbol, PlaceSchematicBlock, Rect, SymbolPlacement, SymbolStyle, WireGroup,
+    WirePathPoint, WirePathSpec, connect_design_pin,
 };
 use librepcb_editor::design_preview::{DesignEdit, DesignPreview};
 use schemars::JsonSchema;
@@ -87,6 +90,9 @@ pub struct DesignDocument {
     /// Local physical connections on the selected sheet between existing members of a net.
     #[serde(default)]
     wire_groups: Vec<LocalWireGroup>,
+    /// Add page notes. An identical note at the same position already satisfies the request.
+    #[serde(default)]
+    notes: Vec<PageNote>,
     /// Optional artwork for rectangular placeholders, keyed by embedded library
     /// symbol UUID (see component_get). All instances using that symbol change.
     #[serde(default)]
@@ -167,8 +173,32 @@ enum ArtworkWithRoles {
 pub struct LocalWireGroup {
     /// Name of an existing circuit net.
     net: String,
-    /// At least two pins as `key.pin`, each with one symbol pin on this sheet.
+    /// Pins as `key.pin`, each with one symbol pin on this sheet. At least two
+    /// for automatic wiring. An explicit path can draw a single-pin stub.
     pins: Vec<String>,
+    /// Optional explicit paths. Each vertex is a pin name from pins or {x,y}
+    /// in mm (Y up). Use orthogonal edges. End a branch on another path to
+    /// create a junction. Each group describes one connected segment.
+    paths: Option<Vec<Vec<WireVertex>>>,
+    /// Label position on an explicit wire, in mm. Omit to draw no label.
+    label: Option<PointMm>,
+}
+
+#[derive(Debug, Deserialize, serde::Serialize, JsonSchema)]
+#[serde(untagged)]
+enum WireVertex {
+    Pin(String),
+    Point(PointMm),
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct PageNote {
+    text: String,
+    /// Bottom-left anchor in sheet coordinates in mm.
+    position: PointMm,
+    /// Text height in mm.
+    height: f64,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -456,6 +486,8 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     };
     let mut grouped = BTreeSet::new();
     let mut wire_edits = Vec::new();
+    let mut explicit = Vec::new();
+    let mut explicit_diffs = Vec::new();
     for group in &doc.wire_groups {
         let (net, pins) = resolve_memberships(p, &bindings, &group.net, &group.pins)?;
         for (pin, name) in pins.iter().zip(&group.pins) {
@@ -476,7 +508,42 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
             net,
             pins,
         };
-        if let Some(segments) = command.segments_to_replace(p)? {
+        if let Some(paths) = &group.paths {
+            let mut converted = Vec::new();
+            for path in paths {
+                let mut vertices = Vec::new();
+                for vertex in path {
+                    vertices.push(match vertex {
+                        WireVertex::Pin(pin) => {
+                            WirePathPoint::Pin(
+                                group.pins.iter().position(|name| name == pin).ok_or_else(
+                                    || {
+                                        ToolError::invalid(format!(
+                                            "Wire path pin {pin:?} is absent from pins."
+                                        ))
+                                    },
+                                )?,
+                            )
+                        }
+                        WireVertex::Point(point) => WirePathPoint::Point(point.to_point()?),
+                    });
+                }
+                converted.push(vertices);
+            }
+            explicit.push(WirePathSpec {
+                group: command,
+                paths: converted,
+                label: group.label.map(PointMm::to_point).transpose()?,
+            });
+            explicit_diffs.push(
+                json!({"field":"wire_paths","net":group.net,"pins":group.pins,
+                "paths":paths,"label":group.label}),
+            );
+        } else if group.label.is_some() {
+            return Err(ToolError::invalid(
+                "A label position requires explicit wire paths.",
+            ));
+        } else if let Some(segments) = command.segments_to_replace(p)? {
             diff.push(json!({
                 "field":"wire_group","net":group.net,"pins":group.pins,"replaced_segments":segments,
             }));
@@ -507,6 +574,56 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                     "component":block_designators[&symbol],
                     "before":views::point(before),"after":views::point(after)}));
             }
+        }
+        if !explicit.is_empty() {
+            let changes = tx.run(DrawWirePaths {
+                schematic: page,
+                groups: explicit,
+            })?;
+            for (mut change, replaced) in explicit_diffs.into_iter().zip(changes) {
+                if let Some(replaced) = replaced {
+                    change["replaced_segments"] = json!(replaced);
+                    added.push(change);
+                }
+            }
+        }
+        for note in &doc.notes {
+            if note.text.trim().is_empty() {
+                return Err(ToolError::invalid("A page note needs text."));
+            }
+            let position = note.position.to_point()?;
+            let height = PositiveLength::new(units::length(note.height)?)?;
+            let sheet = tx
+                .project()
+                .schematic(page)
+                .ok_or_else(|| ToolError::not_found("Schematic not found."))?;
+            if sheet.texts().values().any(|text| {
+                text.layer() == Layer::SCHEMATIC_COMMENTS
+                    && text.text() == &note.text
+                    && text.position() == position
+                    && text.height() == height
+                    && text.rotation() == Angle::DEG0
+                    && text.align() == Alignment::default()
+            }) {
+                continue;
+            }
+            let uuid = Uuid::new_random();
+            tx.apply(Mutation::Schematic(SchematicMutation::AddText {
+                schematic: page,
+                text: Text::new(
+                    uuid,
+                    Layer::SCHEMATIC_COMMENTS,
+                    &note.text,
+                    position,
+                    Angle::DEG0,
+                    height,
+                    Alignment::default(),
+                    false,
+                ),
+            }))?;
+            added.push(
+                json!({"field":"page_note","uuid":uuid,"text":note.text,"position":note.position,"height":note.height}),
+            );
         }
         Ok(added)
     })?;

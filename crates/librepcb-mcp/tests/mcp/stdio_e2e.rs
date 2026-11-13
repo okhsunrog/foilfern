@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 9);
+    assert_eq!(info["api_capability_version"], 10);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -1265,6 +1265,162 @@ async fn stdio_design_wire_group_keeps_other_connections() {
     assert_eq!(applied["mutation_count"], 0);
     assert_eq!(call_ok(&client, "history", json!({})).await, history);
     assert_eq!(call_ok(&client, "schematic_get", json!({})).await, manual);
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn stdio_explicit_wire_paths_validate_and_replay() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    let project = call_ok(&client, "project_create", json!({"name":"Wire paths"})).await;
+    let mut bindings = json!({});
+    for (name, x, y) in [("R1", 0, 0), ("R2", 40, 0), ("R3", 20, 20), ("R4", 0, -20)] {
+        let added = call_ok(
+            &client,
+            "component_add",
+            json!({"part":"R-0805","designator":name}),
+        )
+        .await;
+        bindings[name] = json!({"uuid":added["uuid"]});
+        call_ok(
+            &client,
+            "symbol_move",
+            json!({"component":name,"position":{"x":x,"y":y}}),
+        )
+        .await;
+    }
+    for (net, pins, assign) in [
+        ("EN", json!(["R1.2", "R2.1", "R3.1"]), true),
+        ("GND", json!(["R4.2"]), true),
+        ("TEST", json!(["R4.1"]), false),
+    ] {
+        let result = call_ok(
+            &client,
+            "connect",
+            json!({"net":net,"pins":pins,"assign_only":assign}),
+        )
+        .await;
+        if assign {
+            assert_eq!(result["wires"], 0);
+            assert_eq!(result["labels"], 0);
+        }
+    }
+    let before = call_ok(&client, "schematic_get", json!({})).await;
+    let pin = |name: &str| {
+        before["symbols"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|s| s["pins"].as_array().unwrap())
+            .find(|pin| pin["pin"] == name)
+            .unwrap()["position"]
+            .clone()
+    };
+    let branch = pin("R3.1");
+    let r4 = pin("R4.2");
+    let document = json!({
+        "version":1,"schematic":"Main","components":bindings,
+        "wire_groups":[
+            {"net":"EN","pins":["R1.2","R2.1","R3.1"],
+             "paths":[["R1.2","R2.1"],["R3.1",{"x":branch["x"],"y":0}]]},
+            {"net":"GND","pins":["R4.2"],"paths":[["R4.2",{"x":20,"y":r4["y"]}]],
+             "label":{"x":20,"y":r4["y"]}}
+        ],
+        "notes":[{"text":"RESET","position":{"x":20,"y":30},"height":1.5}]
+    });
+    let summary = call_ok(&client, "project_summary", json!({})).await;
+    let netlist = call_ok(&client, "netlist", json!({})).await;
+    let history = call_ok(&client, "history", json!({})).await;
+
+    for (paths, diagnostic) in [
+        (json!([["R4.2",{"x":20,"y":-10}]]), "horizontal or vertical"),
+        (
+            json!([["R4.2",{"x":20,"y":r4["y"]},{"x":20,"y":10}]]),
+            "crosses or overlaps",
+        ),
+        (
+            json!([["R4.2",{"x":-2,"y":r4["y"]}]]),
+            "passes through symbol R4",
+        ),
+    ] {
+        let mut invalid = document.clone();
+        invalid["wire_groups"][1]["paths"] = paths;
+        invalid["wire_groups"][1]
+            .as_object_mut()
+            .unwrap()
+            .remove("label");
+        let result = call(&client, "design_preview", invalid).await;
+        assert_eq!(result.is_error, Some(true));
+        let error = result.structured_content.unwrap();
+        assert!(error.to_string().contains(diagnostic), "{error}");
+    }
+    let preview = call_ok(&client, "design_preview", document.clone()).await;
+    assert_eq!(preview["diff"].as_array().unwrap().len(), 3);
+    assert_eq!(preview["diff"][0]["field"], "wire_paths");
+    assert_eq!(
+        call_ok(&client, "project_summary", json!({})).await,
+        summary
+    );
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, before);
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":preview["preview"]}),
+    )
+    .await;
+    let after = call_ok(&client, "schematic_get", json!({})).await;
+    let mut expected_symbols = before["symbols"].clone();
+    for symbol in expected_symbols.as_array_mut().unwrap() {
+        for pin in symbol["pins"].as_array_mut().unwrap() {
+            if matches!(pin["net"].as_str(), Some("EN" | "GND")) {
+                pin["wired"] = json!(true);
+            }
+        }
+    }
+    assert_eq!(after["symbols"], expected_symbols);
+    let segments = after["net_segments"].as_array().unwrap();
+    assert!(segments.contains(&before["net_segments"][0]));
+    let en = segments.iter().find(|s| s["net"] == "EN").unwrap();
+    assert_eq!(en["junctions"].as_array().unwrap().len(), 1);
+    assert_eq!(en["lines"].as_array().unwrap().len(), 3);
+    assert_eq!(call_ok(&client, "netlist", json!({})).await, netlist);
+    let mut unsafe_edit = document.clone();
+    unsafe_edit["wire_groups"][0]["pins"] = json!(["R1.2", "R2.1"]);
+    unsafe_edit["wire_groups"][0]["paths"] = json!([["R1.2", "R2.1"]]);
+    let denied = call(&client, "design_preview", unsafe_edit).await;
+    assert!(
+        denied
+            .structured_content
+            .unwrap()
+            .to_string()
+            .contains("connections outside the group")
+    );
+
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, before);
+    call_ok(&client, "redo", json!({})).await;
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, after);
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    call_ok(&client, "project_open", json!({"path":project["path"]})).await;
+    let repeated = call_ok(&client, "design_preview", document).await;
+    assert_eq!(repeated["diff"], json!([]));
+    let applied = call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":repeated["preview"]}),
+    )
+    .await;
+    assert_eq!(applied["operation_count"], 0);
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, after);
     client.cancel().await.unwrap();
 }
 

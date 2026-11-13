@@ -233,6 +233,27 @@ would touch a segment with a pin outside the group or a bus connection, the
 preview fails. Pins already physically connected satisfy the group, preserving
 its existing wire geometry.
 
+For explicit wiring, add `paths` to a wire group. Each path lists pin names
+from the group's `pins` and absolute points `{x,y}` in mm. Edges must be
+orthogonal. The paths form one connected segment, and a branch ending on
+another path splits it at a shared junction. A single-pin group can draw a
+stub. Separate segments on the same net go in separate groups. To show their
+relationship, place a `label` on each wire or use supply symbols. `label` is
+an optional point on the wire; its orientation follows the edge there.
+
+The preview checks explicit wires against symbol bounds, unrelated pins,
+buses and other wires, including other explicit groups in the document. It
+rejects touching, overlapping or crossing wires between distinct groups.
+Segments being replaced are excluded from collision checks. The diff reports
+the requested paths and the segment UUIDs they replace. Identical geometry
+and label placement are a no-op. On a new sheet, `connect` with
+`assign_only: true` assigns the net without drawing stubs or moving supply
+symbols. After assigning nets and placing symbols, use `schematic_get` to
+read absolute pin positions before describing paths.
+
+Use `notes` to add free text to the schematic with `text`, `position` and
+`height` in mm. An identical note at the requested position is a no-op.
+
 Use `symbol_styles` to replace rectangular placeholders with native artwork.
 Keys are project library symbol UUIDs from `component_get.symbols[].library_symbol`.
 The `capacitor` and `normally_open_push_button` styles accept two aligned,
