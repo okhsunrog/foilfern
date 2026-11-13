@@ -31,7 +31,7 @@ because its tools exist or one board has zero air wires.
 | Stage | Result | Dependencies | State |
 | --- | --- | --- | --- |
 | P0 | Identifiable builds, concise responses and measured operation costs | Existing API | Complete; [release replay](benchmarks/esp-pd-sink/review/performance/p0/REPORT.md) |
-| P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; local wire groups and embedded symbol artwork verified on EN/RESET |
+| P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; 36-component creation and local rewiring verified |
 | P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | Planned; external review prototypes only |
 | P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | Planned; router callback only |
 | P4 | Diagnosed local repair with bounded placement alternatives | P2, P3 | Planned; explicit repair primitives already implemented |
@@ -104,6 +104,14 @@ to final pin coordinates. On the ESP32-C3 dev board, moving R1, C3 and RESET
 redrew three segments and preserved the other 24, the netlist and the fixed
 module and supply symbols. Undo/redo restored both layouts, and replay after
 save/reopen gave an empty diff.
+
+From a blank native sheet, one document created all 36 components and 29
+nets of the saved ESP32-C3 comparison, matching its physical-pad membership.
+The replay used the corrected comparison library embedded in the original
+project. A second document created the ESP32-C3-WROOM-02 dev board with
+standard library symbols, explicit routes and notes. Both saved projects
+passed ERC in Foilfern and upstream LibrePCB 2.1.1, and both documents replayed
+with an empty diff after reopening. These runs covered the schematic.
 
 Done when:
 

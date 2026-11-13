@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `11`). Its `build` object contains
+`api_capability_version` (currently `12`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -177,9 +177,10 @@ report unknown provenance. The values are captured at build time.
 custom profiles by inheritance. `cargo_opt_level` reports Cargo's optimization
 setting for the MCP crate. Record the actual build command for timing comparisons.
 
-Full declarative project creation (P1), persisted enforced requirements (P2), worker
-jobs/cancellation (P3) and visual candidate review (P5) are not current MCP
-capabilities. `routing_compare` already ranks builtin-order candidates; runtime
+Declarative schematic creation (P1) starts with an open native project and
+sheet. Persisted enforced requirements (P2), worker jobs/cancellation (P3) and
+visual candidate review (P5) are not current MCP capabilities.
+`routing_compare` already ranks builtin-order candidates; runtime
 candidate capacity does not limit the number of active preparation workers.
 
 Session / project:
@@ -282,16 +283,24 @@ The templates move pin names that sit on the lead axis away from the lead.
 Call `design_apply` with the latest preview ID in the same open project.
 It applies the rendered patch in one undo group. An edit or save invalidates
 the preview, and applying an empty diff leaves the revision and history intact.
-Use [`add_components`](examples/esp32-c3-add-decoupler.json) to add parts to
-the selected sheet. Each entry provides a stable key, the initial designator,
-the exact component and device UUIDs, a value and a map of package pad names to
-existing net names. The preview reports the pad, signal and library UUIDs.
-Omit the initial position for automatic placement. Replaying the same entry
+Use `add_nets` to create any missing named nets before adding parts. Existing
+nets retain their UUIDs and classes. Use
+[`add_components`](examples/esp32-c3-add-decoupler.json) to add parts to the
+selected sheet. Each entry provides a stable key, the initial designator,
+the exact component and device UUIDs, a value and a map of package pad names
+to net names. Specify `symbol_variant` to select a particular library variant.
+For a schematic-only part, omit `device` and use exact component signal names
+in `connections`. The preview reports the pad, signal and library UUIDs.
+Omit the initial position for automatic placement. Set `mirrored: true` for
+an initial mirrored symbol, for example a header with pins facing left.
+Replaying the same entry
 keeps subsequent designator and placement edits. A changed part, value or pin
 membership reports a conflict. The key is stored in the component's native
 `FOILFERN_DESIGN_KEY` attribute. Apply and undo include the embedded library
-files. This operation adds schematic connections and an assembly option.
-PCB placement, new nets and rewiring existing components are separate operations.
+files. `nets` assertions and `wire_groups` can refer to new component keys in
+the same document. Set `assign_only: true` on a new part to supply its wires
+with explicit paths. By default each assigned pin gets a labeled stub.
+PCB placement remains a separate operation.
 
 Set `review_components` to document keys to check annotation overlaps in the
 preview. The report gives the object IDs, designators or net names and the

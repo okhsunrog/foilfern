@@ -2,7 +2,7 @@
 
 use librepcb_core::fileio::FilePath;
 use librepcb_core::geometry::Text;
-use librepcb_core::project::{Mutation, Project, SchematicMutation, SymbolArtwork, SymbolRef};
+use librepcb_core::project::{Mutation, Project, SchematicMutation, SymbolRef};
 use librepcb_core::types::Uuid;
 
 use crate::commands::{EditComponent, MoveSymbol, WireGroup};
@@ -14,7 +14,6 @@ pub enum DesignEdit {
     Symbol(MoveSymbol),
     SymbolText { symbol: SymbolRef, text: Text },
     WireGroup(WireGroup),
-    LibrarySymbolArtwork(SymbolArtwork),
 }
 
 impl DesignEdit {
@@ -31,9 +30,6 @@ impl DesignEdit {
                 }))?;
             }
             Self::WireGroup(command) => tx.run(command)?,
-            Self::LibrarySymbolArtwork(artwork) => {
-                tx.apply(Mutation::SetLibrarySymbolArtwork(artwork))?
-            }
         }
         Ok(())
     }

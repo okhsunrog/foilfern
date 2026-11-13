@@ -140,6 +140,7 @@ pub fn connect_design_pin(
     schematic: SchematicId,
     signal: ComponentSignalRef,
     net: NetSignalId,
+    assign_only: bool,
 ) -> Result<()> {
     let project = tx.project();
     let name = project
@@ -148,10 +149,19 @@ pub fn connect_design_pin(
         .ok_or_else(|| Error::not_found("Net", net))?
         .name()
         .clone();
-    if forced_net_name(project, signal).is_some_and(|forced| forced != name) {
+    if let Some(forced) = forced_net_name(project, signal)
+        && forced != name
+    {
         return Err(Error::InvalidArgument(format!(
-            "The selected pin requires a different net than {name}."
+            "{} requires net {forced}, but the document assigns {name}.",
+            signal_name(project, signal)
         )));
+    }
+    if assign_only {
+        return tx.apply(Mutation::SetComponentSignalNet {
+            signal,
+            net: Some(net),
+        });
     }
     let pins: Vec<_> = placed_pins(project, signal)?
         .into_iter()

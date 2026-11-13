@@ -467,6 +467,9 @@ differ between platforms/implementations:
   It can place a selected block and redraw its explicit wire groups together,
   resolving relative coordinates from the resulting pin positions. The wires,
   junctions, labels and notes use the native format.
+- A declarative preview can create named nets and library-backed components,
+  then wire them on an existing sheet. Replay binds added instances through
+  a native component attribute and keeps their existing identities.
 
 - Loading validates each schematic page as a whole after deserializing it
   (upstream adds the empty page and then item by item); for a file with

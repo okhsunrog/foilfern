@@ -11,7 +11,7 @@ use librepcb_core::project::{
 use librepcb_core::types::{Alignment, Angle, Layer, PositiveLength, Uuid};
 use librepcb_editor::Transaction;
 use librepcb_editor::commands::{
-    AddComponent, AddLibraryElement, AutoPlaceSymbols, BlockDirection, DrawWirePaths,
+    AddComponent, AddLibraryElement, AddNet, AutoPlaceSymbols, BlockDirection, DrawWirePaths,
     EditComponent, MoveSymbol, PlaceSchematicBlock, Rect, SymbolPlacement, SymbolStyle,
     WireCoordinate, WireGroup, WirePathPoint, WirePathSpec, WireWaypoint, connect_design_pin,
 };
@@ -86,6 +86,9 @@ pub struct DesignDocument {
     /// Components to create if their stable document key has no instance.
     #[serde(default)]
     add_components: BTreeMap<String, NewComponent>,
+    /// Named nets to ensure before adding parts. Existing nets keep their identity and class.
+    #[serde(default)]
+    add_nets: Vec<String>,
     /// Required pin memberships, using `key.pin` (for example `pullup.2`).
     /// These are assertions against the existing circuit.
     #[serde(default)]
@@ -136,14 +139,24 @@ struct NewComponent {
     /// Designator used on first creation.
     designator: String,
     library_component: String,
-    device: String,
+    /// Exact device UUID. Omit for a schematic-only library component.
+    device: Option<String>,
+    /// Optional exact symbol variant UUID. Defaults to the project's norm.
+    symbol_variant: Option<String>,
     value: String,
     /// Initial position in mm. Subsequent manual moves are retained.
     position: Option<PointMm>,
     /// Initial rotation in degrees.
     rotation: Option<f64>,
-    /// Maps exact physical package pad names to existing net names.
+    /// Mirror the initial symbol placement.
+    #[serde(default)]
+    mirrored: bool,
+    /// Maps exact physical package pads (or exact signal names for schematic-only parts) to nets.
+    #[serde(default)]
     connections: BTreeMap<String, String>,
+    /// Assign connections without stubs when the document supplies explicit wire groups.
+    #[serde(default)]
+    assign_only: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, serde::Serialize, JsonSchema)]
@@ -277,7 +290,6 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     let mut seen = BTreeSet::new();
     let mut edits = Vec::new();
     let mut diff = Vec::new();
-    let mut styled = BTreeSet::new();
     for key in &doc.review_components {
         if !doc.components.contains_key(key) && !doc.add_components.contains_key(key) {
             return Err(ToolError::invalid(format!(
@@ -291,61 +303,6 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
             return Err(ToolError::invalid(format!(
                 "Invalid or duplicate component key {key:?}."
             )));
-        }
-    }
-    for (key, style) in &doc.symbol_styles {
-        let id = resolve::required_uuid(key, "library symbol")?;
-        if !styled.insert(id) {
-            return Err(ToolError::invalid(format!(
-                "Duplicate style for symbol {id}."
-            )));
-        }
-        let symbol = p.library().symbol(&id).ok_or_else(|| {
-            ToolError::not_found(format!("Project library symbol {id} not found."))
-        })?;
-        let template = match style {
-            Artwork::Simple(SimpleArtwork::Capacitor) => SymbolStyle::Capacitor,
-            Artwork::Simple(SimpleArtwork::NormallyOpenPushButton) => {
-                SymbolStyle::NormallyOpenPushButton
-            }
-            Artwork::WithRoles(ArtworkWithRoles::Crystal {
-                resonator_pins: [a, b],
-                case_pins: [c, d],
-            }) => SymbolStyle::Crystal {
-                resonator_pins: [
-                    resolve::required_uuid(a, "resonator pin")?,
-                    resolve::required_uuid(b, "resonator pin")?,
-                ],
-                case_pins: [
-                    resolve::required_uuid(c, "case pin")?,
-                    resolve::required_uuid(d, "case pin")?,
-                ],
-            },
-        };
-        if let Some(mutation) = template.plan(symbol)? {
-            let mut affected: Vec<_> = p
-                .circuit()
-                .component_instances()
-                .values()
-                .filter(|component| {
-                    p.library()
-                        .component(&component.lib_component())
-                        .and_then(|lib| lib.symbol_variants().by_uuid(&component.lib_variant()))
-                        .is_some_and(|variant| {
-                            variant
-                                .symbol_items()
-                                .iter()
-                                .any(|gate| gate.symbol_uuid() == id)
-                        })
-                })
-                .map(|component| component.name().as_str())
-                .collect();
-            affected.sort_unstable();
-            diff.push(json!({
-                "field":"symbol_style", "library_symbol":id, "before":"box", "after":style,
-                "affected_components":affected,
-            }));
-            edits.push(DesignEdit::LibrarySymbolArtwork(mutation));
         }
     }
     for (key, spec) in &doc.components {
@@ -494,11 +451,6 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
             }
         }
     }
-    let mut verified = 0;
-    for (name, pins) in &doc.nets {
-        let (_, signals) = resolve_memberships(p, &bindings, name, pins)?;
-        verified += signals.len();
-    }
     let mut block_members = BTreeSet::new();
     let mut block_designators = BTreeMap::new();
     let mut block = if let Some(block) = &doc.block {
@@ -555,153 +507,175 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     } else {
         None
     };
-    let mut grouped = BTreeSet::new();
-    let mut wire_edits = Vec::new();
-    let mut explicit = Vec::new();
-    let mut explicit_diffs = Vec::new();
-    for group in &doc.wire_groups {
-        let (net, pins) = resolve_memberships(p, &bindings, &group.net, &group.pins)?;
-        for (pin, name) in pins.iter().zip(&group.pins) {
-            if block_members.contains(&pin.component) && group.paths.is_none() {
-                return Err(ToolError::invalid(format!(
-                    "{name} is a movable block member. Supply explicit paths to redraw its wires in this preview."
-                )));
+    let (preview, project, (added, verified)) = DesignPreview::prepare(
+        &open.editor,
+        |tx| -> ToolResult<_> {
+            for edit in edits {
+                edit.execute(tx)?;
             }
-            if !grouped.insert(*pin) {
-                return Err(ToolError::invalid(format!(
-                    "{name} appears more than once in wire groups."
-                )));
-            }
-        }
-        verified += pins.len();
-        let command = WireGroup {
-            schematic: page,
-            net,
-            pins,
-        };
-        if let Some(paths) = &group.paths {
-            let mut converted = Vec::new();
-            for path in paths {
-                let mut vertices = Vec::new();
-                for vertex in path {
-                    vertices.push(match vertex {
-                        WireVertex::Pin(pin) => WirePathPoint::Pin(group.pin_index(pin)?),
-                        WireVertex::Point(point) => WirePathPoint::Waypoint(point.resolve(group)?),
-                    });
+            let mut added = Vec::new();
+            for name in &doc.add_nets {
+                if tx.project().circuit().net_signal_by_name(name).is_none() {
+                    let id = tx.run(AddNet {
+                        name: Some(super::schematic_edit::identifier(name, "net name")?),
+                        net_class: None,
+                    })?;
+                    added.push(json!({"field":"add_net","net":name,"uuid":id}));
                 }
-                converted.push(vertices);
             }
-            let spec = WirePathSpec {
-                group: command,
-                paths: converted,
-                label: group
-                    .label
-                    .as_ref()
-                    .map(|point| point.resolve(group))
-                    .transpose()?,
-            };
-            if let Some(block) = &mut block
-                && spec
-                    .group
-                    .pins
-                    .iter()
-                    .any(|pin| block_members.contains(&pin.component))
-            {
-                block.redrawn_segments.extend(spec.replaceable_segments(p)?);
-            }
-            explicit.push(spec);
-            explicit_diffs.push(
-                json!({"field":"wire_paths","net":group.net,"pins":group.pins,
-                "paths":paths,"label":group.label}),
-            );
-        } else if group.label.is_some() {
-            return Err(ToolError::invalid(
-                "A label position requires explicit wire paths.",
-            ));
-        } else if let Some(segments) = command.segments_to_replace(p)? {
-            diff.push(json!({
-                "field":"wire_group","net":group.net,"pins":group.pins,"replaced_segments":segments,
-            }));
-            // Wire groups run after explicit placement of their endpoints.
-            wire_edits.push(DesignEdit::WireGroup(command));
-        }
-    }
-    let (preview, project, added) = DesignPreview::prepare(&open.editor, |tx| -> ToolResult<_> {
-        for edit in edits {
-            edit.execute(tx)?;
-        }
-        let mut added = Vec::new();
-        for edit in wire_edits {
-            edit.execute(tx)?;
-        }
-        for (key, spec) in &doc.add_components {
-            let (id, change) = add_component(tx, page, key, spec)?;
-            if doc.review_components.contains(key) {
-                reviewed.insert(id);
-            }
-            if let Some(change) = change {
-                added.push(change);
-            }
-        }
-        if let Some(block) = block {
-            for (symbol, before, after) in tx.run(block)? {
-                added.push(json!({"field":"block_position","symbol":symbol,
-                    "component":block_designators[&symbol],
-                    "before":views::point(before),"after":views::point(after)}));
-            }
-        }
-        if !explicit.is_empty() {
-            let changes = tx.run(DrawWirePaths {
-                schematic: page,
-                groups: explicit,
-            })?;
-            for (mut change, replaced) in explicit_diffs.into_iter().zip(changes) {
-                if let Some(replaced) = replaced {
-                    change["replaced_segments"] = json!(replaced);
+            for (key, spec) in &doc.add_components {
+                let (id, change) = add_component(tx, page, key, spec)?;
+                bindings.insert(key.as_str(), id);
+                if doc.review_components.contains(key) {
+                    reviewed.insert(id);
+                }
+                if let Some(change) = change {
                     added.push(change);
                 }
             }
-        }
-        for note in &doc.notes {
-            if note.text.trim().is_empty() {
-                return Err(ToolError::invalid("A page note needs text."));
+            style_symbols(tx, &doc.symbol_styles, &mut added)?;
+            let p = tx.project();
+            let mut verified = 0;
+            for (name, pins) in &doc.nets {
+                let (_, signals) = resolve_memberships(p, &bindings, name, pins)?;
+                verified += signals.len();
             }
-            let position = note.position.to_point()?;
-            let height = PositiveLength::new(units::length(note.height)?)?;
-            let sheet = tx
-                .project()
-                .schematic(page)
-                .ok_or_else(|| ToolError::not_found("Schematic not found."))?;
-            if sheet.texts().values().any(|text| {
-                text.layer() == Layer::SCHEMATIC_COMMENTS
-                    && text.text() == &note.text
-                    && text.position() == position
-                    && text.height() == height
-                    && text.rotation() == Angle::DEG0
-                    && text.align() == Alignment::default()
-            }) {
-                continue;
+            let mut grouped = BTreeSet::new();
+            let mut wire_edits = Vec::new();
+            let mut explicit = Vec::new();
+            let mut explicit_diffs = Vec::new();
+            for group in &doc.wire_groups {
+                let (net, pins) = resolve_memberships(p, &bindings, &group.net, &group.pins)?;
+                for (pin, name) in pins.iter().zip(&group.pins) {
+                    if block_members.contains(&pin.component) && group.paths.is_none() {
+                        return Err(ToolError::invalid(format!(
+                            "{name} is a movable block member. Supply explicit paths to redraw its wires in this preview."
+                        )));
+                    }
+                    if !grouped.insert(*pin) {
+                        return Err(ToolError::invalid(format!(
+                            "{name} appears more than once in wire groups."
+                        )));
+                    }
+                }
+                verified += pins.len();
+                let command = WireGroup {
+                    schematic: page,
+                    net,
+                    pins,
+                };
+                if let Some(paths) = &group.paths {
+                    let mut converted = Vec::new();
+                    for path in paths {
+                        let mut vertices = Vec::new();
+                        for vertex in path {
+                            vertices.push(match vertex {
+                                WireVertex::Pin(pin) => WirePathPoint::Pin(group.pin_index(pin)?),
+                                WireVertex::Point(point) => {
+                                    WirePathPoint::Waypoint(point.resolve(group)?)
+                                }
+                            });
+                        }
+                        converted.push(vertices);
+                    }
+                    let spec = WirePathSpec {
+                        group: command,
+                        paths: converted,
+                        label: group
+                            .label
+                            .as_ref()
+                            .map(|point| point.resolve(group))
+                            .transpose()?,
+                    };
+                    if let Some(block) = &mut block
+                        && spec
+                            .group
+                            .pins
+                            .iter()
+                            .any(|pin| block_members.contains(&pin.component))
+                    {
+                        block.redrawn_segments.extend(spec.replaceable_segments(p)?);
+                    }
+                    explicit.push(spec);
+                    explicit_diffs.push(
+                        json!({"field":"wire_paths","net":group.net,"pins":group.pins,
+                    "paths":paths,"label":group.label}),
+                    );
+                } else if group.label.is_some() {
+                    return Err(ToolError::invalid(
+                        "A label position requires explicit wire paths.",
+                    ));
+                } else if let Some(segments) = command.segments_to_replace(p)? {
+                    added.push(json!({
+                    "field":"wire_group","net":group.net,"pins":group.pins,"replaced_segments":segments,
+                }));
+                    // Wire groups run after explicit placement of their endpoints.
+                    wire_edits.push(DesignEdit::WireGroup(command));
+                }
             }
-            let uuid = Uuid::new_random();
-            tx.apply(Mutation::Schematic(SchematicMutation::AddText {
-                schematic: page,
-                text: Text::new(
-                    uuid,
-                    Layer::SCHEMATIC_COMMENTS,
-                    &note.text,
-                    position,
-                    Angle::DEG0,
-                    height,
-                    Alignment::default(),
-                    false,
-                ),
-            }))?;
-            added.push(
+            for edit in wire_edits {
+                edit.execute(tx)?;
+            }
+            if let Some(block) = block {
+                for (symbol, before, after) in tx.run(block)? {
+                    added.push(json!({"field":"block_position","symbol":symbol,
+                    "component":block_designators[&symbol],
+                    "before":views::point(before),"after":views::point(after)}));
+                }
+            }
+            if !explicit.is_empty() {
+                let changes = tx.run(DrawWirePaths {
+                    schematic: page,
+                    groups: explicit,
+                })?;
+                for (mut change, replaced) in explicit_diffs.into_iter().zip(changes) {
+                    if let Some(replaced) = replaced {
+                        change["replaced_segments"] = json!(replaced);
+                        added.push(change);
+                    }
+                }
+            }
+            for note in &doc.notes {
+                if note.text.trim().is_empty() {
+                    return Err(ToolError::invalid("A page note needs text."));
+                }
+                let position = note.position.to_point()?;
+                let height = PositiveLength::new(units::length(note.height)?)?;
+                let sheet = tx
+                    .project()
+                    .schematic(page)
+                    .ok_or_else(|| ToolError::not_found("Schematic not found."))?;
+                if sheet.texts().values().any(|text| {
+                    text.layer() == Layer::SCHEMATIC_COMMENTS
+                        && text.text() == &note.text
+                        && text.position() == position
+                        && text.height() == height
+                        && text.rotation() == Angle::DEG0
+                        && text.align() == Alignment::default()
+                }) {
+                    continue;
+                }
+                let uuid = Uuid::new_random();
+                tx.apply(Mutation::Schematic(SchematicMutation::AddText {
+                    schematic: page,
+                    text: Text::new(
+                        uuid,
+                        Layer::SCHEMATIC_COMMENTS,
+                        &note.text,
+                        position,
+                        Angle::DEG0,
+                        height,
+                        Alignment::default(),
+                        false,
+                    ),
+                }))?;
+                added.push(
                 json!({"field":"page_note","uuid":uuid,"text":note.text,"position":note.position,"height":note.height}),
             );
-        }
-        Ok(added)
-    })?;
+            }
+            Ok((added, verified))
+        },
+    )?;
     diff.extend(added);
     let schematic = project
         .schematic(page)
@@ -776,6 +750,71 @@ fn review_annotations(
     ).collect::<Vec<_>>()))
 }
 
+fn style_symbols(
+    tx: &mut Transaction<'_>,
+    styles: &BTreeMap<String, Artwork>,
+    diff: &mut Vec<serde_json::Value>,
+) -> ToolResult<()> {
+    let mut styled = BTreeSet::new();
+    for (key, style) in styles {
+        let p = tx.project();
+        let id = resolve::required_uuid(key, "library symbol")?;
+        if !styled.insert(id) {
+            return Err(ToolError::invalid(format!(
+                "Duplicate style for symbol {id}."
+            )));
+        }
+        let symbol = p.library().symbol(&id).ok_or_else(|| {
+            ToolError::not_found(format!("Project library symbol {id} not found."))
+        })?;
+        let template = match style {
+            Artwork::Simple(SimpleArtwork::Capacitor) => SymbolStyle::Capacitor,
+            Artwork::Simple(SimpleArtwork::NormallyOpenPushButton) => {
+                SymbolStyle::NormallyOpenPushButton
+            }
+            Artwork::WithRoles(ArtworkWithRoles::Crystal {
+                resonator_pins: [a, b],
+                case_pins: [c, d],
+            }) => SymbolStyle::Crystal {
+                resonator_pins: [
+                    resolve::required_uuid(a, "resonator pin")?,
+                    resolve::required_uuid(b, "resonator pin")?,
+                ],
+                case_pins: [
+                    resolve::required_uuid(c, "case pin")?,
+                    resolve::required_uuid(d, "case pin")?,
+                ],
+            },
+        };
+        if let Some(mutation) = template.plan(symbol)? {
+            let mut affected: Vec<_> = p
+                .circuit()
+                .component_instances()
+                .values()
+                .filter(|component| {
+                    p.library()
+                        .component(&component.lib_component())
+                        .and_then(|lib| lib.symbol_variants().by_uuid(&component.lib_variant()))
+                        .is_some_and(|variant| {
+                            variant
+                                .symbol_items()
+                                .iter()
+                                .any(|gate| gate.symbol_uuid() == id)
+                        })
+                })
+                .map(|component| component.name().as_str())
+                .collect();
+            affected.sort_unstable();
+            diff.push(json!({
+                "field":"symbol_style", "library_symbol":id, "before":"box", "after":style,
+                "affected_components":affected,
+            }));
+            tx.apply(Mutation::SetLibrarySymbolArtwork(mutation))?;
+        }
+    }
+    Ok(())
+}
+
 fn add_component(
     tx: &mut Transaction<'_>,
     page: SchematicId,
@@ -783,7 +822,16 @@ fn add_component(
     spec: &NewComponent,
 ) -> ToolResult<(ComponentInstanceId, Option<serde_json::Value>)> {
     let component = resolve::required_uuid(&spec.library_component, "library component")?;
-    let device = resolve::required_uuid(&spec.device, "device")?;
+    let device = spec
+        .device
+        .as_deref()
+        .map(|id| resolve::required_uuid(id, "device"))
+        .transpose()?;
+    let variant = spec
+        .symbol_variant
+        .as_deref()
+        .map(|id| resolve::required_uuid(id, "symbol variant"))
+        .transpose()?;
     let name = super::schematic_edit::identifier(&spec.designator, "designator")?;
     let p = tx.project();
     let mut bound = p
@@ -805,7 +853,8 @@ fn add_component(
     }
     let (id, created) = if let Some(instance) = existing {
         if instance.lib_component() != component
-            || instance.default_device() != Some(device)
+            || instance.default_device() != device
+            || variant.is_some_and(|variant| variant != instance.lib_variant())
             || instance.value() != &spec.value
         {
             return Err(conflict(format!(
@@ -820,23 +869,30 @@ fn add_component(
         {
             return Err(conflict(format!("Designator {name} is already in use.")));
         }
-        tx.run(AddLibraryElement::new(LibraryElementKind::Device, device))?;
-        let lib_device = tx
-            .project()
-            .library()
-            .device(&device)
-            .ok_or_else(|| ToolError::not_found(format!("Device {device} not found.")))?;
-        if lib_device.component_uuid() != component {
-            return Err(ToolError::invalid(format!(
-                "Device {device} does not implement component {component}."
-            )));
+        if let Some(device) = device {
+            tx.run(AddLibraryElement::new(LibraryElementKind::Device, device))?;
+            let lib_device = tx
+                .project()
+                .library()
+                .device(&device)
+                .ok_or_else(|| ToolError::not_found(format!("Device {device} not found.")))?;
+            if lib_device.component_uuid() != component {
+                return Err(ToolError::invalid(format!(
+                    "Device {device} does not implement component {component}."
+                )));
+            }
+        } else {
+            tx.run(AddLibraryElement::new(
+                LibraryElementKind::Component,
+                component,
+            ))?;
         }
         let added = tx.run(AddComponent {
             component,
-            device: Some(device),
+            device,
             name: Some(name),
             value: Some(spec.value.clone()),
-            symbol_variant: None,
+            symbol_variant: variant,
             place: Some(SymbolPlacement {
                 schematic: Some(page),
                 position: spec
@@ -849,7 +905,7 @@ fn add_component(
                     .map(units::angle)
                     .transpose()?
                     .unwrap_or_default(),
-                mirrored: false,
+                mirrored: spec.mirrored,
                 gate_offset: None,
             }),
         })?;
@@ -887,28 +943,59 @@ fn add_component(
     };
     let p = tx.project();
     let library = p.library();
-    let lib_device = library
-        .device(&device)
-        .ok_or_else(|| ToolError::not_found(format!("Device {device} not found.")))?;
-    let package = library
-        .package(&lib_device.package_uuid())
-        .ok_or_else(|| ToolError::not_found("Device package not found."))?;
     let instance = p
         .circuit()
         .component_instance(id)
         .ok_or_else(|| ToolError::internal("Design component is missing."))?;
+    let lib_component = resolve::lib_component(p, instance)?;
+    if device.is_none() && !lib_component.schematic_only() {
+        return Err(ToolError::invalid(format!(
+            "Component {key:?} needs an exact device UUID."
+        )));
+    }
+    let device_info = device
+        .map(|id| {
+            let device = library
+                .device(&id)
+                .ok_or_else(|| ToolError::not_found(format!("Device {id} not found.")))?;
+            let package = library
+                .package(&device.package_uuid())
+                .ok_or_else(|| ToolError::not_found("Device package not found."))?;
+            Ok::<_, ToolError>((device, package))
+        })
+        .transpose()?;
     let designator = instance.name().as_str().to_owned();
     let mut signals = BTreeMap::new();
     let mut endpoints = Vec::new();
     for (pad, net_name) in &spec.connections {
-        let physical = package.pads().by_name(pad, true).ok_or_else(|| {
-            ToolError::not_found(format!("Pad {pad:?} not found on {designator}."))
-        })?;
-        let signal = lib_device
-            .pad_signal_map()
-            .by_uuid(&physical.uuid())
-            .and_then(|m| m.signal_uuid())
-            .ok_or_else(|| ToolError::invalid(format!("Pad {pad:?} has no component signal.")))?;
+        let (signal, endpoint) = if let Some((device, package)) = device_info {
+            let physical = package.pads().by_name(pad, true).ok_or_else(|| {
+                ToolError::not_found(format!("Pad {pad:?} not found on {designator}."))
+            })?;
+            let signal = device
+                .pad_signal_map()
+                .by_uuid(&physical.uuid())
+                .and_then(|mapping| mapping.signal_uuid())
+                .ok_or_else(|| {
+                    ToolError::invalid(format!("Pad {pad:?} has no component signal."))
+                })?;
+            (
+                signal,
+                json!({"pad":pad,"pad_uuid":physical.uuid(),"signal":signal,"net":net_name}),
+            )
+        } else {
+            let signal = lib_component
+                .signals()
+                .by_name(pad, true)
+                .ok_or_else(|| {
+                    ToolError::not_found(format!("Signal {pad:?} not found on {designator}."))
+                })?
+                .uuid();
+            (
+                signal,
+                json!({"signal_name":pad,"signal":signal,"net":net_name}),
+            )
+        };
         let (net, _) = p
             .circuit()
             .net_signal_by_name(net_name)
@@ -926,13 +1013,12 @@ fn add_component(
                 "{designator}.{pad} is no longer on {net_name}."
             )));
         }
-        endpoints
-            .push(json!({"pad":pad,"pad_uuid":physical.uuid(),"signal":signal,"net":net_name}));
+        endpoints.push(endpoint);
     }
     if !created {
         return Ok((id, None));
     }
-    let package_id = lib_device.package_uuid();
+    let package = device_info.map(|(device, _)| device.package_uuid());
     for (signal, net) in signals {
         connect_design_pin(
             tx,
@@ -942,13 +1028,15 @@ fn add_component(
                 signal,
             },
             net,
+            spec.assign_only,
         )?;
     }
     Ok((
         id,
         Some(
             json!({"field":"add_component","component":key,"designator":designator,
-        "uuid":id,"library_component":component,"device":device,"package":package_id,"value":spec.value,"connections":endpoints}),
+        "uuid":id,"library_component":component,"device":device,
+        "package":package,"value":spec.value,"connections":endpoints}),
         ),
     ))
 }
@@ -966,13 +1054,13 @@ fn resolve_memberships(
     let mut signals = Vec::with_capacity(pins.len());
     for endpoint in pins {
         let (key, pin) = resolve::split_pin_ref(endpoint)?;
-        let id = bindings
+        let id = *bindings
             .get(key)
             .ok_or_else(|| ToolError::invalid(format!("Unknown component key {key:?}.")))?;
         let resolved = resolve::pin(p, &format!("{id}.{pin}"))?;
         let connected = p
             .circuit()
-            .component_instance(*id)
+            .component_instance(id)
             .and_then(|c| c.signal(&resolved.signal.signal))
             .and_then(|s| s.net());
         if connected != Some(net) {
