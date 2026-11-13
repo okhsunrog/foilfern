@@ -23,7 +23,7 @@ use rmcp::model::{
 use rmcp::service::{RequestContext, RoleServer};
 use rmcp::{ErrorData as McpError, ServerHandler, tool, tool_handler, tool_router};
 
-use crate::error::{ToolError, ToolResult};
+use crate::error::{ErrorKind, ToolError, ToolResult};
 use crate::host::{HostDecision, McpHost, McpState, ProjectCreateRequest, StandaloneHost};
 use crate::outcome::{ToolOutput, error_result};
 use crate::session::{Session, absolute_path};
@@ -1258,8 +1258,20 @@ impl LibrePcbMcp {
         &self,
         Parameters(args): Parameters<crate::tools::design::DesignDocument>,
     ) -> Result<CallToolResult, McpError> {
-        self.run(move |s| crate::tools::design::preview(s, args))
-            .await
+        let Some(permit) = self.state.try_schematic_preview() else {
+            return self
+                .fail(ToolError::new(
+                    ErrorKind::Conflict,
+                    "A schematic preview is already being prepared. Retry after it finishes.",
+                ))
+                .await;
+        };
+        self.run_detached(
+            move |s| Ok((crate::tools::design::capture(s, args)?, permit)),
+            |(job, permit)| Ok((crate::tools::design::prepare(job)?, permit)),
+            |s, (prepared, _permit)| crate::tools::design::publish(s, prepared),
+        )
+        .await
     }
 
     #[tool(

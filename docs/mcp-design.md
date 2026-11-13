@@ -46,7 +46,8 @@ wires, device placement, routing helpers) lives in `librepcb-editor`.
   guards, so tool code reads `session.project()` as before), the tool
   runs, replaced handles (open/create/close) are written back and the
   locks are released before the host is notified. No lock is ever held
-  across `.await`.
+  across `.await`. Detached tools lock for capture and publication and run
+  their worker on the captured project between those calls.
 - `OpenProject { editor: ProjectEditor, file_system (lock), saved_revision,
   upgraded }` lives in the editor crate (`librepcb_editor::OpenProject`,
   `OpenProject::open()` locks and loads), so the app opens projects the
@@ -190,14 +191,21 @@ Session / project:
 (metadata, pages, boards, counts, revision, unsaved changes), `undo`, `redo`,
 `history`.
 
-### Declarative edits to an existing schematic
+### Declarative schematic updates
 
 `design_preview` takes a version 1 document and returns a semantic `diff`,
 the number of checked pin memberships, a preview ID, the selected schematic
 UUID and a native page render. Set `create_schematic: true` to use `schematic`
 as an exact sheet name and create the page if missing. Apply and undo include
 the page itself. Omit `create_schematic` to select an existing page.
-Its `erc` report compares the source and proposed project and lists
+
+The server captures the source under the session lock, then plans, checks and
+renders on the detached model. One schematic preview may run per server state.
+A second request returns `conflict` and can be retried. Other tools can use
+the project while the preview runs. A changed revision, save context, library
+source or open project causes publication to return `stale_revision`.
+
+The `erc` report compares the source and proposed project and lists
 `introduced`, `inherited` and `resolved` findings. Matching uses the rule and
 native object identity, so text and designator changes alone do not count as
 new findings. Each entry uses the same format as `erc_run`. An inherited

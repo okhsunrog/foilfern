@@ -4,12 +4,14 @@
 //! delegated open), and the HTTP transport on localhost (feature `http`).
 
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
+use std::time::Duration;
 
 use librepcb_core::fileio::FilePath;
-use librepcb_core::types::ElementName;
-use librepcb_editor::NoLibrarySource;
+use librepcb_core::project::LibraryElementKind;
+use librepcb_core::types::{ElementName, Uuid};
 use librepcb_editor::commands::project::AddSchematic;
+use librepcb_editor::{LibraryElementSource, NoLibrarySource};
 use librepcb_mcp::{
     ChangeNotice, HostDecision, LibrePcbMcp, McpHost, McpState, OpenProject, SharedProject,
 };
@@ -126,6 +128,73 @@ fn schematic_names(project: &SharedProject) -> Vec<String> {
         .iter()
         .map(|s| s.name().as_str().to_owned())
         .collect()
+}
+
+struct PausedLibrary {
+    started: tokio::sync::mpsc::UnboundedSender<()>,
+    resume: Mutex<mpsc::Receiver<()>>,
+}
+
+impl LibraryElementSource for PausedLibrary {
+    fn element_directory(&self, _: LibraryElementKind, _: &Uuid) -> Option<FilePath> {
+        let _ = self.started.send(());
+        let _ = self.resume.lock().recv_timeout(Duration::from_secs(10));
+        None
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn schematic_preview_releases_the_session_and_bounds_workers() {
+    let tmp = tempfile::tempdir().unwrap();
+    let lpp = crate::common::copy_test_project("Project With Two Boards", tmp.path());
+    let shared = open_shared(&lpp);
+    let (started, mut reached_library) = tokio::sync::mpsc::unbounded_channel();
+    let (resume, wait_for_resume) = mpsc::channel();
+    shared.lock().editor.set_source(Arc::new(PausedLibrary {
+        started,
+        resume: Mutex::new(wait_for_resume),
+    }));
+    let sheet = schematic_names(&shared).remove(0);
+    let state = McpState::new(Arc::new(TestHost::default()));
+    state.set_project(Some(Arc::clone(&shared)));
+    let first = connect(state.clone()).await;
+    let second = connect(state).await;
+    let waiting = tokio::spawn(async move {
+        let err = call_err(&first, "design_preview", json!({"version":1,"schematic":sheet,
+            "add_components":{"probe":{"designator":"R999","library_component":Uuid::new_random(),"value":""}}})).await;
+        first.cancel().await.unwrap();
+        err
+    });
+    tokio::select! {
+        reached = reached_library.recv() => assert_eq!(reached, Some(())),
+        () = tokio::time::sleep(Duration::from_secs(10)) => panic!("preview did not reach the library source"),
+    }
+    let (kind, _) = call_err(
+        &second,
+        "design_preview",
+        json!({"version":1,"schematic":"Main"}),
+    )
+    .await;
+    assert_eq!(kind, "conflict");
+    let result = tokio::time::timeout(
+        Duration::from_secs(5),
+        call_ok(&second, "project_summary", json!({})),
+    )
+    .await;
+    resume.send(()).unwrap();
+    assert!(
+        result.is_ok(),
+        "project read blocked behind the preview worker"
+    );
+    assert_eq!(waiting.await.unwrap().0, "not_found");
+    let sheet = schematic_names(&shared).remove(0);
+    call_ok(
+        &second,
+        "design_preview",
+        json!({"version":1,"schematic":sheet}),
+    )
+    .await;
+    second.cancel().await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]

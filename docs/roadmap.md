@@ -253,6 +253,12 @@ current net when applicable, elapsed/remaining budget, best fully checked candid
 and stop reason. Limit active workers and queued work independently of the existing
 limit of eight retained candidates.
 
+Schematic previews now use detached workers. The server admits one preview
+at a time per shared state and leaves the project available during planning,
+ERC and rendering. A changed or reopened project refuses publication.
+Progress reporting, cooperative cancellation and routing worker limits remain
+in the scope below.
+
 Done when:
 
 - A long preparation exposes progress while the project remains usable. Competing

@@ -49,17 +49,41 @@ pub struct DesignPreview {
     requirement_findings: Vec<Finding>,
 }
 
-impl DesignPreview {
-    /// Executes the proposed edits on a detached copy and captures the exact patch.
-    pub fn prepare<T, E: From<Error> + From<librepcb_core::project::Error>>(
-        editor: &ProjectEditor,
-        plan: impl FnOnce(&mut Transaction<'_>) -> Result<T, E>,
-    ) -> Result<(Self, Project, T), E> {
+/// The source context and independent model used to prepare one preview.
+pub struct DesignPreviewJob {
+    detached: ProjectEditor,
+    revision: u64,
+    project_uuid: Uuid,
+    path: Option<FilePath>,
+    saved_at: Option<i64>,
+}
+
+impl DesignPreviewJob {
+    /// Captures a snapshot and revision while the live project is locked.
+    pub fn capture(editor: &ProjectEditor) -> Result<Self> {
         if editor.undo_stack().is_group_active() {
-            return Err(Error::GroupActive.into());
+            return Err(Error::GroupActive);
         }
         let source = editor.project();
-        let mut detached = ProjectEditor::with_source(source.snapshot()?, editor.source().clone());
+        Ok(Self {
+            detached: ProjectEditor::with_source(source.snapshot()?, editor.source().clone()),
+            revision: source.revision(),
+            project_uuid: source.uuid(),
+            path: source.file_path(),
+            saved_at: source.date_time().timestamp_nanos_opt(),
+        })
+    }
+
+    pub fn project(&self) -> &Project {
+        self.detached.project()
+    }
+
+    /// Executes the plan and returns the exact patch, baseline and proposed model.
+    pub fn prepare<T, E: From<Error> + From<librepcb_core::project::Error>>(
+        self,
+        plan: impl FnOnce(&mut Transaction<'_>) -> Result<T, E>,
+    ) -> Result<(DesignPreview, Project, Project, T), E> {
+        let mut detached = self.detached;
         let requirements = Requirements::load(detached.project()).map_err(Error::from)?;
         let result = detached.execute_atomic("Preview schematic update", plan)?;
         let preview_project = detached.project().snapshot()?;
@@ -67,19 +91,31 @@ impl DesignPreview {
         detached.undo()?;
         let operations = detached.take_redo_operations();
         Ok((
-            Self {
+            DesignPreview {
                 id: Uuid::new_random(),
-                revision: source.revision(),
-                project_uuid: source.uuid(),
-                path: source.file_path(),
-                saved_at: source.date_time().timestamp_nanos_opt(),
+                revision: self.revision,
+                project_uuid: self.project_uuid,
+                path: self.path,
+                saved_at: self.saved_at,
                 operations,
                 requirements,
                 requirement_findings,
             },
+            detached.into_project(),
             preview_project,
             result,
         ))
+    }
+}
+
+impl DesignPreview {
+    /// Executes the proposed edits on a detached copy and captures the exact patch.
+    pub fn prepare<T, E: From<Error> + From<librepcb_core::project::Error>>(
+        editor: &ProjectEditor,
+        plan: impl FnOnce(&mut Transaction<'_>) -> Result<T, E>,
+    ) -> Result<(Self, Project, T), E> {
+        let (preview, _, project, result) = DesignPreviewJob::capture(editor)?.prepare(plan)?;
+        Ok((preview, project, result))
     }
 
     /// Checks the source revision and save context within the owning session.

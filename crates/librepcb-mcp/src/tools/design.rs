@@ -1,6 +1,7 @@
 //! Declarative schematic creation and edits with a reviewed patch.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::{Arc, Weak};
 
 use librepcb_core::attribute::{Attribute, AttributeKey, AttributeType};
 use librepcb_core::geometry::Text;
@@ -12,14 +13,14 @@ use librepcb_core::project::{
 use librepcb_core::types::{
     Alignment, Angle, ElementName, Layer, Length, Point, PositiveLength, Uuid,
 };
-use librepcb_editor::Transaction;
 use librepcb_editor::commands::{
     AddComponent, AddLibraryElement, AddNet, AutoPlaceSymbols, BlockDirection, DrawWirePaths,
     EditComponent, MoveSymbol, PlaceSchematicBlock, Rect, SymbolPlacement, SymbolStyle,
     WireCoordinate, WireGroup, WirePathPoint, WirePathSpec, WireWaypoint, connect_design_pin,
     new_schematic,
 };
-use librepcb_editor::design_preview::{DesignEdit, DesignPreview};
+use librepcb_editor::design_preview::{DesignEdit, DesignPreview, DesignPreviewJob};
+use librepcb_editor::{LibraryElementSource, OpenProject, Transaction};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::json;
@@ -353,12 +354,48 @@ pub struct DesignApplyArgs {
     preview: String,
 }
 
+pub(crate) struct PreviewJob {
+    source_project: Weak<parking_lot::Mutex<OpenProject>>,
+    source_library: Arc<dyn LibraryElementSource>,
+    snapshot: DesignPreviewJob,
+    document: DesignDocument,
+}
+
+pub(crate) struct PreparedPreview {
+    source_project: Weak<parking_lot::Mutex<OpenProject>>,
+    source_library: Arc<dyn LibraryElementSource>,
+    preview: DesignPreview,
+    output: ToolOutput,
+}
+
+/// Synchronous entry point for clients which already own the session lock.
 pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOutput> {
+    let job = capture(session, doc)?;
+    publish(session, prepare(job)?)
+}
+
+pub(crate) fn capture(session: &mut Session, doc: DesignDocument) -> ToolResult<PreviewJob> {
     if doc.version != 1 {
         return Err(ToolError::invalid("Expected design document version 1."));
     }
-    let open = session.project_mut()?;
-    let p = open.project();
+    let project = session.shared_project().ok_or_else(ToolError::no_project)?;
+    let editor = &session.project()?.editor;
+    Ok(PreviewJob {
+        source_project: Arc::downgrade(&project),
+        source_library: editor.source().clone(),
+        snapshot: DesignPreviewJob::capture(editor)?,
+        document: doc,
+    })
+}
+
+pub(crate) fn prepare(job: PreviewJob) -> ToolResult<PreparedPreview> {
+    let PreviewJob {
+        source_project,
+        source_library,
+        snapshot,
+        document: doc,
+    } = job;
+    let p = snapshot.project();
     let mut new_page = None;
     let schematic = if doc.create_schematic {
         let name = ElementName::new(doc.schematic.trim())?;
@@ -602,8 +639,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     } else {
         None
     };
-    let (preview, project, (added, verified, topology)) = DesignPreview::prepare(
-        &open.editor,
+    let (preview, before, project, (added, verified, topology)) = snapshot.prepare(
         |tx| -> ToolResult<_> {
             let mut added = Vec::new();
             if let Some(schematic) = new_page {
@@ -803,9 +839,9 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     let image = super::output::render_schematic_preview(&project, schematic, 1600, 1200)?;
     let mut payload = json!({
         "preview": preview.id, "base_revision": preview.revision, "diff": diff,
-        "verified_pins": verified, "erc": erc::compare(p, &project), "schematic": page,
+        "verified_pins": verified, "erc": erc::compare(&before, &project), "schematic": page,
     });
-    let copper = topology::copper_impact(p, &project, &topology);
+    let copper = topology::copper_impact(&before, &project, &topology);
     if !copper.is_empty() {
         payload["board_impact"] = json!(copper);
     }
@@ -827,9 +863,34 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
             " {blockers} schematic requirement(s) block apply."
         ));
     }
-    let result = ToolOutput::new(summary, payload)?.image(image);
-    open.design_preview = Some(preview);
-    Ok(result)
+    Ok(PreparedPreview {
+        source_project,
+        source_library,
+        preview,
+        output: ToolOutput::new(summary, payload)?.image(image),
+    })
+}
+
+pub(crate) fn publish(session: &mut Session, prepared: PreparedPreview) -> ToolResult<ToolOutput> {
+    let stale = || {
+        ToolError::new(
+            ErrorKind::StaleRevision,
+            "The project changed while the schematic preview was prepared. Retry design_preview.",
+        )
+    };
+    let current = session.shared_project().ok_or_else(stale)?;
+    if !Weak::ptr_eq(&prepared.source_project, &Arc::downgrade(&current)) {
+        return Err(stale());
+    }
+    let open = session.project_mut()?;
+    if !prepared.preview.matches(open.project())
+        || !Arc::ptr_eq(&prepared.source_library, open.editor.source())
+        || open.editor.undo_stack().is_group_active()
+    {
+        return Err(stale());
+    }
+    open.design_preview = Some(prepared.preview);
+    Ok(prepared.output)
 }
 
 const DESIGN_KEY: &str = "FOILFERN_DESIGN_KEY";
@@ -1392,4 +1453,83 @@ pub fn apply(session: &mut Session, args: DesignApplyArgs) -> ToolResult<ToolOut
         format!("Applied {operations} design operations."),
         json!({"mutation_count": count, "operation_count": operations}),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tools::project::{ProjectCreateArgs, project_create};
+
+    #[test]
+    fn schematic_preview_admission_is_shared_and_released() {
+        let state = crate::McpState::new(Arc::new(crate::StandaloneHost));
+        let client = state.clone();
+        let permit = state.try_schematic_preview().unwrap();
+        assert!(client.try_schematic_preview().is_none());
+        drop(permit);
+        assert!(client.try_schematic_preview().is_some());
+    }
+
+    #[test]
+    fn detached_preview_refuses_changed_and_reopened_projects() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut session = Session::new();
+        let args: ProjectCreateArgs = serde_json::from_value(json!({
+            "name":"Preview source", "directory":tmp.path().join("project")
+        }))
+        .unwrap();
+        let created = project_create(&mut session, args).unwrap();
+        let path = created.result["path"].as_str().unwrap();
+        let doc = || {
+            serde_json::from_value(json!({"version":1,"schematic":"Main","notes":[
+                {"text":"preview note","position":{"x":0,"y":0},"height":1.5}
+            ]}))
+            .unwrap()
+        };
+
+        let prepared = prepare(capture(&mut session, doc()).unwrap()).unwrap();
+        session
+            .project_mut()
+            .unwrap()
+            .editor
+            .execute_atomic("Edit net", |tx| {
+                tx.run(AddNet::default())?;
+                Ok::<_, librepcb_editor::Error>(())
+            })
+            .unwrap();
+        assert_eq!(
+            publish(&mut session, prepared).unwrap_err().kind,
+            ErrorKind::StaleRevision
+        );
+        assert!(session.project().unwrap().design_preview.is_none());
+        session.project_mut().unwrap().save().unwrap();
+        session.project = None;
+        session.open_project(path).unwrap();
+
+        let prepared = prepare(capture(&mut session, doc()).unwrap()).unwrap();
+        session.project = None;
+        session.open_project(path).unwrap();
+        assert_eq!(
+            prepared.preview.revision,
+            session.project().unwrap().project().revision()
+        );
+        assert!(!Weak::ptr_eq(
+            &prepared.source_project,
+            &Arc::downgrade(&session.shared_project().unwrap())
+        ));
+        assert_eq!(
+            publish(&mut session, prepared).unwrap_err().kind,
+            ErrorKind::StaleRevision
+        );
+        assert!(session.project().unwrap().design_preview.is_none());
+
+        let prepared = prepare(capture(&mut session, doc()).unwrap()).unwrap();
+        let output = publish(&mut session, prepared).unwrap();
+        assert_eq!(output.result["diff"].as_array().unwrap().len(), 1);
+        assert!(
+            session.project().unwrap().project().schematics()[0]
+                .texts()
+                .is_empty()
+        );
+    }
 }
