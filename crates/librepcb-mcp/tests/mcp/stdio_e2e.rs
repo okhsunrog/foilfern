@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 17);
+    assert_eq!(info["api_capability_version"], 18);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -715,6 +715,29 @@ async fn stdio_esp32_c3_schematic_acceptance() {
     assert_eq!(page["symbols"].as_array().unwrap().len(), 23);
     assert_eq!(page["net_segments"].as_array().unwrap().len(), 27);
     assert_eq!(page["texts"].as_array().unwrap().len(), 13);
+    let marked_pins = |page: &Value| {
+        page["symbols"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|symbol| symbol["pins"].as_array().unwrap())
+            .filter(|pin| pin["no_connect"] == true)
+            .map(|pin| {
+                assert!(pin["net"].is_null());
+                pin["pin"].as_str().unwrap().to_owned()
+            })
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    let expected_marks: std::collections::BTreeSet<_> = [
+        "U1.IO0/XTAL_32K_P",
+        "U1.IO1/XTAL_32K_N",
+        "U1.IO7/MTDO",
+        "U1.IO18/USB_D-",
+        "U1.IO19/USB_D+",
+    ]
+    .map(str::to_owned)
+    .into();
+    assert_eq!(marked_pins(&page), expected_marks);
     let netlist = call_ok(&client, "netlist", json!({})).await;
     assert_eq!(netlist["nets"].as_object().unwrap().len(), 14);
     assert_eq!(
@@ -728,6 +751,33 @@ async fn stdio_esp32_c3_schematic_acceptance() {
     call_ok(&client, "undo", json!({})).await;
     assert_eq!(call_ok(&client, "schematic_get", json!({})).await, empty);
     call_ok(&client, "redo", json!({})).await;
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, page);
+    let conflicting = call(
+        &client,
+        "design_preview",
+        json!({"version":1,"schematic":"Main",
+        "components":{"module":{"designator":"U1"}},"no_connects":{"module.EN":true}}),
+    )
+    .await;
+    assert_eq!(
+        conflicting.structured_content.unwrap()["error"]["kind"],
+        "conflict"
+    );
+    let clear = call_ok(
+        &client,
+        "design_preview",
+        json!({"version":1,"schematic":"Main",
+        "components":{"module":{"designator":"U1"}},"no_connects":{"module.IO18/USB_D-":false}}),
+    )
+    .await;
+    assert_eq!(clear["diff"][0]["field"], "no_connect");
+    call_ok(&client, "design_apply", json!({"preview":clear["preview"]})).await;
+    assert_eq!(
+        marked_pins(&call_ok(&client, "schematic_get", json!({})).await).len(),
+        4
+    );
+    assert_eq!(call_ok(&client, "netlist", json!({})).await, netlist);
+    call_ok(&client, "undo", json!({})).await;
     assert_eq!(call_ok(&client, "schematic_get", json!({})).await, page);
     call_ok(
         &client,

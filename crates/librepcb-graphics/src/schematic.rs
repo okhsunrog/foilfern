@@ -155,12 +155,7 @@ pub fn schematic_drawing(
             {
                 pin_junctions.push(pin.position());
             }
-            if pin.net().is_none()
-                && appearance
-                    .no_connects
-                    .get(&symbol.uuid())
-                    .is_some_and(|pins| pins.contains(&pin.uuid()))
-            {
+            if pin.net().is_none() && appearance.is_no_connect(symbol.uuid(), pin.uuid()) {
                 let delta = Point::from_nm(635_000, 635_000);
                 for (start, end) in cross(pin.position() - delta, pin.position() + delta) {
                     drawing.line(

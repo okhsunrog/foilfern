@@ -564,11 +564,7 @@ impl WireGraph {
             self.no_connects.insert(pos);
             for pin in self.pins.get(&pos).into_iter().flatten() {
                 if let NetLineAnchor::Pin { symbol, pin } = pin.anchor {
-                    self.appearance
-                        .no_connects
-                        .entry(symbol)
-                        .or_default()
-                        .insert(pin);
+                    self.appearance.set_no_connect(symbol, pin, true);
                 }
             }
         }

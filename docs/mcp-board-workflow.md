@@ -99,11 +99,10 @@ take a short horizontal branch from their shared node to the `EN` label. Use
 an explicit `wire_groups.paths` endpoint at the junction and place `label` on
 the branch. The same convention applies to a BOOT pull-up and switch.
 
-Leave intentionally unused optional pins open in a native Foilfern schematic.
-Check them against the circuit requirements and use ERC to catch missing
-required connections. Foilfern displays no-connect flags from imported KiCad
-schematics. In KiCad, place those flags on pins confirmed to be intentionally
-unused so the reader and ERC can distinguish them from missed connections.
+Mark pins confirmed to be intentionally unused with `no_connects` in a
+design document, for example `{"U1.IO18/USB_D-":true}` when `U1` is a
+document key. Foilfern draws a cross at each marked open pin and also displays
+no-connect flags imported from KiCad. ERC still checks required connections.
 
 ## Lay out the board
 

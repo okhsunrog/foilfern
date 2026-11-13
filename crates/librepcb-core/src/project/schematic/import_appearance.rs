@@ -1,4 +1,4 @@
-//! Presentation details of imported sheets which have no native LibrePCB field.
+//! Presentation details which have no native LibrePCB field.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -11,7 +11,7 @@ use crate::utils::overline_markup_parser::extract_overlines;
 
 /// Optional appearance, keyed by native object IDs so electrical data stays in
 /// the native project. Stored beside the sheet without extending its format.
-#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ImportAppearance {
     pub global_labels: BTreeMap<Uuid, GlobalLabel>,
     pub pin_numbers: BTreeMap<Uuid, BTreeMap<Uuid, String>>,
@@ -19,6 +19,8 @@ pub struct ImportAppearance {
     pub pin_names: BTreeMap<Uuid, BTreeMap<Uuid, String>>,
     pub no_connects: BTreeMap<Uuid, BTreeSet<Uuid>>,
     pub unpopulated: BTreeSet<Uuid>,
+    #[serde(flatten)]
+    extra: BTreeMap<String, serde_json::Value>,
 }
 
 impl ImportAppearance {
@@ -30,18 +32,45 @@ impl ImportAppearance {
     }
 
     pub fn load(project: &Project, schematic: &Schematic) -> Self {
-        project
+        Self::read(project, schematic).unwrap_or_default()
+    }
+
+    /// Reads the existing asset without discarding malformed data on an edit.
+    pub fn read(project: &Project, schematic: &Schematic) -> crate::project::Result<Self> {
+        let Some(data) = project
             .directory()
-            .read_if_exists(&Self::asset_path(schematic))
-            .ok()
-            .flatten()
-            .and_then(|data| serde_json::from_slice(&data).ok())
-            .unwrap_or_default()
+            .read_if_exists(&Self::asset_path(schematic))?
+        else {
+            return Ok(Self::default());
+        };
+        Ok(serde_json::from_slice(&data)?)
+    }
+
+    /// Returns whether this placed pin is marked as intentionally unconnected.
+    pub fn is_no_connect(&self, symbol: Uuid, pin: Uuid) -> bool {
+        self.no_connects
+            .get(&symbol)
+            .is_some_and(|pins| pins.contains(&pin))
+    }
+
+    /// Sets or clears a placed pin's marker. Returns whether it changed.
+    pub fn set_no_connect(&mut self, symbol: Uuid, pin: Uuid, marked: bool) -> bool {
+        if marked {
+            return self.no_connects.entry(symbol).or_default().insert(pin);
+        }
+        let Some(pins) = self.no_connects.get_mut(&symbol) else {
+            return false;
+        };
+        let changed = pins.remove(&pin);
+        if pins.is_empty() {
+            self.no_connects.remove(&symbol);
+        }
+        changed
     }
 }
 
 /// Shape and size of a KiCad global label.
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct GlobalLabel {
     pub input: bool,
     pub output: bool,

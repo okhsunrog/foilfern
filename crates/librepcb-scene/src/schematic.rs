@@ -833,13 +833,7 @@ impl Builder<'_> {
             );
             self.insert_text(layer, z::PIN_TEXTS, rendered, object);
         }
-        if pin.net().is_none()
-            && self
-                .appearance
-                .no_connects
-                .get(&symbol.uuid())
-                .is_some_and(|pins| pins.contains(&pin.uuid()))
-        {
+        if pin.net().is_none() && self.appearance.is_no_connect(symbol.uuid(), pin.uuid()) {
             let delta = Point::from_nm(635_000, 635_000);
             self.add_cross(cross(start - delta, start + delta), object, false);
         }

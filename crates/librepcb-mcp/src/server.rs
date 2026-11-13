@@ -75,6 +75,7 @@ then read pin coordinates with schematic_get. In design_preview use wire_groups 
 (pin names and {x,y} vertices in mm), label positions and notes. Branch endpoints on another \
 path become junctions. Omit paths to request automatic local wiring. Use schematic_tidy \
 when regenerating the whole page is intended.\n\
+Use no_connects in a design document to mark explicitly unused pins. \
 Before design_apply, review the preview's diff, ERC changes, board impact and schematic \
 requirements when present. Use requirements_get and requirements_check to read saved rules.\n\
 Addressing: designators (\"R1\"), pins \"R1.1\" (pad name) or \"U1.VCC\" (signal name) or a \

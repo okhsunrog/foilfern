@@ -97,6 +97,8 @@ pub fn schematic_get(session: &Session, args: SchematicGetArgs) -> ToolResult<To
     let p = session.project()?.project();
     let (index, _, s) = resolve::schematic(p, args.schematic.as_deref())?;
     let ctx = p.view();
+    let appearance =
+        librepcb_core::project::schematic::import_appearance::ImportAppearance::load(p, s);
     let mut symbols = Vec::new();
     for sym in s.symbols().values() {
         let pins: Vec<Value> = sym
@@ -109,6 +111,7 @@ pub fn schematic_get(session: &Session, args: SchematicGetArgs) -> ToolResult<To
                     "net": pin.net().map(|n| resolve::net_name(p, n)),
                     "position": views::point(pin.position()),
                     "wired": s.pin_net_segment(sym.id(), pin.uuid()).is_some(),
+                    "no_connect": pin.net().is_none() && appearance.is_no_connect(sym.uuid(), pin.uuid()),
                 })
             })
             .collect();

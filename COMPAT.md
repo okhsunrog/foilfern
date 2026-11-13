@@ -477,6 +477,9 @@ differ between platforms/implementations:
   `project/foilfern-schematic-requirements.json`. The asset uses native UUIDs
   and integer nanometers. Foilfern evaluates it for declarative schematic
   updates. Upstream uses the existing native schematic and circuit files.
+- Intentional no-connect marks use the existing Foilfern sheet appearance
+  asset. Foilfern renders crosses for marked open pins in previews and exports.
+  The native circuit and its ERC behavior are unchanged.
 
 - Loading validates each schematic page as a whole after deserializing it
   (upstream adds the empty page and then item by item); for a file with

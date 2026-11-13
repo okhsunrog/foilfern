@@ -132,6 +132,10 @@ The `stdio_esp32_c3_schematic_acceptance` replay checks 23 symbols, 27 wire
 segments, 13 notes and 14 nets, including the EN and BOOT memberships.
 It checks undo/redo, saved-project ERC with the upstream CLI, and an empty
 reapply after moving the C3 designator by hand and reopening.
+The same document marks five intentionally open module pins. The replay
+checks mark placement, refuses a mark on EN while connected and clears a
+mark without changing the netlist. The marks follow the same rendering path
+as imported KiCad no-connect flags.
 
 Done when:
 

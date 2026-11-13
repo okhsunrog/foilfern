@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `17`). Its `build` object contains
+`api_capability_version` (currently `18`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -178,8 +178,9 @@ custom profiles by inheritance. `cargo_opt_level` reports Cargo's optimization
 setting for the MCP crate. Record the actual build command for timing comparisons.
 
 Declarative schematic creation (P1) starts with an open native project and
-sheet. Persisted enforced requirements (P2), worker jobs/cancellation (P3) and
-visual candidate review (P5) are not current MCP capabilities.
+sheet. Persisted schematic requirements (P2) are available for declarative
+apply. Board requirements, worker jobs/cancellation (P3) and visual candidate
+review (P5) remain pending.
 `routing_compare` already ranks builtin-order candidates; runtime
 candidate capacity does not limit the number of active preparation workers.
 
@@ -326,6 +327,15 @@ Reconnecting with a stub requires one placed pin for that signal on the
 selected sheet. Component removal includes its gates on all sheets. Embedded
 library elements and previously unused nets are retained. A net that loses
 its last schematic use is removed unless the document ensures it in `add_nets`.
+
+`no_connects` sets visual no-connect markers on the selected sheet. Keys use
+`key.pin` and can refer to existing or newly added components. Set a key to
+`true` to mark an open pin or `false` to clear its marker. A `true` entry
+on a connected pin is a conflict. `schematic_get` reports whether each pin
+currently displays the marker. A later connection hides it and a later
+disconnect reveals it again unless it was cleared. Undo and native project
+save include the marks. The marks do not change electrical membership or
+ERC. Foilfern uses the same sheet asset as for imported KiCad marks.
 
 Review `board_impact` before applying a topology change. It lists each
 affected board and UUIDs of removed or changed traces, vias and planes,

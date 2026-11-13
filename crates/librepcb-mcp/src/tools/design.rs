@@ -27,6 +27,7 @@ use crate::tools::write::Written;
 use crate::{resolve, units, units::PointMm, views};
 
 mod erc;
+mod no_connect;
 mod topology;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -98,6 +99,10 @@ pub struct DesignDocument {
     /// Existing pins with explicit before and after net names; null means unconnected.
     #[serde(default)]
     pin_nets: BTreeMap<String, topology::ManagedNet>,
+    /// Explicit intentional no-connect markers by key.pin. True marks an open
+    /// pin, false clears its marker. Omitted pins keep their current markers.
+    #[serde(default)]
+    no_connects: BTreeMap<String, bool>,
     /// Required pin memberships, using `key.pin` (for example `pullup.2`).
     /// These are assertions against the existing circuit.
     #[serde(default)]
@@ -737,6 +742,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 json!({"field":"page_note","uuid":uuid,"text":note.text,"position":note.position,"height":note.height}),
             );
             }
+            no_connect::update(tx, page, &bindings, &doc.no_connects, &mut added)?;
             topology.remove_unused_nets(tx, &doc.add_nets)?;
             Ok((added, verified.len(), topology))
         },

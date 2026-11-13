@@ -314,6 +314,13 @@
       "fields": {"value": {"offset": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "height": 2.54}}
     }
   },
+  "no_connects": {
+    "U1.IO0/XTAL_32K_P": true,
+    "U1.IO1/XTAL_32K_N": true,
+    "U1.IO7/MTDO": true,
+    "U1.IO18/USB_D-": true,
+    "U1.IO19/USB_D+": true
+  },
   "wire_groups": [
     {
       "net": "+3V3",
