@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `18`). Its `build` object contains
+`api_capability_version` (currently `19`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -209,7 +209,12 @@ circuit must match the listed memberships. Unlisted endpoints can share those
 nets elsewhere on the project.
 
 Value, position and rotation edits take `expected` and `set` values.
-Placement fields require a single symbol on the selected sheet.
+Component-level placement fields require a single symbol on the selected
+sheet. To edit individual gates, use `components.<key>.symbols` keyed by
+placed symbol UUID from `schematic_get` or `component_get`. Each entry accepts
+`position`, `rotation` and `mirrored`, with `expected` and `set` values.
+Use one placement form per component. Apply absolute text positions for a
+transformed symbol in a separate preview.
 Omitting a field preserves its current value. When the current value equals
 `set`, it contributes an empty diff. A third value produces a conflict and
 identifies the managed field. Positions are in millimeters and rotations are in

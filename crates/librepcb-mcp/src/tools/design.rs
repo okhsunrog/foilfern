@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use librepcb_core::attribute::{Attribute, AttributeKey, AttributeType};
 use librepcb_core::geometry::Text;
+use librepcb_core::project::schematic::SchematicSymbol;
 use librepcb_core::project::{
     ComponentInstanceId, ComponentSignalRef, LibraryElementKind, Mutation, NetSignalId, Project,
     SchematicId, SchematicMutation, SymbolRef,
@@ -39,7 +40,7 @@ pub struct ManagedValue {
     set: String,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ManagedPosition {
     /// Baseline position in millimeters.
@@ -48,7 +49,7 @@ pub struct ManagedPosition {
     set: PointMm,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ManagedRotation {
     /// Baseline angle in degrees.
@@ -72,9 +73,27 @@ pub struct ExistingComponent {
     /// Managed rotation of its single symbol on this sheet, in degrees.
     /// Omission preserves manual rotation.
     rotation: Option<ManagedRotation>,
+    /// Managed transforms keyed by placed symbol UUID from schematic_get.
+    #[serde(default)]
+    symbols: BTreeMap<String, ManagedSymbol>,
     /// Managed absolute positions of symbol fields keyed by text UUID from schematic_get.
     #[serde(default)]
     text_positions: BTreeMap<String, ManagedPosition>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ManagedSymbol {
+    position: Option<ManagedPosition>,
+    rotation: Option<ManagedRotation>,
+    mirrored: Option<ManagedMirror>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ManagedMirror {
+    expected: bool,
+    set: bool,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -415,10 +434,34 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 lock_assembly: None,
             }));
         }
-        if !spec.text_positions.is_empty() && (spec.position.is_some() || spec.rotation.is_some()) {
+        let shorthand = spec.position.is_some() || spec.rotation.is_some();
+        if shorthand && !spec.symbols.is_empty() {
+            return Err(ToolError::invalid(format!(
+                "{key}: use either per-symbol or component-level placement fields."
+            )));
+        }
+        if !spec.text_positions.is_empty() && shorthand {
             return Err(ToolError::invalid(format!(
                 "{key}: preview symbol transforms and absolute text positions in separate edits."
             )));
+        }
+        let mut selected = BTreeMap::new();
+        for (selector, managed) in &spec.symbols {
+            let uuid = resolve::required_uuid(selector, "placed symbol")?;
+            let symbol = schematic
+                .symbols()
+                .get(&uuid.into())
+                .filter(|symbol| symbol.component() == id)
+                .ok_or_else(|| {
+                    ToolError::not_found(format!(
+                        "Symbol {uuid} of {key} is not on the selected sheet."
+                    ))
+                })?;
+            if selected.insert(symbol.id(), (symbol, *managed)).is_some() {
+                return Err(ToolError::invalid(format!(
+                    "{key}: duplicate symbol UUID {uuid}."
+                )));
+            }
         }
         for (text, position) in &spec.text_positions {
             let uuid = resolve::required_uuid(text, "symbol text")?;
@@ -430,6 +473,11 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 .ok_or_else(|| {
                     ToolError::not_found(format!("Text {uuid} was not found on {key}."))
                 })?;
+            if selected.contains_key(&symbol) {
+                return Err(ToolError::invalid(format!(
+                    "{key}: preview symbol transforms and absolute text positions in separate edits for symbol {symbol}."
+                )));
+            }
             let desired = position.set.to_point()?;
             if text.position() == desired {
                 continue;
@@ -452,7 +500,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 text,
             });
         }
-        if spec.position.is_some() || spec.rotation.is_some() {
+        if shorthand {
             let mut symbols = schematic.symbols().values().filter(|s| s.component() == id);
             let symbol = symbols
                 .next()
@@ -460,51 +508,20 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 .ok_or_else(|| {
                     ToolError::invalid(format!("{key} must have exactly one symbol on this sheet."))
                 })?;
-            let mut command = MoveSymbol {
-                symbol: symbol.id(),
-                position: None,
-                rotation: None,
-                mirrored: None,
-            };
-            if let Some(position) = &spec.position {
-                let desired = position.set.to_point()?;
-                let current = symbol.position();
-                if current != desired {
-                    if current != position.expected.to_point()? {
-                        return Err(ToolError::new(
-                            ErrorKind::Conflict,
-                            format!(
-                                "{key}.position: expected {:?}, found {:?}.",
-                                position.expected,
-                                views::point(current)
-                            ),
-                        ));
-                    }
-                    diff.push(json!({"component":key,"uuid":id,"field":"position","before":views::point(current),"after":views::point(desired)}));
-                    command.position = Some(desired);
-                }
-            }
-            if let Some(rotation) = &spec.rotation {
-                let desired = units::angle(rotation.set)?.mapped_to_0_360deg();
-                let current = symbol.rotation().mapped_to_0_360deg();
-                if current != desired {
-                    if current != units::angle(rotation.expected)?.mapped_to_0_360deg() {
-                        return Err(ToolError::new(
-                            ErrorKind::Conflict,
-                            format!(
-                                "{key}.rotation: expected {}°, found {}°.",
-                                rotation.expected,
-                                units::deg(current)
-                            ),
-                        ));
-                    }
-                    diff.push(json!({"component":key,"uuid":id,"field":"rotation","before":units::deg(current),"after":units::deg(desired)}));
-                    command.rotation = Some(desired);
-                }
-            }
-            if command.position.is_some() || command.rotation.is_some() {
-                edits.push(DesignEdit::Symbol(command));
-            }
+            plan_symbol_move(
+                key,
+                symbol,
+                ManagedSymbol {
+                    position: spec.position,
+                    rotation: spec.rotation,
+                    mirrored: None,
+                },
+                &mut diff,
+                &mut edits,
+            )?;
+        }
+        for (symbol, managed) in selected.into_values() {
+            plan_symbol_move(key, symbol, managed, &mut diff, &mut edits)?;
         }
     }
     let mut block_members = BTreeSet::new();
@@ -523,7 +540,10 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 )));
             }
             let spec = &doc.components[member];
-            if spec.position.is_some() || spec.rotation.is_some() || !spec.text_positions.is_empty()
+            if spec.position.is_some()
+                || spec.rotation.is_some()
+                || !spec.text_positions.is_empty()
+                || !spec.symbols.is_empty()
             {
                 return Err(ToolError::invalid(format!(
                     "{member:?} combines block placement with explicit symbol or text placement."
@@ -784,6 +804,84 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
 }
 
 const DESIGN_KEY: &str = "FOILFERN_DESIGN_KEY";
+
+fn plan_symbol_move(
+    key: &str,
+    symbol: &SchematicSymbol,
+    managed: ManagedSymbol,
+    diff: &mut Vec<serde_json::Value>,
+    edits: &mut Vec<DesignEdit>,
+) -> ToolResult<()> {
+    let conflict = |field: &str, expected: serde_json::Value, found: serde_json::Value| {
+        ToolError::new(
+            ErrorKind::Conflict,
+            format!(
+                "{key} symbol {} {field}: expected {expected}, found {found}.",
+                symbol.id()
+            ),
+        )
+    };
+    let mut record = |field: &str, before: serde_json::Value, after: serde_json::Value| {
+        diff.push(json!({"component":key,"uuid":symbol.component(),"symbol":symbol.id(),"field":field,"before":before,"after":after}));
+    };
+    let mut command = MoveSymbol {
+        symbol: symbol.id(),
+        position: None,
+        rotation: None,
+        mirrored: None,
+    };
+    if let Some(position) = managed.position {
+        let desired = position.set.to_point()?;
+        let current = symbol.position();
+        if current != desired {
+            if current != position.expected.to_point()? {
+                return Err(conflict(
+                    "position",
+                    json!(position.expected),
+                    views::point(current),
+                ));
+            }
+            record("position", views::point(current), views::point(desired));
+            command.position = Some(desired);
+        }
+    }
+    if let Some(rotation) = managed.rotation {
+        let desired = units::angle(rotation.set)?.mapped_to_0_360deg();
+        let current = symbol.rotation().mapped_to_0_360deg();
+        if current != desired {
+            if current != units::angle(rotation.expected)?.mapped_to_0_360deg() {
+                return Err(conflict(
+                    "rotation",
+                    json!(rotation.expected),
+                    json!(units::deg(current)),
+                ));
+            }
+            record(
+                "rotation",
+                json!(units::deg(current)),
+                json!(units::deg(desired)),
+            );
+            command.rotation = Some(desired);
+        }
+    }
+    if let Some(mirrored) = managed.mirrored
+        && symbol.mirrored() != mirrored.set
+    {
+        if symbol.mirrored() != mirrored.expected {
+            return Err(conflict(
+                "mirrored",
+                json!(mirrored.expected),
+                json!(symbol.mirrored()),
+            ));
+        }
+        record("mirrored", json!(symbol.mirrored()), json!(mirrored.set));
+        command.mirrored = Some(mirrored.set);
+    }
+    if command.position.is_some() || command.rotation.is_some() || command.mirrored.is_some() {
+        edits.push(DesignEdit::Symbol(command));
+    }
+    Ok(())
+}
 
 fn review_annotations(
     project: &Project,

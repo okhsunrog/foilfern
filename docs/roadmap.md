@@ -136,6 +136,9 @@ The same document marks five intentionally open module pins. The replay
 checks mark placement, refuses a mark on EN while connected and clears a
 mark without changing the netlist. The marks follow the same rendering path
 as imported KiCad no-connect flags.
+An existing multi-gate component can be edited by placed symbol UUID.
+The stdio fixture moves, rotates and mirrors one gate, verifies that the
+other gate is unchanged, and checks empty replay and undo.
 
 Done when:
 

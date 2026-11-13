@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 18);
+    assert_eq!(info["api_capability_version"], 19);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -247,6 +247,73 @@ async fn stdio_symbol_variants_and_multisheet_four_layer_board() {
             call_ok(&client, "undo", json!({})).await;
             let restored = call_ok(&client, "component_get", json!({ "component": name })).await;
             assert_eq!(restored["symbols"], before);
+            let symbols = before.as_array().unwrap();
+            let gate = symbols
+                .iter()
+                .find(|symbol| symbol["gate_suffix"] == "A")
+                .unwrap();
+            let target = gate["uuid"].as_str().unwrap();
+            let document = json!({"version":1,"schematic":"Main","components":{
+                "opamp":{"uuid":added["uuid"],"symbols":{(target):{
+                    "position":{"expected":gate["position"],"set":{"x":80,"y":30}},
+                    "rotation":{"expected":gate["rotation"],"set":90},
+                    "mirrored":{"expected":gate["mirrored"],"set":true}
+                }}}
+            }});
+            let mut wrong_symbol = document.clone();
+            wrong_symbol["components"]["opamp"]["symbols"] =
+                json!({(part):{"rotation":{"expected":0,"set":90}}});
+            assert_eq!(
+                call(&client, "design_preview", wrong_symbol)
+                    .await
+                    .structured_content
+                    .unwrap()["error"]["kind"],
+                "not_found"
+            );
+            let mut conflicting = document.clone();
+            conflicting["components"]["opamp"]["symbols"][target]["position"]["expected"] =
+                json!({"x":999,"y":999});
+            assert_eq!(
+                call(&client, "design_preview", conflicting)
+                    .await
+                    .structured_content
+                    .unwrap()["error"]["kind"],
+                "conflict"
+            );
+            let preview = call_ok(&client, "design_preview", document.clone()).await;
+            assert_eq!(preview["diff"].as_array().unwrap().len(), 3);
+            assert!(
+                preview["diff"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|row| row["symbol"] == target)
+            );
+            call_ok(
+                &client,
+                "design_apply",
+                json!({"preview":preview["preview"]}),
+            )
+            .await;
+            let moved = call_ok(&client, "component_get", json!({"component":name})).await;
+            for symbol in moved["symbols"].as_array().unwrap() {
+                if symbol["uuid"] == target {
+                    assert_eq!(symbol["position"], json!({"x":80.0,"y":30.0}));
+                    assert_eq!(symbol["rotation"], 90.0);
+                    assert_eq!(symbol["mirrored"], true);
+                } else {
+                    assert!(symbols.contains(symbol));
+                }
+            }
+            assert_eq!(
+                call_ok(&client, "design_preview", document).await["diff"],
+                json!([])
+            );
+            call_ok(&client, "undo", json!({})).await;
+            assert_eq!(
+                call_ok(&client, "component_get", json!({"component":name})).await["symbols"],
+                before
+            );
         }
     }
     // A malformed UUID and a UUID belonging to another entity must not add a component.
