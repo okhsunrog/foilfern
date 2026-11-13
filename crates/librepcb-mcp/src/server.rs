@@ -68,8 +68,10 @@ connect (net + pins, e.g. net \"VCC\", pins [\"J1.1\",\"R1.1\"]; supply symbols 
 force their net name and unconnected ones of the same name are attached automatically) -> \
 design_preview -> design_apply (review local schematic layout) -> erc_run -> \
 board_set_outline (width/height mm) -> device_auto_place (or device_place) -> \
-routing_prepare or routing_compare -> routing_preview -> routing_apply (reviewed builtin; autoroute is direct) -> \
+routing_prepare, routing_compare or routing_staged_prepare -> routing_preview -> routing_apply \
+(reviewed builtin; autoroute is direct) -> \
 plane_add (net \"GND\", bottom) -> drc_run -> export_fabrication / jobs_run -> project_save.\n\
+With existing pours, use routing_staged_prepare with explicit ordinary nets to check each batch before keeping it.\n\
 For precise schematics, place and rotate components, use connect with assign_only:true, \
 then read pin coordinates with schematic_get. In design_preview use wire_groups with paths \
 (pin names and {x,y} vertices in mm), label positions and notes. Branch endpoints on another \
@@ -991,6 +993,17 @@ impl LibrePcbMcp {
         Parameters(args): Parameters<crate::tools::routing::RoutingPrepareArgs>,
     ) -> Result<CallToolResult, McpError> {
         self.prepare_routing_candidate(move |s| crate::tools::routing::prepare_job(s, args))
+            .await
+    }
+
+    #[tool(
+        description = "Prepare one checked builtin candidate in batches of explicitly allowed nets. After each trial, rebuild planes and check DRC and connectivity. Split rejected or unproductive batches within the budget. Preview and apply the combined patch separately."
+    )]
+    async fn routing_staged_prepare(
+        &self,
+        Parameters(args): Parameters<crate::tools::routing::RoutingStagedPrepareArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.prepare_routing_candidate(move |s| crate::tools::routing::prepare_staged_job(s, args))
             .await
     }
 

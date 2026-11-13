@@ -161,13 +161,13 @@ backend and checks the realistic board PDF.
 
 ## Tool surface
 
-At the reviewed revision, `server.rs` registers 81 tools. The schemas advertised
+At the reviewed revision, `server.rs` registers 82 tools. The schemas advertised
 by `tools/list` are authoritative; the historical target of fewer than 60 tools
 is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `14`). Its `build` object contains
+`api_capability_version` (currently `15`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -640,6 +640,30 @@ has a `path: {from, to}` and at least one of `max_length_mm` and
 candidate reports the shortest anchored path's measurements and whether
 it meets both supplied limits. Missing measurements count as unmet for
 ranking. These preferences do not alter the route search or the apply gate.
+
+`routing_staged_prepare` groups the explicit, nonempty `options.nets`
+allowlist into one candidate. Pass the other `routing_prepare` settings,
+including `expected_revision`, under `options`. Critical nets are queued
+first. Within each tier, nets with shorter longest initial air wires go first.
+`max_gap_mm` optionally defers non-critical nets above that length.
+After each trial, the worker rebuilds planes and air wires and runs full DRC.
+It retains progress on the selected nets when there are no new
+non-connectivity DRC errors or air-wire count increases on any net. A
+rejected group is rolled back. Rejected or unproductive groups with multiple
+nets are retried as halves. Existing trace and via geometry and UUIDs are
+preserved.
+
+Top-level limits are `batch_size` (1–32, default 8), `max_trials` (1–64,
+default 24) and `max_time_ms` (1–300000, default 120000). The time budget
+is checked between trials. The `staged` result gives each trial's net IDs,
+outcome and validation. Each trial reports the count of failed router
+requests and up to eight samples with reasons and anchors. Use
+`options.search_evidence` to include the sampled blockers for those searches.
+`stop_reason` describes why the queue stopped. The `deferred_nets`,
+`pending_nets` and selected `remaining_nets` lists report IDs, names,
+longest initial air-wire lengths in mm and remaining air-wire counts. A completed queue
+can still leave open connections. Review and apply the retained batches as
+one candidate with the usual preview and apply tools.
 
 `routing_preview` reads candidate metadata and exact mutations with `offset` and
 `limit` (1–200, default 100), `next_offset` and a `stale` flag. This is a data

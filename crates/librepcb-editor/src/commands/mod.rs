@@ -41,7 +41,7 @@ pub mod library;
 pub mod placement;
 pub mod project;
 mod resolve;
-pub(crate) use resolve::{board as resolve_board, required_net as resolve_net};
+pub(crate) use resolve::{board as resolve_board, net_name, required_net as resolve_net};
 pub mod schematic;
 pub mod schematic_block;
 pub mod schematic_tidy;

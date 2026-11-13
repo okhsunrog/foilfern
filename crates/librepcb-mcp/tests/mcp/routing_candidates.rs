@@ -457,6 +457,148 @@ fn builtin_candidate_cannot_break_another_nets_plane_connection() {
 }
 
 #[test]
+fn staged_routing_discards_a_plane_cut_and_keeps_the_other_net() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    for (name, x) in [("R3", 21), ("R4", 27)] {
+        schematic_edit::component_add(
+            &mut session,
+            args(json!({"part":"R-0805","designator":name})),
+        )
+        .unwrap();
+        board_edit::device_place(
+            &mut session,
+            args(json!({"component":name,"position":{"x":x,"y":10},"rotation":90})),
+        )
+        .unwrap();
+    }
+    schematic_edit::connect(
+        &mut session,
+        args(json!({"net":"C","pins":["R3.1","R4.1"]})),
+    )
+    .unwrap();
+    for (net, pad, x, y) in [
+        ("A", "R1.1", 7.0, 9.025),
+        ("A", "R2.1", 14.0, 9.025),
+        ("B", "R1.2", 12.5, 7.0),
+        ("B", "R2.2", 12.5, 11.0),
+        ("C", "R3.1", 21.0, 8.0),
+        ("C", "R4.1", 27.0, 8.0),
+    ] {
+        let via = board_edit::via_add(
+            &mut session,
+            args(json!({"position":{"x":x,"y":y},"net":net,"drill":0.3,"size":0.8})),
+        )
+        .unwrap()
+        .result["uuid"]
+            .clone();
+        board_edit::trace_add(
+            &mut session,
+            args(json!({"from":pad,"to":via,"layer":"top","width":0.2})),
+        )
+        .unwrap();
+    }
+    board_edit::plane_add(
+        &mut session,
+        args(json!({
+            "net":"A","layer":"bottom","connect_style":"solid","outline":[
+                {"x":6.0,"y":8.5},{"x":15.0,"y":8.5},{"x":15.0,"y":9.5},{"x":6.0,"y":9.5}
+            ]
+        })),
+    )
+    .unwrap();
+    let board = board_value(&session);
+    let open = session.project().unwrap();
+    let revision = open.project().revision();
+    let index = open.editor.undo_stack().index();
+    let job = routing::prepare_staged_job(
+        &session,
+        args(json!({"options":{
+            "nets":["B","C"],"layers":["bottom"],"grid_pitch":0.2,"trace_width":0.2,
+            "expected_revision":revision
+        }})),
+    )
+    .unwrap();
+    let result = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
+        .unwrap()
+        .result;
+    assert_eq!(result["validation"]["before"]["unrouted"], 2);
+    assert_eq!(result["validation"]["after"]["unrouted"], 1);
+    assert_eq!(result["validation"]["acceptable"], true);
+    let trials = result["staged"]["trials"].as_array().unwrap();
+    assert_eq!(trials.len(), 3, "{result}");
+    assert_eq!(trials[0]["outcome"], "rejected");
+    assert_eq!(trials[0]["validation"]["acceptable"], false);
+    assert_eq!(
+        trials[0]["validation"]["unrouted_regression_details"][0]["name"],
+        "A"
+    );
+    assert_eq!(trials[1]["outcome"], "rejected");
+    assert_eq!(trials[2]["outcome"], "retained");
+    assert_eq!(trials[2]["validation"]["before"]["unrouted"], 2);
+    assert_eq!(board_value(&session), board);
+    assert_eq!(session.project().unwrap().project().revision(), revision);
+    routing::routing_apply(&mut session, args(json!({"candidate":result["candidate"]}))).unwrap();
+    let gaps = board_edit::unrouted(&session, Default::default())
+        .unwrap()
+        .result;
+    assert_eq!(gaps["count"], 1);
+    assert_eq!(gaps["air_wires"][0]["net"], "B");
+    assert_eq!(
+        session.project().unwrap().editor.undo_stack().index(),
+        index + 1
+    );
+    assert!(session.project_mut().unwrap().editor.undo().unwrap());
+    assert_eq!(board_value(&session), board);
+}
+
+#[test]
+fn staged_routing_reports_pending_and_deferred_nets() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let job = routing::prepare_staged_job(
+        &session,
+        args(json!({
+            "options":{"nets":["A","B"],"critical_nets":["B"]},
+            "batch_size":1,"max_trials":1
+        })),
+    )
+    .unwrap();
+    let result = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
+        .unwrap()
+        .result;
+    let a = librepcb_mcp::resolve::net(session.project().unwrap().project(), "A")
+        .unwrap()
+        .0;
+    assert_eq!(result["staged"]["stop_reason"], "trial_limit");
+    let pending = &result["staged"]["pending_nets"][0];
+    assert_eq!(pending["net"], json!(a));
+    assert_eq!(pending["name"], "A");
+    assert_eq!(pending["unrouted"], 1);
+    assert!(pending["initial_max_gap_mm"].as_f64().unwrap() > 1.0);
+    assert_eq!(result["staged"]["remaining_nets"], json!([pending]));
+    assert_eq!(result["staged"]["trials"][0]["outcome"], "retained");
+    let job = routing::prepare_staged_job(
+        &session,
+        args(json!({"options":{"nets":["A","B"],"critical_nets":["B"]},"max_gap_mm":1})),
+    )
+    .unwrap();
+    let result = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
+        .unwrap()
+        .result;
+    assert_eq!(result["staged"]["stop_reason"], "completed");
+    assert_eq!(result["staged"]["deferred_nets"][0]["net"], json!(a));
+    assert_eq!(result["staged"]["deferred_nets"][0]["name"], "A");
+    assert_eq!(result["validation"]["after"]["unrouted"], 1);
+    assert_eq!(
+        routing::prepare_staged_job(&session, args(json!({"options":{}})))
+            .unwrap_err()
+            .kind,
+        ErrorKind::InvalidArgument
+    );
+}
+
+#[test]
 fn reference_coverage_finds_a_hole_and_previews_a_reroute_with_no_air_wires() {
     use librepcb_core::geometry::ZoneRules;
     use librepcb_core::types::{Layer, Point};

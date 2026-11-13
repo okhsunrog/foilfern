@@ -25,11 +25,13 @@ use crate::routing_validation::{RoutingSnapshot, RoutingValidation, capture_rout
 mod comparison;
 mod copper;
 mod region;
+mod staged;
 pub use comparison::{
     RoutingComparison, RoutingComparisonJob, RoutingTrial, RoutingTrials, TracePreference,
 };
 pub use copper::{CopperEndpoint, CopperPlan, PlannedPlacement, PlannedTrace};
 pub use region::RegionalRoutingRequest;
+pub use staged::StagedRoutingRequest;
 
 /// Bounded session-local storage; callers explicitly discard unwanted candidates.
 pub const MAX_CANDIDATES: usize = 8;
@@ -93,6 +95,9 @@ pub enum RoutingCandidateDetails {
         regional: Box<RegionalRoutingRequest>,
         routing: Box<AutorouteResult>,
     },
+    Staged {
+        staged: Box<staged::StagedRoutingResult>,
+    },
     LocalVia {
         via_request: Box<ConnectLocalVia>,
         via_connection: LocalViaConnection,
@@ -138,7 +143,7 @@ impl RoutingCandidateDetails {
         })
     }
 
-    fn validate(&self, before: RoutingSnapshot, after: RoutingSnapshot) -> RoutingValidation {
+    fn validate(&self, before: &RoutingSnapshot, after: &RoutingSnapshot) -> RoutingValidation {
         let improves = match self {
             Self::LocalVia { via_connection, .. } => {
                 let target = BTreeSet::from([via_connection.net]);
@@ -146,10 +151,7 @@ impl RoutingCandidateDetails {
             }
             _ => true,
         };
-        let mut validation = RoutingValidation::compare(before, after);
-        if !validation.unrouted_regressions.is_empty() {
-            validation.acceptable = false;
-        }
+        let mut validation = RoutingValidation::compare_candidate(before, after);
         validation.acceptable &= improves;
         validation
     }
@@ -163,6 +165,7 @@ enum RoutingWork {
         route: Option<Autoroute>,
     },
     Regional(RegionalRoutingRequest),
+    Staged(StagedRoutingRequest),
     Copper {
         plan: CopperPlan,
         base: Option<(Uuid, Vec<Mutation>)>,
@@ -250,6 +253,7 @@ impl RoutingJob {
             RoutingWork::Builtin(request) => request.board,
             RoutingWork::Edit { edit, .. } => Some(edit.board),
             RoutingWork::Regional(regional) => regional.request.board,
+            RoutingWork::Staged(staged) => staged.options.board,
             RoutingWork::Copper { plan, .. } => Some(plan.board),
             RoutingWork::LocalVia(request) => Some(request.board),
             RoutingWork::PlaneStitch(request) => Some(request.board),
@@ -293,6 +297,9 @@ impl RoutingJob {
                     routing: Box::new(routing),
                 }
             }
+            RoutingWork::Staged(request) => RoutingCandidateDetails::Staged {
+                staged: Box::new(request.run(sandbox, board, &before)?),
+            },
             RoutingWork::Copper { plan, base, route } => {
                 let base_candidate = match base {
                     Some((id, mutations)) => {
@@ -377,6 +384,18 @@ impl RoutingJob {
     }
 }
 
+fn rebuild_connectivity(editor: &mut ProjectEditor, board: BoardId) -> Result<(), RoutingError> {
+    editor
+        .update_derived_data(|project| project.rebuild_planes(board, None))?
+        .map_err(crate::Error::from_export)?;
+    editor.update_derived_data(|project| {
+        project
+            .force_air_wires_rebuild(board)
+            .map_err(crate::Error::from)
+    })??;
+    Ok(())
+}
+
 impl RoutingSource {
     fn capture_before(&mut self, board: BoardId) -> Result<RoutingSnapshot, RoutingError> {
         let cached = self.baseline.take().filter(|baseline| {
@@ -386,14 +405,7 @@ impl RoutingSource {
                 && baseline.board == board
         });
         if let Some(baseline) = cached {
-            self.sandbox
-                .update_derived_data(|project| project.rebuild_planes(board, None))?
-                .map_err(crate::Error::from_export)?;
-            self.sandbox.update_derived_data(|project| {
-                project
-                    .force_air_wires_rebuild(board)
-                    .map_err(crate::Error::from)
-            })??;
+            rebuild_connectivity(&mut self.sandbox, board)?;
             self.baseline_reused = true;
             Ok(baseline.snapshot)
         } else {
@@ -417,9 +429,9 @@ impl RoutingSource {
             baseline_reused,
             ..
         } = self;
-        let validation = details.validate(before.clone(), after);
+        let validation = details.validate(&before, &after);
         // Undo on the private sandbox exposes exact forward mutations.
-        // An edit followed by routing can produce two entries.
+        // A compound candidate can produce multiple entries.
         let mut groups = Vec::new();
         let mut count = 0;
         while sandbox.undo()? {
@@ -723,6 +735,7 @@ impl RoutingService {
             match candidate.info.details {
                 RoutingCandidateDetails::Builtin { .. }
                 | RoutingCandidateDetails::Regional { .. }
+                | RoutingCandidateDetails::Staged { .. }
                 | RoutingCandidateDetails::LocalVia { .. } => {
                     librepcb_i18n::tr!("Autorouter", "Autoroute Board")
                 }
@@ -751,7 +764,7 @@ impl RoutingService {
             started.elapsed().as_micros()
         );
         match applied {
-            Ok(after) => info.validation = info.details.validate(candidate.before, after),
+            Ok(after) => info.validation = info.details.validate(&candidate.before, &after),
             Err(error) => {
                 // Copper has committed. Report the incomplete post-check honestly
                 // instead of returning an error that suggests no write occurred.

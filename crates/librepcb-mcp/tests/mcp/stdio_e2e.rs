@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 14);
+    assert_eq!(info["api_capability_version"], 15);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -951,6 +951,7 @@ async fn stdio_reviewed_builtin_routing_save_reopen() {
     let tools = client.list_all_tools().await.unwrap();
     for name in [
         "routing_prepare",
+        "routing_staged_prepare",
         "routing_preview",
         "routing_apply",
         "routing_discard",
@@ -992,12 +993,18 @@ async fn stdio_reviewed_builtin_routing_save_reopen() {
         .unwrap();
     let prepared = call_ok(
         &client,
-        "routing_prepare",
-        json!({"expected_revision":before["revision"]}),
+        "routing_staged_prepare",
+        json!({
+            "options":{"nets":["A","B"],"expected_revision":before["revision"]},
+            "batch_size":1,
+        }),
     )
     .await;
     assert_eq!(prepared["validation"]["acceptable"], true);
     assert_eq!(prepared["validation"]["after"]["unrouted"], 0);
+    let trials = prepared["staged"]["trials"].as_array().unwrap();
+    assert_eq!(trials.len(), 2);
+    assert!(trials.iter().all(|trial| trial["outcome"] == "retained"));
     let candidate = &prepared["candidate"];
     let preview = call_ok(&client, "routing_preview", json!({"candidate":candidate})).await;
     assert!(!preview["mutations"].as_array().unwrap().is_empty());

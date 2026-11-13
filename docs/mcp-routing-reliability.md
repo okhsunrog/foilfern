@@ -327,8 +327,13 @@ Apply reuses the exact prepared mutations, requires `acceptable` validation,
 checks source freshness, commits once and rechecks the applied model. Remaining
 connections can stay partial; a candidate is consumed only after successful
 mutation commit. See the design for post-commit evidence and lifecycle limits.
-This is a data preview; GUI overlays, job IDs, cancellation and automatic ranking
-are later work. Existing immediate `autoroute` retains its compatibility behavior.
+Compare routing orders with `routing_compare`. Use `routing_staged_prepare`
+on selected nets to retain the safe parts of groups whose joint routes
+fail board checks. Compare candidates on the same source revision and
+choose using connectivity and board rules. A single checked order can
+complete more connections than staged routing with the same selection.
+This is a data preview. GUI overlays, job IDs and cancellation are later
+work. Existing immediate `autoroute` retains its compatibility behavior.
 Candidate lifecycle tests and a real stdio MCP prepare/preview/apply/undo/redo/
 save/reopen test cover this stage. On a copy of the STM32 experiment with copper
 removed through mutations, builtin at 0.1 mm prepared 559 mutations: 57 to four

@@ -101,9 +101,11 @@ impl RoutingSnapshot {
     }
 
     pub(crate) fn unrouted_on(&self, nets: &BTreeSet<NetSignalId>) -> usize {
-        nets.iter()
-            .map(|net| self.unrouted_by_net.get(net).copied().unwrap_or(0))
-            .sum()
+        nets.iter().map(|&net| self.unrouted_for(net)).sum()
+    }
+
+    pub(crate) fn unrouted_for(&self, net: NetSignalId) -> usize {
+        self.unrouted_by_net.get(&net).copied().unwrap_or(0)
     }
 }
 
@@ -277,6 +279,17 @@ pub fn capture_routing_state(
 
 impl RoutingValidation {
     pub fn compare(before: RoutingSnapshot, after: RoutingSnapshot) -> Self {
+        Self::compare_snapshots(&before, &after)
+    }
+
+    /// Reviewed candidates also require every net to keep its connectivity.
+    pub(crate) fn compare_candidate(before: &RoutingSnapshot, after: &RoutingSnapshot) -> Self {
+        let mut validation = Self::compare_snapshots(before, after);
+        validation.acceptable &= validation.unrouted_regressions.is_empty();
+        validation
+    }
+
+    fn compare_snapshots(before: &RoutingSnapshot, after: &RoutingSnapshot) -> Self {
         let new_errors: Vec<_> = after
             .errors
             .iter()
@@ -365,8 +378,8 @@ impl RoutingValidation {
             new_errors: new_errors.into_iter().take(50).collect(),
             new_warning_count,
             new_warnings,
-            before: before.checks,
-            after: after.checks,
+            before: before.checks.clone(),
+            after: after.checks.clone(),
         }
     }
 

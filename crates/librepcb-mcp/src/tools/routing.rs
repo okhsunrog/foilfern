@@ -1,6 +1,8 @@
 //! Builtin reviewed routing: detached preparation, paginated exact preview,
 //! single-transaction apply and explicit disposal. No upstream counterpart.
 
+use std::time::Duration;
+
 use librepcb_core::project::{BoardId, Mutation, PlaneId, Project};
 use librepcb_core::types::{Point, Uuid};
 use librepcb_editor::ProjectEditor;
@@ -9,7 +11,7 @@ use librepcb_editor::commands::{
 };
 use librepcb_editor::routing_service::{
     RegionalRoutingRequest, RoutingCandidate, RoutingCandidateInfo, RoutingComparisonJob,
-    RoutingError, RoutingJob, RoutingTrial, RoutingTrials,
+    RoutingError, RoutingJob, RoutingTrial, RoutingTrials, StagedRoutingRequest,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -70,6 +72,21 @@ pub struct RoutingPrepareArgs {
     #[serde(default)]
     /// Reject if the current live revision differs.
     pub expected_revision: Option<u64>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RoutingStagedPrepareArgs {
+    /// Builtin options, including an explicit allowlist in options.nets.
+    pub options: RoutingPrepareArgs,
+    /// Initial group size, from 1 to 32 (default 8).
+    pub batch_size: Option<usize>,
+    /// Maximum checked trials, from 1 to 64 (default 24).
+    pub max_trials: Option<usize>,
+    /// Time budget checked between trials, 1–300000 ms (default 120000).
+    pub max_time_ms: Option<u64>,
+    /// Defer non-critical nets whose longest initial air wire exceeds this length in mm.
+    pub max_gap_mm: Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
@@ -312,6 +329,27 @@ pub fn prepare_job(session: &Session, args: RoutingPrepareArgs) -> ToolResult<Ro
     let command = builtin_request(open.project(), args)?;
     open.routing
         .prepare(&open.editor, command)
+        .map_err(routing_error)
+}
+
+pub fn prepare_staged_job(
+    session: &Session,
+    args: RoutingStagedPrepareArgs,
+) -> ToolResult<RoutingJob> {
+    let open = session.project()?;
+    let options = builtin_request(open.project(), args.options)?;
+    let request = StagedRoutingRequest {
+        options,
+        batch_size: args.batch_size.unwrap_or(8),
+        max_trials: args.max_trials.unwrap_or(24),
+        max_time: Duration::from_millis(args.max_time_ms.unwrap_or(120_000)),
+        max_gap: args
+            .max_gap_mm
+            .map(|gap| board_edit::positive(gap, "max_gap_mm"))
+            .transpose()?,
+    };
+    open.routing
+        .prepare_staged(&open.editor, request)
         .map_err(routing_error)
 }
 

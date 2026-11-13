@@ -207,6 +207,7 @@ The MCP interface for this stage is:
 |---|---|
 | `routing_prepare` | Prepare one candidate using built-in parameters only; return the candidate identity and checked result metadata. |
 | `routing_compare` | Prepare two or three builtin order variants from one snapshot; return ranked metrics and previewable candidate IDs. |
+| `routing_staged_prepare` | Route explicit nets in checked batches on one detached snapshot, bisect rejected or unproductive groups and freeze the retained work as one candidate. |
 | `routing_preview` | Inspect `candidate`, with `offset`/`limit` pagination (at most 200 mutations per page); return exact mutations and validation/request/result metadata. |
 | `routing_apply` | Apply `candidate` with optional caller `expected_revision`; source binding is always checked even if the caller omits that field. |
 | `routing_discard` | Release a retained candidate without changing the project or undo history. |
@@ -247,6 +248,12 @@ cancellation and visual review remain planned. The eight-candidate cap bounds
 retained patches only; it does not currently limit concurrent preparation workers
 or total snapshot memory. Admission control and cancellation are operational
 follow-up work.
+
+Staged preparation uses the same source binding and final apply gate.
+Each accepted batch supplies fixed copper for the next search. Rejected
+trials are undone in the sandbox and planes and air wires are rebuilt
+before further routing. The frozen patch contains only the retained batches
+in their execution order.
 
 The legacy immediate `autoroute` call remains a compatibility path with its
 existing behavior; R1 does not claim it already runs through the candidate
