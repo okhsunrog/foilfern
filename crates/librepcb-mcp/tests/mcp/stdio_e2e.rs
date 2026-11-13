@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 28);
+    assert_eq!(info["api_capability_version"], 29);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -1632,6 +1632,26 @@ async fn stdio_explicit_wire_paths_validate_and_replay() {
     let en = segments.iter().find(|s| s["net"] == "EN").unwrap();
     assert_eq!(en["junctions"].as_array().unwrap().len(), 1);
     assert_eq!(en["lines"].as_array().unwrap().len(), 3);
+    let wire_text = call_ok(
+        &client,
+        "design_preview",
+        json!({"version":1,"schematic":"Main","components":document["components"],
+            "review_components":["R1"],
+            "notes":[{"text":"DO NOT CROSS","position":{"x":15,"y":0},"height":3.0}]}),
+    )
+    .await;
+    assert!(
+        wire_text["annotation_changes"]["introduced"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|finding| {
+                finding["first"]["kind"] == "schematic_text"
+                    && finding["second"]["kind"] == "wire"
+                    && finding["second"]["net"] == "EN"
+            }),
+        "{wire_text}"
+    );
     assert_eq!(call_ok(&client, "netlist", json!({})).await, netlist);
     let mut unsafe_edit = document.clone();
     unsafe_edit["wire_groups"][0]["pins"] = json!(["R1.2", "R2.1"]);

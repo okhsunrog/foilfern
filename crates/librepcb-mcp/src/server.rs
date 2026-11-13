@@ -716,7 +716,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Find overlapping symbol fields, pin names and numbers, net labels and notes. Optionally focus on a list of components. Read-only."
+        description = "Find overlaps between annotations or with schematic wires. Optionally focus on a list of components. Read-only."
     )]
     async fn schematic_review(
         &self,

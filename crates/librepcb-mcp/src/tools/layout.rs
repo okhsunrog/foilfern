@@ -301,6 +301,10 @@ pub(super) fn annotation_review(
             let net = schematic.net_segments()[&segment].net();
             json!({"kind":"net_label","net":resolve::net_name(project, net),"segment":segment,"label":label})
         }
+        Annotation::Wire(segment, wire) => {
+            let net = schematic.net_segments()[&segment].net();
+            json!({"kind":"wire","net":resolve::net_name(project, net),"segment":segment,"wire":wire})
+        }
         Annotation::Text(text) => json!({"kind":"schematic_text","text":text}),
         Annotation::PinName(symbol, pin) | Annotation::PinNumber(symbol, pin) => {
             let placed = &schematic.symbols()[&symbol];

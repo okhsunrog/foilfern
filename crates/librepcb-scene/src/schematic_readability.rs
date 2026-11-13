@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use librepcb_canvas::SelectionMode;
 use librepcb_canvas::kurbo::Rect;
 use librepcb_core::project::{NetSegmentId, SymbolId};
 use librepcb_core::types::Uuid;
@@ -24,10 +25,11 @@ pub enum Annotation {
     NetLabel(NetSegmentId, Uuid),
     PinName(SymbolId, Uuid),
     PinNumber(SymbolId, Uuid),
+    Wire(NetSegmentId, Uuid),
 }
 
-/// Checks symbol fields, page texts, net labels and pin legends. Limits the
-/// report to overlaps involving the supplied symbols or segments when provided.
+/// Checks visible annotations against each other and against schematic wires.
+/// Limits the report to overlaps involving the supplied symbols or their labels.
 pub fn annotation_overlaps(
     scene: &SchematicScene,
     scope: Option<(&BTreeSet<SymbolId>, &BTreeSet<NetSegmentId>)>,
@@ -92,6 +94,39 @@ pub fn annotation_overlaps(
                 result.push(AnnotationOverlap {
                     first,
                     second,
+                    bounds: [overlap.x0, overlap.y0, overlap.x1, overlap.y1],
+                });
+            }
+        }
+    }
+    for (annotation, bounds) in annotations {
+        for id in scene
+            .scene()
+            .items_in_rect(bounds, SelectionMode::Intersects)
+        {
+            let Some(SchematicObject::NetLine(segment, wire)) = scene.object(id) else {
+                continue;
+            };
+            if !in_scope(annotation)
+                && !scope.is_some_and(|(_, segments)| segments.contains(&segment))
+            {
+                continue;
+            }
+            let Some(item) = scene.scene().item(id) else {
+                continue;
+            };
+            let overlap = bounds.intersect(item.bounding_box());
+            // A net label intentionally touches its own wire at the anchor.
+            if matches!(annotation, Annotation::NetLabel(label_segment, _) if label_segment == segment)
+                && overlap.width() <= 0.2
+                && overlap.height() <= 0.2
+            {
+                continue;
+            }
+            if overlap.width() > 0.1 && overlap.height() > 0.1 {
+                result.push(AnnotationOverlap {
+                    first: annotation,
+                    second: Annotation::Wire(segment, wire),
                     bounds: [overlap.x0, overlap.y0, overlap.x1, overlap.y1],
                 });
             }
