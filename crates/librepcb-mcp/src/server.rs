@@ -1094,14 +1094,14 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Preview exact frozen routing mutations and validation, without changing the board. Supply reference to compare ground coverage or trace_paths for pad-pair lengths and layer changes before and after. Paginated: offset and limit (1..200). Reports stale candidates."
+        description = "Preview exact frozen routing mutations and validation, without changing the board. Compare reference coverage, pad-pair trace paths, or plane fill at fixed probe points before and after. Paginated: offset and limit (1..200). Reports stale candidates."
     )]
     async fn routing_preview(
         &self,
         Parameters(args): Parameters<crate::tools::routing::RoutingPreviewArgs>,
     ) -> Result<CallToolResult, McpError> {
         use crate::tools::routing;
-        if args.reference.is_some() || !args.trace_paths.is_empty() {
+        if args.has_measurements() {
             return self
                 .run_detached(
                     move |s| routing::prepare_measured_preview(s, args),

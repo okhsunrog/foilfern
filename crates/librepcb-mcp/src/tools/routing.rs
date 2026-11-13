@@ -2,7 +2,7 @@
 //! single-transaction apply and explicit disposal. No upstream counterpart.
 
 use librepcb_core::project::{BoardId, Mutation, PlaneId, Project};
-use librepcb_core::types::Uuid;
+use librepcb_core::types::{Point, Uuid};
 use librepcb_editor::ProjectEditor;
 use librepcb_editor::commands::{
     Autoroute, ConnectLocalVia, NetRef, PadNeckDown, RoutingOrder, StitchPlaneIsland,
@@ -143,6 +143,85 @@ pub struct RoutingPreviewArgs {
     /// Measure up to 16 physical pad pairs before and after the frozen patch.
     #[serde(default)]
     pub trace_paths: Vec<trace_path::TracePathPair>,
+    /// Compare fill at up to 16 fixed points of one selected plane.
+    pub plane_probes: Option<PlaneProbeArgs>,
+}
+
+impl RoutingPreviewArgs {
+    pub(crate) fn has_measurements(&self) -> bool {
+        self.reference.is_some() || !self.trace_paths.is_empty() || self.plane_probes.is_some()
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlaneProbeArgs {
+    /// Plane UUID from board_get.
+    pub plane: String,
+    /// Fixed coordinates in board millimeters.
+    pub points: Vec<PointMm>,
+}
+
+struct PlaneProbes {
+    plane: PlaneId,
+    points: Vec<Point>,
+}
+
+impl PlaneProbes {
+    fn new(args: PlaneProbeArgs) -> ToolResult<Self> {
+        if !(1..=16).contains(&args.points.len()) {
+            return Err(ToolError::invalid(
+                "Select between 1 and 16 plane probe points.",
+            ));
+        }
+        Ok(Self {
+            plane: PlaneId(crate::resolve::required_uuid(&args.plane, "plane")?),
+            points: args
+                .points
+                .into_iter()
+                .map(PointMm::to_point)
+                .collect::<ToolResult<_>>()?,
+        })
+    }
+
+    fn measure(&self, project: &Project, board: BoardId) -> ToolResult<Vec<Option<&'static str>>> {
+        let native_board = project
+            .board(board)
+            .ok_or_else(|| ToolError::not_found("Candidate board is missing."))?;
+        if native_board.plane(self.plane).is_none() {
+            return Err(ToolError::not_found("Plane was not found on this board."));
+        }
+        let job = project
+            .plane_job(board, None)?
+            .ok_or_else(|| ToolError::internal("The board has no planes to fill."))?;
+        let fragments = job.diagnose(self.plane)?;
+        Ok(self
+            .points
+            .iter()
+            .map(|&point| {
+                fragments
+                    .iter()
+                    .find(|fragment| fragment.contains(point))
+                    .map(|fragment| board_edit::plane_fragment_status(fragment.status).1)
+            })
+            .collect())
+    }
+
+    fn comparison(
+        &self,
+        before: Vec<Option<&'static str>>,
+        after: Vec<Option<&'static str>>,
+    ) -> serde_json::Value {
+        let points: Vec<_> = self
+            .points
+            .iter()
+            .zip(before.into_iter().zip(after))
+            .map(|(&point, (before, after))| {
+                json!({"point":PointMm::from(point),"before":before,"after":after})
+            })
+            .collect();
+        json!({"plane":self.plane,"points":points})
+    }
 }
 
 fn routing_error(error: RoutingError) -> ToolError {
@@ -426,7 +505,7 @@ fn candidate_output(summary: &str, info: &RoutingCandidateInfo) -> ToolResult<To
 
 /// Read-only exact patch preview. Stale candidates remain inspectable.
 pub fn routing_preview(session: &Session, args: RoutingPreviewArgs) -> ToolResult<ToolOutput> {
-    if args.reference.is_some() || !args.trace_paths.is_empty() {
+    if args.has_measurements() {
         let work = prepare_measured_preview(session, args)?;
         return finish_measured_preview(session, run_measured_preview(work)?);
     }
@@ -441,6 +520,7 @@ pub struct MeasuredPreviewJob {
     snapshot: ProjectEditor,
     reference: Option<ground_reference::ReferenceArgs>,
     paths: Vec<trace_path::ResolvedTracePath>,
+    plane_probes: Option<PlaneProbes>,
     patch: Vec<Mutation>,
 }
 
@@ -450,6 +530,7 @@ pub fn prepare_measured_preview(
 ) -> ToolResult<MeasuredPreviewJob> {
     let reference = args.reference.take();
     let requested_paths = std::mem::take(&mut args.trace_paths);
+    let plane_probes = args.plane_probes.take().map(PlaneProbes::new).transpose()?;
     if requested_paths.len() > 16 {
         return Err(ToolError::invalid("Select at most 16 trace paths."));
     }
@@ -482,6 +563,7 @@ pub fn prepare_measured_preview(
         snapshot,
         reference,
         paths,
+        plane_probes,
         patch,
     })
 }
@@ -495,6 +577,7 @@ pub fn run_measured_preview(work: MeasuredPreviewJob) -> ToolResult<(Uuid, ToolO
         mut snapshot,
         reference,
         paths,
+        plane_probes,
         patch,
     } = work;
     let before = paths
@@ -502,21 +585,32 @@ pub fn run_measured_preview(work: MeasuredPreviewJob) -> ToolResult<(Uuid, ToolO
         .map(|path| path.measure(snapshot.project(), board))
         .collect::<ToolResult<Vec<_>>>()?;
     let mut after = Vec::new();
-    let compare_paths = |project: &Project| -> ToolResult<()> {
+    let plane_before = plane_probes
+        .as_ref()
+        .map(|probes| probes.measure(snapshot.project(), board))
+        .transpose()?;
+    let mut plane_comparison = None;
+    let compare = |project: &Project| -> ToolResult<()> {
         for (path, before) in paths.iter().zip(before) {
             after.push(path.comparison(before, path.measure(project, board)?));
+        }
+        if let Some((probes, before)) = plane_probes.as_ref().zip(plane_before) {
+            plane_comparison = Some(probes.comparison(before, probes.measure(project, board)?));
         }
         Ok(())
     };
     if let Some(reference) = reference {
         let reference = ground_reference::ReferenceJob::new(snapshot, board, reference, revision)?;
-        preview.result["reference_coverage"] = reference.compare(patch, compare_paths)?;
+        preview.result["reference_coverage"] = reference.compare(patch, compare)?;
     } else {
-        snapshot.apply_mutations("Preview trace paths", patch)?;
-        compare_paths(snapshot.project())?;
+        snapshot.apply_mutations("Preview routing measurements", patch)?;
+        compare(snapshot.project())?;
     }
     if !after.is_empty() {
         preview.result["trace_paths"] = json!(after);
+    }
+    if let Some(plane_comparison) = plane_comparison {
+        preview.result["plane_probes"] = plane_comparison;
     }
     Ok((id, preview))
 }

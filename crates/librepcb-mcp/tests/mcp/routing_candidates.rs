@@ -681,9 +681,17 @@ fn plane_stitch_previews_and_restores_discarded_copper_with_one_undo() {
             > 0.0
     );
     let selected = candidate["candidate"].clone();
-    let preview = routing::routing_preview(&session, args(json!({"candidate":selected})))
-        .unwrap()
-        .result;
+    let preview = routing::routing_preview(
+        &session,
+        args(json!({"candidate":selected,"plane_probes":{"plane":plane,"points":[position]}})),
+    )
+    .unwrap()
+    .result;
+    assert_eq!(preview["plane_probes"]["plane"], plane);
+    assert_eq!(
+        preview["plane_probes"]["points"][0],
+        json!({"point":{"x":8.0,"y":pad_y},"before":"island_discarded","after":"connected"})
+    );
     assert_eq!(preview["plane_stitch"], candidate["plane_stitch"]);
     assert_eq!(session.project().unwrap().project().revision(), revision);
     assert_eq!(board_value(&session), before);

@@ -1901,6 +1901,15 @@ pub struct PlaneDiagnosticJob {
     probe: Option<Point>,
 }
 
+pub(super) fn plane_fragment_status(kind: PlaneFragmentStatus) -> (usize, &'static str) {
+    match kind {
+        PlaneFragmentStatus::IslandDiscarded => (0, "island_discarded"),
+        PlaneFragmentStatus::IslandKept => (1, "island_kept"),
+        PlaneFragmentStatus::Connected => (2, "connected"),
+        PlaneFragmentStatus::Netless => (3, "netless"),
+    }
+}
+
 pub fn prepare_plane_diagnostic(
     session: &Session,
     args: PlaneDiagnoseArgs,
@@ -1952,12 +1961,7 @@ pub fn run_plane_diagnostic(work: PlaneDiagnosticJob) -> ToolResult<ToolOutput> 
         .into_iter()
         .map(|fragment| (fragment.area_mm2(), fragment))
         .collect();
-    let status = |kind| match kind {
-        PlaneFragmentStatus::IslandDiscarded => (0, "island_discarded"),
-        PlaneFragmentStatus::IslandKept => (1, "island_kept"),
-        PlaneFragmentStatus::Connected => (2, "connected"),
-        PlaneFragmentStatus::Netless => (3, "netless"),
-    };
+    let status = plane_fragment_status;
     fragments.sort_by_key(|(_, fragment)| status(fragment.status).0);
     let mut counts = [0; 4];
     let mut areas = [0.0; 4];

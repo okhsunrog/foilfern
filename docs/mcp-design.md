@@ -634,6 +634,10 @@ trace paths before and after the frozen patch, including length, layers,
 via anchors and layer changes. Pad identities are resolved on the source
 board. A missing trace-only path reports `not_measured`. Combine this with
 `reference` to compare ground coverage in the same preview.
+With `plane_probes: {plane, points}`, compare the native fill status of up to
+16 fixed board points on one plane before and after the candidate. Each point
+reports the same classification as `plane_diagnose` or null outside every
+fragment.
 `routing_apply` checks the candidate revision independently of the optional
 caller revision (and rejects a changed save time or path, since text
 attributes can affect geometry), refuses incomplete validation or new non-connectivity DRC
