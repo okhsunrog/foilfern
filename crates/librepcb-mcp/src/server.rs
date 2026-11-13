@@ -72,6 +72,7 @@ routing_prepare, routing_compare or routing_staged_prepare -> routing_preview ->
 (reviewed builtin; autoroute is direct) -> \
 plane_add (net \"GND\", bottom) -> drc_run -> export_fabrication / jobs_run -> project_save.\n\
 With existing pours, use routing_staged_prepare with explicit ordinary nets to check each batch before keeping it.\n\
+For local device moves, compare allowed poses with routing_placement_compare and review the checked patch before applying.\n\
 For precise schematics, place and rotate components, use connect with assign_only:true, \
 then read pin coordinates with schematic_get. In design_preview use wire_groups with paths \
 (pin names and {x,y} vertices in mm), label positions and notes. Branch endpoints on another \
@@ -1016,6 +1017,22 @@ impl LibrePcbMcp {
     ) -> Result<CallToolResult, McpError> {
         self.prepare_routing_candidate(move |s| crate::tools::routing::prepare_copper_job(s, args))
             .await
+    }
+
+    #[tool(
+        description = "Compare up to 16 combinations of explicit positions and rotations for one or two unlocked devices. Each trial uses the same authorized copper removals, optional local via offsets and builtin continuation. Returns checked candidates, rejected poses, pad-to-pad lengths and required plane contacts. Preview, apply or discard any returned candidate separately."
+    )]
+    async fn routing_placement_compare(
+        &self,
+        Parameters(args): Parameters<crate::tools::routing::RoutingPlacementArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        use crate::tools::routing;
+        self.run_detached(
+            move |s| routing::prepare_placement(s, args),
+            routing::run_placement,
+            routing::finish_placement,
+        )
+        .await
     }
 
     #[tool(

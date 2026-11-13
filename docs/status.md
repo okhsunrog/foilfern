@@ -80,8 +80,10 @@ The editor owns one `RoutingService` per open project; MCP is its transport.
 - Connected via/junction edits, path replacement, explicit copper batches and
   moves/rotations of unlocked devices with their copper in one candidate.
   A rejected candidate can be extended with a checked repair via `base_candidate`.
-  Coordinates are supplied explicitly; bounded placement planning and connected
-  side changes are not implemented.
+  Placement comparison trials cover up to 16 combinations of supplied positions
+  and angles, with device-relative through vias, plane contacts and pad-to-pad
+  trace limits. Automatic position generation and connected side changes remain
+  future work.
 - Full before/after board checks, per-net connectivity regressions/improvements,
   new warnings and `connectivity_progress` separate from `acceptable`.
   An acceptable partial or unchanged candidate is not proof of target completion.

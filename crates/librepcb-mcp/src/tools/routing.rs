@@ -25,9 +25,11 @@ use crate::units::PointMm;
 
 mod diagnose_image;
 mod explicit_copper;
+mod placement;
 mod repair;
 pub(crate) mod repair_search;
 pub use explicit_copper::{RoutingCopperArgs, prepare_copper_job};
+pub use placement::{RoutingPlacementArgs, finish_placement, prepare_placement, run_placement};
 
 /// Builtin-only options; external backends are deliberately not accepted.
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
@@ -150,6 +152,27 @@ pub struct TracePreferenceArgs {
     pub max_length_mm: Option<f64>,
     /// Maximum layer changes on the measured trace path.
     pub max_layer_changes: Option<usize>,
+}
+
+impl TracePreferenceArgs {
+    fn resolve(
+        &self,
+        project: &Project,
+        board: &librepcb_core::project::board::Board,
+        require_limit: bool,
+    ) -> ToolResult<librepcb_editor::routing_service::TracePreference> {
+        if require_limit && self.max_length_mm.is_none() && self.max_layer_changes.is_none() {
+            return Err(ToolError::invalid(
+                "Each trace preference requires at least one limit.",
+            ));
+        }
+        let max_length = self
+            .max_length_mm
+            .map(|v| board_edit::unsigned(v, "max_length_mm").map(|length| length.get()))
+            .transpose()?;
+        let path = trace_path::ResolvedTracePath::new(project, board, &self.path)?;
+        Ok(path.preference(max_length, self.max_layer_changes))
+    }
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -508,19 +531,7 @@ pub fn prepare_comparison_job(
     let trace_preferences = args
         .trace_preferences
         .iter()
-        .map(|args| {
-            if args.max_length_mm.is_none() && args.max_layer_changes.is_none() {
-                return Err(ToolError::invalid(
-                    "Each trace preference requires at least one limit.",
-                ));
-            }
-            let max_length = args
-                .max_length_mm
-                .map(|v| board_edit::unsigned(v, "max_length_mm").map(|length| length.get()))
-                .transpose()?;
-            let path = trace_path::ResolvedTracePath::new(project, board, &args.path)?;
-            Ok(path.preference(max_length, args.max_layer_changes))
-        })
+        .map(|args| args.resolve(project, board, true))
         .collect::<ToolResult<_>>()?;
     if let Some(trials) = args.trials {
         if args.orders.is_some() {

@@ -26,6 +26,7 @@ use crate::routing_validation::{
 
 mod comparison;
 mod copper;
+mod placement;
 mod region;
 mod repair_search;
 mod staged;
@@ -33,6 +34,10 @@ pub use comparison::{
     RoutingComparison, RoutingComparisonJob, RoutingTrial, RoutingTrials, TracePreference,
 };
 pub use copper::{CopperEndpoint, CopperPlan, PlannedPlacement, PlannedTrace};
+pub use placement::{
+    PlacementComparison, PlacementJob, PlacementRequest, PlacementResults, PlacementTarget,
+    PlacementTrace, PlacementVia,
+};
 pub use region::{RegionalRepairProposal, RegionalRoutingRequest};
 pub use repair_search::{
     RepairSearchJob, RepairSearchRequest, RepairSearchResults, RepairSearchStatus,
@@ -325,40 +330,16 @@ impl RoutingJob {
                     }
                     None => None,
                 };
-                let removed_traces = plan.remove_traces.len();
-                let removed_vias = (!plan.remove_vias.is_empty()).then_some(plan.remove_vias.len());
-                let placements = (!plan.placements.is_empty()).then_some(plan.placements.len());
+                let plan_counts = copper::PlanCounts::from(&plan);
                 let (vias, trace_segments) = plan.run(sandbox)?;
-                let route = if let Some(mut request) = route {
-                    let protected = existing(sandbox)?;
-                    request.board = Some(board);
-                    sandbox
-                        .update_derived_data(|project| project.rebuild_planes(board, None))?
-                        .map_err(crate::Error::from_export)?;
-                    let routing = sandbox.execute((*request).clone())?;
-                    region::ensure_preserved_copper(
-                        &protected,
-                        &existing(sandbox)?,
-                        &BTreeSet::new(),
-                    )?;
-                    Some(Box::new(RoutingEditTrial {
-                        request: *request,
-                        routing,
-                    }))
-                } else {
-                    None
-                };
-                RoutingCandidateDetails::Copper {
-                    copper: CopperAddition {
-                        base_candidate,
-                        removed_traces,
-                        removed_vias,
-                        placements,
-                        vias,
-                        trace_segments,
-                    },
-                    route,
-                }
+                copper::finish_copper(
+                    sandbox,
+                    board,
+                    base_candidate,
+                    plan_counts,
+                    (vias, trace_segments),
+                    route.map(|request| *request),
+                )?
             }
             RoutingWork::LocalVia(request) => {
                 let protected = existing(sandbox)?;
@@ -847,15 +828,32 @@ impl RoutingService {
         project: &Project,
         candidate: &RoutingCandidate,
     ) -> Result<(), RoutingError> {
-        if self.owner != candidate.owner || project.uuid() != candidate.info.project {
+        self.check_source_identity(
+            project,
+            candidate.owner,
+            candidate.info.project,
+            candidate.info.base_revision,
+            &candidate.source_context,
+        )
+    }
+
+    fn check_source_identity(
+        &self,
+        project: &Project,
+        owner: Uuid,
+        project_id: Uuid,
+        revision: u64,
+        context: &SourceContext,
+    ) -> Result<(), RoutingError> {
+        if self.owner != owner || project.uuid() != project_id {
             return Err(RoutingError::WrongSession);
         }
-        if SourceContext::of(project) != candidate.source_context {
+        if &SourceContext::of(project) != context {
             return Err(RoutingError::StaleContext);
         }
-        if project.revision() != candidate.info.base_revision {
+        if project.revision() != revision {
             return Err(RoutingError::StaleRevision {
-                expected: candidate.info.base_revision,
+                expected: revision,
                 actual: project.revision(),
             });
         }

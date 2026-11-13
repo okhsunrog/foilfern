@@ -6,13 +6,13 @@ use librepcb_core::project::{BoardId, ComponentInstanceId};
 use librepcb_core::types::{Angle, Layer, Point, PositiveLength, Uuid};
 
 use crate::commands::{
-    AddTrace, AddVia, BoardSelection, MoveDevice, NetRef, TraceEndpoint, resolve_board,
+    AddTrace, AddVia, Autoroute, BoardSelection, MoveDevice, NetRef, TraceEndpoint, resolve_board,
 };
 use crate::{Error, ProjectEditor, Result};
 
-use super::{RoutingError, region};
+use super::{CopperAddition, RoutingCandidateDetails, RoutingEditTrial, RoutingError, region};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CopperEndpoint {
     Existing(TraceEndpoint),
     /// Index in the plan's via list, resolved after placement.
@@ -32,7 +32,7 @@ impl CopperEndpoint {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PlannedTrace {
     pub start: CopperEndpoint,
     pub end: CopperEndpoint,
@@ -42,14 +42,14 @@ pub struct PlannedTrace {
     pub net: Option<NetRef>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PlannedPlacement {
     pub component: ComponentInstanceId,
     pub position: Option<Point>,
     pub rotation: Option<Angle>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CopperPlan {
     pub board: BoardId,
     pub remove_traces: BTreeSet<Uuid>,
@@ -153,4 +153,59 @@ impl CopperPlan {
         }
         Ok((vias.len(), segments))
     }
+}
+
+pub(super) struct PlanCounts {
+    removed_traces: usize,
+    removed_vias: Option<usize>,
+    placements: Option<usize>,
+}
+
+impl From<&CopperPlan> for PlanCounts {
+    fn from(plan: &CopperPlan) -> Self {
+        Self {
+            removed_traces: plan.remove_traces.len(),
+            removed_vias: (!plan.remove_vias.is_empty()).then_some(plan.remove_vias.len()),
+            placements: (!plan.placements.is_empty()).then_some(plan.placements.len()),
+        }
+    }
+}
+
+/// Continue builtin routing while preserving all the staged copper as obstacles
+/// or existing same-net connections.
+pub(super) fn finish_copper(
+    sandbox: &mut ProjectEditor,
+    board: BoardId,
+    base_candidate: Option<Uuid>,
+    counts: PlanCounts,
+    (vias, trace_segments): (usize, usize),
+    route: Option<Autoroute>,
+) -> std::result::Result<RoutingCandidateDetails, RoutingError> {
+    let route = if let Some(mut request) = route {
+        let existing = |editor: &ProjectEditor| {
+            let project = editor.project();
+            region::copper(project, resolve_board(project, Some(board))?)
+        };
+        let protected = existing(sandbox)?;
+        request.board = Some(board);
+        sandbox
+            .update_derived_data(|project| project.rebuild_planes(board, None))?
+            .map_err(Error::from_export)?;
+        let routing = sandbox.execute(request.clone())?;
+        region::ensure_preserved_copper(&protected, &existing(sandbox)?, &BTreeSet::new())?;
+        Some(Box::new(RoutingEditTrial { request, routing }))
+    } else {
+        None
+    };
+    Ok(RoutingCandidateDetails::Copper {
+        copper: CopperAddition {
+            base_candidate,
+            removed_traces: counts.removed_traces,
+            removed_vias: counts.removed_vias,
+            placements: counts.placements,
+            vias,
+            trace_segments,
+        },
+        route,
+    })
 }

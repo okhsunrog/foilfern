@@ -82,9 +82,10 @@ The target contract describes the board and base revision, scope (whole board,
 selected nets, connection or region), permitted changes, objective and budget.
 Current entry points support builtin options, selected regions and explicit
 rip-up permissions, local repairs and selected device moves/rotations combined
-with copper changes. They do not automatically search allowed placement regions
-or enforce a persisted engineering-intent document. Unsupported capabilities
-must be rejected explicitly; see the [current MCP contracts](mcp-design.md).
+with copper changes. Placement comparison evaluates a supplied set of centers
+and rotations on independent snapshots with explicit copper permissions,
+path limits and required via contacts. Region-derived pose generation and
+persisted requirements remain planned. See the [current MCP contracts](mcp-design.md).
 
 Hard constraints include connectivity, clearance/width/drill limits, forbidden
 areas/layers and protected geometry. Preferences include route length, via cost,
@@ -473,8 +474,9 @@ algorithm runs rather than submitting thousands of individual coordinates.
 
 `routing_copper_prepare` already combines explicitly selected unlocked-device
 moves/rotations and copper changes in one checked candidate and undo operation.
-It does not select coordinates automatically or change footprint sides. P2 adds
-durable sourced requirements, and P4 uses them for bounded placement alternatives.
+`routing_placement_compare` tries supplied centers and angles in one call and
+ranks the validated patches by connectivity and declared path lengths. Generation
+from permitted regions and durable sourced requirements are planned in P4 and P2.
 Pin swaps require an explicitly permitted mapping, circuit updates and a firmware
 pin-map consequence; changing board labels is insufficient. Circuit templates
 remain deferred. Native file compatibility applies to all of these extensions.

@@ -2566,3 +2566,96 @@ fn trace_path_measurement_counts_real_vias_and_both_layers() {
     assert_eq!(branched["via_count"], 2);
     assert_eq!(branched["via_reduction"], json!([]));
 }
+
+#[test]
+fn placement_comparison_rejects_copper_collisions_and_ranks_checked_paths() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let before = board_value(&session);
+    let revision = session.project().unwrap().project().revision();
+    let history = session.project().unwrap().editor.undo_stack().index();
+    let request = json!({
+        "targets":[{"component":"R2","positions":[
+            {"x":5.2,"y":8.1},{"x":13,"y":10},{"x":11,"y":10},{"x":9,"y":10}
+        ]}],
+        "copper":{"route":{"nets":["A","B"],"layers":["top"]},"expected_revision":revision},
+        "trace_requirements":[
+            {"requirement":{
+                "path":{"from":"R1.1","to":"R2.1"},
+                "max_length_mm":7,
+                "max_layer_changes":0
+            },"minimize":true}
+        ]
+    });
+
+    let job = routing::prepare_placement(&session, args(request.clone())).unwrap();
+    let result = routing::finish_placement(&mut session, routing::run_placement(job).unwrap())
+        .unwrap()
+        .result;
+    assert_eq!(result["total_poses"], 4);
+    assert_eq!(result["timed_out"], false);
+    assert_eq!(
+        result["trials"][0]["rejection"], "staged_copper_clearance",
+        "{result:#}"
+    );
+    assert_eq!(result["clearance_rejections"], 1);
+    assert_eq!(result["full_checks"], 3);
+    assert_eq!(result["trials"][1]["rejection"], "trace_requirement");
+    assert_eq!(result["trials"][2]["objective_length_mm"], 6.0);
+    assert_eq!(result["trials"][3]["objective_length_mm"], 4.0);
+    assert_eq!(result["recommended"], result["trials"][3]["candidate"]);
+    assert_ne!(result["trials"][2]["candidate"], result["recommended"]);
+    assert_eq!(result["before_traces"][0]["length_mm"], Value::Null);
+    assert_eq!(board_value(&session), before);
+    assert_eq!(session.project().unwrap().project().revision(), revision);
+    assert_eq!(
+        session.project().unwrap().editor.undo_stack().index(),
+        history
+    );
+
+    let preview =
+        routing::routing_preview(&session, args(json!({"candidate":result["recommended"]})))
+            .unwrap()
+            .result;
+    let candidate = args(json!({"candidate":result["recommended"],"expected_revision":revision}));
+    let applied = routing::routing_apply(&mut session, candidate)
+        .unwrap()
+        .result;
+    assert_eq!(applied["validation"], preview["validation"]);
+    assert_eq!(applied["validation"]["after"]["unrouted"], 0);
+    let editor = &mut session.project_mut().unwrap().editor;
+    assert_eq!(editor.undo_stack().index(), history + 1);
+    assert!(editor.undo().unwrap());
+    assert_eq!(board_value(&session), before);
+}
+
+#[test]
+fn placement_comparison_rejects_scope_and_stale_publication() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let request = json!({
+        "targets":[{"component":"R2","positions":[{"x":14,"y":10}]}],
+        "copper":{},
+        "max_candidates":1
+    });
+    let mut duplicate = request.clone();
+    duplicate["targets"][0]["rotations"] = json!([0, 360]);
+    assert!(routing::prepare_placement(&session, args(duplicate)).is_err());
+    let mut fixed_moves = request.clone();
+    fixed_moves["copper"]["placements"] = json!([{"component":"R1","position":{"x":6,"y":10}}]);
+    assert!(routing::prepare_placement(&session, args(fixed_moves)).is_err());
+    let mut wrong_via = request.clone();
+    wrong_via["via_rules"] = json!([{"via":"missing","component":"R2"}]);
+    assert!(routing::prepare_placement(&session, args(wrong_via)).is_err());
+
+    let results =
+        routing::run_placement(routing::prepare_placement(&session, args(request)).unwrap())
+            .unwrap();
+    edit_author(&mut session);
+    assert_eq!(
+        routing::finish_placement(&mut session, results)
+            .unwrap_err()
+            .kind,
+        ErrorKind::StaleRevision
+    );
+}

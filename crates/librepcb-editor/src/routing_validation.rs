@@ -100,6 +100,13 @@ impl RoutingSnapshot {
         self.errors.len()
     }
 
+    pub(crate) fn has_new_warning(&self, before: &Self, kind: DrcMessageKind) -> bool {
+        let kind = format!("{kind:?}");
+        self.warnings
+            .iter()
+            .any(|(key, finding)| finding.kind == kind && !before.warnings.contains_key(key))
+    }
+
     pub(crate) fn unrouted_on(&self, nets: &BTreeSet<NetSignalId>) -> usize {
         nets.iter().map(|&net| self.unrouted_for(net)).sum()
     }

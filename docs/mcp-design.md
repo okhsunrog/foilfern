@@ -161,13 +161,13 @@ backend and checks the realistic board PDF.
 
 ## Tool surface
 
-At the reviewed revision, `server.rs` registers 84 tools. The schemas advertised
+At the reviewed revision, `server.rs` registers 85 tools. The schemas advertised
 by `tools/list` are authoritative; the historical target of fewer than 60 tools
 is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `18`). Its `build` object contains
+`api_capability_version` (currently `19`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -607,6 +607,33 @@ candidate is checked against the original live board.
 Candidate validation reports new DRC warnings by identity as well as errors.
 Review warnings such as undersized drills before applying; warnings alone
 do not block a candidate.
+
+`routing_placement_compare` accepts one or two explicitly authorized unlocked
+`targets`. Give each a list of absolute board `positions` and optional
+`rotations` in degrees. Omitted rotations preserve the device's current angle.
+The Cartesian product is limited to 16 poses and is tried in request order.
+Every trial uses the same `copper` template and explicit continuation nets.
+Omit `copper.placements` and `copper.base_candidate`. Each `via_rules` entry
+can attach a labeled through via to a moving device, interpreting that via's
+`position` as a footprint-local offset with the existing side and the trial's
+rotation. An optional same-net `plane` UUID requires the via center to lie
+inside connected copper of the rebuilt pour. The response reports the point
+and result for each required contact.
+
+Each `trace_requirements` entry contains a `requirement` with a pad pair
+(`path.from`, `path.to`) and optional `max_length_mm` and
+`max_layer_changes`. A measurable explicit path is required. Set `minimize`
+on the paths whose lengths should contribute to the ranking. Native quick DRC
+can reject staged copper clearance failures before routing. Every retained
+candidate passes full DRC relative to the source, preserves per-net
+connectivity, introduces no courtyard conflicts and meets all supplied path
+and plane requirements. Ranking prefers fewer air wires, then shorter summed
+objective paths, then fewer new warnings. The report includes baseline trace
+measurements, each tested pose, rejection evidence, and the number of full
+checks. It retains the best one to three patches (default two). The default
+30-second budget is checked between trials and can be increased to 120 seconds.
+Use `routing_preview` and `routing_apply` to review and apply a patch or
+`routing_discard` to free its slot. Unlisted copper and placements are protected.
 
 Preparation retains one complete source DRC result per open project session.
 Later candidates may reuse it only for the same project, board, revision and

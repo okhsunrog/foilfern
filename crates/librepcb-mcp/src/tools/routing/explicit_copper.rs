@@ -2,7 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use librepcb_editor::commands::{AddVia, NetRef};
+use librepcb_core::project::{BoardId, Project};
+use librepcb_editor::commands::{AddVia, Autoroute, NetRef};
 use librepcb_editor::routing_service::{
     CopperEndpoint, CopperPlan, PlannedPlacement, PlannedTrace, RoutingJob,
 };
@@ -59,6 +60,7 @@ pub struct PlannedPlacementArg {
 pub struct PlannedViaArg {
     pub label: String,
     pub net: String,
+    /// Absolute board coordinates, or footprint-local coordinates for a via rule attached to a moving device.
     pub position: PointMm,
     pub drill: Option<f64>,
     pub size: Option<f64>,
@@ -93,125 +95,143 @@ pub struct PlannedTraceArg {
 }
 
 pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolResult<RoutingJob> {
-    let total = args.vias.len()
-        + args.traces.len()
-        + args.remove_traces.len()
-        + args.remove_vias.len()
-        + args.placements.len()
-        + args
-            .traces
-            .iter()
-            .map(|trace| trace.points.len())
-            .sum::<usize>();
-    if total > 512 {
-        return Err(ToolError::invalid(
-            "Supply at most 512 placements, vias, traces, removals and intermediate points combined.",
-        ));
-    }
-    if total == 0 && (args.base_candidate.is_none() || args.route.is_none()) {
-        return Err(ToolError::invalid(
-            "Supply a copper edit or a base_candidate with an explicit route.",
-        ));
-    }
     let open = session.project()?;
     let project = open.project();
     write::check_revision(project, args.expected_revision)?;
     let board = board_edit::board_id(project, args.board.as_deref())?;
-    let route = args
-        .route
-        .map(|args| args.command(project, board))
-        .transpose()?;
     let base_candidate = args
         .base_candidate
         .as_deref()
         .map(candidate_id)
         .transpose()?;
-    let remove_traces = args
-        .remove_traces
-        .iter()
-        .map(|id| resolve::required_uuid(id, "trace"))
-        .collect::<ToolResult<_>>()?;
-    let remove_vias = args
-        .remove_vias
-        .iter()
-        .map(|id| resolve::required_uuid(id, "via"))
-        .collect::<ToolResult<_>>()?;
-    let placements = args
-        .placements
-        .into_iter()
-        .map(|arg| {
-            Ok(PlannedPlacement {
-                component: resolve::component(project, &arg.component)?.0,
-                position: arg.position.map(PointMm::to_point).transpose()?,
-                rotation: arg.rotation.map(angle).transpose()?,
-            })
-        })
-        .collect::<ToolResult<_>>()?;
-    let net = |name: &str| resolve::net(project, name).map(|(id, _)| NetRef::Id(id));
-    let mut labels = BTreeMap::new();
-    let mut vias = Vec::with_capacity(args.vias.len());
-    for via in args.vias {
-        if via.label.trim().is_empty() || labels.insert(via.label.clone(), vias.len()).is_some() {
-            return Err(ToolError::invalid(format!(
-                "Invalid or duplicate via label: {:?}",
-                via.label
-            )));
-        }
-        vias.push(AddVia {
-            board: Some(board),
-            position: via.position.to_point()?,
-            net: Some(net(&via.net)?),
-            start_layer: None,
-            end_layer: None,
-            drill_diameter: via
-                .drill
-                .map(|d| board_edit::positive(d, "drill"))
-                .transpose()?,
-            size: via
-                .size
-                .map(|s| board_edit::positive(s, "size"))
-                .transpose()?,
-            exposure: None,
-        });
+    let (plan, route) = args.into_plan(project, board)?;
+    if plan.vias.is_empty()
+        && plan.traces.is_empty()
+        && plan.remove_vias.is_empty()
+        && plan.remove_traces.is_empty()
+        && plan.placements.is_empty()
+        && (base_candidate.is_none() || route.is_none())
+    {
+        return Err(ToolError::invalid(
+            "Supply a copper edit or a base_candidate with an explicit route.",
+        ));
     }
-    let endpoint = |arg| match arg {
-        PlannedEndpointArg::NewVia(arg) => labels
-            .get(&arg.via)
-            .copied()
-            .map(CopperEndpoint::NewVia)
-            .ok_or_else(|| ToolError::invalid(format!("Unknown via label: {}", arg.via))),
-        PlannedEndpointArg::Existing(arg) => {
-            board_edit::endpoint(project, board, &arg).map(CopperEndpoint::Existing)
-        }
-    };
-    let traces = args
-        .traces
-        .into_iter()
-        .map(|t| {
-            Ok(PlannedTrace {
-                start: endpoint(t.from)?,
-                end: endpoint(t.to)?,
-                points: t
-                    .points
-                    .into_iter()
-                    .map(PointMm::to_point)
-                    .collect::<ToolResult<_>>()?,
-                layer: t
-                    .layer
-                    .as_deref()
-                    .map(board_edit::copper_layer)
-                    .transpose()?,
-                width: t
-                    .width
-                    .map(|w| board_edit::positive(w, "width"))
-                    .transpose()?,
-                net: t.net.as_deref().map(net).transpose()?,
-            })
-        })
-        .collect::<ToolResult<_>>()?;
     open.routing
-        .prepare_copper_and_route(
-            &open.editor,
+        .prepare_copper_and_route(&open.editor, plan, base_candidate, route)
+        .map_err(routing_error)
+}
+
+impl RoutingCopperArgs {
+    pub(super) fn into_plan(
+        self,
+        project: &Project,
+        board: BoardId,
+    ) -> ToolResult<(CopperPlan, Option<Autoroute>)> {
+        let args = self;
+        let total = args.vias.len()
+            + args.traces.len()
+            + args.remove_traces.len()
+            + args.remove_vias.len()
+            + args.placements.len()
+            + args
+                .traces
+                .iter()
+                .map(|trace| trace.points.len())
+                .sum::<usize>();
+        if total > 512 {
+            return Err(ToolError::invalid(
+                "Supply at most 512 placements, vias, traces, removals and intermediate points combined.",
+            ));
+        }
+        let route = args
+            .route
+            .map(|args| args.command(project, board))
+            .transpose()?;
+        let remove_traces = args
+            .remove_traces
+            .iter()
+            .map(|id| resolve::required_uuid(id, "trace"))
+            .collect::<ToolResult<_>>()?;
+        let remove_vias = args
+            .remove_vias
+            .iter()
+            .map(|id| resolve::required_uuid(id, "via"))
+            .collect::<ToolResult<_>>()?;
+        let placements = args
+            .placements
+            .into_iter()
+            .map(|arg| {
+                Ok(PlannedPlacement {
+                    component: resolve::component(project, &arg.component)?.0,
+                    position: arg.position.map(PointMm::to_point).transpose()?,
+                    rotation: arg.rotation.map(angle).transpose()?,
+                })
+            })
+            .collect::<ToolResult<_>>()?;
+        let net = |name: &str| resolve::net(project, name).map(|(id, _)| NetRef::Id(id));
+        let mut labels = BTreeMap::new();
+        let mut vias = Vec::with_capacity(args.vias.len());
+        for via in args.vias {
+            if via.label.trim().is_empty() || labels.insert(via.label.clone(), vias.len()).is_some()
+            {
+                return Err(ToolError::invalid(format!(
+                    "Invalid or duplicate via label: {:?}",
+                    via.label
+                )));
+            }
+            vias.push(AddVia {
+                board: Some(board),
+                position: via.position.to_point()?,
+                net: Some(net(&via.net)?),
+                start_layer: None,
+                end_layer: None,
+                drill_diameter: via
+                    .drill
+                    .map(|d| board_edit::positive(d, "drill"))
+                    .transpose()?,
+                size: via
+                    .size
+                    .map(|s| board_edit::positive(s, "size"))
+                    .transpose()?,
+                exposure: None,
+            });
+        }
+        let endpoint = |arg| match arg {
+            PlannedEndpointArg::NewVia(arg) => labels
+                .get(&arg.via)
+                .copied()
+                .map(CopperEndpoint::NewVia)
+                .ok_or_else(|| ToolError::invalid(format!("Unknown via label: {}", arg.via))),
+            PlannedEndpointArg::Existing(arg) => {
+                board_edit::endpoint(project, board, &arg).map(CopperEndpoint::Existing)
+            }
+        };
+        let traces = args
+            .traces
+            .into_iter()
+            .map(|t| {
+                Ok(PlannedTrace {
+                    start: endpoint(t.from)?,
+                    end: endpoint(t.to)?,
+                    points: t
+                        .points
+                        .into_iter()
+                        .map(PointMm::to_point)
+                        .collect::<ToolResult<_>>()?,
+                    layer: t
+                        .layer
+                        .as_deref()
+                        .map(board_edit::copper_layer)
+                        .transpose()?,
+                    width: t
+                        .width
+                        .map(|w| board_edit::positive(w, "width"))
+                        .transpose()?,
+                    net: t.net.as_deref().map(net).transpose()?,
+                })
+            })
+            .collect::<ToolResult<_>>()?;
+        Ok((
             CopperPlan {
                 board,
                 remove_traces,
@@ -220,8 +240,7 @@ pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolRes
                 vias,
                 traces,
             },
-            base_candidate,
             route,
-        )
-        .map_err(routing_error)
+        ))
+    }
 }

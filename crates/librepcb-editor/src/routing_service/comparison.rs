@@ -54,7 +54,11 @@ pub struct TracePreferenceResult {
 }
 
 impl TracePreference {
-    fn measure(self, project: &Project, board: BoardId) -> Result<TracePreferenceResult, Error> {
+    pub(super) fn measure(
+        self,
+        project: &Project,
+        board: BoardId,
+    ) -> Result<TracePreferenceResult, Error> {
         let path = project
             .trace_path(board, self.net, self.from, self.to)
             .map_err(Error::from_export)?;
