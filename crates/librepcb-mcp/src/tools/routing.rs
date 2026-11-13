@@ -118,6 +118,19 @@ pub struct RoutingCompareArgs {
     pub orders: Option<Vec<RoutingOrderArg>>,
     /// Two or three distinct order and via-cost combinations, instead of orders.
     pub trials: Option<Vec<RoutingTrialArgs>>,
+    /// Prefer candidates meeting these trace path limits after DRC and connectivity.
+    #[serde(default)]
+    pub trace_preferences: Vec<TracePreferenceArgs>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TracePreferenceArgs {
+    pub path: trace_path::TracePathPair,
+    /// Maximum explicit trace centerline length in mm.
+    pub max_length_mm: Option<f64>,
+    /// Maximum layer changes on the measured trace path.
+    pub max_layer_changes: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -442,6 +455,31 @@ pub fn prepare_comparison_job(
 ) -> ToolResult<RoutingComparisonJob> {
     let open = session.project()?;
     let command = builtin_request(open.project(), args.options)?;
+    if args.trace_preferences.len() > 16 {
+        return Err(ToolError::invalid("Select at most 16 trace preferences."));
+    }
+    let project = open.project();
+    let board = command
+        .board
+        .and_then(|board| project.board(board))
+        .ok_or_else(|| ToolError::not_found("Candidate board is missing."))?;
+    let trace_preferences = args
+        .trace_preferences
+        .iter()
+        .map(|args| {
+            if args.max_length_mm.is_none() && args.max_layer_changes.is_none() {
+                return Err(ToolError::invalid(
+                    "Each trace preference requires at least one limit.",
+                ));
+            }
+            let max_length = args
+                .max_length_mm
+                .map(|v| board_edit::unsigned(v, "max_length_mm").map(|length| length.get()))
+                .transpose()?;
+            let path = trace_path::ResolvedTracePath::new(project, board, &args.path)?;
+            Ok(path.preference(max_length, args.max_layer_changes))
+        })
+        .collect::<ToolResult<_>>()?;
     if let Some(trials) = args.trials {
         if args.orders.is_some() {
             return Err(ToolError::invalid("Select orders or trials, not both."));
@@ -458,6 +496,7 @@ pub fn prepare_comparison_job(
         return open
             .routing
             .prepare_comparison_trials(&open.editor, command, trials)
+            .map(|job| job.with_trace_preferences(trace_preferences))
             .map_err(routing_error);
     }
     let orders = args.orders.map_or_else(
@@ -472,6 +511,7 @@ pub fn prepare_comparison_job(
     );
     open.routing
         .prepare_comparison(&open.editor, command, orders)
+        .map(|job| job.with_trace_preferences(trace_preferences))
         .map_err(routing_error)
 }
 

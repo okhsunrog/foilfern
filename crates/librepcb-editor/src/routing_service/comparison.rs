@@ -3,7 +3,8 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use librepcb_core::project::{BoardId, Project};
+use librepcb_core::project::board::TracePath;
+use librepcb_core::project::{BoardId, ComponentInstanceId, NetSignalId, Project};
 use librepcb_core::types::{Length, Uuid};
 use serde::Serialize;
 
@@ -19,6 +20,7 @@ pub struct RoutingComparisonJob {
     source: RoutingSource,
     request: Autoroute,
     trials: Vec<RoutingTrial>,
+    trace_preferences: Vec<TracePreference>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -27,10 +29,58 @@ pub struct RoutingTrial {
     pub via_cost: Option<Length>,
 }
 
+/// A soft target on the shortest anchored trace path between two pads.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct TracePreference {
+    pub net: NetSignalId,
+    pub from: (ComponentInstanceId, Uuid),
+    pub to: (ComponentInstanceId, Uuid),
+    #[serde(rename = "max_length_mm", serialize_with = "serialize_length_mm")]
+    pub max_length: Option<Length>,
+    pub max_layer_changes: Option<usize>,
+}
+
+fn serialize_length_mm<S: serde::Serializer>(
+    length: &Option<Length>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    length.map(Length::to_mm).serialize(serializer)
+}
+
+#[derive(Debug, Serialize)]
+pub struct TracePreferenceResult {
+    pub length_mm: Option<f64>,
+    pub layer_changes: Option<usize>,
+    pub met: bool,
+}
+
+impl TracePreference {
+    fn measure(self, project: &Project, board: BoardId) -> Result<TracePreferenceResult, Error> {
+        let path = project
+            .trace_path(board, self.net, self.from, self.to)
+            .map_err(Error::from_export)?;
+        let met = path.as_ref().is_some_and(|path| self.met_by(path));
+        Ok(TracePreferenceResult {
+            length_mm: path.as_ref().map(|path| path.length_mm),
+            layer_changes: path.map(|path| path.layer_changes),
+            met,
+        })
+    }
+
+    fn met_by(self, path: &TracePath) -> bool {
+        self.max_length
+            .is_none_or(|limit| path.length_mm <= limit.to_mm())
+            && self
+                .max_layer_changes
+                .is_none_or(|limit| path.layer_changes <= limit)
+    }
+}
+
 /// Detached results awaiting publication together to the original session.
 #[derive(Debug)]
 pub struct RoutingTrials {
     before: RoutingCheckSummary,
+    trace_preferences: Vec<TracePreference>,
     candidates: Vec<(RoutingCandidate, ComparisonEntry)>,
 }
 
@@ -41,6 +91,8 @@ pub struct RoutingComparison {
     pub base_revision: u64,
     pub baseline_reused: bool,
     pub before: RoutingCheckSummary,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub trace_preferences: Vec<TracePreference>,
     pub recommended: Option<Uuid>,
     pub candidates: Vec<ComparisonEntry>,
 }
@@ -60,6 +112,8 @@ pub struct ComparisonEntry {
     /// Total length of actual trace centerlines, including existing traces.
     /// Missing if an anchor cannot be resolved.
     pub trace_length_mm: Option<f64>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub trace_preferences: Vec<TracePreferenceResult>,
 }
 
 impl ComparisonEntry {
@@ -71,6 +125,10 @@ impl ComparisonEntry {
             self.regressed_nets,
             self.critical_unrouted,
             self.after.unrouted,
+            self.trace_preferences
+                .iter()
+                .filter(|preference| !preference.met)
+                .count(),
             self.vias,
         )
     }
@@ -121,6 +179,7 @@ impl RoutingService {
             source: self.capture_source(editor, trials.len())?,
             request,
             trials,
+            trace_preferences: Vec::new(),
         })
     }
 
@@ -149,6 +208,7 @@ impl RoutingService {
             base_revision: info.base_revision,
             baseline_reused: info.baseline_reused,
             before: trials.before,
+            trace_preferences: trials.trace_preferences,
             recommended,
             candidates: trials
                 .candidates
@@ -163,6 +223,11 @@ impl RoutingService {
 }
 
 impl RoutingComparisonJob {
+    pub fn with_trace_preferences(mut self, preferences: Vec<TracePreference>) -> Self {
+        self.trace_preferences = preferences;
+        self
+    }
+
     /// Fork the same detached source for each trial, including derived state.
     pub fn run(mut self) -> Result<RoutingTrials, RoutingError> {
         let source = &mut self.source;
@@ -201,6 +266,11 @@ impl RoutingComparisonJob {
             let non_connectivity_errors = after.non_connectivity_errors();
             let critical_unrouted = after.unrouted_on(&critical);
             let (vias, trace_length_mm) = copper_cost(trial.sandbox.project(), board)?;
+            let trace_preferences = self
+                .trace_preferences
+                .iter()
+                .map(|preference| preference.measure(trial.sandbox.project(), board))
+                .collect::<Result<_, _>>()?;
             let candidate = trial.freeze(board, details, before.clone(), after)?;
             let info = candidate.info();
             let entry = ComparisonEntry {
@@ -215,6 +285,7 @@ impl RoutingComparisonJob {
                 after: info.validation.after.clone(),
                 vias,
                 trace_length_mm,
+                trace_preferences,
             };
             candidates.push((candidate, entry));
         }
@@ -228,6 +299,7 @@ impl RoutingComparisonJob {
         });
         Ok(RoutingTrials {
             before: before.checks,
+            trace_preferences: self.trace_preferences,
             candidates,
         })
     }

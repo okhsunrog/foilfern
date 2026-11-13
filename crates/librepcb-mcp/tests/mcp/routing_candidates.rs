@@ -1083,6 +1083,10 @@ fn comparison_previews_independent_patches_and_applies_only_the_chosen_order() {
                 {"order":"constrained_first"},
                 {"order":"constrained_first","via_cost":10},
                 {"order":"shortest_first","via_cost":5},
+            ],
+            "trace_preferences":[
+                {"path":{"from":"R1.1","to":"R2.1"},"max_length_mm":12,"max_layer_changes":0},
+                {"path":{"from":"R1.1","to":"R2.1"},"max_length_mm":5}
             ]
         })),
     )
@@ -1093,12 +1097,17 @@ fn comparison_previews_independent_patches_and_applies_only_the_chosen_order() {
             .result;
     assert_eq!(result["before"]["unrouted"], 2);
     assert_eq!(result["base_revision"], revision);
+    assert_eq!(result["trace_preferences"][0]["max_length_mm"], 12.0);
     let entries = result["candidates"].as_array().unwrap();
     assert_eq!(entries.len(), 3);
     assert_eq!(result["recommended"], entries[0]["candidate"]);
     for entry in entries {
         assert_eq!(entry["after"]["unrouted"], 0);
         assert_eq!(entry["new_error_count"], 0);
+        let preferences = entry["trace_preferences"].as_array().unwrap();
+        assert_eq!(preferences[0]["met"], true);
+        assert_eq!(preferences[0]["layer_changes"], 0);
+        assert_eq!(preferences[1]["met"], false);
         let preview =
             routing::routing_preview(&session, args(json!({"candidate":entry["candidate"]})))
                 .unwrap()
@@ -1173,6 +1182,7 @@ fn comparison_publication_is_atomic_when_capacity_changes() {
             "trials":[{"order":"longest_first"},{"order":"shortest_first"}],
         }),
         json!({"trials":[{"order":"shortest_first"},{"order":"shortest_first","via_cost":2}]}),
+        json!({"trace_preferences":[{"path":{"from":"R1.1","to":"R2.1"}}]}),
     ] {
         assert_eq!(
             routing::prepare_comparison_job(&session, args(params))

@@ -25,7 +25,9 @@ use crate::routing_validation::{RoutingSnapshot, RoutingValidation, capture_rout
 mod comparison;
 mod copper;
 mod region;
-pub use comparison::{RoutingComparison, RoutingComparisonJob, RoutingTrial, RoutingTrials};
+pub use comparison::{
+    RoutingComparison, RoutingComparisonJob, RoutingTrial, RoutingTrials, TracePreference,
+};
 pub use copper::{CopperEndpoint, CopperPlan, PlannedPlacement, PlannedTrace};
 pub use region::RegionalRoutingRequest;
 

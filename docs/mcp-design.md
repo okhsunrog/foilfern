@@ -629,11 +629,17 @@ the shared baseline DRC, per-candidate final DRC and costs, and a nullable
 of `order` and optional `via_cost` instead of the `orders` list. Each result
 reports the effective `via_cost_mm`. Ranking compares acceptance, new and remaining
 non-connectivity errors, nets whose air-wire count regressed, remaining
-critical and total air wires, via count, then total trace centerline length
+critical and total air wires, unmet trace preferences, via count, then total trace centerline length
 in mm. Metrics describe the resulting whole board; existing copper is common
 to all trials. Caller order breaks ties. A candidate with unacceptable
 validation or a connectivity regression is never recommended. Inspect any
 candidate with `routing_preview`; there is no automatic apply.
+Optional `trace_preferences` accepts up to 16 physical pad pairs. Each entry
+has a `path: {from, to}` and at least one of `max_length_mm` and
+`max_layer_changes`. The shared result identifies resolved pads and each
+candidate reports the shortest anchored path's measurements and whether
+it meets both supplied limits. Missing measurements count as unmet for
+ranking. These preferences do not alter the route search or the apply gate.
 
 `routing_preview` reads candidate metadata and exact mutations with `offset` and
 `limit` (1–200, default 100), `next_offset` and a `stale` flag. This is a data

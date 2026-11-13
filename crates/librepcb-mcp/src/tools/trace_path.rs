@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 use librepcb_core::project::board::{Board, TracePath, centerline_length_mm};
 use librepcb_core::project::{ComponentInstanceId, ComponentSignalRef, NetSignalId, Project};
 use librepcb_core::types::{Point, Uuid};
+use librepcb_editor::routing_service::TracePreference;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -230,6 +231,20 @@ impl ResolvedTracePath {
             }
             None => json!({"status":"not_measured", "length_mm":null}),
         })
+    }
+
+    pub(super) fn preference(
+        &self,
+        max_length: Option<librepcb_core::types::Length>,
+        max_layer_changes: Option<usize>,
+    ) -> TracePreference {
+        TracePreference {
+            net: self.net,
+            from: self.from,
+            to: self.to,
+            max_length,
+            max_layer_changes,
+        }
     }
 
     pub(super) fn comparison(&self, before: Value, after: Value) -> Value {
