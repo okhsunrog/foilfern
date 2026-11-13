@@ -274,6 +274,13 @@ working. The worker then returned `cancelled`, kept the revision and history,
 and admitted another preview. An in-flight frame or snapshot capture can run
 past the requested budget. The board workflow and its acceptance remain below.
 
+On the clean `2aad834` debug build, a two-frame preview of the U6 region was
+cancelled 900 ms after the client observed the render stage. Three requests
+were acknowledged in 1.8–7.5 ms and returned `cancelled` in 0.12–1.16 s from
+the request. The same build returned `budget_exhausted` after 83 ms when a
+20 ms budget expired during snapshot capture in a separate run. These samples
+describe the cooperative stop behavior on one host and sheet.
+
 Done when:
 
 - A long preparation exposes progress while the project remains usable. Competing
