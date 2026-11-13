@@ -91,6 +91,10 @@ against the schematic and reports conversions that need review.
 
 ## Schematic readability
 
+Read `librepcb://examples/esp32-c3-devboard` for a complete `design_preview`
+request. It demonstrates sheet creation, exact library parts, visible local
+wires, net-label branches, notes and intentional no-connect marks.
+
 Draw each local circuit with continuous wires so its function is visible on
 the page. Use labels for signals that continue in another block or sheet. At
 a local junction, put that label on a short side branch in a clear direction.

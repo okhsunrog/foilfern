@@ -590,6 +590,10 @@ too:
 
 ## Resources
 
+Read `librepcb://guides/board-design` for the workflow and
+`librepcb://examples/esp32-c3-devboard` for a complete JSON input to
+`design_preview`. The acceptance test reads and applies the same resource.
+
 The stdio suite also selects single- and multi-gate symbol variants from
 the upstream populated-library fixture, moves an individual gate with undo,
 connects components across two pages, routes a four-layer board and exports

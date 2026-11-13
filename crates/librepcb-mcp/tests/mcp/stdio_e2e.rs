@@ -511,6 +511,11 @@ async fn stdio_end_to_end() {
     assert_eq!(mime_type.as_deref(), Some("text/markdown"));
     assert_eq!(guide.size, Some(text.len() as u64));
     assert!(text.contains("symbol_variant") && text.contains("expected_revision"));
+    let example = resources
+        .iter()
+        .find(|resource| resource.uri == "librepcb://examples/esp32-c3-devboard")
+        .unwrap();
+    assert_eq!(example.mime_type.as_deref(), Some("application/json"));
     let missing = client
         .read_resource(ReadResourceRequestParams::new("librepcb://guides/missing"))
         .await
@@ -761,10 +766,22 @@ async fn stdio_esp32_c3_schematic_acceptance() {
         json!({"name":"ESP32-C3 acceptance","create_schematic":false,"create_board":false}),
     )
     .await;
-    let document: Value = serde_json::from_str(include_str!(
-        "../../../../docs/examples/esp32-c3-devboard.json"
-    ))
-    .unwrap();
+    let example = client
+        .read_resource(ReadResourceRequestParams::new(
+            "librepcb://examples/esp32-c3-devboard",
+        ))
+        .await
+        .unwrap();
+    let [
+        ResourceContents::TextResourceContents {
+            text, mime_type, ..
+        },
+    ] = example.contents.as_slice()
+    else {
+        panic!("expected one JSON resource: {example:?}");
+    };
+    assert_eq!(mime_type.as_deref(), Some("application/json"));
+    let document: Value = serde_json::from_str(text).unwrap();
     let empty = call_ok(&client, "schematic_list", json!({})).await;
     assert_eq!(empty["schematics"], json!([]));
     let mut invalid = document.clone();

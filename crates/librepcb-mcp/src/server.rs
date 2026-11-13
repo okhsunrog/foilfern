@@ -61,6 +61,7 @@ time.\n\
 Check server_info for an open workspace and project before opening either. \
 Read the MCP resource librepcb://guides/board-design for the full design workflow, \
 multi-gate components, multi-page schematics, layer settings and recovery.\n\
+Read librepcb://examples/esp32-c3-devboard for a complete schematic document.\n\
 Workflow: workspace_open/workspace_create -> library_install (e.g. [\"LibrePCB Base\"]) or \
 library_rescan -> library_search (find parts; multi-word queries like \"resistor 0805\" work) -> \
 project_create -> component_add (part = name or device/component UUID; placed automatically) -> \
@@ -93,6 +94,8 @@ history; the app may refuse opening or closing projects (kind refused).";
 
 const BOARD_DESIGN_URI: &str = "librepcb://guides/board-design";
 const BOARD_DESIGN_GUIDE: &str = include_str!("../../../docs/mcp-board-workflow.md");
+const DEVBOARD_URI: &str = "librepcb://examples/esp32-c3-devboard";
+const DEVBOARD_DOCUMENT: &str = include_str!("../../../docs/examples/esp32-c3-devboard.json");
 
 /// Message prefix of rmcp's argument deserialization errors.
 const DESERIALIZE_ERROR_PREFIX: &str = "failed to deserialize parameters:";
@@ -1371,6 +1374,11 @@ impl ServerHandler for LibrePcbMcp {
                 )
                 .with_mime_type("text/markdown")
                 .with_size(BOARD_DESIGN_GUIDE.len() as u64),
+            Resource::new(DEVBOARD_URI, "esp32-c3-devboard")
+                .with_title("ESP32-C3 schematic design document")
+                .with_description("Example design_preview input with exact library identities, local wiring, page notes and no-connect markers.")
+                .with_mime_type("application/json")
+                .with_size(DEVBOARD_DOCUMENT.len() as u64),
         ]))
     }
 
@@ -1379,15 +1387,18 @@ impl ServerHandler for LibrePcbMcp {
         request: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, McpError> {
-        if request.uri != BOARD_DESIGN_URI {
-            return Err(McpError::resource_not_found(
-                "Unknown LibrePCB resource; use resources/list to discover available guides.",
-                Some(serde_json::json!({ "uri": request.uri })),
-            ));
-        }
+        let (contents, mime) = match request.uri.as_str() {
+            BOARD_DESIGN_URI => (BOARD_DESIGN_GUIDE, "text/markdown"),
+            DEVBOARD_URI => (DEVBOARD_DOCUMENT, "application/json"),
+            _ => {
+                return Err(McpError::resource_not_found(
+                    "Unknown LibrePCB resource; use resources/list to discover available guides.",
+                    Some(serde_json::json!({ "uri": request.uri })),
+                ));
+            }
+        };
         Ok(ReadResourceResult::new(vec![
-            ResourceContents::text(BOARD_DESIGN_GUIDE, BOARD_DESIGN_URI)
-                .with_mime_type("text/markdown"),
+            ResourceContents::text(contents, &request.uri).with_mime_type(mime),
         ])
         .into())
     }
