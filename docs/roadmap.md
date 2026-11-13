@@ -315,6 +315,10 @@ Scope: display the existing frozen candidate in the desktop board view, with
 added/removed copper, moved components, remaining connections and DRC locations.
 Use the same IDs, revisions and apply/discard operations as MCP.
 
+Schematic MCP previews can return matched before/after images at a common
+scale and origin, including sheets with imported bitmap images. The desktop
+board overlay has its own acceptance below.
+
 Done when:
 
 - Selecting a candidate overlays its changes without modifying the live board,

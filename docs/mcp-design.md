@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `22`). Its `build` object contains
+`api_capability_version` (currently `23`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -198,6 +198,9 @@ the number of checked pin memberships, a preview ID, the selected schematic
 UUID and a native page render. Set `create_schematic: true` to use `schematic`
 as an exact sheet name and create the page if missing. Apply and undo include
 the page itself. Omit `create_schematic` to select an existing page.
+Set `compare_images: true` to attach two PNGs with one common extent, scale
+and origin. The `images` array names them in MCP content order, `after`
+followed by `before`. A new sheet has a blank before image.
 
 The server captures the source under the session lock, then plans, checks and
 renders on the detached model. One schematic preview may run per server state.

@@ -512,6 +512,77 @@ pub(crate) fn render_schematic_preview(
         .map_err(|error| ToolError::internal(error.to_string()))
 }
 
+pub(super) fn render_schematic_comparison(
+    before: &Project,
+    after: &Project,
+    schematic: &librepcb_core::project::schematic::Schematic,
+    width: u32,
+    height: u32,
+) -> ToolResult<Vec<Vec<u8>>> {
+    let old = before.schematic(schematic.id());
+    if schematic.images().is_empty() && old.is_none_or(|sheet| sheet.images().is_empty()) {
+        use librepcb_scene::{ColorScheme, SchematicScene, render_scene};
+        let old_scene = old
+            .map(|sheet| SchematicScene::build(before, sheet.id(), &ColorScheme::SCHEMATIC_LIGHT))
+            .transpose()?;
+        let new_scene =
+            SchematicScene::build(after, schematic.id(), &ColorScheme::SCHEMATIC_LIGHT)?;
+        let bounds = old_scene
+            .as_ref()
+            .and_then(SchematicScene::content_bounds)
+            .into_iter()
+            .chain(new_scene.content_bounds())
+            .reduce(|a, b| a.union(b));
+        let options = RenderOptions {
+            size: RenderSize::Fit { width, height },
+            ..Default::default()
+        };
+        let before_png = if let Some(scene) = old_scene {
+            render_scene(
+                scene.scene(),
+                bounds,
+                false,
+                new_scene.background(),
+                &options,
+            )?
+        } else {
+            librepcb_scene::RgbaImage {
+                width,
+                height,
+                data: vec![255; width as usize * height as usize * 4],
+            }
+        };
+        let after_png = render_scene(
+            new_scene.scene(),
+            bounds,
+            false,
+            new_scene.background(),
+            &options,
+        )?;
+        return Ok(vec![after_png.to_png()?, before_png.to_png()?]);
+    }
+    let settings = librepcb_graphics::GraphicsSettings {
+        background: librepcb_core::types::Color::WHITE,
+        ..Default::default()
+    };
+    let draw = |project, sheet| {
+        librepcb_graphics::schematic_drawing(project, sheet, &settings)
+            .map_err(|error| ToolError::internal(error.to_string()))
+    };
+    let original = old
+        .map(|sheet| draw(before, sheet))
+        .transpose()?
+        .unwrap_or_default();
+    librepcb_graphics::GraphicsExport::default()
+        .render_matched_pngs(
+            &[draw(after, schematic)?, original],
+            &settings,
+            width,
+            height,
+        )
+        .map_err(|error| ToolError::internal(error.to_string()))
+}
+
 /// Arguments of `drc_run`.
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]

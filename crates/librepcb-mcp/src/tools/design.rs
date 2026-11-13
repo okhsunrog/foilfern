@@ -115,6 +115,9 @@ pub struct DesignDocument {
     create_schematic: bool,
     /// Optional time budget in milliseconds, checked between preview stages.
     pub(crate) budget_ms: Option<u64>,
+    /// Include before and after PNGs at a shared scale and origin.
+    #[serde(default)]
+    compare_images: bool,
     /// Stable document keys bound to existing components by UUID or designator.
     #[serde(default)]
     components: BTreeMap<String, ExistingComponent>,
@@ -882,12 +885,25 @@ pub(crate) fn prepare(
         ));
     }
     checkpoint(Stage::Render)?;
-    let image = super::output::render_schematic_preview(&project, schematic, 1600, 1200)?;
+    let output = if doc.compare_images {
+        let images =
+            super::output::render_schematic_comparison(&before, &project, schematic, 1600, 1200)?;
+        payload["images"] = json!(["after", "before"]);
+        let mut output = ToolOutput::new(
+            format!("{summary} PNGs are ordered after, before."),
+            payload,
+        )?;
+        output.images = images;
+        output
+    } else {
+        let image = super::output::render_schematic_preview(&project, schematic, 1600, 1200)?;
+        ToolOutput::new(summary, payload)?.image(image)
+    };
     Ok(PreparedPreview {
         source_project,
         source_library,
         preview,
-        output: ToolOutput::new(summary, payload)?.image(image),
+        output,
     })
 }
 
