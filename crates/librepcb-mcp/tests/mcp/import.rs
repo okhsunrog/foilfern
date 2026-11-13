@@ -345,3 +345,47 @@ fn kicad_project_import_preserves_numbered_unnamed_pins_and_direct_labels() {
     assert_eq!(class.default_trace_width().unwrap().to_nm(), 500_000);
     assert_eq!(p.boards()[0].copper_layers().len(), 4);
 }
+
+#[test]
+fn schematic_review_identifies_overlapping_imported_pin_names() {
+    use librepcb_mcp::tools::layout;
+    use serde_json::json;
+
+    let temp = tempfile::tempdir().unwrap();
+    let schematic = temp.path().join("overlap.kicad_sch");
+    std::fs::write(
+        &schematic,
+        r#"
+(kicad_sch (version 20260306) (generator "eeschema")
+  (lib_symbols
+    (symbol "Fixture:Part" (pin_numbers hide)
+      (property "Reference" "U" (at 0 0 0) (effects (font (size 1 1))))
+      (symbol "Part_1_1"
+        (pin passive line (at -2 0 0) (length 1)
+          (name "SAME1" (effects (font (size 2 2)))) (number "1" (effects (font (size 1 1)))))
+        (pin passive line (at -2 0.3 0) (length 1)
+          (name "SAME2" (effects (font (size 2 2)))) (number "2" (effects (font (size 1 1))))))))
+  (symbol (lib_id "Fixture:Part") (at 20 20 0) (unit 1)
+    (property "Reference" "U1" (at 20 15 0) (effects (font (size 1 1))))))
+"#,
+    )
+    .unwrap();
+    let mut session = Session::new();
+    let request = serde_json::from_value(json!({
+        "name":"Overlapping legends", "directory":temp.path().join("native"),
+        "kicad_schematic":schematic, "create_board":false
+    }))
+    .unwrap();
+    project::project_create(&mut session, request).unwrap();
+    let review = layout::schematic_review(&session, Default::default()).unwrap();
+    let overlaps = review.result["annotation_overlaps"].as_array().unwrap();
+    assert_eq!(overlaps.len(), 1, "{overlaps:?}");
+    let finding = &overlaps[0];
+    assert_eq!(finding["first"]["kind"], "pin_name");
+    assert_eq!(finding["second"]["kind"], "pin_name");
+    assert_eq!(finding["first"]["component"], "U1");
+    assert_eq!(finding["first"]["symbol"], finding["second"]["symbol"]);
+    assert_ne!(finding["first"]["pin_uuid"], finding["second"]["pin_uuid"]);
+    assert_eq!(finding["bounds_mm"].as_array().unwrap().len(), 4);
+    assert!(!session.project().unwrap().has_unsaved_changes());
+}

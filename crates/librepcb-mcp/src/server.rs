@@ -34,7 +34,7 @@ use crate::tools::board_edit::{
 };
 use crate::tools::circuit::{ComponentGetArgs, NetListArgs};
 use crate::tools::import::LibraryImportArgs;
-use crate::tools::layout::{BoardGetArgs, SchematicGetArgs};
+use crate::tools::layout::{BoardGetArgs, SchematicGetArgs, SchematicReviewArgs};
 use crate::tools::library::{LibraryElementArgs, LibraryInstallArgs, LibrarySearchArgs};
 use crate::tools::mutation::{MutationApplyArgs, MutationSchemaArgs};
 use crate::tools::output::{
@@ -78,6 +78,7 @@ path become junctions. Omit paths to request automatic local wiring. Use schemat
 when regenerating the whole page is intended.\n\
 Use no_connects in a design document to mark explicitly unused pins. \
 Use image_region on render or design_preview to inspect a schematic block at a larger scale. \
+Use schematic_review to find overlapping annotations on the live sheet. \
 Before design_apply, review the preview's diff, ERC changes, board impact and schematic \
 requirements when present. Use requirements_get and requirements_check to read saved rules.\n\
 Addressing: designators (\"R1\"), pins \"R1.1\" (pad name) or \"U1.VCC\" (signal name) or a \
@@ -712,6 +713,16 @@ impl LibrePcbMcp {
         Parameters(args): Parameters<SchematicGetArgs>,
     ) -> Result<CallToolResult, McpError> {
         self.run(move |s| layout::schematic_get(s, args)).await
+    }
+
+    #[tool(
+        description = "Find overlapping symbol fields, pin names and numbers, net labels and notes. Optionally focus on a list of components. Read-only."
+    )]
+    async fn schematic_review(
+        &self,
+        Parameters(args): Parameters<SchematicReviewArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| layout::schematic_review(s, args)).await
     }
 
     #[tool(description = "Add a schematic page.")]

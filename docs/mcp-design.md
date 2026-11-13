@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `25`). Its `build` object contains
+`api_capability_version` (currently `26`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -271,6 +271,14 @@ those groups together. A bus tap or an unlisted pin on a replaced segment
 causes the preview to fail. Each member requires a single symbol on the
 selected sheet. `block_position` entries report the changed positions and
 the preview reviews annotation overlaps for the block.
+
+`schematic_review` finds overlapping symbol fields, pin names and numbers,
+net labels and page notes on the live sheet. Pass `components` with designators
+or component UUIDs to focus the review on their symbols and attached labels.
+Each finding identifies both annotations and the overlap rectangle as
+`[min_x,min_y,max_x,max_y]` in sheet millimeters. In `design_preview`,
+`review_components` takes document component keys and checks the proposed sheet.
+The check uses annotation bounds from the schematic scene. Findings are advisory.
 
 Use `wire_groups` for pins that should be joined by visible wires on that
 sheet. Each entry gives an existing `net` and at least two `pins` in the same

@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 25);
+    assert_eq!(info["api_capability_version"], 26);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -2577,6 +2577,13 @@ async fn stdio_design_add_component_replays_library_and_keeps_identity() {
     )
     .await;
     assert_eq!(reviewed["diff"], json!([]));
+    let live = call_ok(
+        &client,
+        "schematic_review",
+        json!({"schematic":"Main","components":["C7"]}),
+    )
+    .await;
+    assert_eq!(live["annotation_overlaps"], reviewed["annotation_overlaps"]);
     assert!(
         reviewed["annotation_overlaps"]
             .as_array()

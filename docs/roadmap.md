@@ -94,6 +94,9 @@ frozen preview includes any required project library additions.
 The ESP-PD-Sink USB Power Delivery block is the readability reference.
 Preview can report annotation overlaps for a selected group of components and
 move a reference or value independently with an expected-position check.
+The same bounds check is available on the live sheet through `schematic_review`
+and includes pin names and numbers. On a fresh ESP-PD-Sink import it flagged
+overlapping pin legends at U5 and a value colliding with a pin number at U6.
 `design_preview` can place selected members in a bounded row or column with
 an optional alignment coordinate. It keeps unrelated geometry fixed and
 carries each movable symbol's independent wire stubs with it. A preview can

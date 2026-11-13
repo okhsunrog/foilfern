@@ -873,7 +873,9 @@ pub(crate) fn prepare(
         payload["board_impact"] = json!(copper);
     }
     if !reviewed.is_empty() {
-        payload["annotation_overlaps"] = review_annotations(&project, schematic, &reviewed)?;
+        payload["annotation_overlaps"] = json!(super::layout::review_annotations(
+            &project, schematic, &reviewed
+        )?);
     }
     let findings = preview.requirement_findings();
     let blockers = findings
@@ -1017,60 +1019,6 @@ fn plan_symbol_move(
         edits.push(DesignEdit::Symbol(command));
     }
     Ok(())
-}
-
-fn review_annotations(
-    project: &Project,
-    schematic: &librepcb_core::project::schematic::Schematic,
-    components: &BTreeSet<ComponentInstanceId>,
-) -> ToolResult<serde_json::Value> {
-    use librepcb_scene::{ColorScheme, SchematicObject, SchematicScene, annotation_overlaps};
-    let symbols: BTreeSet<_> = schematic
-        .symbols()
-        .iter()
-        .filter(|(_, symbol)| components.contains(&symbol.component()))
-        .map(|(id, _)| *id)
-        .collect();
-    for component in components {
-        if !schematic
-            .symbols()
-            .values()
-            .any(|symbol| symbol.component() == *component)
-        {
-            return Err(ToolError::invalid(format!(
-                "Review component {} has no symbols on the selected sheet.",
-                resolve::designator(project, *component)
-            )));
-        }
-    }
-    let segments = schematic
-        .net_segments()
-        .iter()
-        .filter(|(_, segment)| {
-            segment
-                .connected_pins()
-                .iter()
-                .any(|(symbol, _)| symbols.contains(symbol))
-        })
-        .map(|(id, _)| *id)
-        .collect();
-    let scene = SchematicScene::build(project, schematic.id(), &ColorScheme::SCHEMATIC_LIGHT)?;
-    let describe = |object| match object {
-        SchematicObject::SymbolText(symbol, text) => {
-            let placed = &schematic.symbols()[&symbol];
-            let layer = placed.texts().get(&text).map(|t| t.layer().id());
-            json!({"kind":"symbol_text","component":resolve::designator(project, placed.component()),"symbol":symbol,"text":text,"layer":layer})
-        }
-        SchematicObject::NetLabel(segment, label) => {
-            let net = schematic.net_segments()[&segment].net();
-            json!({"kind":"net_label","net":resolve::net_name(project, net),"segment":segment,"label":label})
-        }
-        SchematicObject::Text(text) => json!({"kind":"schematic_text","text":text}),
-        _ => unreachable!("overlaps only contain annotations"),
-    };
-    Ok(json!(annotation_overlaps(&scene, Some((&symbols, &segments))).into_iter().map(|overlap|
-        json!({"first":describe(overlap.first),"second":describe(overlap.second),"bounds_mm":overlap.bounds})
-    ).collect::<Vec<_>>()))
 }
 
 fn style_symbols(

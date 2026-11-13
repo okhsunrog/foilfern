@@ -1,16 +1,20 @@
 //! Schematic and board read tools: `schematic_list`, `schematic_get`,
 //! `board_get`.
 
+use std::collections::BTreeSet;
+
 use librepcb_core::geometry::{NetLineAnchor, Text, TraceAnchor};
 use librepcb_core::project::board::{Board, BoardAirWiresBuilder, PlaneFragments};
 use librepcb_core::project::schematic::Schematic;
+use librepcb_core::project::schematic::import_appearance::ImportAppearance;
 use librepcb_core::project::{ComponentInstanceId, NetSegmentId, Project, SymbolId};
 use librepcb_core::types::Point;
+use librepcb_scene::{Annotation, ColorScheme, SchematicScene, annotation_overlaps};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::error::ToolResult;
+use crate::error::{ToolError, ToolResult};
 use crate::outcome::ToolOutput;
 use crate::resolve;
 use crate::session::Session;
@@ -25,6 +29,17 @@ pub struct SchematicGetArgs {
     /// Schematic page name, index ("0") or UUID (default: first page).
     #[serde(default)]
     pub schematic: Option<String>,
+}
+
+/// Arguments of `schematic_review`.
+#[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SchematicReviewArgs {
+    /// Page name, index or UUID. Defaults to the first page.
+    schematic: Option<String>,
+    /// Report overlaps involving these component designators or UUIDs. Omit for the whole sheet.
+    #[serde(default)]
+    components: Vec<String>,
 }
 
 /// Arguments of `board_get`.
@@ -97,8 +112,7 @@ pub fn schematic_get(session: &Session, args: SchematicGetArgs) -> ToolResult<To
     let p = session.project()?.project();
     let (index, _, s) = resolve::schematic(p, args.schematic.as_deref())?;
     let ctx = p.view();
-    let appearance =
-        librepcb_core::project::schematic::import_appearance::ImportAppearance::load(p, s);
+    let appearance = ImportAppearance::load(p, s);
     let mut symbols = Vec::new();
     for sym in s.symbols().values() {
         let pins: Vec<Value> = sym
@@ -191,6 +205,88 @@ pub fn schematic_get(session: &Session, args: SchematicGetArgs) -> ToolResult<To
             "texts": texts,
         }),
     )
+}
+
+/// `schematic_review`.
+pub fn schematic_review(session: &Session, args: SchematicReviewArgs) -> ToolResult<ToolOutput> {
+    let open = session.project()?;
+    let project = open.project();
+    let (_, _, schematic) = resolve::schematic(project, args.schematic.as_deref())?;
+    let components = args
+        .components
+        .iter()
+        .map(|key| resolve::component(project, key).map(|(id, _)| id))
+        .collect::<ToolResult<BTreeSet<_>>>()?;
+    let findings = review_annotations(project, schematic, &components)?;
+    ToolOutput::new(
+        format!("{} schematic annotation overlap(s).", findings.len()),
+        json!({"schematic":schematic.id(), "annotation_overlaps":findings}),
+    )
+}
+
+pub(super) fn review_annotations(
+    project: &Project,
+    schematic: &Schematic,
+    components: &BTreeSet<ComponentInstanceId>,
+) -> ToolResult<Vec<Value>> {
+    let symbols: BTreeSet<_> = schematic
+        .symbols()
+        .iter()
+        .filter(|(_, symbol)| components.contains(&symbol.component()))
+        .map(|(id, _)| *id)
+        .collect();
+    let placed: BTreeSet<_> = symbols
+        .iter()
+        .map(|id| schematic.symbols()[id].component())
+        .collect();
+    if let Some(component) = components.difference(&placed).next() {
+        return Err(ToolError::invalid(format!(
+            "Review component {} has no symbols on the selected sheet.",
+            resolve::designator(project, *component)
+        )));
+    }
+    let segments = schematic
+        .net_segments()
+        .iter()
+        .filter(|(_, segment)| {
+            segment
+                .connected_pins()
+                .iter()
+                .any(|(symbol, _)| symbols.contains(symbol))
+        })
+        .map(|(id, _)| *id)
+        .collect();
+    let scene = SchematicScene::build(project, schematic.id(), &ColorScheme::SCHEMATIC_LIGHT)?;
+    let describe = |object| match object {
+        Annotation::SymbolText(symbol, text) => {
+            let placed = &schematic.symbols()[&symbol];
+            let layer = placed.texts().get(&text).map(|t| t.layer().id());
+            json!({"kind":"symbol_text","component":resolve::designator(project, placed.component()),"symbol":symbol,"text":text,"layer":layer})
+        }
+        Annotation::NetLabel(segment, label) => {
+            let net = schematic.net_segments()[&segment].net();
+            json!({"kind":"net_label","net":resolve::net_name(project, net),"segment":segment,"label":label})
+        }
+        Annotation::Text(text) => json!({"kind":"schematic_text","text":text}),
+        Annotation::PinName(symbol, pin) | Annotation::PinNumber(symbol, pin) => {
+            let placed = &schematic.symbols()[&symbol];
+            let pin_label = placed
+                .pin(project.view(), pin)
+                .ok()
+                .flatten()
+                .map(|pin| resolve::signal_label(project, pin.signal()));
+            let kind = if matches!(object, Annotation::PinName(..)) {
+                "pin_name"
+            } else {
+                "pin_number"
+            };
+            json!({"kind":kind,"component":resolve::designator(project, placed.component()),"symbol":symbol,"pin_uuid":pin,"pin":pin_label})
+        }
+    };
+    let scope = (!components.is_empty()).then_some((&symbols, &segments));
+    Ok(annotation_overlaps(&scene, scope).into_iter().map(|overlap|
+        json!({"first":describe(overlap.first),"second":describe(overlap.second),"bounds_mm":overlap.bounds})
+    ).collect())
 }
 
 pub(crate) fn symbol_text_json(text: &Text) -> Value {

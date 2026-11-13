@@ -4,24 +4,37 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use librepcb_canvas::kurbo::Rect;
 use librepcb_core::project::{NetSegmentId, SymbolId};
+use librepcb_core::types::Uuid;
 
 use crate::{SchematicObject, SchematicScene};
 
 /// An annotation and its overlapping neighbor, in schematic coordinates.
 #[derive(Debug)]
 pub struct AnnotationOverlap {
-    pub first: SchematicObject,
-    pub second: SchematicObject,
+    pub first: Annotation,
+    pub second: Annotation,
     pub bounds: [f64; 4],
 }
 
-/// Checks symbol fields, page texts and net labels. Limits the report to
-/// overlaps involving the supplied symbols or net segments when provided.
+/// The visible item whose text participates in a readability finding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Annotation {
+    SymbolText(SymbolId, Uuid),
+    Text(Uuid),
+    NetLabel(NetSegmentId, Uuid),
+    PinName(SymbolId, Uuid),
+    PinNumber(SymbolId, Uuid),
+}
+
+/// Checks symbol fields, page texts, net labels and pin legends. Limits the
+/// report to overlaps involving the supplied symbols or segments when provided.
 pub fn annotation_overlaps(
     scene: &SchematicScene,
     scope: Option<(&BTreeSet<SymbolId>, &BTreeSet<NetSegmentId>)>,
 ) -> Vec<AnnotationOverlap> {
     let mut annotations = BTreeMap::new();
+    let pin_names = SchematicScene::layer_id("schematic_pin_names");
+    let pin_numbers = SchematicScene::layer_id("schematic_pin_numbers");
     for (id, item) in scene.scene().items() {
         if !scene
             .scene()
@@ -33,24 +46,35 @@ pub fn annotation_overlaps(
         let Some(object) = scene.object(id) else {
             continue;
         };
-        let (order, owner, uuid) = match object {
-            SchematicObject::SymbolText(symbol, uuid) => (0, Some(symbol.0), uuid),
-            SchematicObject::Text(uuid) => (1, None, uuid),
-            SchematicObject::NetLabel(net, uuid) => (2, Some(net.0), uuid),
+        let annotation = match object {
+            SchematicObject::SymbolText(symbol, uuid) => Annotation::SymbolText(symbol, uuid),
+            SchematicObject::Text(uuid) => Annotation::Text(uuid),
+            SchematicObject::NetLabel(net, uuid) => Annotation::NetLabel(net, uuid),
+            SchematicObject::SymbolPin(symbol, pin) if Some(item.layer) == pin_names => {
+                Annotation::PinName(symbol, pin)
+            }
+            SchematicObject::SymbolPin(symbol, pin) if Some(item.layer) == pin_numbers => {
+                Annotation::PinNumber(symbol, pin)
+            }
             _ => continue,
         };
         let bounds = item.bounding_box();
         annotations
-            .entry((order, owner, uuid))
-            .and_modify(|(_, rect): &mut (_, Rect)| *rect = rect.union(bounds))
-            .or_insert((object, bounds));
+            .entry(annotation)
+            .and_modify(|rect: &mut Rect| *rect = rect.union(bounds))
+            .or_insert(bounds);
     }
-    let mut annotations: Vec<_> = annotations.into_values().collect();
+    let mut annotations: Vec<_> = annotations.into_iter().collect();
     annotations.sort_by(|(_, a), (_, b)| a.x0.total_cmp(&b.x0));
     let in_scope = |object| match (scope, object) {
         (None, _) => true,
-        (Some((symbols, _)), SchematicObject::SymbolText(id, _)) => symbols.contains(&id),
-        (Some((_, segments)), SchematicObject::NetLabel(id, _)) => segments.contains(&id),
+        (
+            Some((symbols, _)),
+            Annotation::SymbolText(id, _)
+            | Annotation::PinName(id, _)
+            | Annotation::PinNumber(id, _),
+        ) => symbols.contains(&id),
+        (Some((_, segments)), Annotation::NetLabel(id, _)) => segments.contains(&id),
         _ => false,
     };
     let mut result = Vec::new();
