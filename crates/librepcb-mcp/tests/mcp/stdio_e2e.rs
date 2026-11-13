@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 24);
+    assert_eq!(info["api_capability_version"], 25);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -2163,6 +2163,33 @@ async fn stdio_design_preview_reports_resolved_erc_without_changing_approvals() 
         .collect();
     assert_eq!(images.len(), 2);
     assert_ne!(images[0].data, images[1].data);
+    let render = call(
+        &client,
+        "render",
+        json!({"schematic":"Main", "image_region":preview["image_region"]}),
+    )
+    .await;
+    assert_ne!(render.is_error, Some(true));
+    assert_eq!(
+        render.structured_content.unwrap()["result"]["image_region"],
+        preview["image_region"]
+    );
+    let live_png = render.content.iter().find_map(|content| match content {
+        ContentBlock::Image(image) => Some(image),
+        _ => None,
+    });
+    assert_eq!(live_png.unwrap().data, images[1].data);
+    let invalid = call(
+        &client,
+        "render",
+        json!({"target":"board", "image_region":preview["image_region"]}),
+    )
+    .await;
+    assert_eq!(invalid.is_error, Some(true));
+    assert_eq!(
+        invalid.structured_content.unwrap()["error"]["kind"],
+        "invalid_argument"
+    );
     assert_eq!(preview["erc"]["introduced"], json!([]));
     assert!(
         preview["erc"]["resolved"]

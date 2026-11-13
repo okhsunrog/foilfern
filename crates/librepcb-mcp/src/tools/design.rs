@@ -906,7 +906,7 @@ pub(crate) fn prepare(
         output.images = images;
         output
     } else {
-        let image = super::output::render_schematic_preview(&project, schematic, 1600, 1200)?;
+        let image = super::output::render_schematic_preview(&project, schematic, 1600, 1200, None)?;
         ToolOutput::new(summary, payload)?.image(image)
     };
     Ok(PreparedPreview {

@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `24`). Its `build` object contains
+`api_capability_version` (currently `25`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -205,6 +205,8 @@ Set `image_region` to `{"min":{"x":20,"y":-10},"max":{"x":60,"y":10}}`
 to request the same pair cropped to a rectangle in native sheet millimeters
 with positive Y up. Both axes must have positive extent. The output fits the
 region without stretching and fills any padding with the page background.
+The read-only `render` tool accepts the same `image_region` on a schematic
+target. It returns one image of the live sheet with the requested frame.
 
 The server captures the source under the session lock, then plans, checks and
 renders on the detached model. One schematic preview may run per server state.

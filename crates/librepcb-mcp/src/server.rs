@@ -77,6 +77,7 @@ then read pin coordinates with schematic_get. In design_preview use wire_groups 
 path become junctions. Omit paths to request automatic local wiring. Use schematic_tidy \
 when regenerating the whole page is intended.\n\
 Use no_connects in a design document to mark explicitly unused pins. \
+Use image_region on render or design_preview to inspect a schematic block at a larger scale. \
 Before design_apply, review the preview's diff, ERC changes, board impact and schematic \
 requirements when present. Use requirements_get and requirements_check to read saved rules.\n\
 Addressing: designators (\"R1\"), pins \"R1.1\" (pad name) or \"U1.VCC\" (signal name) or a \
@@ -1240,8 +1241,8 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Render a schematic page or a board side as PNG image, to look at the \
-                       design (target defaults to board if board or side is given)."
+        description = "Render a schematic page or a board side as PNG. Set image_region for a \
+                       schematic close-up in sheet millimeters. Target defaults to board if board or side is given."
     )]
     async fn render(
         &self,

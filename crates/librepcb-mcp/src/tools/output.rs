@@ -15,10 +15,12 @@ use librepcb_core::project::board::{
     export_pick_place_csv,
 };
 use librepcb_core::project::erc::{ErcMessage, run_erc};
+use librepcb_core::project::schematic::Schematic;
 use librepcb_core::project::{
     AssemblyVariantId, BomGenerator, OutputJobEvent, OutputJobRunner, Project,
 };
 use librepcb_core::rule_check::Severity;
+use librepcb_core::types::Point;
 use librepcb_scene::{BoardSide, RenderOptions, RenderSize};
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -146,11 +148,13 @@ pub struct RenderArgs {
     /// Image height in pixels (default 1200, max 4096).
     #[serde(default)]
     pub height: Option<u32>,
+    /// Crop to a rectangle in sheet millimeters, for schematic renders.
+    pub image_region: Option<SchematicRegion>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub(super) struct SchematicRegion {
+pub struct SchematicRegion {
     /// Bottom-left corner in sheet millimeters.
     min: PointMm,
     /// Top-right corner in sheet millimeters.
@@ -158,9 +162,7 @@ pub(super) struct SchematicRegion {
 }
 
 impl SchematicRegion {
-    pub(super) fn points(
-        self,
-    ) -> ToolResult<(librepcb_core::types::Point, librepcb_core::types::Point)> {
+    pub(super) fn points(self) -> ToolResult<(Point, Point)> {
         let min = self.min.to_point()?;
         let max = self.max.to_point()?;
         if min.x >= max.x || min.y >= max.y {
@@ -470,11 +472,17 @@ pub fn render(session: &Session, args: RenderArgs) -> ToolResult<ToolOutput> {
         } else {
             RenderTarget::Schematic
         });
+    let region = args.image_region.map(SchematicRegion::points).transpose()?;
+    if region.is_some() && target == RenderTarget::Board {
+        return Err(ToolError::invalid(
+            "image_region requires a schematic target.",
+        ));
+    }
     let (png, what) = match target {
         RenderTarget::Schematic => {
             let (index, _, s) = resolve::schematic(p, args.schematic.as_deref())?;
             (
-                render_schematic_preview(p, s, width, height)?,
+                render_schematic_preview(p, s, width, height, region)?,
                 format!("schematic page {index} \"{}\"", s.name().as_str()),
             )
         }
@@ -498,20 +506,33 @@ pub fn render(session: &Session, args: RenderArgs) -> ToolResult<ToolOutput> {
             )
         }
     };
-    Ok(ToolOutput::new(
-        format!("Rendered {what} ({width}x{height} px)."),
-        json!({ "width": width, "height": height, "bytes": png.len(), "mime_type": "image/png" }),
-    )?
-    .image(png))
+    let mut result =
+        json!({ "width": width, "height": height, "bytes": png.len(), "mime_type": "image/png" });
+    if let Some((min, max)) = region {
+        result["image_region"] = json!({"min":views::point(min),"max":views::point(max)});
+    }
+    Ok(ToolOutput::new(format!("Rendered {what} ({width}x{height} px)."), result)?.image(png))
 }
 
 pub(crate) fn render_schematic_preview(
-    project: &librepcb_core::project::Project,
-    schematic: &librepcb_core::project::schematic::Schematic,
+    project: &Project,
+    schematic: &Schematic,
     width: u32,
     height: u32,
+    region: Option<(Point, Point)>,
 ) -> ToolResult<Vec<u8>> {
     if schematic.images().is_empty() {
+        if let Some((min, max)) = region {
+            let scene = librepcb_scene::SchematicScene::build(
+                project,
+                schematic.id(),
+                &librepcb_scene::ColorScheme::SCHEMATIC_LIGHT,
+            )?;
+            return Ok(
+                librepcb_scene::render_schematic_region(&scene, min, max, width, height)?
+                    .to_png()?,
+            );
+        }
         let options = RenderOptions {
             size: RenderSize::Fit { width, height },
             ..RenderOptions::default()
@@ -528,22 +549,26 @@ pub(crate) fn render_schematic_preview(
     };
     let drawing = librepcb_graphics::schematic_drawing(project, schematic, &settings)
         .map_err(|error| ToolError::internal(error.to_string()))?;
-    librepcb_graphics::GraphicsExport::default()
-        .render_png(
+    let exporter = librepcb_graphics::GraphicsExport::default();
+    let result = if let Some((min, max)) = region {
+        exporter.render_region_png(&drawing, &settings, min, max, width, height)
+    } else {
+        exporter.render_png(
             &librepcb_graphics::GraphicsPage { drawing, settings },
             width,
             height,
         )
-        .map_err(|error| ToolError::internal(error.to_string()))
+    };
+    result.map_err(|error| ToolError::internal(error.to_string()))
 }
 
 pub(super) fn render_schematic_comparison(
     before: &Project,
     after: &Project,
-    schematic: &librepcb_core::project::schematic::Schematic,
+    schematic: &Schematic,
     width: u32,
     height: u32,
-    region: Option<(librepcb_core::types::Point, librepcb_core::types::Point)>,
+    region: Option<(Point, Point)>,
 ) -> ToolResult<Vec<Vec<u8>>> {
     let old = before.schematic(schematic.id());
     if schematic.images().is_empty() && old.is_none_or(|sheet| sheet.images().is_empty()) {
