@@ -1,8 +1,9 @@
 //! Builtin reviewed routing: detached preparation, paginated exact preview,
 //! single-transaction apply and explicit disposal. No upstream counterpart.
 
-use librepcb_core::project::{Mutation, PlaneId, Project};
+use librepcb_core::project::{BoardId, Mutation, PlaneId, Project};
 use librepcb_core::types::Uuid;
+use librepcb_editor::ProjectEditor;
 use librepcb_editor::commands::{
     Autoroute, ConnectLocalVia, NetRef, PadNeckDown, RoutingOrder, StitchPlaneIsland,
 };
@@ -14,7 +15,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::json;
 
-use super::{board_edit, ground_reference, write};
+use super::{board_edit, ground_reference, trace_path, write};
 use crate::error::{ErrorKind, ToolError, ToolResult};
 use crate::outcome::ToolOutput;
 use crate::session::Session;
@@ -137,6 +138,9 @@ pub struct RoutingPreviewArgs {
     pub limit: Option<usize>,
     /// Compare coverage of these signals on the candidate's original snapshot.
     pub reference: Option<ground_reference::ReferenceArgs>,
+    /// Measure up to 16 physical pad pairs before and after the frozen patch.
+    #[serde(default)]
+    pub trace_paths: Vec<trace_path::TracePathPair>,
 }
 
 fn routing_error(error: RoutingError) -> ToolError {
@@ -413,28 +417,33 @@ fn candidate_output(summary: &str, info: &RoutingCandidateInfo) -> ToolResult<To
 
 /// Read-only exact patch preview. Stale candidates remain inspectable.
 pub fn routing_preview(session: &Session, args: RoutingPreviewArgs) -> ToolResult<ToolOutput> {
-    if args.reference.is_some() {
-        let work = prepare_reference_preview(session, args)?;
-        return finish_reference_preview(session, run_reference_preview(work)?);
+    if args.reference.is_some() || !args.trace_paths.is_empty() {
+        let work = prepare_measured_preview(session, args)?;
+        return finish_measured_preview(session, run_measured_preview(work)?);
     }
     patch_preview(session, args)
 }
 
-pub struct ReferencePreviewJob {
+pub struct MeasuredPreviewJob {
     id: Uuid,
     preview: ToolOutput,
-    reference: ground_reference::ReferenceJob,
+    board: BoardId,
+    revision: u64,
+    snapshot: ProjectEditor,
+    reference: Option<ground_reference::ReferenceArgs>,
+    paths: Vec<trace_path::ResolvedTracePath>,
     patch: Vec<Mutation>,
 }
 
-pub fn prepare_reference_preview(
+pub fn prepare_measured_preview(
     session: &Session,
     mut args: RoutingPreviewArgs,
-) -> ToolResult<ReferencePreviewJob> {
-    let reference = args
-        .reference
-        .take()
-        .ok_or_else(|| ToolError::invalid("Reference selection is required."))?;
+) -> ToolResult<MeasuredPreviewJob> {
+    let reference = args.reference.take();
+    let requested_paths = std::mem::take(&mut args.trace_paths);
+    if requested_paths.len() > 16 {
+        return Err(ToolError::invalid("Select at most 16 trace paths."));
+    }
     let id = candidate_id(&args.candidate)?;
     let preview = patch_preview(session, args)?;
     let open = session.project()?;
@@ -448,28 +457,62 @@ pub fn prepare_reference_preview(
         .routing
         .preview_snapshot(open.project(), id)
         .map_err(routing_error)?;
-    let reference =
-        ground_reference::ReferenceJob::new(open.project(), snapshot, board, reference)?;
-    Ok(ReferencePreviewJob {
+    let source = open.project();
+    let native_board = source
+        .board(board)
+        .ok_or_else(|| ToolError::not_found("Candidate board is missing."))?;
+    let paths = requested_paths
+        .iter()
+        .map(|pair| trace_path::ResolvedTracePath::new(source, native_board, pair))
+        .collect::<ToolResult<_>>()?;
+    Ok(MeasuredPreviewJob {
         id,
         preview,
+        board,
+        revision: source.revision(),
+        snapshot,
         reference,
+        paths,
         patch,
     })
 }
 
-pub fn run_reference_preview(work: ReferencePreviewJob) -> ToolResult<(Uuid, ToolOutput)> {
-    let ReferencePreviewJob {
+pub fn run_measured_preview(work: MeasuredPreviewJob) -> ToolResult<(Uuid, ToolOutput)> {
+    let MeasuredPreviewJob {
         id,
         mut preview,
+        board,
+        revision,
+        mut snapshot,
         reference,
+        paths,
         patch,
     } = work;
-    preview.result["reference_coverage"] = reference.compare(patch)?;
+    let before = paths
+        .iter()
+        .map(|path| path.measure(snapshot.project(), board))
+        .collect::<ToolResult<Vec<_>>>()?;
+    let mut after = Vec::new();
+    let compare_paths = |project: &Project| -> ToolResult<()> {
+        for (path, before) in paths.iter().zip(before) {
+            after.push(path.comparison(before, path.measure(project, board)?));
+        }
+        Ok(())
+    };
+    if let Some(reference) = reference {
+        let reference = ground_reference::ReferenceJob::new(snapshot, board, reference, revision)?;
+        preview.result["reference_coverage"] = reference.compare(patch, compare_paths)?;
+    } else {
+        snapshot.apply_mutations("Preview trace paths", patch)?;
+        compare_paths(snapshot.project())?;
+    }
+    if !after.is_empty() {
+        preview.result["trace_paths"] = json!(after);
+    }
     Ok((id, preview))
 }
 
-pub fn finish_reference_preview(
+pub fn finish_measured_preview(
     session: &Session,
     (id, preview): (Uuid, ToolOutput),
 ) -> ToolResult<ToolOutput> {
@@ -481,7 +524,7 @@ pub fn finish_reference_preview(
     {
         return Err(ToolError::new(
             ErrorKind::StaleRevision,
-            "The routing candidate became stale during reference analysis.",
+            "The routing candidate became stale during preview measurements.",
         ));
     }
     Ok(preview)

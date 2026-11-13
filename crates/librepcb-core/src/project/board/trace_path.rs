@@ -33,6 +33,8 @@ pub struct TracePath {
     pub traces: Vec<PathTrace>,
     /// Unique via anchors touched by this path, with segment-scoped identities.
     pub vias: Vec<(NetSegmentId, Uuid)>,
+    /// Changes of copper layer between consecutive trace segments.
+    pub layer_changes: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -84,6 +86,7 @@ impl Project {
                 length_mm: 0.0,
                 traces: Vec::new(),
                 vias: Vec::new(),
+                layer_changes: 0,
             }));
         }
         let mut graph = Graph::new_undirected();
@@ -183,7 +186,7 @@ impl Project {
         ) else {
             return Ok(None);
         };
-        let traces = path
+        let traces: Vec<_> = path
             .windows(2)
             .filter_map(|pair| {
                 // A* returns adjacent nodes. Parallel traces on the same layer
@@ -193,6 +196,10 @@ impl Project {
                     .and_then(|edge| graph[edge].clone())
             })
             .collect();
+        let layer_changes = traces
+            .windows(2)
+            .filter(|pair| pair[0].layer != pair[1].layer)
+            .count();
         let vias = path
             .iter()
             .filter_map(|index| {
@@ -210,6 +217,7 @@ impl Project {
             length_mm,
             traces,
             vias,
+            layer_changes,
         }))
     }
 }

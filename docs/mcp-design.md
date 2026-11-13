@@ -417,7 +417,9 @@ Both resolved pads must have the same assigned net.
 The response pins `project`, `board` and `base_revision`, resolves both endpoint
 identities, and reports `direct_mm`. A measured shortest explicit path includes
 `length_mm`, layers, ordered trace IDs/segment IDs/widths/lengths and unique
-segment-scoped via anchors. Lengths follow trace centerlines between anchors,
+segment-scoped via anchors. `layer_changes` counts transitions between
+consecutive trace layers. A via touched only on one layer is a via anchor
+without a layer change. Lengths follow trace centerlines between anchors,
 including pad centers; via barrel length is excluded. Footprint pads are keyed
 by component instance and pad, local anchors by segment and layer. Only valid
 via/pad copper joins layers; a junction is not an implicit via.
@@ -623,6 +625,11 @@ candidate with `routing_preview`; there is no automatic apply.
 `limit` (1–200, default 100), `next_offset` and a `stale` flag. This is a data
 preview; GUI overlays and candidate PNG rendering are future work. Retained storage bounds do not limit
 the number of concurrently running preparation workers.
+Supply `trace_paths` with up to 16 pad pairs to measure the shortest anchored
+trace paths before and after the frozen patch, including length, layers,
+via anchors and layer changes. Pad identities are resolved on the source
+board. A missing trace-only path reports `not_measured`. Combine this with
+`reference` to compare ground coverage in the same preview.
 `routing_apply` checks the candidate revision independently of the optional
 caller revision (and rejects a changed save time or path, since text
 attributes can affect geometry), refuses incomplete validation or new non-connectivity DRC

@@ -60,11 +60,12 @@ struct GapList {
 
 impl ReferenceJob {
     pub(super) fn new(
-        source: &Project,
         snapshot: ProjectEditor,
         board: BoardId,
         args: ReferenceArgs,
+        revision: u64,
     ) -> ToolResult<Self> {
+        let source = snapshot.project();
         let (reference_net, _) = resolve::net(source, &args.reference_net)?;
         let reference_layer = board_edit::copper_layer(&args.reference_layer)?;
         if !source
@@ -88,9 +89,9 @@ impl ReferenceJob {
             return Err(ToolError::invalid("gap_limit must be between 1 and 200."));
         }
         Ok(Self {
-            snapshot,
             project: source.uuid(),
-            revision: source.revision(),
+            snapshot,
+            revision,
             board,
             selection: ReferenceSelection {
                 signal_nets,
@@ -164,10 +165,15 @@ impl ReferenceJob {
         json!({"connected_reference_fragments": coverage.connected_fragments, "nets": nets})
     }
 
-    pub(super) fn compare(mut self, patch: Vec<Mutation>) -> ToolResult<Value> {
+    pub(super) fn compare(
+        mut self,
+        patch: Vec<Mutation>,
+        after_paths: impl FnOnce(&Project) -> ToolResult<()>,
+    ) -> ToolResult<Value> {
         let before = self.measure()?;
         self.snapshot
             .apply_mutations("Preview reference coverage", patch)?;
+        after_paths(self.snapshot.project())?;
         let after = self.measure()?;
         let changes: Vec<_> = before
             .nets
@@ -198,10 +204,10 @@ pub fn prepare(session: &Session, args: ReferenceCoverageArgs) -> ToolResult<Ref
     write::check_revision(source, args.expected_revision)?;
     let board = board_edit::board_id(source, args.board.as_deref())?;
     ReferenceJob::new(
-        source,
         ProjectEditor::new(source.snapshot()?),
         board,
         args.reference,
+        source.revision(),
     )
 }
 

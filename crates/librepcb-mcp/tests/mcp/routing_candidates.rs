@@ -101,10 +101,28 @@ fn explicit_escape_and_builtin_continuation_share_one_candidate() {
     );
     assert_eq!(session.project().unwrap().project().revision(), revision);
     let candidate = json!({"candidate":candidate["candidate"]});
-    let preview = routing::routing_preview(&session, args(candidate.clone()))
-        .unwrap()
-        .result;
+    let preview = routing::routing_preview(
+        &session,
+        args(json!({
+            "candidate":candidate["candidate"],
+            "trace_paths":[{"from":"R1.1","to":"R2.1"}]
+        })),
+    )
+    .unwrap()
+    .result;
     assert_eq!(preview["route"]["routing"]["routed"], 1);
+    assert_eq!(
+        preview["trace_paths"][0]["before"]["status"],
+        "not_measured"
+    );
+    let path = &preview["trace_paths"][0]["after"];
+    assert_eq!(path["status"], "measured");
+    assert_eq!(path["length_mm"], 10.0);
+    assert_eq!(path["layer_changes"], 0);
+    assert_eq!(
+        board_get(&session, Default::default()).unwrap().result,
+        before
+    );
     routing::routing_apply(&mut session, args(candidate)).unwrap();
     let after = board_get(&session, Default::default()).unwrap().result;
     assert_eq!(after["air_wires"][0]["net"], "B");
@@ -2199,6 +2217,7 @@ fn trace_path_measurement_counts_real_vias_and_both_layers() {
             .result;
     assert_eq!(measured["length_mm"], 10.0);
     assert_eq!(measured["via_count"], 2);
+    assert_eq!(measured["layer_changes"], 2);
     assert_eq!(measured["layers"], json!(["bot_cu", "top_cu"]));
     let ids: std::collections::BTreeSet<_> = measured["vias"]
         .as_array()
