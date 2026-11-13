@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 13);
+    assert_eq!(info["api_capability_version"], 14);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -1653,7 +1653,7 @@ async fn stdio_design_creates_nets_parts_and_paths_together() {
     let mut document = json!({
         "version":1,"schematic":"Main","add_nets":["EN"],
         "add_components":{"pullup":spec("R1",0,false),"load":spec("R2",25,true)},
-        "wire_groups":[{"net":"EN","pins":["pullup.2","load.2"],"paths":[["pullup.2","load.2"]]}],
+        "wire_groups":[{"net":"EN","paths":[["pullup.2","load.2"]]}],
         "nets":{"EN":["load.2"]},
     });
     document["add_components"]["load"]["fields"] = json!({
@@ -1673,6 +1673,8 @@ async fn stdio_design_creates_nets_parts_and_paths_together() {
     assert_eq!(preview["diff"].as_array().unwrap().len(), 4);
     assert_eq!(preview["diff"][0]["field"], "add_net");
     assert_eq!(preview["diff"][3]["field"], "wire_paths");
+    assert_eq!(preview["diff"][3]["pins"], json!(["pullup.2", "load.2"]));
+    assert_eq!(preview["verified_pins"], 2);
     assert_eq!(call_ok(&client, "project_summary", json!({})).await, before);
     call_ok(
         &client,

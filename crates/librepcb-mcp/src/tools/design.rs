@@ -203,9 +203,9 @@ enum ArtworkWithRoles {
 pub struct LocalWireGroup {
     /// Name of an existing circuit net.
     net: String,
-    /// Pins as `key.pin`, each with one symbol pin on this sheet. At least two
-    /// for automatic wiring. An explicit path can draw a single-pin stub.
-    pins: Vec<String>,
+    /// Pins as `key.pin`, each with one symbol pin on this sheet. Required for
+    /// automatic wiring. Explicit paths can infer pins from their string vertices.
+    pins: Option<Vec<String>>,
     /// Optional explicit paths. Each vertex is a pin name from pins or {x,y}
     /// in mm (Y up). Use orthogonal edges. End a branch on another path to
     /// create a junction. Each group describes one connected segment.
@@ -246,14 +246,14 @@ struct RelativeCoordinate {
 }
 
 impl PathWaypoint {
-    fn resolve(&self, group: &LocalWireGroup) -> ToolResult<WireWaypoint> {
+    fn resolve(&self, pins: &[&str]) -> ToolResult<WireWaypoint> {
         let coordinate = |value: &PathCoordinate| -> ToolResult<WireCoordinate> {
             match value {
                 PathCoordinate::Absolute(value) => {
                     Ok(WireCoordinate::Absolute(units::length(*value)?))
                 }
                 PathCoordinate::Relative(relative) => Ok(WireCoordinate::Relative {
-                    pin: group.pin_index(&relative.pin)?,
+                    pin: wire_pin_index(pins, &relative.pin)?,
                     offset: units::length(relative.offset)?,
                 }),
             }
@@ -266,14 +266,32 @@ impl PathWaypoint {
 }
 
 impl LocalWireGroup {
-    fn pin_index(&self, pin: &str) -> ToolResult<usize> {
-        self.pins
+    fn pin_names(&self) -> ToolResult<Vec<&str>> {
+        if let Some(pins) = &self.pins {
+            return Ok(pins.iter().map(String::as_str).collect());
+        }
+        let paths = self
+            .paths
+            .as_ref()
+            .ok_or_else(|| ToolError::invalid("Automatic wire groups need a pins list."))?;
+        let mut seen = BTreeSet::new();
+        Ok(paths
             .iter()
-            .position(|name| name == pin)
-            .ok_or_else(|| {
-                ToolError::invalid(format!("Wire path pin {pin:?} is absent from pins."))
+            .flatten()
+            .filter_map(|point| match point {
+                WireVertex::Pin(pin) if seen.insert(pin.as_str()) => Some(pin.as_str()),
+                _ => None,
             })
+            .collect())
     }
+}
+
+fn wire_pin_index(pins: &[&str], pin: &str) -> ToolResult<usize> {
+    pins.iter().position(|name| *name == pin).ok_or_else(|| {
+        ToolError::invalid(format!(
+            "Wire path pin {pin:?} is absent from the group pins."
+        ))
+    })
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -549,18 +567,21 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
             }
             style_symbols(tx, &doc.symbol_styles, &mut added)?;
             let p = tx.project();
-            let mut verified = 0;
+            let mut verified = BTreeSet::new();
             for (name, pins) in &doc.nets {
-                let (_, signals) = resolve_memberships(p, &bindings, name, pins)?;
-                verified += signals.len();
+                let (_, signals) =
+                    resolve_memberships(p, &bindings, name, pins.iter().map(String::as_str))?;
+                verified.extend(signals);
             }
             let mut grouped = BTreeSet::new();
             let mut wire_edits = Vec::new();
             let mut explicit = Vec::new();
             let mut explicit_diffs = Vec::new();
             for group in &doc.wire_groups {
-                let (net, pins) = resolve_memberships(p, &bindings, &group.net, &group.pins)?;
-                for (pin, name) in pins.iter().zip(&group.pins) {
+                let names = group.pin_names()?;
+                let (net, pins) =
+                    resolve_memberships(p, &bindings, &group.net, names.iter().copied())?;
+                for (pin, name) in pins.iter().zip(&names) {
                     if block_members.contains(&pin.component) && group.paths.is_none() {
                         return Err(ToolError::invalid(format!(
                             "{name} is a movable block member. Supply explicit paths to redraw its wires in this preview."
@@ -572,7 +593,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                         )));
                     }
                 }
-                verified += pins.len();
+                verified.extend(pins.iter().copied());
                 let command = WireGroup {
                     schematic: page,
                     net,
@@ -584,9 +605,11 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                         let mut vertices = Vec::new();
                         for vertex in path {
                             vertices.push(match vertex {
-                                WireVertex::Pin(pin) => WirePathPoint::Pin(group.pin_index(pin)?),
+                                WireVertex::Pin(pin) => {
+                                    WirePathPoint::Pin(wire_pin_index(&names, pin)?)
+                                }
                                 WireVertex::Point(point) => {
-                                    WirePathPoint::Waypoint(point.resolve(group)?)
+                                    WirePathPoint::Waypoint(point.resolve(&names)?)
                                 }
                             });
                         }
@@ -598,7 +621,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                         label: group
                             .label
                             .as_ref()
-                            .map(|point| point.resolve(group))
+                            .map(|point| point.resolve(&names))
                             .transpose()?,
                     };
                     if let Some(block) = &mut block
@@ -611,17 +634,15 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                         block.redrawn_segments.extend(spec.replaceable_segments(p)?);
                     }
                     explicit.push(spec);
-                    explicit_diffs.push(
-                        json!({"field":"wire_paths","net":group.net,"pins":group.pins,
-                    "paths":paths,"label":group.label}),
-                    );
+                    explicit_diffs.push(json!({"field":"wire_paths","net":group.net,"pins":names,
+                    "paths":paths,"label":group.label}));
                 } else if group.label.is_some() {
                     return Err(ToolError::invalid(
                         "A label position requires explicit wire paths.",
                     ));
                 } else if let Some(segments) = command.segments_to_replace(p)? {
                     added.push(json!({
-                    "field":"wire_group","net":group.net,"pins":group.pins,"replaced_segments":segments,
+                    "field":"wire_group","net":group.net,"pins":names,"replaced_segments":segments,
                 }));
                     // Wire groups run after explicit placement of their endpoints.
                     wire_edits.push(DesignEdit::WireGroup(command));
@@ -687,7 +708,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 json!({"field":"page_note","uuid":uuid,"text":note.text,"position":note.position,"height":note.height}),
             );
             }
-            Ok((added, verified))
+            Ok((added, verified.len()))
         },
     )?;
     diff.extend(added);
@@ -1114,17 +1135,17 @@ fn add_component(
     ))
 }
 
-fn resolve_memberships(
+fn resolve_memberships<'a>(
     p: &Project,
     bindings: &BTreeMap<&str, ComponentInstanceId>,
     name: &str,
-    pins: &[String],
+    pins: impl IntoIterator<Item = &'a str>,
 ) -> ToolResult<(NetSignalId, Vec<ComponentSignalRef>)> {
     let (net, _) = p
         .circuit()
         .net_signal_by_name(name)
         .ok_or_else(|| ToolError::not_found(format!("Net {name} not found.")))?;
-    let mut signals = Vec::with_capacity(pins.len());
+    let mut signals = Vec::new();
     for endpoint in pins {
         let (key, pin) = resolve::split_pin_ref(endpoint)?;
         let id = *bindings

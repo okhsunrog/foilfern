@@ -70,7 +70,7 @@ against the schematic and reports conversions that need review.
    coordinates with `schematic_get`. In `design_preview`, bind keys to
    component designators or UUIDs and use `wire_groups` with explicit paths. For example,
    with `r` bound to R1, a labeled stub on EN can use
-   `{"net":"EN","pins":["r.1"],"paths":[["r.1",{"x":35.56,"y":50.8}]],"label":{"x":35.56,"y":50.8}}`
+   `{"net":"EN","paths":[["r.1",{"x":35.56,"y":50.8}]],"label":{"x":35.56,"y":50.8}}`
    if the pin lies on the same row or column as the endpoint. Branch endpoints
    on another path become junctions. Set either coordinate to
    `{"pin":"r.1","offset":2.54}` to place it relative to that pin after

@@ -113,6 +113,9 @@ ESP32-C3-WROOM-02 dev board with standard library symbols, explicit routes,
 notes and initial reference and value placement. Both saved projects
 passed ERC in Foilfern and upstream LibrePCB 2.1.1, and both documents replayed
 with an empty diff after reopening. These runs covered the schematic.
+On a routed copy of the comparison project, a value-only update preserved
+the complete schematic geometry and netlist and both board snapshots,
+including their 608 traces and 71 vias each, after save/reopen.
 
 Done when:
 

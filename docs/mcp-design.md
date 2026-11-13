@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `13`). Its `build` object contains
+`api_capability_version` (currently `14`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -237,8 +237,10 @@ preview fails. Pins already physically connected satisfy the group, preserving
 its existing wire geometry.
 
 For explicit wiring, add `paths` to a wire group. Each path lists pin names
-from the group's `pins` and absolute points `{x,y}` in mm. Edges must be
-orthogonal. The paths form one connected segment, and a branch ending on
+and absolute points `{x,y}` in mm. Omit `pins` to infer them from the pin
+vertices, or supply it explicitly to check that every listed pin appears.
+`verified_pins` counts each resolved circuit signal once across the document.
+Edges must be orthogonal. The paths form one connected segment, and a branch ending on
 another path splits it at a shared junction. A single-pin group can draw a
 stub. Separate segments on the same net go in separate groups. To show their
 relationship, place a `label` on each wire or use supply symbols. `label` is
