@@ -7,7 +7,7 @@ use librepcb_core::project::{
 };
 use librepcb_editor::Transaction;
 use librepcb_editor::commands::{
-    connect_design_pin, disconnect_design_signals, remove_disconnected_component,
+    EditNet, NetRef, connect_design_pin, disconnect_design_signals, remove_disconnected_component,
     remove_unused_net_signals,
 };
 use schemars::JsonSchema;
@@ -18,6 +18,67 @@ use crate::{
     error::{ErrorKind, ToolError, ToolResult},
     resolve,
 };
+
+use super::ManagedValue;
+
+pub(super) fn rename_nets(
+    tx: &mut Transaction<'_>,
+    renames: &BTreeMap<String, ManagedValue>,
+    diff: &mut Vec<Value>,
+) -> ToolResult<()> {
+    let circuit = tx.project().circuit();
+    let mut seen = BTreeSet::new();
+    let mut targets = BTreeSet::new();
+    let mut commands = Vec::new();
+    for (selector, rename) in renames {
+        let id = NetSignalId(resolve::required_uuid(selector, "net")?);
+        if !seen.insert(id) {
+            return Err(ToolError::invalid(format!(
+                "Duplicate rename for net {id}."
+            )));
+        }
+        let desired = super::super::schematic_edit::identifier(&rename.set, "net name")?;
+        let net = circuit
+            .net_signal(id)
+            .ok_or_else(|| ToolError::not_found(format!("Net {id} not found.")))?;
+        if !targets.insert(desired.clone())
+            || circuit
+                .net_signal_by_name(desired.as_str())
+                .is_some_and(|(owner, _)| owner != id)
+        {
+            return Err(ToolError::new(
+                ErrorKind::Conflict,
+                format!(
+                    "Net name {desired:?} is already in use or requested by more than one net."
+                ),
+            ));
+        }
+        let current = net.name().as_str();
+        if current == desired.as_str() {
+            continue;
+        }
+        if current != rename.expected {
+            return Err(ToolError::new(
+                ErrorKind::Conflict,
+                format!(
+                    "Net {id}: expected {:?}, found {current:?}.",
+                    rename.expected
+                ),
+            ));
+        }
+        diff.push(json!({"field":"net_name","uuid":id,"before":current,"after":desired.as_str()}));
+        commands.push(EditNet {
+            net: NetRef::Id(id),
+            name: Some(desired),
+            net_class: None,
+            merge: false,
+        });
+    }
+    for command in commands {
+        tx.run(command)?;
+    }
+    Ok(())
+}
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]

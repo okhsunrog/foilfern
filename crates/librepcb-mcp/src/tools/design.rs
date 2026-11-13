@@ -118,6 +118,9 @@ pub struct DesignDocument {
     /// Named nets to ensure before adding parts. Existing nets keep their identity and class.
     #[serde(default)]
     add_nets: Vec<String>,
+    /// Rename existing nets by UUID, preserving their connections and geometry.
+    #[serde(default)]
+    rename_nets: BTreeMap<String, ManagedValue>,
     /// Existing component UUIDs to remove. A missing UUID is already removed.
     #[serde(default)]
     remove_components: Vec<String>,
@@ -615,6 +618,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
             for edit in edits {
                 edit.execute(tx)?;
             }
+            topology::rename_nets(tx, &doc.rename_nets, &mut added)?;
             let mut topology = topology::TopologyEdits::default();
             topology::remove_components(tx, &removals, &mut added, &mut topology)?;
             for name in &doc.add_nets {

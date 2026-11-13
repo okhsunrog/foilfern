@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 20);
+    assert_eq!(info["api_capability_version"], 21);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -2245,7 +2245,39 @@ async fn stdio_schematic_requirements_persist_and_gate_design_apply() {
         call_ok(&client, "requirements_get", json!({})).await["document"],
         saved["document"]
     );
-    call_ok(&client, "net_rename", json!({"net":"EN","name":"ENABLE"})).await;
+    let net_key = net.as_str().unwrap();
+    let rename = json!({"version":1,"schematic":"Main","rename_nets":{(net_key):{"expected":"EN","set":"ENABLE"}},
+        "components":{"r":{"uuid":part["uuid"]}},"nets":{"ENABLE":["r.1"]}});
+    let mut conflict = rename.clone();
+    conflict["rename_nets"][net_key]["expected"] = json!("WRONG");
+    let before = call_ok(&client, "netlist", json!({})).await;
+    let rejected = call(&client, "design_preview", conflict)
+        .await
+        .structured_content
+        .unwrap();
+    assert_eq!(rejected["error"]["kind"], "conflict");
+    let renamed = call_ok(&client, "design_preview", rename.clone()).await;
+    assert_eq!(
+        renamed["diff"],
+        json!([{"field":"net_name","uuid":net,"before":"EN","after":"ENABLE"}])
+    );
+    assert_eq!(renamed["erc"]["introduced"], json!([]));
+    assert_eq!(renamed["erc"]["resolved"], json!([]));
+    assert_eq!(call_ok(&client, "netlist", json!({})).await, before);
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":renamed["preview"]}),
+    )
+    .await;
+    assert_eq!(
+        call_ok(&client, "net_list", json!({"net":"ENABLE"})).await["nets"][0]["uuid"],
+        net
+    );
+    assert_eq!(
+        call_ok(&client, "design_preview", rename).await["diff"],
+        json!([])
+    );
     let live = call_ok(&client, "requirements_check", json!({})).await;
     assert_eq!(live["findings"][0]["status"], "pass");
     assert_eq!(live["findings"][1]["status"], "pass");

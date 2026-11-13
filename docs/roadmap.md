@@ -142,6 +142,9 @@ other gate is unchanged, and checks empty replay and undo.
 The dev-board acceptance replay now starts with a native project that has
 no sheets. The document creates `Main` inside the same preview and undo
 step as its parts and wires, and reuses that sheet after save/reopen.
+Renaming a net by UUID preserves its pin membership and stored requirements.
+The preview reports the new name on the same ERC finding and accepts an empty
+replay of the rename.
 
 Done when:
 

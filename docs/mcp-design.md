@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `20`). Its `build` object contains
+`api_capability_version` (currently `21`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -335,6 +335,11 @@ Reconnecting with a stub requires one placed pin for that signal on the
 selected sheet. Component removal includes its gates on all sheets. Embedded
 library elements and previously unused nets are retained. A net that loses
 its last schematic use is removed unless the document ensures it in `add_nets`.
+
+Use `rename_nets` keyed by net UUID from `net_list` to change a name while
+preserving net identity and geometry. Each value has `expected` and `set`
+names. A name already taken by another net is a conflict. Renames run before
+`add_nets`, pin edits and wire groups, so those fields use the resulting names.
 
 `no_connects` sets visual no-connect markers on the selected sheet. Keys use
 `key.pin` and can refer to existing or newly added components. Set a key to
