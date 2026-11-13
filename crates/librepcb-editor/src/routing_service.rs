@@ -339,7 +339,7 @@ impl RoutingJob {
                     board,
                     base_candidate,
                     plan_counts,
-                    (vias, trace_segments),
+                    (vias.len(), trace_segments),
                     route.map(|request| *request),
                     || false,
                 )?

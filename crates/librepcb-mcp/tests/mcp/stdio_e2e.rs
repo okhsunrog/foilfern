@@ -146,7 +146,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 20);
+    assert_eq!(info["api_capability_version"], 21);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -2119,6 +2119,34 @@ async fn stdio_placement_search_generates_poses_and_stops_on_budget_or_cancel() 
     let applied = call_ok(&client, "routing_apply", json!({"candidate":candidate})).await;
     assert_eq!(applied["validation"]["after"]["unrouted"], 0);
     call_ok(&client, "undo", json!({})).await;
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
+    let guided = call_ok(
+        &client,
+        "routing_placement_start",
+        json!({
+            "targets":[{"component":"R2",
+                "region":{"min":{"x":5.2,"y":10},"max":{"x":5.95,"y":10.2}},
+                "pitch_mm":1,"rotations":[270]
+            }],
+            "copper":{}, "avoid_blockers":true, "max_trials":2
+        }),
+    )
+    .await;
+    assert_eq!(guided["total_poses"], 1);
+    assert_eq!(guided["planned_trials"], 2);
+    let stopped = poll(guided["search"].clone()).await;
+    let trials = stopped["comparison"]["trials"].as_array().unwrap();
+    assert_eq!(trials.len(), 2, "{stopped:#}");
+    assert_eq!(trials[0]["status"], "rejected");
+    assert_eq!(
+        trials[0]["clearance_conflicts"][0]["layers"],
+        json!(["top_cu"])
+    );
+    assert_eq!(trials[1]["suggested_by"], json!([0, 0]));
+    assert_eq!(
+        trials[1]["placements"][0]["position_mm"],
+        json!([5.7, 10.0])
+    );
     assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
     client.cancel().await.unwrap();
 }

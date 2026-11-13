@@ -239,8 +239,9 @@ Shipped: compare supplied or region-generated centers and angles for up to
 two devices, with protected copper, device-relative return vias, checked plane
 contacts and pad-to-pad limits. The background worker orders generated poses
 by the requested path objectives and rejects fixed copper conflicts before
-routing. Deriving useful trial sites directly from diagnosed blockers remains
-part of P4.
+routing. Optional obstacle guidance translates the moving pad/device-relative
+via away from fixed copper in quick DRC. Using failed routing searches to
+propose repairs for unresolved escape corridors remains part of P4.
 
 Done when:
 

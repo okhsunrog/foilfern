@@ -1,13 +1,11 @@
 //! Compare authorized local device poses on independent native snapshots.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 use std::time::{Duration, Instant};
 
 use librepcb_core::project::board::PlaneFragmentStatus;
 use librepcb_core::project::board::drc::DrcMessageKind;
 use librepcb_core::project::{BoardId, ComponentInstanceId, PlaneId, Project};
-use librepcb_core::rule_check::Severity;
-use librepcb_core::serialization::SExpression;
 use librepcb_core::types::{Angle, Point, Uuid};
 use librepcb_core::utils::transform::Transform;
 use serde::Serialize;
@@ -22,7 +20,9 @@ use crate::routing_validation::{
 };
 use crate::{Error, ProjectEditor, Result};
 
+mod clearance;
 mod poses;
+use clearance::{PlacementClearanceConflict, clearance_errors};
 mod worker;
 pub use poses::PlacementSites;
 use poses::{Pose, poses, rank_generated};
@@ -41,6 +41,7 @@ pub struct PlacementRequest {
     pub traces: Vec<PlacementTrace>,
     pub max_candidates: usize,
     pub max_time: Duration,
+    pub avoid_blockers: bool,
 }
 
 #[derive(Debug)]
@@ -91,12 +92,27 @@ pub struct PlacementViaContact {
 }
 
 #[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlacementTrialStatus {
+    #[default]
+    Rejected,
+    ValidUnretained,
+    Retained,
+}
+
+#[derive(Debug, Default, Serialize)]
 pub struct PlacementTrial {
     pub placements: Vec<PlacementPose>,
     pub candidate: Option<Uuid>,
+    pub status: PlacementTrialStatus,
+    /// Zero-based index of the rejected grid trial and conflict that suggested this pose.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggested_by: Option<[usize; 2]>,
     pub rejection: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub clearance_errors: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub clearance_conflicts: Vec<PlacementClearanceConflict>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub validation: Option<RoutingValidation>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -154,6 +170,11 @@ impl RoutingService {
         request: PlacementRequest,
     ) -> std::result::Result<PlacementJob, RoutingError> {
         let job = self.prepare_placement(editor, request)?;
+        if job.request.avoid_blockers {
+            return Err(
+                invalid("Obstacle-guided poses require a background placement search.").into(),
+            );
+        }
         if job.poses.len() > MAX_COMPARE_POSES
             || job
                 .request
@@ -284,42 +305,6 @@ impl RoutingService {
     }
 }
 
-/// Quick native DRC on fixed copper, before builtin can spend time searching
-/// around an impossible placement. Only explicit copper clearances are used:
-/// this check omits planes, and disconnected copper is normal during staging.
-fn clearance_errors(
-    editor: &mut ProjectEditor,
-    board: BoardId,
-    cancelled: &(dyn Fn() -> bool + Sync),
-) -> Result<Option<BTreeMap<SExpression, String>>> {
-    let check = editor
-        .update_derived_data(|p| p.run_drc_with_cancel(board, None, true, &|_| {}, cancelled))?
-        .map_err(|error| Error::InvalidArgument(error.to_string()))?;
-    let approvals = resolve_board(editor.project(), Some(board))?.drc_approvals();
-    Ok(check.errors.is_empty().then(|| {
-        check
-            .messages
-            .iter()
-            .filter(|message| {
-                message.message().severity() == Severity::Error
-                    && matches!(
-                        message.kind(),
-                        DrcMessageKind::CopperCopperClearanceViolation
-                            | DrcMessageKind::CopperBoardClearanceViolation
-                            | DrcMessageKind::CopperHoleClearanceViolation
-                    )
-                    && !approvals.contains(message.approval())
-            })
-            .map(|message| {
-                (
-                    message.approval().clone(),
-                    message.message().message().to_owned(),
-                )
-            })
-            .collect()
-    }))
-}
-
 fn measure_traces(
     project: &Project,
     board: BoardId,
@@ -428,18 +413,35 @@ impl PlacementJob {
         let mut clearance_rejections = 0;
         let mut full_checks = 0;
 
-        for placements in self.poses.into_iter().take(max_trials) {
-            if stop().is_some() {
-                break;
+        let mut grid = self.poses.into_iter();
+        let mut next = VecDeque::new();
+        let mut seen = HashSet::new();
+        let mut try_suggestion = false;
+        while trials.len() < max_trials && stop().is_none() {
+            let from_grid = |poses| (poses, None);
+            let (placements, suggested_by) = match if try_suggestion {
+                next.pop_front().or_else(|| grid.next().map(from_grid))
+            } else {
+                grid.next().map(from_grid).or_else(|| next.pop_front())
+            } {
+                Some(trial) => trial,
+                None => break,
+            };
+            try_suggestion = suggested_by.is_none();
+            if !seen.insert(placements.clone()) {
+                continue;
             }
             if let Some(state) = &worker {
                 state.begin_trial(&placements);
             }
             let mut source = self.source.fork()?;
-            let mut trial = PlacementTrial::default();
+            let mut trial = PlacementTrial {
+                suggested_by,
+                ..PlacementTrial::default()
+            };
             let mut plan = self.request.copper.clone();
             let mut transforms = BTreeMap::new();
-            for pose in placements {
+            for &pose in &placements {
                 trial.placements.push(pose.into());
                 transforms.insert(
                     pose.component,
@@ -462,7 +464,7 @@ impl PlacementJob {
                 }
             }
             let counts = PlanCounts::from(&plan);
-            let added = match plan.run(&mut source.sandbox) {
+            let (vias, trace_segments) = match plan.run(&mut source.sandbox) {
                 Ok(added) => added,
                 Err(error) => {
                     trial.rejection = Some(error.to_string());
@@ -478,14 +480,44 @@ impl PlacementJob {
             if let Some(baseline) = &clearance_baseline
                 && let Ok(Some(errors)) = clearance_errors(&mut source.sandbox, board, &interrupted)
             {
-                trial.clearance_errors = errors
-                    .into_iter()
-                    .filter_map(|(key, message)| (!baseline.contains_key(&key)).then_some(message))
-                    .take(8)
+                if interrupted() {
+                    break;
+                }
+                trial.clearance_conflicts =
+                    PlacementClearanceConflict::introduced(baseline, errors, &vias);
+                trial.clearance_errors = trial
+                    .clearance_conflicts
+                    .iter()
+                    .map(|conflict| conflict.message().to_owned())
                     .collect();
-                if !trial.clearance_errors.is_empty() {
+                if !trial.clearance_conflicts.is_empty() {
                     trial.rejection = Some("staged_copper_clearance".into());
                     clearance_rejections += 1;
+                    if self.request.avoid_blockers && suggested_by.is_none() {
+                        let project = source.sandbox.project();
+                        for (conflict_index, conflict) in
+                            trial.clearance_conflicts.iter().enumerate()
+                        {
+                            let neighbors = conflict.neighbors(
+                                project,
+                                self.source.sandbox.project(),
+                                board,
+                                &placements,
+                                &self.request.targets,
+                                &self.request.relative_vias,
+                            );
+                            next.extend(
+                                neighbors
+                                    .into_iter()
+                                    .filter(|poses| !seen.contains(poses))
+                                    .take(2)
+                                    .map(|poses| (poses, Some([trials.len(), conflict_index]))),
+                            );
+                            if !next.is_empty() {
+                                break;
+                            }
+                        }
+                    }
                     record(&mut trials, trial);
                     continue;
                 }
@@ -500,7 +532,7 @@ impl PlacementJob {
                 board,
                 None,
                 counts,
-                added,
+                (vias.len(), trace_segments),
                 self.request.route.clone(),
                 interrupted,
             ) {
@@ -562,6 +594,7 @@ impl PlacementJob {
                 if candidate.mutations().is_empty() {
                     trial.rejection = Some("no_changes".into());
                 } else {
+                    trial.status = PlacementTrialStatus::ValidUnretained;
                     winners.push((rank, trials.len(), candidate));
                     winners.sort_by(|(a, _, _), (b, _, _)| {
                         a.0.cmp(&b.0)
@@ -579,11 +612,15 @@ impl PlacementJob {
             .into_iter()
             .map(|(_, index, candidate)| {
                 trials[index].candidate = Some(candidate.info.candidate);
+                trials[index].status = PlacementTrialStatus::Retained;
                 candidate
             })
             .collect();
         let recommended = candidates.first().map(|candidate| candidate.info.candidate);
-        let stop = if trials.len() == total_poses {
+        let stop = if grid.len() == 0
+            && next.is_empty()
+            && (stop().is_none() || trials.len() == max_trials)
+        {
             StopReason::Completed
         } else if trials.len() == max_trials {
             StopReason::TrialLimit

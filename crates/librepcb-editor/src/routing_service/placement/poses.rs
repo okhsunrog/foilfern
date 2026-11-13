@@ -61,7 +61,7 @@ impl PlacementSites {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct Pose {
     pub component: ComponentInstanceId,
     pub position: Point,

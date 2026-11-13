@@ -39,6 +39,9 @@ pub struct RoutingPlacementArgs {
     pub max_time_ms: Option<u64>,
     /// Background search only. Try up to this many joint poses (1–64, default 16).
     pub max_trials: Option<usize>,
+    /// Background only. Try bounded shifts prompted by exact staged copper conflicts.
+    #[serde(default)]
+    pub avoid_blockers: bool,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -80,7 +83,10 @@ pub fn prepare_placement(
     session: &Session,
     args: RoutingPlacementArgs,
 ) -> ToolResult<PlacementJob> {
-    if args.max_trials.is_some() || args.targets.iter().any(|target| target.region.is_some()) {
+    if args.avoid_blockers
+        || args.max_trials.is_some()
+        || args.targets.iter().any(|target| target.region.is_some())
+    {
         return Err(ToolError::invalid(
             "Use routing_placement_start for regions or trial limits.",
         ));
@@ -212,6 +218,7 @@ fn placement_request(
         traces,
         max_candidates: args.max_candidates.unwrap_or(2),
         max_time: Duration::from_millis(args.max_time_ms.unwrap_or(30_000)),
+        avoid_blockers: args.avoid_blockers,
     })
 }
 

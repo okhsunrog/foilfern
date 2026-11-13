@@ -991,15 +991,10 @@ impl Checker<'_> {
 
         // Emit messages.
         for v in violations {
-            let count = v.layers.count_ones() as usize;
-            let single = (count == 1)
-                .then(|| Layer::copper(v.layers.trailing_zeros() as usize))
-                .flatten();
             messages.push(DrcMessage::copper_copper_clearance_violation(
                 &items[v.obj1].object,
                 &items[v.obj2].object,
-                count,
-                single,
+                v.layers,
                 v.clearance,
                 v.locations,
             ));

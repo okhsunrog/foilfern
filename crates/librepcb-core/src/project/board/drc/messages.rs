@@ -120,6 +120,7 @@ pub enum DrcMessageKind {
 pub struct DrcMessage {
     kind: DrcMessageKind,
     message: RuleCheckMessage,
+    copper_layers: u64,
 }
 
 impl DrcMessage {
@@ -133,6 +134,7 @@ impl DrcMessage {
     ) -> Self {
         Self {
             kind,
+            copper_layers: 0,
             message: RuleCheckMessage::new(
                 severity,
                 message,
@@ -161,6 +163,15 @@ impl DrcMessage {
     /// Returns the approval node.
     pub fn approval(&self) -> &SExpression {
         self.message.approval()
+    }
+
+    /// Layers implicated by a copper-pair clearance finding.
+    pub fn copper_layers(&self) -> impl Iterator<Item = Layer> + '_ {
+        (0..u64::BITS).filter_map(|index| {
+            (self.copper_layers & (1 << index) != 0)
+                .then(|| Layer::copper(index as usize))
+                .flatten()
+        })
     }
 
     fn approval_mut(&mut self) -> &mut List {
@@ -1166,12 +1177,13 @@ impl DrcMessage {
     pub(super) fn copper_copper_clearance_violation(
         obj1: &CopperObject<'_>,
         obj2: &CopperObject<'_>,
-        layer_count: usize,
-        single_layer: Option<Layer>,
+        layers: u64,
         min_clearance: Length,
         locations: Vec<Path>,
     ) -> Self {
         const CTX: &str = "DrcMsgCopperCopperClearanceViolation";
+        let layer_count = layers.count_ones();
+        let single_layer = Layer::copper(layers.trailing_zeros() as usize);
         let layer_name = match (layer_count, single_layer) {
             (1, Some(layer)) => format!("'{}'", layer.name_tr()),
             _ => tr!(CTX, "{0} layers", layer_count),
@@ -1201,6 +1213,7 @@ impl DrcMessage {
             "copper_clearance_violation",
             locations,
         );
+        m.copper_layers = layers;
         // Sort nodes to make the approval canonical.
         m.push_sorted_pair(obj1.serialize(), obj2.serialize(), None);
         m

@@ -83,8 +83,9 @@ The editor owns one `RoutingService` per open project; MCP is its transport.
   Placement comparison trials cover up to 16 combinations of supplied positions
   and angles, with device-relative through vias, plane contacts and pad-to-pad
   trace limits. Background placement search also generates centers on a
-  restricted grid and reports progress, budget and cancellation. Connected
-  side changes remain future work.
+  restricted grid and reports progress, budget and cancellation. Optional
+  obstacle guidance tries nearby positions from staged pad/via clearance
+  conflicts. Connected side changes remain future work.
 - Full before/after board checks, per-net connectivity regressions/improvements,
   new warnings and `connectivity_progress` separate from `acceptable`.
   An acceptable partial or unchanged candidate is not proof of target completion.

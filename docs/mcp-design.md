@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `20`). Its `build` object contains
+`api_capability_version` (currently `21`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -646,6 +646,24 @@ form at most 4,096 joint poses. The worker tries at most `max_trials`
 summed straight-line distance of `minimize` pad pairs, then distance from
 region centers, and keeps grid order for ties. Actual routing, copper
 clearance and engineering checks determine which of the trials are viable.
+
+`avoid_blockers: true` opts into extra in-region trials when quick DRC
+finds a copper-pair clearance between a moving footprint pad or a
+device-relative via and fixed copper. For a rejected grid trial, the
+worker proposes up to two offsets away from the fixed trace, via or pad,
+and interleaves them with ordinary grid trials within the same budget.
+The offsets can fall between grid points. A pose keeps its allowed rotation,
+and new trials preserve all original copper permissions. `total_poses`
+counts the grid combinations. With obstacle guidance, `planned_trials`
+is the upper limit including suggestions.
+
+Each comparison trial has a `status` of `rejected`, `valid_unretained` or
+`retained`. Quick DRC conflicts include object UUIDs, their owner when
+applicable, location bounds in millimeters and known copper-pair layers.
+A via created on the detached board includes its index into `copper.vias`
+for identification across trials. A suggested pose's `suggested_by` pair
+indexes its parent trial and that trial's `clearance_conflicts` in the
+report, counting from zero. All patches still require full validation.
 
 Pass the returned UUID as `search` to `routing_placement_status`.
 It reports the stage, current poses, planned and completed trial counts,

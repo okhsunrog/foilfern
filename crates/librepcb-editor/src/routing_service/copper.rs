@@ -63,7 +63,7 @@ impl CopperPlan {
     pub(super) fn run(
         self,
         sandbox: &mut ProjectEditor,
-    ) -> std::result::Result<(usize, usize), RoutingError> {
+    ) -> std::result::Result<(Vec<Uuid>, usize), RoutingError> {
         let removed: BTreeSet<_> = self
             .remove_traces
             .union(&self.remove_vias)
@@ -151,7 +151,7 @@ impl CopperPlan {
             let after = region::copper(project, resolve_board(project, Some(self.board))?)?;
             region::ensure_preserved_copper(&before, &after, &removed)?;
         }
-        Ok((vias.len(), segments))
+        Ok((vias, segments))
     }
 }
 

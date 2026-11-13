@@ -2579,6 +2579,7 @@ fn placement_comparison_rejects_copper_collisions_and_ranks_checked_paths() {
             {"x":5.2,"y":8.1},{"x":13,"y":10},{"x":11,"y":10},{"x":9,"y":10}
         ]}],
         "copper":{"route":{"nets":["A","B"],"layers":["top"]},"expected_revision":revision},
+        "max_candidates":1,
         "trace_requirements":[
             {"requirement":{
                 "path":{"from":"R1.1","to":"R2.1"},
@@ -2598,6 +2599,30 @@ fn placement_comparison_rejects_copper_collisions_and_ranks_checked_paths() {
         result["trials"][0]["rejection"], "staged_copper_clearance",
         "{result:#}"
     );
+    let conflicts = result["trials"][0]["clearance_conflicts"]
+        .as_array()
+        .unwrap();
+    let conflict = conflicts
+        .iter()
+        .find(|conflict| conflict["kind"] == "CopperCopperClearanceViolation")
+        .unwrap();
+    assert_eq!(conflict["layers"], json!(["top_cu"]));
+    assert_eq!(conflict["location_bounds_mm"].as_array().unwrap().len(), 2);
+    assert_eq!(conflict["objects"].as_array().unwrap().len(), 2);
+    assert!(
+        conflict["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|object| {
+                object["kind"] == "pad"
+                    && object["uuid"].is_string()
+                    && object["component"].is_string()
+            })
+    );
+    assert_eq!(result["trials"][0]["status"], "rejected");
+    assert_eq!(result["trials"][2]["status"], "valid_unretained");
+    assert_eq!(result["trials"][3]["status"], "retained");
     assert_eq!(result["clearance_rejections"], 1);
     assert_eq!(result["full_checks"], 3);
     assert_eq!(result["trials"][1]["rejection"], "trace_requirement");

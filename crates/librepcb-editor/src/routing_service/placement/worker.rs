@@ -174,6 +174,14 @@ impl RoutingService {
                 "A placement search is already running.".into(),
             ));
         }
+        if request.avoid_blockers
+            && !request
+                .targets
+                .iter()
+                .any(|target| matches!(target.sites, super::PlacementSites::Grid { .. }))
+        {
+            return Err(invalid("Obstacle-guided placement needs a permitted region.").into());
+        }
         let mut job = self.prepare_placement(editor, request)?;
         let state = Arc::new(ActivePlacementSearch {
             id: Uuid::new_random(),
@@ -182,7 +190,11 @@ impl RoutingService {
             started: Instant::now(),
             budget: job.request.max_time,
             total: job.poses.len(),
-            planned: max_trials.min(job.poses.len()),
+            planned: if job.request.avoid_blockers {
+                max_trials
+            } else {
+                max_trials.min(job.poses.len())
+            },
             reserved: job.request.max_candidates,
             cancel: AtomicBool::new(false),
             progress: Mutex::new(Progress {
