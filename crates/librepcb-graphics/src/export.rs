@@ -5,6 +5,7 @@ use kurbo::{Affine, Rect};
 use librepcb_core::{
     export::PageOrientation,
     fileio::{FilePath, file_utils},
+    types::Point,
 };
 use std::path::Path;
 struct PageLayout {
@@ -67,6 +68,32 @@ impl GraphicsExport {
             .iter()
             .map(|drawing| self.render_png_with_bounds(drawing, settings, width, height, bounds))
             .collect()
+    }
+
+    /// Renders a model-coordinate region. The output is letterboxed as needed.
+    pub fn render_region_png(
+        &self,
+        drawing: &Drawing,
+        settings: &GraphicsSettings,
+        min: Point,
+        max: Point,
+        width: u32,
+        height: u32,
+    ) -> Result<Vec<u8>> {
+        let bounds = Rect::new(min.x.to_mm(), -max.y.to_mm(), max.x.to_mm(), -min.y.to_mm());
+        if bounds.width() <= 0. || bounds.height() <= 0. {
+            return Err(Error::Dimensions);
+        }
+        let settings = GraphicsSettings {
+            margins: [0.; 4],
+            paper: None,
+            orientation: PageOrientation::Auto,
+            scale: None,
+            rotate: false,
+            mirror: false,
+            ..settings.clone()
+        };
+        self.render_png_with_bounds(drawing, &settings, width, height, Some(bounds))
     }
 
     fn render_png_with_bounds(
@@ -357,9 +384,19 @@ impl GraphicsExport {
             String::new()
         };
         let title = svg::node::element::Title::new(self.title.clone());
-        let svg = format!(
-            "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"{w}mm\" height=\"{h}mm\" viewBox=\"0 0 {w} {h}\">{title}{background}<g transform=\"matrix({} {} {} {} {} {})\">{body}</g></svg>",
+        let content = format!(
+            "<g transform=\"matrix({} {} {} {} {} {})\">{body}</g>",
             c[0], c[1], c[2], c[3], c[4], c[5]
+        );
+        let content = if bounds.is_some() {
+            format!(
+                "<defs><clipPath id=\"page_crop\"><rect width=\"{w}\" height=\"{h}\"/></clipPath></defs><g clip-path=\"url(#page_crop)\">{content}</g>"
+            )
+        } else {
+            content
+        };
+        let svg = format!(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"{w}mm\" height=\"{h}mm\" viewBox=\"0 0 {w} {h}\">{title}{background}{content}</svg>"
         );
         Ok(PageLayout {
             svg,

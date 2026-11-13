@@ -6,6 +6,7 @@ use librepcb_canvas::kurbo::Rect;
 use librepcb_canvas::peniko::Color;
 use librepcb_canvas::{CpuRenderer, CpuRendererSettings, Renderer, Scene, View};
 use librepcb_core::project::{BoardId, Project, SchematicId};
+use librepcb_core::types::Point;
 
 use crate::board::{BoardScene, BoardSide};
 use crate::colors::ColorScheme;
@@ -102,6 +103,16 @@ pub fn render_scene(
     background: Color,
     options: &RenderOptions,
 ) -> Result<RgbaImage> {
+    Ok(render_scene_with_view(scene, bounds, mirrored, background, options)?.0)
+}
+
+fn render_scene_with_view(
+    scene: &Scene,
+    bounds: Option<Rect>,
+    mirrored: bool,
+    background: Color,
+    options: &RenderOptions,
+) -> Result<(RgbaImage, View)> {
     // Show 10 mm around the origin if there is nothing to show.
     let bounds = bounds
         .filter(|r| r.width().is_finite() && r.height().is_finite())
@@ -159,11 +170,14 @@ pub fn render_scene(
             }
         }
     }
-    Ok(RgbaImage {
-        width,
-        height,
-        data,
-    })
+    Ok((
+        RgbaImage {
+            width,
+            height,
+            data,
+        },
+        view,
+    ))
 }
 
 /// Renders a schematic page with the default color scheme
@@ -189,6 +203,55 @@ pub fn render_schematic_scene(
         options.background.unwrap_or(scene.background()),
         options,
     )
+}
+
+/// Renders a schematic region in sheet coordinates. Pixels outside the
+/// requested rectangle are filled with the scene background.
+pub fn render_schematic_region(
+    scene: &SchematicScene,
+    min: Point,
+    max: Point,
+    width: u32,
+    height: u32,
+) -> Result<RgbaImage> {
+    let bounds = Rect::new(min.x.to_mm(), min.y.to_mm(), max.x.to_mm(), max.y.to_mm());
+    if bounds.width() <= 0. || bounds.height() <= 0. {
+        return Err(Error::InvalidRegion);
+    }
+    let options = RenderOptions {
+        size: RenderSize::Fit { width, height },
+        margin: 0.,
+        background: None,
+    };
+    let background = scene.background();
+    let (mut image, view) =
+        render_scene_with_view(scene.scene(), Some(bounds), false, background, &options)?;
+    let scale = view.scale();
+    let x0 = (f64::from(width) - bounds.width() * scale) / 2.;
+    let y0 = (f64::from(height) - bounds.height() * scale) / 2.;
+    let x1 = f64::from(width) - x0;
+    let y1 = f64::from(height) - y0;
+    let color = background.to_rgba8();
+    let rgba = [color.r, color.g, color.b, color.a];
+    let edge = |coordinate: f64| (coordinate - 0.5).ceil().clamp(0., f64::from(width)) as usize;
+    let left = edge(x0);
+    let right = edge(x1);
+    for (index, row) in image
+        .data
+        .as_chunks_mut::<4>()
+        .0
+        .chunks_mut(width as usize)
+        .enumerate()
+    {
+        let y = index as f64 + 0.5;
+        if y < y0 || y >= y1 {
+            row.fill(rgba);
+        } else {
+            row[..left].fill(rgba);
+            row[right..].fill(rgba);
+        }
+    }
+    Ok(image)
 }
 
 /// Renders a board seen from `side` with the default color scheme

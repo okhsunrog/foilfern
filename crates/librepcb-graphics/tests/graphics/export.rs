@@ -84,6 +84,30 @@ fn comparison_keeps_shared_geometry_in_the_same_pixels() {
 }
 
 #[test]
+fn region_clips_drawing_to_model_coordinates() {
+    let mut page = page();
+    page.settings.orientation = PageOrientation::Portrait;
+    let png = GraphicsExport::default()
+        .render_region_png(
+            &page.drawing,
+            &page.settings,
+            Point::from_nm(0, 3_000_000),
+            Point::from_nm(20_000_000, 7_000_000),
+            400,
+            400,
+        )
+        .unwrap();
+    let image = image::load_from_memory(&png).unwrap().to_rgba8();
+    assert_eq!(image.dimensions(), (400, 400));
+    for y in [161, 200, 238] {
+        assert_eq!(image.get_pixel(200, y).0, [220, 0, 0, 255]);
+    }
+    for y in [100, 159, 240, 300] {
+        assert_eq!(image.get_pixel(200, y).0, [0; 4]);
+    }
+}
+
+#[test]
 fn rotation_mirroring_margins_and_fixed_paper() {
     let mut page = page();
     let exporter = GraphicsExport::default();

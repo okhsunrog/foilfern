@@ -28,6 +28,7 @@ use crate::error::{ToolError, ToolResult};
 use crate::outcome::ToolOutput;
 use crate::resolve;
 use crate::session::{Session, absolute_path};
+use crate::units::PointMm;
 use crate::views;
 
 /// Arguments of `erc_run`.
@@ -145,6 +146,30 @@ pub struct RenderArgs {
     /// Image height in pixels (default 1200, max 4096).
     #[serde(default)]
     pub height: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub(super) struct SchematicRegion {
+    /// Bottom-left corner in sheet millimeters.
+    min: PointMm,
+    /// Top-right corner in sheet millimeters.
+    max: PointMm,
+}
+
+impl SchematicRegion {
+    pub(super) fn points(
+        self,
+    ) -> ToolResult<(librepcb_core::types::Point, librepcb_core::types::Point)> {
+        let min = self.min.to_point()?;
+        let max = self.max.to_point()?;
+        if min.x >= max.x || min.y >= max.y {
+            return Err(ToolError::invalid(
+                "The schematic region needs positive width and height.",
+            ));
+        }
+        Ok((min, max))
+    }
 }
 
 fn severity_str(s: Severity) -> &'static str {
@@ -518,6 +543,7 @@ pub(super) fn render_schematic_comparison(
     schematic: &librepcb_core::project::schematic::Schematic,
     width: u32,
     height: u32,
+    region: Option<(librepcb_core::types::Point, librepcb_core::types::Point)>,
 ) -> ToolResult<Vec<Vec<u8>>> {
     let old = before.schematic(schematic.id());
     if schematic.images().is_empty() && old.is_none_or(|sheet| sheet.images().is_empty()) {
@@ -537,14 +563,21 @@ pub(super) fn render_schematic_comparison(
             size: RenderSize::Fit { width, height },
             ..Default::default()
         };
+        let render = |scene: &SchematicScene| {
+            if let Some((min, max)) = region {
+                librepcb_scene::render_schematic_region(scene, min, max, width, height)
+            } else {
+                render_scene(
+                    scene.scene(),
+                    bounds,
+                    false,
+                    new_scene.background(),
+                    &options,
+                )
+            }
+        };
         let before_png = if let Some(scene) = old_scene {
-            render_scene(
-                scene.scene(),
-                bounds,
-                false,
-                new_scene.background(),
-                &options,
-            )?
+            render(&scene)?
         } else {
             librepcb_scene::RgbaImage {
                 width,
@@ -552,13 +585,7 @@ pub(super) fn render_schematic_comparison(
                 data: vec![255; width as usize * height as usize * 4],
             }
         };
-        let after_png = render_scene(
-            new_scene.scene(),
-            bounds,
-            false,
-            new_scene.background(),
-            &options,
-        )?;
+        let after_png = render(&new_scene)?;
         return Ok(vec![after_png.to_png()?, before_png.to_png()?]);
     }
     let settings = librepcb_graphics::GraphicsSettings {
@@ -573,14 +600,17 @@ pub(super) fn render_schematic_comparison(
         .map(|sheet| draw(before, sheet))
         .transpose()?
         .unwrap_or_default();
-    librepcb_graphics::GraphicsExport::default()
-        .render_matched_pngs(
-            &[draw(after, schematic)?, original],
-            &settings,
-            width,
-            height,
-        )
-        .map_err(|error| ToolError::internal(error.to_string()))
+    let drawings = [draw(after, schematic)?, original];
+    let exporter = librepcb_graphics::GraphicsExport::default();
+    let result = if let Some((min, max)) = region {
+        drawings
+            .iter()
+            .map(|drawing| exporter.render_region_png(drawing, &settings, min, max, width, height))
+            .collect()
+    } else {
+        exporter.render_matched_pngs(&drawings, &settings, width, height)
+    };
+    result.map_err(|error| ToolError::internal(error.to_string()))
 }
 
 /// Arguments of `drc_run`.

@@ -316,8 +316,9 @@ added/removed copper, moved components, remaining connections and DRC locations.
 Use the same IDs, revisions and apply/discard operations as MCP.
 
 Schematic MCP previews can return matched before/after images at a common
-scale and origin, including sheets with imported bitmap images. The desktop
-board overlay has its own acceptance below.
+scale and origin, including sheets with imported bitmap images. Callers can
+also request a sheet-coordinate rectangle for a close-up of the same change.
+The desktop board overlay has its own acceptance below.
 
 Done when:
 

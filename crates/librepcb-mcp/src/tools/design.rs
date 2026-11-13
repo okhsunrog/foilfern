@@ -118,6 +118,8 @@ pub struct DesignDocument {
     /// Include before and after PNGs at a shared scale and origin.
     #[serde(default)]
     compare_images: bool,
+    /// Optional crop for the paired preview images, in sheet millimeters.
+    image_region: Option<super::output::SchematicRegion>,
     /// Stable document keys bound to existing components by UUID or designator.
     #[serde(default)]
     components: BTreeMap<String, ExistingComponent>,
@@ -413,6 +415,10 @@ pub(crate) fn prepare(
         snapshot,
         document: doc,
     } = job;
+    let region = doc
+        .image_region
+        .map(super::output::SchematicRegion::points)
+        .transpose()?;
     let p = snapshot.project();
     let mut new_page = None;
     let schematic = if doc.create_schematic {
@@ -885,10 +891,14 @@ pub(crate) fn prepare(
         ));
     }
     checkpoint(Stage::Render)?;
-    let output = if doc.compare_images {
-        let images =
-            super::output::render_schematic_comparison(&before, &project, schematic, 1600, 1200)?;
+    let output = if doc.compare_images || region.is_some() {
+        let images = super::output::render_schematic_comparison(
+            &before, &project, schematic, 1600, 1200, region,
+        )?;
         payload["images"] = json!(["after", "before"]);
+        if let Some((min, max)) = region {
+            payload["image_region"] = json!({"min":views::point(min),"max":views::point(max)});
+        }
         let mut output = ToolOutput::new(
             format!("{summary} PNGs are ordered after, before."),
             payload,

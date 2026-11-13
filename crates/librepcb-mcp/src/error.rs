@@ -285,6 +285,7 @@ impl From<librepcb_scene::Error> for ToolError {
     fn from(e: librepcb_scene::Error) -> Self {
         let kind = match &e {
             librepcb_scene::Error::SchematicNotFound(..) => ErrorKind::NotFound,
+            librepcb_scene::Error::InvalidRegion => ErrorKind::InvalidArgument,
             _ => ErrorKind::Internal,
         };
         Self::new(kind, e.to_string())

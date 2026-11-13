@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 23);
+    assert_eq!(info["api_capability_version"], 24);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -2142,13 +2142,17 @@ async fn stdio_design_preview_reports_resolved_erc_without_changing_approvals() 
     let response = call(
         &client,
         "design_preview",
-        json!({"version":1,"schematic":"Main","compare_images":true,
+        json!({"version":1,"schematic":"Main","image_region":{"min":{"x":20,"y":-10},"max":{"x":60,"y":10}},
         "components":{"r2":{"designator":"R2"}},"pin_nets":{"r2.1":{"expected":null,"set":"EN"}}}),
     )
     .await;
     assert_ne!(response.is_error, Some(true));
     let preview = &response.structured_content.as_ref().unwrap()["result"];
     assert_eq!(preview["images"], json!(["after", "before"]));
+    assert_eq!(
+        preview["image_region"],
+        json!({"min":{"x":20.0,"y":-10.0},"max":{"x":60.0,"y":10.0}})
+    );
     let images: Vec<_> = response
         .content
         .iter()

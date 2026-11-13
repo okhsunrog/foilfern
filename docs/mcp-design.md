@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `23`). Its `build` object contains
+`api_capability_version` (currently `24`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -180,8 +180,8 @@ setting for the MCP crate. Record the actual build command for timing comparison
 
 Declarative schematic creation (P1) starts with an open native project.
 Persisted schematic requirements (P2) are available for declarative
-apply. Board requirements, worker jobs/cancellation (P3) and visual candidate
-review (P5) remain pending.
+apply. Schematic previews have worker status, cancellation, and matched images.
+Board requirements and desktop candidate review remain pending.
 `routing_compare` already ranks builtin-order candidates; runtime
 candidate capacity does not limit the number of active preparation workers.
 
@@ -201,6 +201,10 @@ the page itself. Omit `create_schematic` to select an existing page.
 Set `compare_images: true` to attach two PNGs with one common extent, scale
 and origin. The `images` array names them in MCP content order, `after`
 followed by `before`. A new sheet has a blank before image.
+Set `image_region` to `{"min":{"x":20,"y":-10},"max":{"x":60,"y":10}}`
+to request the same pair cropped to a rectangle in native sheet millimeters
+with positive Y up. Both axes must have positive extent. The output fits the
+region without stretching and fills any padding with the page background.
 
 The server captures the source under the session lock, then plans, checks and
 renders on the detached model. One schematic preview may run per server state.
