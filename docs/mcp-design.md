@@ -607,6 +607,12 @@ binary at build time from `$LIBREPCB_UPSTREAM_DIR/share/librepcb/fontobene`
   devices, set outline, autoroute, add a ground plane, run ERC/DRC, export,
   save, and open the result with the official `librepcb-cli` (ERC/DRC
   clean, Gerber export works).
+- The `stdio_esp32_c3_schematic_acceptance` replay uses the published
+  [dev-board document](examples/esp32-c3-devboard.json) from a blank sheet.
+  Set `LIBREPCB_TEST_LIBRARIES_DIR` to the directory containing the four
+  listed `.lplib` libraries and `LIBREPCB_CLI` to the official CLI for the
+  upstream ERC check, then run
+  `cargo test -p librepcb-mcp --test mcp stdio_esp32_c3_schematic_acceptance`.
 
 ### Reviewed builtin routing
 

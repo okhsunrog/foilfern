@@ -669,6 +669,102 @@ fn link_test_libraries(libraries_path: &Path) -> bool {
     count > 0
 }
 
+/// Replays the published dev-board schematic from a fresh project using
+/// the official library cache, with an optional independent upstream ERC.
+#[tokio::test]
+async fn stdio_esp32_c3_schematic_acceptance() {
+    let tmp = tempfile::tempdir().unwrap();
+    let cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let workspace = call_ok(
+        &client,
+        "workspace_create",
+        json!({"path":tmp.path().join("ws")}),
+    )
+    .await;
+    if !link_test_libraries(Path::new(workspace["libraries_path"].as_str().unwrap())) {
+        eprintln!("LIBREPCB_TEST_LIBRARIES_DIR not set, skipping ESP32-C3 acceptance replay");
+        client.cancel().await.unwrap();
+        return;
+    }
+    call_ok(&client, "library_rescan", json!({})).await;
+    let project = call_ok(
+        &client,
+        "project_create",
+        json!({"name":"ESP32-C3 acceptance"}),
+    )
+    .await;
+    let document: Value = serde_json::from_str(include_str!(
+        "../../../../docs/examples/esp32-c3-devboard.json"
+    ))
+    .unwrap();
+    let empty = call_ok(&client, "schematic_get", json!({})).await;
+    let preview = call_ok(&client, "design_preview", document.clone()).await;
+    assert_eq!(
+        preview["erc"],
+        json!({"introduced":[],"inherited":[],"resolved":[]})
+    );
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, empty);
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":preview["preview"]}),
+    )
+    .await;
+    let page = call_ok(&client, "schematic_get", json!({})).await;
+    assert_eq!(page["symbols"].as_array().unwrap().len(), 23);
+    assert_eq!(page["net_segments"].as_array().unwrap().len(), 27);
+    assert_eq!(page["texts"].as_array().unwrap().len(), 13);
+    let netlist = call_ok(&client, "netlist", json!({})).await;
+    assert_eq!(netlist["nets"].as_object().unwrap().len(), 14);
+    assert_eq!(
+        netlist["nets"]["EN"],
+        json!(["C3.2", "R1.1", "S1.2", "U1.EN"])
+    );
+    assert_eq!(netlist["nets"]["GPIO9"], json!(["R2.1", "S2.2", "U1.IO9"]));
+    let erc = call_ok(&client, "erc_run", json!({})).await;
+    assert_eq!(erc["messages"], json!([]));
+
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, empty);
+    call_ok(&client, "redo", json!({})).await;
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, page);
+    call_ok(
+        &client,
+        "symbol_text_move",
+        json!({"component":"C3","text":"name","position":{"x":15.24,"y":29.45}}),
+    )
+    .await;
+    let hand_edited = call_ok(&client, "schematic_get", json!({})).await;
+    assert_ne!(hand_edited, page);
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    let path = project["path"].as_str().unwrap();
+    if let Some(cli) = crate::common::upstream_cli() {
+        let (ok, text) = crate::common::run_cli(&cli, &["open-project", path, "--erc"]);
+        assert!(ok && text.contains("Non-approved messages: 0"), "{text}");
+    }
+    call_ok(&client, "project_open", json!({"path":path})).await;
+    let history = call_ok(&client, "history", json!({})).await;
+    let replay = call_ok(&client, "design_preview", document).await;
+    assert_eq!(replay["diff"], json!([]));
+    assert_eq!(replay["erc"]["introduced"], json!([]));
+    let applied = call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":replay["preview"]}),
+    )
+    .await;
+    assert_eq!(applied["operation_count"], 0);
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    assert_eq!(
+        call_ok(&client, "schematic_get", json!({})).await,
+        hand_edited
+    );
+    assert_eq!(call_ok(&client, "netlist", json!({})).await, netlist);
+    client.cancel().await.unwrap();
+}
+
 /// The full agent workflow over stdio with the official libraries (LibrePCB
 /// Base and Connectors, from `LIBREPCB_TEST_LIBRARIES_DIR`; skipped if not
 /// set): a 2-pin connector powering a LED with a series resistor, supply

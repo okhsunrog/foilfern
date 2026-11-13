@@ -128,6 +128,10 @@ Every preview now compares ERC findings before and after the proposed patch.
 The report identifies introduced, inherited and resolved findings without
 changing live approvals. A fresh replay of the dev board from a blank sheet
 reported zero introduced findings across 77 reviewed changes.
+The `stdio_esp32_c3_schematic_acceptance` replay checks 23 symbols, 27 wire
+segments, 13 notes and 14 nets, including the EN and BOOT memberships.
+It checks undo/redo, saved-project ERC with the upstream CLI, and an empty
+reapply after moving the C3 designator by hand and reopening.
 
 Done when:
 
