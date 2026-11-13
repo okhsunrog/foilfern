@@ -557,6 +557,10 @@ the board and applicable net-class minimum widths. It captures an isolated nativ
 the host locks, runs builtin search and before/after DRC, and retains the exact
 mutation candidate only if its source project session and revision still match.
 It does not edit the live board or its revision, dirty state, undo/redo or files.
+The optional nonnegative `via_cost` expresses the cost of a layer change
+in equivalent millimeters of trace, with a default of 2 mm. The same
+preference is available in comparisons, regional routing and post-edit
+continuation, and is shown in the rule provenance from `routing_diagnose`.
 If rebuilt planes leave more connections open on a net, validation lists its
 ID in `unrouted_regressions` and includes names, before/after counts and
 sampled air-wire endpoints in mm in `unrouted_regression_details`. These

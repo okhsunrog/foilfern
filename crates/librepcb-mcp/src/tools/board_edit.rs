@@ -50,7 +50,7 @@ pub(crate) fn positive(mm: f64, what: &str) -> ToolResult<PositiveLength> {
         .map_err(|_| ToolError::invalid(format!("{what} must be greater than zero")))
 }
 
-fn unsigned(mm: f64, what: &str) -> ToolResult<UnsignedLength> {
+pub(super) fn unsigned(mm: f64, what: &str) -> ToolResult<UnsignedLength> {
     UnsignedLength::new(length(mm)?)
         .map_err(|_| ToolError::invalid(format!("{what} must not be negative")))
 }

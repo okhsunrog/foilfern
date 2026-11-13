@@ -811,11 +811,14 @@ fn preparation_and_paginated_preview_leave_live_state_and_redo_untouched() {
     let net = librepcb_mcp::resolve::net(open.project(), "A").unwrap().0;
     let prepared = routing::routing_prepare(
         &mut session,
-        args(json!({"expected_revision": revision, "pad_escape":true, "critical_nets":["A"]})),
+        args(json!({
+            "expected_revision":revision, "pad_escape":true, "critical_nets":["A"], "via_cost":0
+        })),
     )
     .unwrap();
     assert_eq!(prepared.result["base_revision"], revision);
     assert_eq!(prepared.result["request"]["pad_escape"], true);
+    assert_eq!(prepared.result["request"]["via_cost"], 0);
     assert_eq!(
         prepared.result["request"]["critical_nets"],
         json!([librepcb_editor::commands::NetRef::Id(net)])
@@ -1449,7 +1452,8 @@ fn diagnostics_report_rule_precedence_and_effective_dimensions() {
     );
 
     let requested = diagnose(args(json!({
-        "net":"A","trace_width":0.32,"via_drill":0.2,"via_size":0.5,"grid_pitch":0.15,"layers":["top"]
+        "net":"A","trace_width":0.32,"via_drill":0.2,"via_size":0.5,"grid_pitch":0.15,"layers":["top"],
+        "via_cost":4.5
     })));
     let rule = &requested["rules"];
     for (key, effective) in [
@@ -1464,6 +1468,12 @@ fn diagnostics_report_rule_precedence_and_effective_dimensions() {
     assert_eq!(rule["via_drill"]["base"]["mm"], 0.2);
     assert_eq!(rule["via_diameter"]["base"]["mm"], 0.5);
     assert_eq!(rule["trace_layers"]["effective"], json!(["top_cu"]));
+    assert_eq!(
+        rule["via_cost"],
+        json!({"mm":4.5,"source":{"kind":"request","field":"via_cost"}})
+    );
+    let invalid = routing::routing_diagnose(&session, args(json!({"net":"A","via_cost":-1})));
+    assert_eq!(invalid.unwrap_err().kind, ErrorKind::InvalidArgument);
 
     let candidate = routing::routing_prepare(
         &mut session,

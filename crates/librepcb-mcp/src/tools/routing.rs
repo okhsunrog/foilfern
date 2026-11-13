@@ -50,6 +50,8 @@ pub struct RoutingPrepareArgs {
     #[serde(default)]
     /// Via outer diameter in mm; respects the minimum annular ring.
     pub via_size: Option<f64>,
+    /// Cost of a layer change as equivalent trace length in mm (default 2).
+    pub via_cost: Option<f64>,
     #[serde(default)]
     /// Routing grid pitch in mm; omitted selects the builtin default.
     pub grid_pitch: Option<f64>,
@@ -172,6 +174,12 @@ fn critical_nets(project: &Project, keys: &[String]) -> ToolResult<Vec<NetRef>> 
         .collect()
 }
 
+fn via_cost(value: Option<f64>) -> ToolResult<Option<librepcb_core::types::Length>> {
+    value
+        .map(|value| board_edit::unsigned(value, "via_cost").map(|length| length.get()))
+        .transpose()
+}
+
 fn builtin_request(project: &Project, args: RoutingPrepareArgs) -> ToolResult<Autoroute> {
     write::check_revision(project, args.expected_revision)?;
     let board = board_edit::board_id(project, args.board.as_deref())?;
@@ -187,6 +195,7 @@ fn builtin_request(project: &Project, args: RoutingPrepareArgs) -> ToolResult<Au
         ..Default::default()
     };
     let mut command = board_edit::builtin_command(project, board, &options)?;
+    command.via_cost = via_cost(args.via_cost)?;
     command.search_evidence = args.search_evidence;
     command.neck_down = args.neck_down.map(PadNeckDownArgs::command).transpose()?;
     command.pad_escape = args.pad_escape;
@@ -618,6 +627,8 @@ pub struct RoutingDiagnoseArgs {
     pub via_drill: Option<f64>,
     /// Via outer diameter in mm, with the same default and minimum as routing_prepare.
     pub via_size: Option<f64>,
+    /// Cost of a layer change as equivalent trace length in mm (default 2).
+    pub via_cost: Option<f64>,
     /// Copper layers allowed for routing. Empty means all.
     #[serde(default)]
     pub layers: Vec<String>,
@@ -665,6 +676,7 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
             ..Default::default()
         },
     )?;
+    options.via_cost = via_cost(args.via_cost)?;
     options.pad_escape = args.pad_escape;
     let extracted = extract_problem(p, board, &options, Some(&[net].into_iter().collect()))?;
     let problem = &extracted.problem;
@@ -845,6 +857,8 @@ pub struct RoutingEditRouteArgs {
     pub via_drill: Option<f64>,
     /// Via outer diameter override in mm.
     pub via_size: Option<f64>,
+    /// Cost of a layer change as equivalent trace length in mm (default 2).
+    pub via_cost: Option<f64>,
     /// Grid pitch override in mm.
     pub grid_pitch: Option<f64>,
     /// Include samples of rejected grid steps for failed requests.
@@ -880,6 +894,7 @@ impl RoutingEditRouteArgs {
                 ..Default::default()
             },
         )?;
+        command.via_cost = via_cost(self.via_cost)?;
         command.search_evidence = self.search_evidence;
         command.neck_down = self.neck_down.map(PadNeckDownArgs::command).transpose()?;
         command.pad_escape = self.pad_escape;
