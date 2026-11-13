@@ -455,8 +455,8 @@ fn import_instance(
             String::new()
         } else {
             visible_pin
+                .filter(|p| !p.name.is_empty() && p.name != "~")
                 .map(|p| KiCadTypeConverter::convert_circuit_identifier(&p.name).to_string())
-                .filter(|_| !source_pin.name.is_empty())
                 .unwrap_or_default()
         };
         graph

@@ -104,8 +104,9 @@ for crossing VCC. A second position cleared both checks.
 `place_text` finds a clear position for one selected symbol field in a
 caller-supplied area. On ESP-PD-Sink it moved the U6 value away from the pin
 number and kept it clear of VCC in the exported preview. On the separate
-CardIO Frontend sheet it moved the Q1 value clear of a GND wire and an R11
-pin label. Both runs preserved the full netlist and ERC findings, restored
+CardIO Frontend sheet it moved the Q1 value clear of a GND wire. KiCad
+import omits the legacy `~` pin name marker from rendered legends on this
+sheet. Both runs preserved the full netlist and ERC findings, restored
 the original sheet on undo, and replayed with an empty diff after reopening.
 `design_preview` can place selected members in a bounded row or column with
 an optional alignment coordinate. It keeps unrelated geometry fixed and
