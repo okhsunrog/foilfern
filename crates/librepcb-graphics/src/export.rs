@@ -56,6 +56,18 @@ impl GraphicsExport {
         width: u32,
         height: u32,
     ) -> Result<Vec<Vec<u8>>> {
+        self.matched_pngs(drawings, settings, width, height)?
+            .collect()
+    }
+
+    /// Frames all drawings together, then encodes each page as the caller requests it.
+    pub fn matched_pngs<'a>(
+        &'a self,
+        drawings: &'a [Drawing],
+        settings: &'a GraphicsSettings,
+        width: u32,
+        height: u32,
+    ) -> Result<impl Iterator<Item = Result<Vec<u8>>> + 'a> {
         let bounds = drawings
             .iter()
             .try_fold(None, |union: Option<Rect>, drawing| {
@@ -64,10 +76,9 @@ impl GraphicsExport {
                     None => union,
                 })
             })?;
-        drawings
-            .iter()
-            .map(|drawing| self.render_png_with_bounds(drawing, settings, width, height, bounds))
-            .collect()
+        Ok(drawings.iter().map(move |drawing| {
+            self.render_png_with_bounds(drawing, settings, width, height, bounds)
+        }))
     }
 
     /// Renders a model-coordinate region. The output is letterboxed as needed.

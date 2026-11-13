@@ -918,10 +918,12 @@ pub(crate) fn prepare(
     }
     if !reviewed.is_empty() {
         let after = super::layout::annotation_review(&project, schematic, &reviewed, true)?;
+        checkpoint(Stage::Check)?;
         let baseline = before
             .schematic(page)
             .map(|sheet| super::layout::annotation_review(&before, sheet, &reviewed, false))
             .transpose()?;
+        checkpoint(Stage::Check)?;
         payload["annotation_changes"] = after.changes_since(baseline);
         payload["annotation_overlaps"] = json!(after.overlaps().collect::<Vec<_>>());
     }
@@ -943,7 +945,12 @@ pub(crate) fn prepare(
     checkpoint(Stage::Render)?;
     let output = if doc.compare_images || region.is_some() {
         let images = super::output::render_schematic_comparison(
-            &before, &project, schematic, 1600, 1200, region,
+            &before,
+            &project,
+            schematic,
+            (1600, 1200),
+            region,
+            || checkpoint(Stage::Render),
         )?;
         payload["images"] = json!(["after", "before"]);
         if let Some((min, max)) = region {

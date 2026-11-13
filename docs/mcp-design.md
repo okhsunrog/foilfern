@@ -219,7 +219,8 @@ remaining budget and the last terminal outcome. The stages are `capture`,
 `plan`, `check`, `render` and `publish`. `budget_ms` is optional and begins
 at admission. `design_preview_cancel` takes the active job UUID and requests
 a cooperative stop. The worker checks between phases, components and wire
-groups. An in-flight library lookup, wire group, ERC check or render can
+groups, and between the two comparison frames. An in-flight library lookup,
+wire group, ERC check or individual frame can
 finish before the next checkpoint. Cancellation or expiry returns
 `cancelled` or `budget_exhausted` and prevents publication. The terminal
 report is available after worker capacity is released. This status and the

@@ -566,18 +566,21 @@ pub(super) fn render_schematic_comparison(
     before: &Project,
     after: &Project,
     schematic: &Schematic,
-    width: u32,
-    height: u32,
+    size: (u32, u32),
     region: Option<(Point, Point)>,
+    checkpoint: impl Fn() -> ToolResult<()>,
 ) -> ToolResult<Vec<Vec<u8>>> {
+    let (width, height) = size;
     let old = before.schematic(schematic.id());
     if schematic.images().is_empty() && old.is_none_or(|sheet| sheet.images().is_empty()) {
         use librepcb_scene::{ColorScheme, SchematicScene, render_scene};
         let old_scene = old
             .map(|sheet| SchematicScene::build(before, sheet.id(), &ColorScheme::SCHEMATIC_LIGHT))
             .transpose()?;
+        checkpoint()?;
         let new_scene =
             SchematicScene::build(after, schematic.id(), &ColorScheme::SCHEMATIC_LIGHT)?;
+        checkpoint()?;
         let bounds = old_scene
             .as_ref()
             .and_then(SchematicScene::content_bounds)
@@ -601,17 +604,19 @@ pub(super) fn render_schematic_comparison(
                 )
             }
         };
+        let after_png = render(&new_scene)?.to_png()?;
+        checkpoint()?;
         let before_png = if let Some(scene) = old_scene {
-            render(&scene)?
+            render(&scene)?.to_png()?
         } else {
             librepcb_scene::RgbaImage {
                 width,
                 height,
                 data: vec![255; width as usize * height as usize * 4],
             }
+            .to_png()?
         };
-        let after_png = render(&new_scene)?;
-        return Ok(vec![after_png.to_png()?, before_png.to_png()?]);
+        return Ok(vec![after_png, before_png]);
     }
     let settings = librepcb_graphics::GraphicsSettings {
         background: librepcb_core::types::Color::WHITE,
@@ -625,17 +630,37 @@ pub(super) fn render_schematic_comparison(
         .map(|sheet| draw(before, sheet))
         .transpose()?
         .unwrap_or_default();
+    checkpoint()?;
     let drawings = [draw(after, schematic)?, original];
+    checkpoint()?;
     let exporter = librepcb_graphics::GraphicsExport::default();
-    let result = if let Some((min, max)) = region {
+    let map_error = |error: librepcb_graphics::Error| ToolError::internal(error.to_string());
+    if let Some((min, max)) = region {
         drawings
             .iter()
-            .map(|drawing| exporter.render_region_png(drawing, &settings, min, max, width, height))
+            .map(|drawing| {
+                checkpoint()?;
+                exporter
+                    .render_region_png(drawing, &settings, min, max, width, height)
+                    .map_err(map_error)
+            })
             .collect()
     } else {
-        exporter.render_matched_pngs(&drawings, &settings, width, height)
-    };
-    result.map_err(|error| ToolError::internal(error.to_string()))
+        let renders = exporter
+            .matched_pngs(&drawings, &settings, width, height)
+            .map_err(map_error)?;
+        checkpoint()?;
+        renders
+            .enumerate()
+            .map(|(index, result)| {
+                let png = result.map_err(map_error)?;
+                if index + 1 < drawings.len() {
+                    checkpoint()?;
+                }
+                Ok(png)
+            })
+            .collect()
+    }
 }
 
 /// Arguments of `drc_run`.
