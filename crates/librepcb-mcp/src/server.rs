@@ -1339,6 +1339,17 @@ impl LibrePcbMcp {
     }
 
     #[tool(
+        description = "Discard a completed schematic preview by its UUID without editing the project. Use design_preview_cancel for a running preview job."
+    )]
+    async fn design_discard(
+        &self,
+        Parameters(args): Parameters<crate::tools::design::DesignPreviewArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| crate::tools::design::discard(s, args))
+            .await
+    }
+
+    #[tool(
         description = "Read the saved or staged schematic requirements document and its current project revision. Use this revision when replacing the document."
     )]
     async fn requirements_get(&self) -> Result<CallToolResult, McpError> {

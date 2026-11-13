@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 26);
+    assert_eq!(info["api_capability_version"], 27);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -2205,6 +2205,27 @@ async fn stdio_design_preview_reports_resolved_erc_without_changing_approvals() 
         call_ok(&client, "erc_run", json!({"include_approved":true})).await,
         erc
     );
+    let unknown = call(
+        &client,
+        "design_discard",
+        json!({"preview":"00000000-0000-4000-8000-000000000000"}),
+    )
+    .await;
+    assert_eq!(unknown.is_error, Some(true));
+    assert_eq!(
+        unknown.structured_content.unwrap()["error"]["kind"],
+        "not_found"
+    );
+    let args = json!({"preview":preview["preview"]});
+    assert_eq!(call_ok(&client, "design_discard", args.clone()).await, args);
+    let refused = call(&client, "design_apply", args).await;
+    assert_eq!(refused.is_error, Some(true));
+    assert_eq!(
+        refused.structured_content.unwrap()["error"]["kind"],
+        "not_found"
+    );
+    assert_eq!(call_ok(&client, "project_summary", json!({})).await, before);
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
     client.cancel().await.unwrap();
 }
 

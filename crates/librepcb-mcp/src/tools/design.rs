@@ -359,10 +359,13 @@ struct PageNote {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct DesignApplyArgs {
+pub struct DesignPreviewArgs {
     /// The ID returned by design_preview in this open project.
     preview: String,
 }
+
+/// Arguments accepted by `design_apply`.
+pub type DesignApplyArgs = DesignPreviewArgs;
 
 pub(crate) struct PreviewJob {
     source_project: Weak<parking_lot::Mutex<OpenProject>>,
@@ -1447,6 +1450,19 @@ pub fn apply(session: &mut Session, args: DesignApplyArgs) -> ToolResult<ToolOut
         format!("Applied {operations} design operations."),
         json!({"mutation_count": count, "operation_count": operations}),
     )
+}
+
+pub fn discard(session: &mut Session, args: DesignPreviewArgs) -> ToolResult<ToolOutput> {
+    let id = resolve::required_uuid(&args.preview, "preview")?;
+    let open = session.project_mut()?;
+    if open
+        .design_preview
+        .take_if(|preview| preview.id == id)
+        .is_none()
+    {
+        return Err(ToolError::not_found("Unknown design preview."));
+    }
+    ToolOutput::new("Discarded the schematic preview.", json!({"preview": id}))
 }
 
 #[cfg(test)]

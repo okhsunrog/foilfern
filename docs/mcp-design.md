@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `26`). Its `build` object contains
+`api_capability_version` (currently `27`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -336,9 +336,12 @@ lists every affected designator, including uses on other sheets. Pins, pin
 names, component text positions, wires and device mappings are preserved.
 The templates move pin names that sit on the lead axis away from the lead.
 
-Call `design_apply` with the latest preview ID in the same open project.
-It applies the rendered patch in one undo group. An edit or save invalidates
-the preview, and applying an empty diff leaves the revision and history intact.
+Call `design_apply` with the latest preview ID in the same open project to
+apply the rendered patch in one undo group. An edit or save invalidates the
+preview, and applying an empty diff leaves the revision and history intact.
+Use `design_discard` with that ID to release a completed preview while keeping
+the revision and undo history. A new completed preview replaces the previous
+one. `design_preview_cancel` acts on an active job UUID.
 Use `add_nets` to create any missing named nets before adding parts. Existing
 nets retain their UUIDs and classes. Use
 [`add_components`](examples/esp32-c3-add-decoupler.json) to add parts to the
