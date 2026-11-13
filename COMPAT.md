@@ -464,7 +464,9 @@ differ between platforms/implementations:
 - The declarative editor can draw groups of explicit orthogonal wire paths
   in one preview. It refuses to replace segments attached to pins outside
   the selected group or to buses, and checks the new paths for collisions.
-  The resulting wires, junctions, labels and notes use the native format.
+  It can place a selected block and redraw its explicit wire groups together,
+  resolving relative coordinates from the resulting pin positions. The wires,
+  junctions, labels and notes use the native format.
 
 - Loading validates each schematic page as a whole after deserializing it
   (upstream adds the empty page and then item by item); for a file with

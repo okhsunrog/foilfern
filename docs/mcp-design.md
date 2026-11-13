@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `8`). Its `build` object contains
+`api_capability_version` (currently `11`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -194,7 +194,8 @@ Session / project:
 the number of checked pin memberships, a preview ID and a native page render.
 The [ESP32-C3 EN/RESET example](examples/esp32-c3-en-reset.json) targets the
 saved comparison board. Bind each document key to a component instance UUID
-from `component_get`. In `nets`, address pins as `key.pin`. The existing
+from `component_get` or to an existing `designator`. Use a UUID to keep the
+binding after a rename. In `nets`, address pins as `key.pin`. The existing
 circuit must match the listed memberships. Unlisted endpoints can share those
 nets elsewhere on the project.
 
@@ -216,12 +217,13 @@ or left edge of the area.
 
 List only the members whose positions the document may change. Surrounding
 components, wires and annotations stay in place. Existing symbol fields and
-independent wire stubs move with their symbol. A shared wire or a bus tap on a
-movable member causes the preview to fail. Keep that member fixed and use
-`wire_groups` for separate, explicitly selected rewiring. Preview placement
-first if the same endpoints also need new wires. Each member requires a
-single symbol on the selected sheet. `block_position` entries report the
-changed positions and the preview reviews annotation overlaps for the block.
+independent wire stubs move with their symbol. To move members joined by a
+shared wire, include an explicit wire group covering every pin of that
+segment, including any fixed pins. Preview places the members and redraws
+those groups together. A bus tap or an unlisted pin on a replaced segment
+causes the preview to fail. Each member requires a single symbol on the
+selected sheet. `block_position` entries report the changed positions and
+the preview reviews annotation overlaps for the block.
 
 Use `wire_groups` for pins that should be joined by visible wires on that
 sheet. Each entry gives an existing `net` and at least two `pins` in the same
@@ -240,6 +242,13 @@ another path splits it at a shared junction. A single-pin group can draw a
 stub. Separate segments on the same net go in separate groups. To show their
 relationship, place a `label` on each wire or use supply symbols. `label` is
 an optional point on the wire; its orientation follows the edge there.
+For either axis of a waypoint or label, replace the numeric coordinate with
+`{"pin":"cap.1","offset":2.54}` to use that pin's final coordinate plus the
+signed offset in mm. The offset defaults to zero. For example,
+`{"x":{"pin":"cap.1"},"y":{"pin":"switch.1","offset":2.54}}`
+aligns the point with the capacitor pin and puts it 2.54 mm above the switch
+pin. References must belong to that wire group. A pin itself is written as a
+string vertex, such as `"cap.1"`.
 
 The preview checks explicit wires against symbol bounds, unrelated pins,
 buses and other wires, including other explicit groups in the document. It

@@ -19,14 +19,47 @@ use crate::{Command, Error, Result, Transaction};
 /// A wire vertex is a pin index in the group or an absolute sheet coordinate.
 pub enum WirePathPoint {
     Pin(usize),
-    Point(Point),
+    Waypoint(WireWaypoint),
+}
+
+/// An absolute axis coordinate or an offset from a pin on the same axis.
+pub enum WireCoordinate {
+    Absolute(Length),
+    Relative { pin: usize, offset: Length },
+}
+
+pub struct WireWaypoint {
+    pub x: WireCoordinate,
+    pub y: WireCoordinate,
+}
+
+impl WireWaypoint {
+    fn resolve(&self, pins: &[super::PlacedPin]) -> Result<Point> {
+        let coordinate = |spec: &WireCoordinate, axis: fn(Point) -> Length| match *spec {
+            WireCoordinate::Absolute(value) => Ok(value),
+            WireCoordinate::Relative { pin, offset } => {
+                let pin = pins.get(pin).ok_or_else(|| {
+                    invalid("Relative coordinate refers to a pin outside its group.")
+                })?;
+                axis(pin.position)
+                    .to_nm()
+                    .checked_add(offset.to_nm())
+                    .map(Length::new)
+                    .ok_or_else(|| invalid("Relative wire coordinate is out of range."))
+            }
+        };
+        Ok(Point::new(
+            coordinate(&self.x, |p| p.x)?,
+            coordinate(&self.y, |p| p.y)?,
+        ))
+    }
 }
 
 /// One connected group of paths and an optional net label on its wire.
 pub struct WirePathSpec {
     pub group: WireGroup,
     pub paths: Vec<Vec<WirePathPoint>>,
-    pub label: Option<Point>,
+    pub label: Option<WireWaypoint>,
 }
 
 /// Replaces only the segments belonging to each selected pin group.
@@ -84,6 +117,13 @@ struct PlannedPath {
 }
 
 impl WirePathSpec {
+    /// Segments this group may replace, before changing any symbol positions.
+    pub fn replaceable_segments(&self, project: &Project) -> Result<BTreeSet<NetSegmentId>> {
+        let plan = self.group.resolve_pins(project)?;
+        self.group.check_replacement(project, &plan)?;
+        Ok(plan.segments)
+    }
+
     fn plan(self, project: &Project, sheet: &Schematic) -> Result<Option<PlannedPath>> {
         let plan = self.group.resolve_pins(project)?;
         let WireGroupPlan { pins, segments } = &plan;
@@ -121,7 +161,8 @@ impl WirePathSpec {
                             .ok_or_else(|| invalid("Wire path refers to a pin outside its group."))?
                             .position
                     }
-                    WirePathPoint::Point(point) => {
+                    WirePathPoint::Waypoint(waypoint) => {
+                        let point = waypoint.resolve(pins)?;
                         if vertices
                             .get(&point)
                             .is_some_and(|a| matches!(a, NetLineAnchor::Pin { .. }))
@@ -208,7 +249,8 @@ impl WirePathSpec {
                 "Wire paths must form one connected group. Use separate groups for separate segments of the same net.",
             ));
         }
-        if let Some(point) = self.label {
+        if let Some(label) = self.label {
+            let point = label.resolve(pins)?;
             let horizontal = edges
                 .iter()
                 .any(|&(a, b)| a.y == b.y && point_on_segment(point, a, b));

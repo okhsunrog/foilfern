@@ -68,11 +68,13 @@ against the schematic and reports conversions that need review.
 6. Use `netlist` and `component_get` to verify actual connectivity. For
    precise wiring, pass `assign_only: true` to `connect`, then read the pin
    coordinates with `schematic_get`. In `design_preview`, bind keys to
-   component UUIDs and use `wire_groups` with explicit paths. For example,
+   component designators or UUIDs and use `wire_groups` with explicit paths. For example,
    with `r` bound to R1, a labeled stub on EN can use
    `{"net":"EN","pins":["r.1"],"paths":[["r.1",{"x":35.56,"y":50.8}]],"label":{"x":35.56,"y":50.8}}`
    if the pin lies on the same row or column as the endpoint. Branch endpoints
-   on another path become junctions. Add `notes` with `text`, `position` and
+   on another path become junctions. Set either coordinate to
+   `{"pin":"r.1","offset":2.54}` to place it relative to that pin after
+   placement. Add `notes` with `text`, `position` and
    `height` in mm for page annotations. Inspect the render, then use
    `design_apply`. Use `block` for local placement and
    `schematic_tidy` when you intend to replace the layout and wiring of an

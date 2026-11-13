@@ -98,9 +98,12 @@ move a reference or value independently with an expected-position check.
 an optional alignment coordinate. It keeps unrelated geometry fixed and
 carries each movable symbol's independent wire stubs with it. A preview can
 also draw explicit orthogonal wire paths, junctions and notes around existing
-pins, with checks for new wire crossings and symbol collisions. The next
-layout step is to combine placement and wiring of already connected blocks
-around fixed pins in one preview.
+pins, with checks for new wire crossings and symbol collisions. Placement
+and explicit rewiring can share a preview, with bends and labels anchored
+to final pin coordinates. On the ESP32-C3 dev board, moving R1, C3 and RESET
+redrew three segments and preserved the other 24, the netlist and the fixed
+module and supply symbols. Undo/redo restored both layouts, and replay after
+save/reopen gave an empty diff.
 
 Done when:
 

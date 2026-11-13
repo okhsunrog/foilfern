@@ -12,8 +12,8 @@ use librepcb_core::types::{Alignment, Angle, Layer, PositiveLength, Uuid};
 use librepcb_editor::Transaction;
 use librepcb_editor::commands::{
     AddComponent, AddLibraryElement, AutoPlaceSymbols, BlockDirection, DrawWirePaths,
-    EditComponent, MoveSymbol, PlaceSchematicBlock, Rect, SymbolPlacement, SymbolStyle, WireGroup,
-    WirePathPoint, WirePathSpec, connect_design_pin,
+    EditComponent, MoveSymbol, PlaceSchematicBlock, Rect, SymbolPlacement, SymbolStyle,
+    WireCoordinate, WireGroup, WirePathPoint, WirePathSpec, WireWaypoint, connect_design_pin,
 };
 use librepcb_editor::design_preview::{DesignEdit, DesignPreview};
 use schemars::JsonSchema;
@@ -56,8 +56,10 @@ pub struct ManagedRotation {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExistingComponent {
-    /// UUID of an existing component instance.
-    uuid: String,
+    /// UUID of an existing component instance. Supply exactly one of uuid and designator.
+    uuid: Option<String>,
+    /// Designator of an existing component. Use uuid when the document must survive renames.
+    designator: Option<String>,
     /// Managed value. Omission preserves the current value.
     value: Option<ManagedValue>,
     /// Managed position of its single symbol on this sheet.
@@ -78,7 +80,8 @@ pub struct DesignDocument {
     version: u32,
     /// Schematic name or UUID for the preview.
     schematic: String,
-    /// Stable document keys bound to existing component UUIDs.
+    /// Stable document keys bound to existing components by UUID or designator.
+    #[serde(default)]
     components: BTreeMap<String, ExistingComponent>,
     /// Components to create if their stable document key has no instance.
     #[serde(default)]
@@ -180,15 +183,70 @@ pub struct LocalWireGroup {
     /// in mm (Y up). Use orthogonal edges. End a branch on another path to
     /// create a junction. Each group describes one connected segment.
     paths: Option<Vec<Vec<WireVertex>>>,
-    /// Label position on an explicit wire, in mm. Omit to draw no label.
-    label: Option<PointMm>,
+    /// Label position on an explicit wire. Omit to draw no label.
+    label: Option<PathWaypoint>,
 }
 
 #[derive(Debug, Deserialize, serde::Serialize, JsonSchema)]
 #[serde(untagged)]
 enum WireVertex {
     Pin(String),
-    Point(PointMm),
+    Point(PathWaypoint),
+}
+
+#[derive(Debug, Deserialize, serde::Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct PathWaypoint {
+    x: PathCoordinate,
+    y: PathCoordinate,
+}
+
+#[derive(Debug, Deserialize, serde::Serialize, JsonSchema)]
+#[serde(untagged)]
+enum PathCoordinate {
+    Absolute(f64),
+    Relative(RelativeCoordinate),
+}
+
+#[derive(Debug, Deserialize, serde::Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct RelativeCoordinate {
+    /// Pin from this group's pins. This axis uses that pin's final position.
+    pin: String,
+    /// Optional signed offset in mm along this axis.
+    #[serde(default)]
+    offset: f64,
+}
+
+impl PathWaypoint {
+    fn resolve(&self, group: &LocalWireGroup) -> ToolResult<WireWaypoint> {
+        let coordinate = |value: &PathCoordinate| -> ToolResult<WireCoordinate> {
+            match value {
+                PathCoordinate::Absolute(value) => {
+                    Ok(WireCoordinate::Absolute(units::length(*value)?))
+                }
+                PathCoordinate::Relative(relative) => Ok(WireCoordinate::Relative {
+                    pin: group.pin_index(&relative.pin)?,
+                    offset: units::length(relative.offset)?,
+                }),
+            }
+        };
+        Ok(WireWaypoint {
+            x: coordinate(&self.x)?,
+            y: coordinate(&self.y)?,
+        })
+    }
+}
+
+impl LocalWireGroup {
+    fn pin_index(&self, pin: &str) -> ToolResult<usize> {
+        self.pins
+            .iter()
+            .position(|name| name == pin)
+            .ok_or_else(|| {
+                ToolError::invalid(format!("Wire path pin {pin:?} is absent from pins."))
+            })
+    }
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -296,14 +354,26 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 "Invalid component key {key:?}."
             )));
         }
-        let id = ComponentInstanceId(resolve::required_uuid(&spec.uuid, "component")?);
+        let (id, component) = match (&spec.uuid, &spec.designator) {
+            (Some(uuid), None) => {
+                let id = ComponentInstanceId(resolve::required_uuid(uuid, "component")?);
+                (
+                    id,
+                    p.circuit().component_instance(id).ok_or_else(|| {
+                        ToolError::not_found(format!("Component {key} ({id}) not found."))
+                    })?,
+                )
+            }
+            (None, Some(name)) => resolve::component(p, name)?,
+            _ => {
+                return Err(ToolError::invalid(format!(
+                    "Component {key:?} needs exactly one of uuid and designator."
+                )));
+            }
+        };
         if !seen.insert(id) {
             return Err(ToolError::invalid(format!("Duplicate binding for {id}.")));
         }
-        let component = p
-            .circuit()
-            .component_instance(id)
-            .ok_or_else(|| ToolError::not_found(format!("Component {key} ({id}) not found.")))?;
         bindings.insert(key.as_str(), id);
         if doc.review_components.contains(key) {
             reviewed.insert(id);
@@ -431,7 +501,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     }
     let mut block_members = BTreeSet::new();
     let mut block_designators = BTreeMap::new();
-    let block = if let Some(block) = &doc.block {
+    let mut block = if let Some(block) = &doc.block {
         let mut symbols = Vec::new();
         for member in &block.members {
             let id = bindings.get(member.as_str()).ok_or_else(|| {
@@ -480,6 +550,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
             },
             gap: librepcb_core::types::UnsignedLength::new(units::length(block.gap)?)?,
             baseline: block.baseline.map(units::length).transpose()?,
+            redrawn_segments: BTreeSet::new(),
         })
     } else {
         None
@@ -491,9 +562,9 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     for group in &doc.wire_groups {
         let (net, pins) = resolve_memberships(p, &bindings, &group.net, &group.pins)?;
         for (pin, name) in pins.iter().zip(&group.pins) {
-            if block_members.contains(&pin.component) {
+            if block_members.contains(&pin.component) && group.paths.is_none() {
                 return Err(ToolError::invalid(format!(
-                    "{name} is a movable block member. Apply its placement before previewing a wire group for it."
+                    "{name} is a movable block member. Supply explicit paths to redraw its wires in this preview."
                 )));
             }
             if !grouped.insert(*pin) {
@@ -514,27 +585,31 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 let mut vertices = Vec::new();
                 for vertex in path {
                     vertices.push(match vertex {
-                        WireVertex::Pin(pin) => {
-                            WirePathPoint::Pin(
-                                group.pins.iter().position(|name| name == pin).ok_or_else(
-                                    || {
-                                        ToolError::invalid(format!(
-                                            "Wire path pin {pin:?} is absent from pins."
-                                        ))
-                                    },
-                                )?,
-                            )
-                        }
-                        WireVertex::Point(point) => WirePathPoint::Point(point.to_point()?),
+                        WireVertex::Pin(pin) => WirePathPoint::Pin(group.pin_index(pin)?),
+                        WireVertex::Point(point) => WirePathPoint::Waypoint(point.resolve(group)?),
                     });
                 }
                 converted.push(vertices);
             }
-            explicit.push(WirePathSpec {
+            let spec = WirePathSpec {
                 group: command,
                 paths: converted,
-                label: group.label.map(PointMm::to_point).transpose()?,
-            });
+                label: group
+                    .label
+                    .as_ref()
+                    .map(|point| point.resolve(group))
+                    .transpose()?,
+            };
+            if let Some(block) = &mut block
+                && spec
+                    .group
+                    .pins
+                    .iter()
+                    .any(|pin| block_members.contains(&pin.component))
+            {
+                block.redrawn_segments.extend(spec.replaceable_segments(p)?);
+            }
+            explicit.push(spec);
             explicit_diffs.push(
                 json!({"field":"wire_paths","net":group.net,"pins":group.pins,
                 "paths":paths,"label":group.label}),

@@ -38,7 +38,7 @@ use crate::editor::{Command, Transaction};
 use crate::error::{Error, Result};
 
 mod explicit;
-pub use explicit::{DrawWirePaths, WirePathPoint, WirePathSpec};
+pub use explicit::{DrawWirePaths, WireCoordinate, WirePathPoint, WirePathSpec, WireWaypoint};
 
 /// A placed symbol pin of a component signal.
 #[derive(Debug, Clone, Copy)]

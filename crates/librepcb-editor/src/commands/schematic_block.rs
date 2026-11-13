@@ -31,6 +31,8 @@ pub struct PlaceSchematicBlock {
     pub gap: UnsignedLength,
     /// Shared Y (row) or X (column) coordinate for member origins.
     pub baseline: Option<Length>,
+    /// Segments owned by explicit wire groups in the same transaction.
+    pub redrawn_segments: BTreeSet<NetSegmentId>,
 }
 
 struct Member {
@@ -79,7 +81,7 @@ impl Command for PlaceSchematicBlock {
         }
 
         let mut members = Vec::new();
-        let mut moving_segments = BTreeSet::new();
+        let mut moving_segments = self.redrawn_segments.clone();
         for symbol in self.symbols {
             let instance = sheet
                 .symbols()
@@ -93,6 +95,9 @@ impl Command for PlaceSchematicBlock {
             let mut bounds = placed_symbol_rect(project, self.schematic, symbol, true)?;
             let mut segments = Vec::new();
             for segment in sheet.net_segments().values() {
+                if self.redrawn_segments.contains(&segment.id()) {
+                    continue;
+                }
                 let pins = segment.connected_pins();
                 if !pins.iter().any(|(owner, _)| *owner == symbol) {
                     continue;

@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 10);
+    assert_eq!(info["api_capability_version"], 11);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -1323,13 +1323,12 @@ async fn stdio_explicit_wire_paths_validate_and_replay() {
             .unwrap()["position"]
             .clone()
     };
-    let branch = pin("R3.1");
     let r4 = pin("R4.2");
     let document = json!({
         "version":1,"schematic":"Main","components":bindings,
         "wire_groups":[
             {"net":"EN","pins":["R1.2","R2.1","R3.1"],
-             "paths":[["R1.2","R2.1"],["R3.1",{"x":branch["x"],"y":0}]]},
+             "paths":[["R1.2","R2.1"],["R3.1",{"x":{"pin":"R3.1"},"y":{"pin":"R2.1"}}]]},
             {"net":"GND","pins":["R4.2"],"paths":[["R4.2",{"x":20,"y":r4["y"]}]],
              "label":{"x":20,"y":r4["y"]}}
         ],
@@ -1411,7 +1410,7 @@ async fn stdio_explicit_wire_paths_validate_and_replay() {
     call_ok(&client, "project_save", json!({})).await;
     call_ok(&client, "project_close", json!({})).await;
     call_ok(&client, "project_open", json!({"path":project["path"]})).await;
-    let repeated = call_ok(&client, "design_preview", document).await;
+    let repeated = call_ok(&client, "design_preview", document.clone()).await;
     assert_eq!(repeated["diff"], json!([]));
     let applied = call_ok(
         &client,
@@ -1420,6 +1419,35 @@ async fn stdio_explicit_wire_paths_validate_and_replay() {
     )
     .await;
     assert_eq!(applied["operation_count"], 0);
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, after);
+
+    let mut move_branch = document;
+    move_branch["components"]["R3"] = json!({"designator":"R3"});
+    move_branch["block"] = json!({"members":["R3"],"direction":"row","gap":2,
+        "min":{"x":21,"y":15},"max":{"x":37,"y":28},"baseline":20});
+    let preview = call_ok(&client, "design_preview", move_branch.clone()).await;
+    assert_eq!(preview["diff"].as_array().unwrap().len(), 2);
+    assert_eq!(preview["diff"][0]["field"], "block_position");
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, after);
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":preview["preview"]}),
+    )
+    .await;
+    let moved = call_ok(&client, "schematic_get", json!({})).await;
+    for symbol in after["symbols"].as_array().unwrap() {
+        if symbol["name"] != "R3" {
+            assert!(moved["symbols"].as_array().unwrap().contains(symbol));
+        }
+    }
+    for segment in segments.iter().filter(|s| s["net"] != "EN") {
+        assert!(moved["net_segments"].as_array().unwrap().contains(segment));
+    }
+    assert_eq!(call_ok(&client, "netlist", json!({})).await, netlist);
+    let repeat = call_ok(&client, "design_preview", move_branch).await;
+    assert_eq!(repeat["diff"], json!([]));
+    call_ok(&client, "undo", json!({})).await;
     assert_eq!(call_ok(&client, "schematic_get", json!({})).await, after);
     client.cancel().await.unwrap();
 }
