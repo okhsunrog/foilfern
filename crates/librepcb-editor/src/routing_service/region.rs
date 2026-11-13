@@ -9,7 +9,9 @@ use librepcb_core::project::{BoardId, NetSegmentId, NetSignalId, Project};
 use librepcb_core::types::{Length, Point, PositiveLength, Uuid};
 use serde::Serialize;
 
-use crate::commands::{Autoroute, AutorouteResult, BoardSelection, remove_board_items};
+use crate::commands::{
+    Autoroute, AutorouteResult, BoardSelection, RoutingBounds, remove_board_items,
+};
 use crate::editor::{Command, ProjectEditor, Transaction};
 use crate::{Error, Result};
 
@@ -20,6 +22,9 @@ use super::RoutingError;
 pub struct RegionalRoutingRequest {
     pub request: Autoroute,
     pub rip_up: Vec<Uuid>,
+    /// Optional tighter bounds for copper removal.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rip_up_region: Option<RoutingBounds>,
 }
 
 #[derive(PartialEq, Eq)]
@@ -172,11 +177,21 @@ impl RegionalRoutingRequest {
         editor: &mut ProjectEditor,
         board_id: BoardId,
     ) -> std::result::Result<AutorouteResult, RoutingError> {
-        let area = self
+        let bounds = self
             .request
             .region
-            .ok_or_else(|| Error::InvalidArgument("Regional routing requires a region.".into()))?
-            .region()?;
+            .ok_or_else(|| Error::InvalidArgument("Regional routing requires a region.".into()))?;
+        let area = bounds.region()?;
+        let rip_up_bounds = self.rip_up_region.unwrap_or(bounds);
+        if !area.contains(rip_up_bounds.min, Length::ZERO)
+            || !area.contains(rip_up_bounds.max, Length::ZERO)
+        {
+            return Err(Error::InvalidArgument(
+                "The rip-up region must lie inside the routing region.".into(),
+            )
+            .into());
+        }
+        let rip_up_area = rip_up_bounds.region()?;
         let project = editor.project();
         let board = crate::commands::resolve_board(project, Some(board_id))?;
         let targets: BTreeSet<_> = self
@@ -199,9 +214,14 @@ impl RegionalRoutingRequest {
                 ))
                 .into());
             }
-            if !item.geometry.fits(area) {
+            if !item.geometry.fits(rip_up_area) {
+                let region = if self.rip_up_region.is_some() {
+                    "rip-up region"
+                } else {
+                    "routing region"
+                };
                 return Err(Error::InvalidArgument(format!(
-                    "Copper {uuid} extends outside the routing region."
+                    "Copper {uuid} extends outside the {region}."
                 ))
                 .into());
             }

@@ -1037,7 +1037,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Prepare builtin routing within a rectangle in board millimeters. Select target nets and optionally authorize rip-up of specific trace or via UUIDs. Review with routing_preview and apply with routing_apply."
+        description = "Prepare builtin routing within a rectangle in board millimeters. Select target nets and optionally authorize rip-up of specific trace or via UUIDs inside a smaller rip_up_region. Reports air wires with endpoints outside the routing rectangle. Review with routing_preview and apply with routing_apply."
     )]
     async fn routing_region_prepare(
         &self,

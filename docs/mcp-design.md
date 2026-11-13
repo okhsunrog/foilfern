@@ -630,8 +630,13 @@ candidates or a patch over 100,000 mutations; existing candidates are not evicte
 
 `routing_region_prepare` takes a rectangle in board millimeters, explicit
 target nets under `route` and an optional `rip_up` list of trace and via UUIDs.
-The rectangle limits new copper. The candidate preserves the geometry and
-UUIDs of copper outside the list and uses the shared preview and apply tools.
+The rectangle limits new copper. An optional `rip_up_region` inside it
+limits removal to a smaller area while letting the route reach distant pads.
+Copper removal still requires each trace or via UUID in `rip_up`. Air wires
+skipped because an endpoint lies outside the routing rectangle appear in
+`routing.skipped_outside_region` with reason `outside_region`.
+The candidate preserves the geometry and UUIDs of copper outside the list
+and uses the shared preview and apply tools.
 
 See [routing service design](routing-service-design.md) for subsequent stages.
 The existing `autoroute` compatibility path continues to apply directly.

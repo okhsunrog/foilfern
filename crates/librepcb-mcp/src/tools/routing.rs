@@ -858,6 +858,8 @@ pub struct RoutingRegionArgs {
 pub struct RoutingRegionPrepareArgs {
     pub board: Option<String>,
     pub region: RoutingRegionArgs,
+    /// Optional smaller rectangle for removals. Defaults to the routing region.
+    pub rip_up_region: Option<RoutingRegionArgs>,
     pub route: RoutingEditRouteArgs,
     /// UUIDs of existing traces and vias authorized for rip-up.
     #[serde(default)]
@@ -876,21 +878,32 @@ pub fn prepare_regional_job(
     write::check_revision(project, args.expected_revision)?;
     let board = board_edit::board_id(project, args.board.as_deref())?;
     let mut request = args.route.command(project, board)?;
-    let min = args.region.min.to_point()?;
-    let max = args.region.max.to_point()?;
-    if min.x >= max.x || min.y >= max.y {
-        return Err(ToolError::invalid(
-            "The routing region must have positive width and height.",
-        ));
-    }
-    request.region = Some(RoutingBounds { min, max });
+    let bounds = |region: RoutingRegionArgs| -> ToolResult<RoutingBounds> {
+        let min = region.min.to_point()?;
+        let max = region.max.to_point()?;
+        if min.x >= max.x || min.y >= max.y {
+            return Err(ToolError::invalid(
+                "A routing rectangle must have positive width and height.",
+            ));
+        }
+        Ok(RoutingBounds { min, max })
+    };
+    request.region = Some(bounds(args.region)?);
+    let rip_up_region = args.rip_up_region.map(bounds).transpose()?;
     let rip_up = args
         .rip_up
         .iter()
         .map(|uuid| crate::resolve::required_uuid(uuid, "trace or via"))
         .collect::<ToolResult<_>>()?;
     open.routing
-        .prepare_regional(&open.editor, RegionalRoutingRequest { request, rip_up })
+        .prepare_regional(
+            &open.editor,
+            RegionalRoutingRequest {
+                request,
+                rip_up,
+                rip_up_region,
+            },
+        )
         .map_err(routing_error)
 }
 

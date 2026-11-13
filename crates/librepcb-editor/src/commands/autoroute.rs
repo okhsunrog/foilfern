@@ -239,6 +239,9 @@ pub struct AutorouteResult {
     /// Original air wires left unresolved, with the router's attempt evidence.
     #[serde(default)]
     pub failed_requests: Vec<UnroutedAirWire>,
+    /// Original air wires skipped because an endpoint was outside the region.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub skipped_outside_region: Vec<UnroutedAirWire>,
     /// The air wires of the routed nets which remain after routing
     /// (rebuilt from the new copper).
     pub remaining_air_wires: Vec<UnroutedAirWire>,
@@ -371,11 +374,17 @@ impl Command for Autoroute {
                 let failure = failed_requests.iter().find(|f| {
                     f.net == wire.net() && (ends == (f.p1, f.p2) || ends == (f.p2, f.p1))
                 });
-                let mut remaining = UnroutedAirWire::new(
-                    p,
-                    &wire,
-                    failure.map_or("not_routed", |f| f.reason.as_str()),
+                let reason = failure.map_or_else(
+                    || {
+                        if outside_region(extracted.problem.region, &wire) {
+                            "outside_region"
+                        } else {
+                            "not_routed"
+                        }
+                    },
+                    |f| f.reason.as_str(),
                 );
+                let mut remaining = UnroutedAirWire::new(p, &wire, reason);
                 remaining.soft_reason = failure.and_then(|f| f.soft_reason.clone());
                 remaining
             })
@@ -397,9 +406,21 @@ impl Command for Autoroute {
                 trace_width_profile(p, &extracted.problem, &result)
             }),
             failed_requests,
+            skipped_outside_region: extracted
+                .outside_region
+                .iter()
+                .map(|wire| UnroutedAirWire::new(p, wire, "outside_region"))
+                .collect(),
             remaining_air_wires,
         })
     }
+}
+
+fn outside_region(region: Option<RoutingRegion>, wire: &AirWire) -> bool {
+    region.is_some_and(|area| {
+        !area.contains(wire.p1_position(), Length::ZERO)
+            || !area.contains(wire.p2_position(), Length::ZERO)
+    })
 }
 
 fn reason_name(reason: UnroutedReason) -> &'static str {
@@ -504,6 +525,7 @@ pub struct ExtractedProblem {
     pub nets: BTreeSet<NetSignalId>,
     /// Original board air wires, indexed by routing connection request.
     request_wires: Vec<AirWire>,
+    outside_region: Vec<AirWire>,
     /// Air wires which could not be given to the router (anchors which are
     /// not supported, e.g. standalone board pads).
     pub unsupported: Vec<AirWire>,
@@ -1006,12 +1028,11 @@ pub fn extract_problem(
         .filter(|n| nets.is_none_or(|f| f.contains(n)))
         .collect();
     let mut air_wires = Vec::new();
+    let mut outside_region_wires = Vec::new();
     for net in &routed_nets {
         for wire in air_wire_builder.build_air_wires(*net) {
-            if region.is_some_and(|area| {
-                !area.contains(wire.p1_position(), Length::ZERO)
-                    || !area.contains(wire.p2_position(), Length::ZERO)
-            }) {
+            if outside_region(region, &wire) {
+                outside_region_wires.push(wire);
                 continue;
             }
             for anchor in [wire.p1(), wire.p2()] {
@@ -1136,6 +1157,7 @@ pub fn extract_problem(
         hole_objects: builder.hole_objects,
         nets: routed_nets,
         request_wires,
+        outside_region: outside_region_wires,
         unsupported,
         via_sizes,
     })

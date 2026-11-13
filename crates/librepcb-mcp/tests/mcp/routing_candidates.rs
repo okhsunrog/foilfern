@@ -1806,7 +1806,17 @@ fn regional_reroute_replaces_only_authorized_copper_and_preserves_connectivity()
         let error = routing::run_job(job).unwrap_err();
         assert!(error.message.contains(reason), "{error}");
     }
-    let job = routing::prepare_regional_job(&session, args(request(7.0, ["A"]))).unwrap();
+    let mut narrow = request(7.0, ["A"]);
+    narrow["rip_up_region"] = json!({"min":{"x":8,"y":y-0.3},"max":{"x":12,"y":y+0.3}});
+    let job = routing::prepare_regional_job(&session, args(narrow)).unwrap();
+    let error = routing::run_job(job).unwrap_err();
+    assert!(
+        error.message.contains("outside the rip-up region"),
+        "{error}"
+    );
+    let mut separated = request(7.0, ["A"]);
+    separated["rip_up_region"] = json!({"min":{"x":7.8,"y":y-0.3},"max":{"x":12.2,"y":y+0.3}});
+    let job = routing::prepare_regional_job(&session, args(separated)).unwrap();
     let prepared = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
         .unwrap()
         .result;
@@ -1841,6 +1851,39 @@ fn regional_reroute_replaces_only_authorized_copper_and_preserves_connectivity()
     );
     write::undo_redo(&mut session, Default::default(), false).unwrap();
     assert_eq!(layout(&session), before);
+}
+
+#[test]
+fn regional_routing_identifies_connections_outside_the_search_area() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let revision = session.project().unwrap().project().revision();
+    let job = routing::prepare_regional_job(
+        &session,
+        args(json!({
+            "region":{"min":{"x":4,"y":4},"max":{"x":7,"y":7}},
+            "route":{"nets":["A"]}
+        })),
+    )
+    .unwrap();
+    let prepared = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
+        .unwrap()
+        .result;
+    let routing = &prepared["routing"];
+    assert_eq!(routing["air_wires"], 0);
+    assert_eq!(routing["routed"], 0);
+    assert_eq!(routing["failed_requests"], json!([]));
+    assert_eq!(routing["skipped_outside_region"][0]["net_name"], "A");
+    assert_eq!(
+        routing["remaining_air_wires"][0]["reason"],
+        "outside_region"
+    );
+    assert_eq!(
+        routing["skipped_outside_region"],
+        routing["remaining_air_wires"]
+    );
+    assert_eq!(prepared["mutation_count"], 0);
+    assert_eq!(session.project().unwrap().project().revision(), revision);
 }
 
 #[test]

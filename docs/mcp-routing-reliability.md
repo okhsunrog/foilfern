@@ -503,11 +503,16 @@ with the specified rules and grid.
 millimeters and a `route` object with named `nets`. The same object accepts
 the builtin layer, grid, width, via, and `search_evidence` options. An optional
 `rip_up` list authorizes specific existing traces and vias. Each selected
-object must belong to a target net and fit entirely within the rectangle.
+object must belong to a target net and fit entirely within `rip_up_region`
+when provided, or the routing rectangle otherwise. The removal rectangle
+must lie inside the routing rectangle.
 Selecting a via requires listing every trace attached to it.
 
 On the detached board, the service removes authorized copper, rebuilds
 planes, and routes eligible air wires whose two anchors lie in the region.
+The report lists excluded connections in `skipped_outside_region`, separately
+from attempted failures. This lets a caller distinguish an exhausted search
+from an endpoint that never entered the search.
 Existing copper still affects clearance. New trace caps and via copper
 must fit inside the rectangle. The service checks the final anchors,
 positions, dimensions and UUIDs of protected traces and vias. Net segment
