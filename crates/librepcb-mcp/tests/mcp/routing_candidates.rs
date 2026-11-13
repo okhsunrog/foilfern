@@ -2245,4 +2245,39 @@ fn trace_path_measurement_counts_real_vias_and_both_layers() {
         .collect();
     assert!(vias.iter().all(|v| ids.contains(v.as_str().unwrap())));
     assert_eq!(measured["via_barrel_length_measured"], false);
+
+    let query = || {
+        args(json!({
+            "from":"R1.1", "to":"R2.1", "suggest_via_reduction":true,
+        }))
+    };
+    let before = board_value(&session);
+    let suggestions = trace_path::trace_path_measure(&session, query())
+        .unwrap()
+        .result;
+    let [proposal] = suggestions["via_reduction"].as_array().unwrap().as_slice() else {
+        panic!("Expected one branch-free excursion: {suggestions}");
+    };
+    let request = &proposal["region_request"];
+    assert_eq!(request["route"]["layers"], json!(["top_cu"]));
+    assert_eq!(request["rip_up"].as_array().unwrap().len(), 5);
+    let job = routing::prepare_regional_job(&session, args(request.clone())).unwrap();
+    let candidate = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
+        .unwrap()
+        .result;
+    assert_eq!(candidate["validation"]["acceptable"], true, "{candidate}");
+    assert_eq!(candidate["routing"]["vias"], 0);
+    assert_eq!(board_value(&session), before);
+    board_edit::trace_add(
+        &mut session,
+        args(json!({
+            "from":vias[0], "to":{"x":7,"y":7}, "layer":"bottom", "width":0.2,
+        })),
+    )
+    .unwrap();
+    let branched = trace_path::trace_path_measure(&session, query())
+        .unwrap()
+        .result;
+    assert_eq!(branched["via_count"], 2);
+    assert_eq!(branched["via_reduction"], json!([]));
 }

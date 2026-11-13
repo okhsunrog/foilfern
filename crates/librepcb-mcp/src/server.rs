@@ -1072,7 +1072,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Measure the shortest explicit anchored trace path between two same-net footprint pads. Returns project/board/revision, length in mm, layers, traces and unique via anchors. Read-only: plane copper, unanchored copper contacts and via barrels are not measured; no path is not a connectivity verdict."
+        description = "Measure the shortest explicit anchored trace path between two same-net footprint pads. Returns length in mm, layers, traces and vias. Optionally suggest branch-preserving regional requests to reduce vias. Read-only: plane copper, unanchored copper contacts and via barrels are excluded."
     )]
     async fn trace_path_measure(
         &self,

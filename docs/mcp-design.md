@@ -424,6 +424,14 @@ including pad centers; via barrel length is excluded. Footprint pads are keyed
 by component instance and pad, local anchors by segment and layer. Only valid
 via/pad copper joins layers; a junction is not an implicit via.
 
+With `suggest_via_reduction: true`, measured paths also return
+`via_reduction` proposals. Each is a pair of transitions with uniform-width
+leads on the same outer layer and no explicit branches at the two vias or
+interior junctions. It includes the fixed outer anchors and a revision-bound
+`region_request` for `routing_region_prepare`, with exact rip-up UUIDs.
+The request is a trial; inspect its connectivity, DRC and path measurements
+before selecting a candidate.
+
 A missing explicit path returns partial `status: "not_measured"`, null
 `length_mm` and a reason. Plane copper and unanchored copper overlaps are not
 measured or inferred. `same_net_plane_present` is a hint about board contents,

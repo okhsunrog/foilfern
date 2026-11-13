@@ -15,6 +15,8 @@ use crate::outcome::ToolOutput;
 use crate::session::Session;
 use crate::{resolve, units, views};
 
+mod via_excursion;
+
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum PadAddress {
@@ -40,6 +42,9 @@ pub struct TracePathArgs {
     pub from: PadAddress,
     pub to: PadAddress,
     pub expected_revision: Option<u64>,
+    /// Suggest branch-preserving regional requests to remove pairs of vias.
+    #[serde(default)]
+    pub suggest_via_reduction: bool,
 }
 
 /// One pad pair to measure before and after a routing candidate.
@@ -144,8 +149,11 @@ pub fn trace_path_measure(session: &Session, args: TracePathArgs) -> ToolResult<
         traces,
         vias,
         layer_changes,
-    }) = path
+    }) = &path
     {
+        if args.suggest_via_reduction {
+            result["via_reduction"] = json!(via_excursion::suggestions(p, board, net, traces,));
+        }
         let layers: BTreeSet<_> = traces.iter().map(|trace| trace.layer.id()).collect();
         let measured: Vec<_> = traces
             .iter()
@@ -171,6 +179,9 @@ pub fn trace_path_measure(session: &Session, args: TracePathArgs) -> ToolResult<
             result,
         )
     } else {
+        if args.suggest_via_reduction {
+            result["via_reduction"] = json!([]);
+        }
         result["reason"] = json!(
             "No explicit anchored trace path. A plane or unanchored copper contact may connect these pads; that length is not measured. This is not a connectivity verdict."
         );
