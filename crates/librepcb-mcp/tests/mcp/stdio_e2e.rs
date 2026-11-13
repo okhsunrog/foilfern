@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 27);
+    assert_eq!(info["api_capability_version"], 28);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -2605,6 +2605,12 @@ async fn stdio_design_add_component_replays_library_and_keeps_identity() {
     )
     .await;
     assert_eq!(live["annotation_overlaps"], reviewed["annotation_overlaps"]);
+    assert_eq!(reviewed["annotation_changes"]["introduced"], json!([]));
+    assert_eq!(reviewed["annotation_changes"]["resolved"], json!([]));
+    assert_eq!(
+        reviewed["annotation_changes"]["inherited"],
+        live["annotation_overlaps"]
+    );
     assert!(
         reviewed["annotation_overlaps"]
             .as_array()
@@ -2635,5 +2641,29 @@ async fn stdio_design_add_component_replays_library_and_keeps_identity() {
     .await;
     assert_eq!(moved["diff"][0]["field"], "text_position");
     assert_eq!(moved["annotation_overlaps"], json!([]));
+    assert_eq!(
+        moved["annotation_changes"]["resolved"],
+        live["annotation_overlaps"]
+    );
+    assert_eq!(moved["annotation_changes"]["introduced"], json!([]));
+    call_ok(&client, "design_apply", json!({"preview":moved["preview"]})).await;
+    let reverted = call_ok(
+        &client,
+        "design_preview",
+        json!({
+            "version":1,"schematic":"Main","review_components":["cap"],
+            "components":{"cap":{"uuid":component["uuid"],
+                "text_positions":{(target_text["uuid"].as_str().unwrap()):{
+                    "expected":{"x":70,"y":70},"set":{"x":50,"y":48}
+                }}
+            }}
+        }),
+    )
+    .await;
+    assert_eq!(
+        reverted["annotation_changes"]["introduced"],
+        live["annotation_overlaps"]
+    );
+    assert_eq!(reverted["annotation_changes"]["inherited"], json!([]));
     client.cancel().await.unwrap();
 }

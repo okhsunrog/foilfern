@@ -1,7 +1,7 @@
 //! Schematic and board read tools: `schematic_list`, `schematic_get`,
 //! `board_get`.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use librepcb_core::geometry::{NetLineAnchor, Text, TraceAnchor};
 use librepcb_core::project::board::{Board, BoardAirWiresBuilder, PlaneFragments};
@@ -9,7 +9,9 @@ use librepcb_core::project::schematic::Schematic;
 use librepcb_core::project::schematic::import_appearance::ImportAppearance;
 use librepcb_core::project::{ComponentInstanceId, NetSegmentId, Project, SymbolId};
 use librepcb_core::types::Point;
-use librepcb_scene::{Annotation, ColorScheme, SchematicScene, annotation_overlaps};
+use librepcb_scene::{
+    Annotation, AnnotationOverlap, ColorScheme, SchematicScene, annotation_overlaps,
+};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -217,18 +219,50 @@ pub fn schematic_review(session: &Session, args: SchematicReviewArgs) -> ToolRes
         .iter()
         .map(|key| resolve::component(project, key).map(|(id, _)| id))
         .collect::<ToolResult<BTreeSet<_>>>()?;
-    let findings = review_annotations(project, schematic, &components)?;
+    let findings = annotation_review(project, schematic, &components, true)?;
     ToolOutput::new(
-        format!("{} schematic annotation overlap(s).", findings.len()),
-        json!({"schematic":schematic.id(), "annotation_overlaps":findings}),
+        format!(
+            "{} schematic annotation overlap(s).",
+            findings.entries.len()
+        ),
+        json!({"schematic":schematic.id(), "annotation_overlaps":findings.overlaps().collect::<Vec<_>>()}),
     )
 }
 
-pub(super) fn review_annotations(
+pub(super) struct AnnotationReview {
+    entries: Vec<((Annotation, Annotation), Value)>,
+}
+
+impl AnnotationReview {
+    pub(super) fn overlaps(&self) -> impl Iterator<Item = &Value> {
+        self.entries.iter().map(|(_, finding)| finding)
+    }
+
+    pub(super) fn changes_since(&self, baseline: Option<Self>) -> Value {
+        let mut baseline: BTreeMap<_, _> = baseline
+            .into_iter()
+            .flat_map(|baseline| baseline.entries)
+            .collect();
+        let mut introduced = Vec::new();
+        let mut inherited = Vec::new();
+        for (pair, finding) in &self.entries {
+            if baseline.remove(pair).is_some() {
+                inherited.push(finding);
+            } else {
+                introduced.push(finding);
+            }
+        }
+        let resolved: Vec<_> = baseline.into_values().collect();
+        json!({"introduced":introduced,"inherited":inherited,"resolved":resolved})
+    }
+}
+
+pub(super) fn annotation_review(
     project: &Project,
     schematic: &Schematic,
     components: &BTreeSet<ComponentInstanceId>,
-) -> ToolResult<Vec<Value>> {
+    require_placed: bool,
+) -> ToolResult<AnnotationReview> {
     let symbols: BTreeSet<_> = schematic
         .symbols()
         .iter()
@@ -239,7 +273,7 @@ pub(super) fn review_annotations(
         .iter()
         .map(|id| schematic.symbols()[id].component())
         .collect();
-    if let Some(component) = components.difference(&placed).next() {
+    if require_placed && let Some(component) = components.difference(&placed).next() {
         return Err(ToolError::invalid(format!(
             "Review component {} has no symbols on the selected sheet.",
             resolve::designator(project, *component)
@@ -284,9 +318,23 @@ pub(super) fn review_annotations(
         }
     };
     let scope = (!components.is_empty()).then_some((&symbols, &segments));
-    Ok(annotation_overlaps(&scene, scope).into_iter().map(|overlap|
-        json!({"first":describe(overlap.first),"second":describe(overlap.second),"bounds_mm":overlap.bounds})
-    ).collect())
+    let entries = annotation_overlaps(&scene, scope)
+        .into_iter()
+        .map(
+            |AnnotationOverlap {
+                 first,
+                 second,
+                 bounds,
+             }| {
+                let pair = (first.min(second), first.max(second));
+                (
+                    pair,
+                    json!({"first":describe(first),"second":describe(second),"bounds_mm":bounds}),
+                )
+            },
+        )
+        .collect();
+    Ok(AnnotationReview { entries })
 }
 
 pub(crate) fn symbol_text_json(text: &Text) -> Value {

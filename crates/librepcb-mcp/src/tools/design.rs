@@ -876,9 +876,13 @@ pub(crate) fn prepare(
         payload["board_impact"] = json!(copper);
     }
     if !reviewed.is_empty() {
-        payload["annotation_overlaps"] = json!(super::layout::review_annotations(
-            &project, schematic, &reviewed
-        )?);
+        let after = super::layout::annotation_review(&project, schematic, &reviewed, true)?;
+        let baseline = before
+            .schematic(page)
+            .map(|sheet| super::layout::annotation_review(&before, sheet, &reviewed, false))
+            .transpose()?;
+        payload["annotation_changes"] = after.changes_since(baseline);
+        payload["annotation_overlaps"] = json!(after.overlaps().collect::<Vec<_>>());
     }
     let findings = preview.requirement_findings();
     let blockers = findings
