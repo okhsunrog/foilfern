@@ -452,8 +452,9 @@ differ between platforms/implementations:
 
 ## project/schematic
 
-- KiCad project import stores source-specific pin legends and their sizes, global label
-  outlines and DNP/NC markers in `schematics/<sheet>/import-appearance.json`.
+- KiCad project import stores source-specific pin legends, sizes and placement,
+  global label outlines and DNP/NC markers in
+  `schematics/<sheet>/import-appearance.json`.
   Foilfern uses it for rendering. Upstream LibrePCB opens the native schematic
   with its own label and pin rendering. The sidecar does not change the
   circuit or the native schematic S-expression format.

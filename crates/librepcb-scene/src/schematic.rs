@@ -772,31 +772,21 @@ impl Builder<'_> {
 
         // Name.
         if let Some(layer) = SchematicScene::layer_id("schematic_pin_names") {
-            let mut align = lib_pin.name_alignment();
-            if transform.mirrored {
-                align = align.mirrored_v();
-            }
-            let pos = transform.map(
-                &(lib_pin.position()
-                    + lib_pin
-                        .name_position()
-                        .rotated(lib_pin.rotation(), Point::ORIGIN)),
-            );
+            let legend = self.appearance.pin_name_position(pin, transform);
             let rendered = self.text.text(
                 self.appearance
                     .pin_names
                     .get(&symbol.uuid())
                     .and_then(|pins| pins.get(&pin.uuid()))
                     .map_or_else(|| pin.name(), String::as_str),
-                pos,
+                legend.position,
                 TextStyle {
                     height: heights
                         .name
                         .map_or(*lib_pin.name_height(), |height| *height)
                         .to_mm(),
-                    align,
-                    rotation: transform
-                        .map_non_mirrorable(lib_pin.rotation() + lib_pin.name_rotation()),
+                    align: legend.alignment,
+                    rotation: legend.rotation,
                     auto_rotate: true,
                     mirror_in_place: false,
                     parse_overlines: true,
@@ -817,22 +807,17 @@ impl Builder<'_> {
                     let signal = pin.signal();
                     pin.numbers_text(self.pad_names(signal.component.0, signal.signal))
                 });
-            let pos = transform.map(
-                &(lib_pin.position()
-                    + pin
-                        .numbers_position()
-                        .rotated(lib_pin.rotation(), Point::ORIGIN)),
-            );
+            let legend = self.appearance.pin_number_position(pin, transform);
             let rendered = self.text.text(
                 &numbers,
-                pos,
+                legend.position,
                 TextStyle {
                     height: heights
                         .number
                         .map_or(*SymbolPin::numbers_height(), |height| *height)
                         .to_mm(),
-                    align: pin.numbers_alignment(),
-                    rotation: transform.map_non_mirrorable(lib_pin.rotation()),
+                    align: legend.alignment,
+                    rotation: legend.rotation,
                     auto_rotate: true,
                     mirror_in_place: false,
                     parse_overlines: false,

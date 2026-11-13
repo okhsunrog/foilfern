@@ -93,22 +93,16 @@ pub fn schematic_drawing(
                 settings.color("schematic_pin_lines"),
                 settings,
             );
-            let name_align = if transform.mirrored {
-                lib.name_alignment().mirrored_v()
-            } else {
-                lib.name_alignment()
-            };
             let heights = appearance.pin_text_heights(symbol.uuid(), pin.uuid());
+            let name_position = appearance.pin_name_position(&pin, &transform);
             drawing.markup_label(
-                transform.map(
-                    &(lib.position() + lib.name_position().rotated(lib.rotation(), Point::ORIGIN)),
-                ),
-                transform.map_non_mirrorable(lib.rotation() + lib.name_rotation()),
+                name_position.position,
+                name_position.rotation,
                 heights
                     .name
                     .map_or(*lib.name_height(), |height| *height)
                     .to_mm(),
-                name_align,
+                name_position.alignment,
                 appearance
                     .pin_names
                     .get(&symbol.uuid())
@@ -136,19 +130,15 @@ pub fn schematic_drawing(
                 .and_then(|pins| pins.get(&pin.uuid()))
                 .cloned()
                 .unwrap_or_else(|| pin.numbers_text(&numbers));
+            let number_position = appearance.pin_number_position(&pin, &transform);
             drawing.markup_label(
-                transform.map(
-                    &(lib.position()
-                        + pin
-                            .numbers_position()
-                            .rotated(lib.rotation(), Point::ORIGIN)),
-                ),
-                rotation,
+                number_position.position,
+                number_position.rotation,
                 heights
                     .number
                     .map_or(*SymbolPin::numbers_height(), |height| *height)
                     .to_mm(),
-                pin.numbers_alignment(),
+                number_position.alignment,
                 &numbers,
                 settings.color("schematic_pin_numbers"),
                 true,

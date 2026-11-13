@@ -2,12 +2,14 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::Schematic;
+use super::{Schematic, SymbolPinView};
 use crate::fileio::FileSystem;
 use crate::geometry::{NetLabel, Path};
 use crate::project::Project;
 use crate::types::{Alignment, Angle, HAlign, Length, Point, UnsignedLength, Uuid, VAlign};
 use crate::utils::overline_markup_parser::extract_overlines;
+use crate::utils::toolbox::is_text_upside_down;
+use crate::utils::transform::Transform;
 
 /// Optional appearance, keyed by native object IDs so electrical data stays in
 /// the native project. Stored beside the sheet without extending its format.
@@ -19,6 +21,8 @@ pub struct ImportAppearance {
     pub pin_names: BTreeMap<Uuid, BTreeMap<Uuid, String>>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub pin_text_heights: BTreeMap<Uuid, BTreeMap<Uuid, PinTextHeights>>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub outside_pin_names: BTreeSet<Uuid>,
     pub no_connects: BTreeMap<Uuid, BTreeSet<Uuid>>,
     pub unpopulated: BTreeSet<Uuid>,
     #[serde(flatten)]
@@ -57,6 +61,65 @@ impl ImportAppearance {
             .unwrap_or_default()
     }
 
+    /// Resolves the pin name's position, including KiCad's zero-offset layout.
+    pub fn pin_name_position(
+        &self,
+        pin: &SymbolPinView<'_>,
+        transform: &Transform,
+    ) -> PinLegendPosition {
+        if self.outside_pin_names.contains(&pin.symbol().0) {
+            return centered_legend(pin, true);
+        }
+        let lib = pin.lib_pin();
+        let alignment = lib.name_alignment();
+        PinLegendPosition {
+            position: transform.map(
+                &(lib.position() + lib.name_position().rotated(lib.rotation(), Point::ORIGIN)),
+            ),
+            rotation: transform.map_non_mirrorable(lib.rotation() + lib.name_rotation()),
+            alignment: if transform.mirrored {
+                alignment.mirrored_v()
+            } else {
+                alignment
+            },
+        }
+    }
+
+    /// Resolves the pin number's position, including KiCad's centered layout.
+    pub fn pin_number_position(
+        &self,
+        pin: &SymbolPinView<'_>,
+        transform: &Transform,
+    ) -> PinLegendPosition {
+        let symbol = pin.symbol().0;
+        let uuid = pin.uuid();
+        if !self
+            .pin_numbers
+            .get(&symbol)
+            .is_some_and(|pins| pins.contains_key(&uuid))
+        {
+            let lib = pin.lib_pin();
+            return PinLegendPosition {
+                position: transform.map(
+                    &(lib.position()
+                        + pin
+                            .numbers_position()
+                            .rotated(lib.rotation(), Point::ORIGIN)),
+                ),
+                rotation: pin.rotation(),
+                alignment: pin.numbers_alignment(),
+            };
+        }
+        let outside_name_visible = self.outside_pin_names.contains(&symbol)
+            && self
+                .pin_names
+                .get(&symbol)
+                .and_then(|pins| pins.get(&uuid))
+                .is_some_and(|name| !name.is_empty())
+            && self.pin_text_heights(symbol, uuid).name != Some(UnsignedLength::ZERO);
+        centered_legend(pin, !outside_name_visible)
+    }
+
     /// Returns whether this placed pin is marked as intentionally unconnected.
     pub fn is_no_connect(&self, symbol: Uuid, pin: Uuid) -> bool {
         self.no_connects
@@ -77,6 +140,36 @@ impl ImportAppearance {
             self.no_connects.remove(&symbol);
         }
         changed
+    }
+}
+
+/// Readable text orientation and anchor in schematic coordinates.
+pub struct PinLegendPosition {
+    pub position: Point,
+    pub rotation: Angle,
+    pub alignment: Alignment,
+}
+
+fn centered_legend(pin: &SymbolPinView<'_>, above: bool) -> PinLegendPosition {
+    // KiCad centers these legends along the pin. Use the default plotted
+    // gap (4 mil text offset + 4 mil margin + 6 mil default pen).
+    let gap = Length::new(if above { 355_600 } else { -355_600 });
+    let pin_rotation = pin.rotation();
+    let rotation = if is_text_upside_down(pin_rotation) {
+        pin_rotation + Angle::DEG180
+    } else {
+        pin_rotation
+    };
+    let midpoint = Point::new(*pin.lib_pin().length() / 2, Length::ZERO);
+    PinLegendPosition {
+        position: pin.position()
+            + midpoint.rotated(pin_rotation, Point::ORIGIN)
+            + Point::new(Length::ZERO, gap).rotated(rotation, Point::ORIGIN),
+        rotation,
+        alignment: Alignment::new(
+            HAlign::Center,
+            if above { VAlign::Bottom } else { VAlign::Top },
+        ),
     }
 }
 

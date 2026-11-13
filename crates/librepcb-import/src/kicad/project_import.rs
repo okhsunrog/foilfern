@@ -399,6 +399,9 @@ fn import_instance(
         .library()
         .symbol(library_symbol)
         .ok_or(Error::Logic("imported symbol missing"))?;
+    if lib.definition.pin_names_offset <= 0. && !lib.definition.hide_pin_names {
+        graph.appearance.outside_pin_names.insert(uuid);
+    }
     let mut power_pin = None;
     for (source_pin, (pin_name, numbers)) in gate
         .pins

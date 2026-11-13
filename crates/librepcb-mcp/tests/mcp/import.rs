@@ -271,6 +271,16 @@ fn kicad_project_import_preserves_numbered_unnamed_pins_and_direct_labels() {
         .values()
         .find(|symbol| symbol.name(native.view()).unwrap() == "U1")
         .unwrap();
+    let transform = rotated.transform();
+    for pin in rotated.pins(native.view()).unwrap() {
+        let legend = appearance.pin_number_position(&pin, &transform);
+        let midpoint = pin.position()
+            + librepcb_core::types::Point::from_nm(500_000, 0)
+                .rotated(pin.rotation(), librepcb_core::types::Point::ORIGIN);
+        assert_eq!(legend.position.x, midpoint.x);
+        assert_eq!((legend.position.y - midpoint.y).to_nm(), 355_600);
+        assert_eq!(legend.alignment.h, librepcb_core::types::HAlign::Center);
+    }
     assert_eq!(
         rotated.texts().values().next().unwrap().rotation(),
         librepcb_core::types::Angle::DEG0
@@ -358,7 +368,7 @@ fn schematic_review_identifies_overlapping_imported_pin_names() {
         r#"
 (kicad_sch (version 20260306) (generator "eeschema")
   (lib_symbols
-    (symbol "Fixture:Part" (pin_numbers hide)
+    (symbol "Fixture:Part" (pin_names (offset 0)) (pin_numbers hide)
       (property "Reference" "U" (at 0 0 0) (effects (font (size 1 1))))
       (symbol "Part_1_1"
         (pin passive line (at -2 0 0) (length 1)
@@ -377,6 +387,19 @@ fn schematic_review_identifies_overlapping_imported_pin_names() {
     }))
     .unwrap();
     project::project_create(&mut session, request).unwrap();
+    let native = session.project().unwrap().project();
+    let sheet = &native.schematics()[0];
+    let appearance =
+        librepcb_core::project::schematic::import_appearance::ImportAppearance::load(native, sheet);
+    let symbol = sheet.symbols().values().next().unwrap();
+    assert!(appearance.outside_pin_names.contains(&symbol.uuid()));
+    for pin in symbol.pins(native.view()).unwrap() {
+        let transform = symbol.transform();
+        let name = appearance.pin_name_position(&pin, &transform);
+        let number = appearance.pin_number_position(&pin, &transform);
+        assert_eq!(name.position.x, number.position.x);
+        assert_eq!((name.position.y - number.position.y).to_nm(), 711_200);
+    }
     let review = layout::schematic_review(&session, Default::default()).unwrap();
     let overlaps = review.result["annotation_overlaps"].as_array().unwrap();
     assert_eq!(overlaps.len(), 1, "{overlaps:?}");
