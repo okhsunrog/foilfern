@@ -8,7 +8,7 @@ use librepcb_core::project::{
     ComponentInstanceId, ComponentSignalRef, LibraryElementKind, Mutation, NetSignalId, Project,
     SchematicId, SchematicMutation, SymbolRef,
 };
-use librepcb_core::types::{Alignment, Angle, Layer, PositiveLength, Uuid};
+use librepcb_core::types::{Alignment, Angle, Layer, Length, Point, PositiveLength, Uuid};
 use librepcb_editor::Transaction;
 use librepcb_editor::commands::{
     AddComponent, AddLibraryElement, AddNet, AutoPlaceSymbols, BlockDirection, DrawWirePaths,
@@ -151,12 +151,26 @@ struct NewComponent {
     /// Mirror the initial symbol placement.
     #[serde(default)]
     mirrored: bool,
+    /// Initial fields of a single placed symbol, keyed by name, value, or text UUID.
+    #[serde(default)]
+    fields: BTreeMap<String, InitialField>,
     /// Maps exact physical package pads (or exact signal names for schematic-only parts) to nets.
     #[serde(default)]
     connections: BTreeMap<String, String>,
     /// Assign connections without stubs when the document supplies explicit wire groups.
     #[serde(default)]
     assign_only: bool,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct InitialField {
+    /// Offset from the final symbol origin in sheet axes, in mm.
+    offset: Option<PointMm>,
+    /// Absolute angle in degrees.
+    rotation: Option<f64>,
+    /// Text height in millimeters.
+    height: Option<f64>,
 }
 
 #[derive(Debug, Clone, Deserialize, serde::Serialize, JsonSchema)]
@@ -911,9 +925,68 @@ fn add_component(
         })?;
         if spec.position.is_none() {
             tx.run(AutoPlaceSymbols {
-                symbols: added.symbols,
+                symbols: added.symbols.clone(),
                 margin: None,
             })?;
+        }
+        if !spec.fields.is_empty() {
+            let [id] = added.symbols.as_slice() else {
+                return Err(ToolError::invalid(format!(
+                    "Initial fields of {key:?} require one placed symbol."
+                )));
+            };
+            let symbol = tx
+                .project()
+                .schematic(page)
+                .and_then(|sheet| sheet.symbols().get(id))
+                .ok_or_else(|| {
+                    ToolError::not_found(format!("Placed symbol for {key:?} not found."))
+                })?;
+            let origin = symbol.position();
+            let reference = SymbolRef {
+                schematic: page,
+                symbol: *id,
+            };
+            let mut fields = BTreeSet::new();
+            let mut edits = Vec::new();
+            for (selector, field) in &spec.fields {
+                let mut text = resolve::symbol_text(symbol, selector)?.clone();
+                if !fields.insert(text.uuid()) {
+                    return Err(ToolError::invalid(format!(
+                        "Multiple selectors refer to the same field of {key:?}."
+                    )));
+                }
+                if let Some(offset) = field.offset {
+                    let offset = offset.to_point()?;
+                    let add = |a: Length, b: Length| {
+                        a.to_nm()
+                            .checked_add(b.to_nm())
+                            .map(Length::new)
+                            .ok_or_else(|| {
+                                ToolError::invalid(format!(
+                                    "Field {selector:?} of {key:?} is out of range."
+                                ))
+                            })
+                    };
+                    text.set_position(Point::new(
+                        add(origin.x, offset.x)?,
+                        add(origin.y, offset.y)?,
+                    ));
+                }
+                if let Some(rotation) = field.rotation {
+                    text.set_rotation(units::angle(rotation)?);
+                }
+                if let Some(height) = field.height {
+                    text.set_height(PositiveLength::new(units::length(height)?)?);
+                }
+                edits.push(DesignEdit::SymbolText {
+                    symbol: reference,
+                    text,
+                });
+            }
+            for edit in edits {
+                edit.execute(tx)?;
+            }
         }
         let mut attrs = tx
             .project()

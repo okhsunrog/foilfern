@@ -108,8 +108,9 @@ save/reopen gave an empty diff.
 From a blank native sheet, one document created all 36 components and 29
 nets of the saved ESP32-C3 comparison, matching its physical-pad membership.
 The replay used the corrected comparison library embedded in the original
-project. A second document created the ESP32-C3-WROOM-02 dev board with
-standard library symbols, explicit routes and notes. Both saved projects
+project. A [second document](examples/esp32-c3-devboard.json) created the
+ESP32-C3-WROOM-02 dev board with standard library symbols, explicit routes,
+notes and initial reference and value placement. Both saved projects
 passed ERC in Foilfern and upstream LibrePCB 2.1.1, and both documents replayed
 with an empty diff after reopening. These runs covered the schematic.
 

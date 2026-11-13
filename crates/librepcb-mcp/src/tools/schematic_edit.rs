@@ -14,7 +14,7 @@ use librepcb_core::project::{
     SymbolRef,
 };
 use librepcb_core::types::{
-    Angle, CircuitIdentifier, ElementName, Layer, Point, PositiveLength, UnsignedLength, Uuid,
+    Angle, CircuitIdentifier, ElementName, Point, PositiveLength, UnsignedLength, Uuid,
 };
 use librepcb_core::workspace::{ElementKind, SearchQuery};
 use librepcb_editor::commands::{
@@ -774,26 +774,7 @@ pub fn symbol_text_move(session: &mut Session, args: SymbolTextMoveArgs) -> Tool
         .iter()
         .find_map(|page| page.symbols().get(&id).map(|symbol| (page.id(), symbol)))
         .ok_or_else(|| ToolError::not_found("Placed symbol not found."))?;
-    let layer = match args.text.as_str() {
-        "name" => Some(Layer::SYMBOL_NAMES),
-        "value" => Some(Layer::SYMBOL_VALUES),
-        _ => None,
-    };
-    let mut text = if let Some(layer) = layer {
-        let mut matches = symbol.texts().values().filter(|text| text.layer() == layer);
-        let first = matches.next();
-        if matches.next().is_some() {
-            return Err(ToolError::invalid(
-                "Multiple texts match; pass a text UUID from schematic_get.",
-            ));
-        }
-        first
-    } else {
-        let uuid = resolve::required_uuid(&args.text, "symbol text")?;
-        symbol.texts().get(&uuid)
-    }
-    .cloned()
-    .ok_or_else(|| ToolError::not_found("Symbol text not found."))?;
+    let mut text = resolve::symbol_text(symbol, &args.text)?.clone();
     text.set_position(args.position.to_point()?);
     if let Some(height) = args.height {
         text.set_height(positive(height, "height")?);

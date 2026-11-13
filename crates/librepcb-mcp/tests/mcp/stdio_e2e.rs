@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 12);
+    assert_eq!(info["api_capability_version"], 13);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -1650,11 +1650,14 @@ async fn stdio_design_creates_nets_parts_and_paths_together() {
             "value":"10 kΩ","position":{"x":x,"y":0},"mirrored":mirrored,
             "assign_only":true,"connections":{"2":"EN"}})
     };
-    let document = json!({
+    let mut document = json!({
         "version":1,"schematic":"Main","add_nets":["EN"],
         "add_components":{"pullup":spec("R1",0,false),"load":spec("R2",25,true)},
         "wire_groups":[{"net":"EN","pins":["pullup.2","load.2"],"paths":[["pullup.2","load.2"]]}],
         "nets":{"EN":["load.2"]},
+    });
+    document["add_components"]["load"]["fields"] = json!({
+        "name":{"offset":{"x":2,"y":3},"rotation":0,"height":1.5}
     });
     let before = call_ok(&client, "project_summary", json!({})).await;
     let history = call_ok(&client, "history", json!({})).await;
@@ -1690,6 +1693,21 @@ async fn stdio_design_creates_nets_parts_and_paths_together() {
             .iter()
             .any(|s| s["name"] == "R2" && s["mirrored"] == true)
     );
+    let resistor = after["symbols"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["name"] == "R2")
+        .unwrap();
+    let name = resistor["texts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["layer"] == "sym_names")
+        .unwrap();
+    assert_eq!(name["position"], json!({"x":27.0,"y":3.0}));
+    assert_eq!(name["rotation"], 0.0);
+    assert_eq!(name["height"], 1.5);
     assert_eq!(
         call_ok(&client, "netlist", json!({})).await["nets"]["EN"],
         json!(["R1.2", "R2.2"])

@@ -15,15 +15,16 @@
 use std::collections::BTreeSet;
 use std::str::FromStr;
 
+use librepcb_core::geometry::Text;
 use librepcb_core::library::LibraryBaseElement;
 use librepcb_core::library::cmp::Component;
 use librepcb_core::project::board::Board;
 use librepcb_core::project::circuit::{ComponentInstance, NetSignal};
-use librepcb_core::project::schematic::Schematic;
+use librepcb_core::project::schematic::{Schematic, SchematicSymbol};
 use librepcb_core::project::{
     BoardId, ComponentInstanceId, ComponentSignalRef, NetSignalId, Project, SchematicId,
 };
-use librepcb_core::types::Uuid;
+use librepcb_core::types::{Layer, Uuid};
 use librepcb_core::workspace::Workspace;
 
 use crate::error::{ToolError, ToolResult};
@@ -37,6 +38,28 @@ pub fn parse_uuid(s: &str) -> Option<Uuid> {
 /// Parses a required UUID argument.
 pub fn required_uuid(s: &str, what: &str) -> ToolResult<Uuid> {
     parse_uuid(s).ok_or_else(|| ToolError::invalid(format!("invalid {what} UUID: \"{s}\"")))
+}
+
+/// Resolves a symbol field by role or by its placed text UUID.
+pub fn symbol_text<'a>(symbol: &'a SchematicSymbol, selector: &str) -> ToolResult<&'a Text> {
+    let layer = match selector {
+        "name" => Some(Layer::SYMBOL_NAMES),
+        "value" => Some(Layer::SYMBOL_VALUES),
+        _ => None,
+    };
+    let found = if let Some(layer) = layer {
+        let mut matches = symbol.texts().values().filter(|text| text.layer() == layer);
+        let first = matches.next();
+        if matches.next().is_some() {
+            return Err(ToolError::invalid(
+                "Multiple texts match; pass a text UUID from schematic_get.",
+            ));
+        }
+        first
+    } else {
+        symbol.texts().get(&required_uuid(selector, "symbol text")?)
+    };
+    found.ok_or_else(|| ToolError::not_found(format!("Symbol text {selector:?} not found.")))
 }
 
 /// Resolves a component instance by designator (`"R1"`) or UUID.

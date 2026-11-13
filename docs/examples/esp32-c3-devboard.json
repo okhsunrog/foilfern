@@ -1,0 +1,499 @@
+{
+  "version": 1,
+  "schematic": "Main",
+  "add_nets": [
+    "+3V3",
+    "EN",
+    "GND",
+    "GPIO10",
+    "GPIO2",
+    "GPIO3",
+    "GPIO4",
+    "GPIO5",
+    "GPIO6",
+    "GPIO8",
+    "GPIO9",
+    "LED_A",
+    "UART0_RX",
+    "UART0_TX"
+  ],
+  "add_components": {
+    "U1": {
+      "designator": "U1",
+      "library_component": "16a61737-45a4-4d68-b288-f38bfbc274dd",
+      "value": "ESP32-C3-WROOM-02-N4",
+      "position": {"x": 76.2, "y": 81.28},
+      "rotation": 0.0,
+      "connections": {
+        "1": "+3V3",
+        "2": "EN",
+        "9": "GND",
+        "10": "GPIO10",
+        "3": "GPIO4",
+        "4": "GPIO5",
+        "5": "GPIO6",
+        "7": "GPIO8",
+        "8": "GPIO9",
+        "11": "UART0_RX",
+        "12": "UART0_TX",
+        "19_EPAD_1": "GND",
+        "16": "GPIO2",
+        "15": "GPIO3"
+      },
+      "assign_only": true,
+      "device": "886a24a7-60d6-4e7f-ac6d-6ed41a9fed76",
+      "fields": {
+        "value": {"offset": {"x": -10.16, "y": -20.32}, "rotation": 0.0, "height": 2.5},
+        "name": {"offset": {"x": -10.16, "y": 20.32}, "rotation": 0.0, "height": 2.5}
+      }
+    },
+    "J1": {
+      "designator": "J1",
+      "library_component": "ab344e7c-b740-4f2a-b21a-f7b1c433f990",
+      "value": "",
+      "position": {"x": 10.16, "y": 91.44},
+      "rotation": 0.0,
+      "connections": {"1": "+3V3", "2": "GND"},
+      "assign_only": true,
+      "device": "51015f80-3c94-4bd1-a7ac-238337a8331f"
+    },
+    "J2": {
+      "designator": "J2",
+      "library_component": "f7b52b62-7814-4a74-88ac-155e101507d5",
+      "value": "",
+      "position": {"x": 142.24, "y": 66.04},
+      "rotation": 0.0,
+      "connections": {"1": "GND", "2": "UART0_RX", "3": "UART0_TX"},
+      "assign_only": true,
+      "device": "b1440e98-e2ff-4748-bcd5-da97036c9a1a",
+      "mirrored": true
+    },
+    "J3": {
+      "designator": "J3",
+      "library_component": "d2b39209-d220-4b06-9440-457c50047ad2",
+      "value": "",
+      "position": {"x": 142.24, "y": 88.9},
+      "rotation": 0.0,
+      "connections": {"1": "GND", "2": "GPIO3", "3": "GPIO4", "4": "GPIO5", "5": "GPIO6"},
+      "assign_only": true,
+      "device": "476b4778-b9d7-4e1e-a6b4-4fb321cebf18",
+      "mirrored": true
+    },
+    "C1": {
+      "designator": "C1",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "value": "10 µF",
+      "position": {"x": 25.4, "y": 81.28},
+      "rotation": 180.0,
+      "connections": {"2": "+3V3", "1": "GND"},
+      "assign_only": true,
+      "device": "c139e505-592b-46ba-bdf2-acb7383ea0cd",
+      "fields": {
+        "value": {"offset": {"x": 2.667, "y": -1.651}, "rotation": 0.0, "height": 1.82},
+        "name": {"offset": {"x": 2.667, "y": 1.27}, "rotation": 0.0, "height": 1.82}
+      }
+    },
+    "C2": {
+      "designator": "C2",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "value": "100 nF",
+      "position": {"x": 38.1, "y": 81.28},
+      "rotation": 180.0,
+      "connections": {"2": "+3V3", "1": "GND"},
+      "assign_only": true,
+      "device": "e80a2ba5-13dd-41f2-9cdc-f29e30a9e2ed",
+      "fields": {
+        "value": {"offset": {"x": 2.667, "y": -1.651}, "rotation": 0.0, "height": 1.82},
+        "name": {"offset": {"x": 2.667, "y": 1.27}, "rotation": 0.0, "height": 1.82}
+      }
+    },
+    "R1": {
+      "designator": "R1",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "value": "10 kΩ",
+      "position": {"x": 12.7, "y": 43.18},
+      "rotation": 90.0,
+      "connections": {"2": "+3V3", "1": "EN"},
+      "assign_only": true,
+      "device": "483a71eb-318e-448e-82ff-f02efc4821aa",
+      "fields": {
+        "name": {"offset": {"x": 2.54, "y": 1.27}, "rotation": 0.0, "height": 1.82},
+        "value": {"offset": {"x": 2.54, "y": -1.651}, "rotation": 0.0, "height": 1.82}
+      }
+    },
+    "C3": {
+      "designator": "C3",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "value": "1 µF",
+      "position": {"x": 12.7, "y": 27.94},
+      "rotation": 180.0,
+      "connections": {"2": "EN", "1": "GND"},
+      "assign_only": true,
+      "device": "e80a2ba5-13dd-41f2-9cdc-f29e30a9e2ed",
+      "fields": {
+        "value": {"offset": {"x": 2.54, "y": -1.651}, "rotation": 0.0, "height": 1.82},
+        "name": {"offset": {"x": 2.54, "y": 1.27}, "rotation": 0.0, "height": 1.82}
+      }
+    },
+    "S1": {
+      "designator": "S1",
+      "library_component": "6eedad0b-5b41-4233-9b7b-8be1ee8527e0",
+      "value": "RESET",
+      "position": {"x": 27.94, "y": 27.94},
+      "rotation": 90.0,
+      "connections": {"1": "GND", "3": "EN"},
+      "assign_only": true,
+      "device": "80822412-2436-4068-a8db-f8c35a7f9cc3",
+      "fields": {
+        "value": {"offset": {"x": 2.794, "y": -1.651}, "rotation": 0.0, "height": 1.82},
+        "name": {"offset": {"x": 2.794, "y": 1.27}, "rotation": 0.0, "height": 1.82}
+      }
+    },
+    "R2": {
+      "designator": "R2",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "value": "10 kΩ",
+      "position": {"x": 53.34, "y": 43.18},
+      "rotation": 90.0,
+      "connections": {"2": "+3V3", "1": "GPIO9"},
+      "assign_only": true,
+      "device": "483a71eb-318e-448e-82ff-f02efc4821aa",
+      "fields": {
+        "name": {"offset": {"x": 2.54, "y": 1.27}, "rotation": 0.0, "height": 1.82},
+        "value": {"offset": {"x": 2.54, "y": -1.651}, "rotation": 0.0, "height": 1.82}
+      }
+    },
+    "S2": {
+      "designator": "S2",
+      "library_component": "6eedad0b-5b41-4233-9b7b-8be1ee8527e0",
+      "value": "BOOT",
+      "position": {"x": 53.34, "y": 27.94},
+      "rotation": 90.0,
+      "connections": {"1": "GND", "3": "GPIO9"},
+      "assign_only": true,
+      "device": "80822412-2436-4068-a8db-f8c35a7f9cc3",
+      "fields": {
+        "value": {"offset": {"x": 2.794, "y": -1.651}, "rotation": 0.0, "height": 1.82},
+        "name": {"offset": {"x": 2.794, "y": 1.27}, "rotation": 0.0, "height": 1.82}
+      }
+    },
+    "R3": {
+      "designator": "R3",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "value": "10 kΩ",
+      "position": {"x": 71.12, "y": 43.18},
+      "rotation": 90.0,
+      "connections": {"2": "+3V3", "1": "GPIO8"},
+      "assign_only": true,
+      "device": "483a71eb-318e-448e-82ff-f02efc4821aa",
+      "fields": {
+        "name": {"offset": {"x": 2.54, "y": 1.27}, "rotation": 0.0, "height": 1.82},
+        "value": {"offset": {"x": 2.54, "y": -1.651}, "rotation": 0.0, "height": 1.82}
+      }
+    },
+    "R4": {
+      "designator": "R4",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "value": "10 kΩ",
+      "position": {"x": 86.36, "y": 43.18},
+      "rotation": 90.0,
+      "connections": {"2": "+3V3", "1": "GPIO2"},
+      "assign_only": true,
+      "device": "483a71eb-318e-448e-82ff-f02efc4821aa",
+      "fields": {
+        "name": {"offset": {"x": 2.54, "y": 1.27}, "rotation": 0.0, "height": 1.82},
+        "value": {"offset": {"x": 2.54, "y": -1.651}, "rotation": 0.0, "height": 1.82}
+      }
+    },
+    "R5": {
+      "designator": "R5",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "value": "470 Ω",
+      "position": {"x": 114.3, "y": 43.18},
+      "rotation": 90.0,
+      "connections": {"2": "GPIO10", "1": "LED_A"},
+      "assign_only": true,
+      "device": "483a71eb-318e-448e-82ff-f02efc4821aa",
+      "fields": {
+        "name": {"offset": {"x": 2.54, "y": 1.27}, "rotation": 0.0, "height": 1.82},
+        "value": {"offset": {"x": 2.54, "y": -1.651}, "rotation": 0.0, "height": 1.82}
+      }
+    },
+    "D1": {
+      "designator": "D1",
+      "library_component": "2b24b18d-bd95-4fb4-8fe6-bce1d020ead4",
+      "value": "Green",
+      "position": {"x": 114.3, "y": 27.94},
+      "rotation": 0.0,
+      "connections": {"C": "GND", "A": "LED_A"},
+      "assign_only": true,
+      "device": "6dfd2937-006e-4f90-b6a8-3e2f0fe9238c",
+      "fields": {
+        "value": {"offset": {"x": 2.794, "y": -1.651}, "rotation": 0.0, "height": 1.82},
+        "name": {"offset": {"x": 2.794, "y": 1.27}, "rotation": 0.0, "height": 1.82}
+      }
+    },
+    "VCC1": {
+      "designator": "VCC1",
+      "library_component": "58c3c6cd-11eb-4557-aa3f-d3e05874afde",
+      "value": "+3V3",
+      "position": {"x": 38.1, "y": 99.06},
+      "rotation": 0.0,
+      "connections": {"Net": "+3V3"},
+      "assign_only": true,
+      "fields": {"value": {"offset": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "height": 2.54}}
+    },
+    "VCC2": {
+      "designator": "VCC2",
+      "library_component": "58c3c6cd-11eb-4557-aa3f-d3e05874afde",
+      "value": "+3V3",
+      "position": {"x": 10.16, "y": 55.88},
+      "rotation": 0.0,
+      "connections": {"Net": "+3V3"},
+      "assign_only": true,
+      "fields": {"value": {"offset": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "height": 2.54}}
+    },
+    "VCC3": {
+      "designator": "VCC3",
+      "library_component": "58c3c6cd-11eb-4557-aa3f-d3e05874afde",
+      "value": "+3V3",
+      "position": {"x": 71.12, "y": 55.88},
+      "rotation": 0.0,
+      "connections": {"Net": "+3V3"},
+      "assign_only": true,
+      "fields": {"value": {"offset": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "height": 2.54}}
+    },
+    "GND1": {
+      "designator": "GND1",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "value": "GND",
+      "position": {"x": 38.1, "y": 71.12},
+      "rotation": 0.0,
+      "connections": {"Net": "GND"},
+      "assign_only": true,
+      "fields": {"value": {"offset": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "height": 2.54}}
+    },
+    "GND2": {
+      "designator": "GND2",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "value": "GND",
+      "position": {"x": 55.88, "y": 81.28},
+      "rotation": 0.0,
+      "connections": {"Net": "GND"},
+      "assign_only": true,
+      "fields": {"value": {"offset": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "height": 2.54}}
+    },
+    "GND3": {
+      "designator": "GND3",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "value": "GND",
+      "position": {"x": 17.78, "y": 15.24},
+      "rotation": 0.0,
+      "connections": {"Net": "GND"},
+      "assign_only": true,
+      "fields": {"value": {"offset": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "height": 2.54}}
+    },
+    "GND4": {
+      "designator": "GND4",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "value": "GND",
+      "position": {"x": 53.34, "y": 15.24},
+      "rotation": 0.0,
+      "connections": {"Net": "GND"},
+      "assign_only": true,
+      "fields": {"value": {"offset": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "height": 2.54}}
+    },
+    "GND5": {
+      "designator": "GND5",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "value": "GND",
+      "position": {"x": 114.3, "y": 15.24},
+      "rotation": 0.0,
+      "connections": {"Net": "GND"},
+      "assign_only": true,
+      "fields": {"value": {"offset": {"x": 0.0, "y": 0.0}, "rotation": 0.0, "height": 2.54}}
+    }
+  },
+  "wire_groups": [
+    {
+      "net": "+3V3",
+      "pins": ["J1.1", "U1.3V3", "C1.2", "C2.2", "VCC1.Net"],
+      "paths": [
+        ["J1.1", {"x": 22.86, "y": 91.44}, {"x": 22.86, "y": 93.98}, "U1.3V3"],
+        ["C1.2", {"x": 25.4, "y": 93.98}],
+        ["C2.2", {"x": 38.1, "y": 93.98}],
+        ["VCC1.Net", {"x": 38.1, "y": 93.98}]
+      ]
+    },
+    {
+      "net": "GND",
+      "pins": ["J1.2", "GND1.Net", "C1.1", "C2.1"],
+      "paths": [
+        ["J1.2", {"x": 17.78, "y": 88.9}, {"x": 17.78, "y": 73.66}, "GND1.Net"],
+        ["C1.1", {"x": 25.4, "y": 73.66}],
+        ["C2.1", "GND1.Net"]
+      ]
+    },
+    {
+      "net": "GND",
+      "pins": ["U1.GND", "GND2.Net", "U1.GND_EPAD"],
+      "paths": [["U1.GND", {"x": 55.88, "y": 88.9}, "GND2.Net"], ["U1.GND_EPAD", {"x": 55.88, "y": 86.36}]]
+    },
+    {
+      "net": "EN",
+      "pins": ["U1.EN"],
+      "paths": [["U1.EN", {"x": 53.34, "y": 99.06}]],
+      "label": {"x": 53.34, "y": 99.06}
+    },
+    {
+      "net": "+3V3",
+      "pins": ["R2.2", "R4.2", "VCC3.Net", "R3.2"],
+      "paths": [
+        ["R2.2", {"x": 53.34, "y": 50.8}, {"x": 86.36, "y": 50.8}, "R4.2"],
+        ["VCC3.Net", {"x": 71.12, "y": 50.8}],
+        ["R3.2", {"x": 71.12, "y": 50.8}]
+      ]
+    },
+    {
+      "net": "GPIO9",
+      "pins": ["R2.1", "S2.2"],
+      "paths": [["R2.1", "S2.2"], [{"x": 53.34, "y": 35.56}, {"x": 60.96, "y": 35.56}]],
+      "label": {"x": 55.88, "y": 35.56}
+    },
+    {"net": "GND", "pins": ["S2.1", "GND4.Net"], "paths": [["S2.1", "GND4.Net"]]},
+    {
+      "net": "GPIO8",
+      "pins": ["R3.1"],
+      "paths": [["R3.1", {"x": 71.12, "y": 33.02}, {"x": 76.2, "y": 33.02}]],
+      "label": {"x": 73.66, "y": 33.02}
+    },
+    {
+      "net": "GPIO2",
+      "pins": ["R4.1"],
+      "paths": [["R4.1", {"x": 86.36, "y": 33.02}, {"x": 91.44, "y": 33.02}]],
+      "label": {"x": 88.9, "y": 33.02}
+    },
+    {
+      "net": "GPIO2",
+      "pins": ["U1.IO2"],
+      "paths": [["U1.IO2", {"x": 99.06, "y": 93.98}]],
+      "label": {"x": 99.06, "y": 93.98}
+    },
+    {
+      "net": "GPIO8",
+      "pins": ["U1.IO8"],
+      "paths": [["U1.IO8", {"x": 99.06, "y": 78.74}]],
+      "label": {"x": 99.06, "y": 78.74}
+    },
+    {
+      "net": "GPIO9",
+      "pins": ["U1.IO9"],
+      "paths": [["U1.IO9", {"x": 99.06, "y": 76.2}]],
+      "label": {"x": 99.06, "y": 76.2}
+    },
+    {
+      "net": "GPIO10",
+      "pins": ["U1.IO10"],
+      "paths": [["U1.IO10", {"x": 99.06, "y": 73.66}]],
+      "label": {"x": 99.06, "y": 73.66}
+    },
+    {
+      "net": "GPIO10",
+      "pins": ["R5.2"],
+      "paths": [["R5.2", {"x": 114.3, "y": 53.34}, {"x": 106.68, "y": 53.34}]],
+      "label": {"x": 106.68, "y": 53.34}
+    },
+    {"net": "LED_A", "pins": ["R5.1", "D1.A"], "paths": [["R5.1", "D1.A"]]},
+    {"net": "GND", "pins": ["D1.C", "GND5.Net"], "paths": [["D1.C", "GND5.Net"]]},
+    {
+      "net": "GND",
+      "pins": ["J2.1"],
+      "paths": [["J2.1", {"x": 129.54, "y": 68.58}]],
+      "label": {"x": 129.54, "y": 68.58}
+    },
+    {
+      "net": "GND",
+      "pins": ["J3.1"],
+      "paths": [["J3.1", {"x": 129.54, "y": 93.98}]],
+      "label": {"x": 129.54, "y": 93.98}
+    },
+    {
+      "net": "UART0_RX",
+      "pins": ["U1.IO20/RXD", "J2.2"],
+      "paths": [["U1.IO20/RXD", "J2.2"]],
+      "label": {"x": 116.84, "y": 66.04}
+    },
+    {
+      "net": "UART0_TX",
+      "pins": ["U1.IO21/TXD", "J2.3"],
+      "paths": [["U1.IO21/TXD", "J2.3"]],
+      "label": {"x": 116.84, "y": 63.5}
+    },
+    {"net": "GPIO3", "pins": ["U1.IO3", "J3.2"], "paths": [["U1.IO3", "J3.2"]]},
+    {"net": "GPIO4", "pins": ["U1.IO4/MTMS", "J3.3"], "paths": [["U1.IO4/MTMS", "J3.3"]]},
+    {"net": "GPIO5", "pins": ["U1.IO5/MTDI", "J3.4"], "paths": [["U1.IO5/MTDI", "J3.4"]]},
+    {"net": "GPIO6", "pins": ["U1.IO6/MTCK", "J3.5"], "paths": [["U1.IO6/MTCK", "J3.5"]]},
+    {
+      "net": "+3V3",
+      "pins": ["R1.2", "VCC2.Net"],
+      "paths": [
+        [
+          "R1.2",
+          {"x": {"pin": "R1.2"}, "y": {"pin": "R1.2", "offset": 2.54}},
+          {"x": {"pin": "VCC2.Net"}, "y": {"pin": "R1.2", "offset": 2.54}},
+          "VCC2.Net"
+        ]
+      ]
+    },
+    {
+      "net": "EN",
+      "pins": ["R1.1", "C3.2", "S1.2"],
+      "paths": [
+        ["R1.1", "C3.2"],
+        [
+          "S1.2",
+          {"x": {"pin": "S1.2"}, "y": {"pin": "S1.2", "offset": 2.54}},
+          {"x": {"pin": "C3.2"}, "y": {"pin": "S1.2", "offset": 2.54}},
+          {"x": {"pin": "C3.2", "offset": -6.35}, "y": {"pin": "S1.2", "offset": 2.54}}
+        ]
+      ],
+      "label": {"x": {"pin": "C3.2", "offset": -6.35}, "y": {"pin": "S1.2", "offset": 2.54}}
+    },
+    {
+      "net": "GND",
+      "pins": ["C3.1", "S1.1", "GND3.Net"],
+      "paths": [
+        [
+          "C3.1",
+          {"x": {"pin": "C3.1"}, "y": {"pin": "GND3.Net"}},
+          "GND3.Net",
+          {"x": {"pin": "S1.1"}, "y": {"pin": "GND3.Net"}},
+          "S1.1"
+        ]
+      ]
+    }
+  ],
+  "notes": [
+    {"text": "ESP32-C3 development board", "position": {"x": 10.16, "y": 113.284}, "height": 3.1},
+    {"text": "3.3 V POWER INPUT", "position": {"x": 10.16, "y": 105.41}, "height": 2.15},
+    {
+      "text": "Regulated 3.3 V, 500 mA minimum",
+      "position": {"x": 10.16, "y": 65.024},
+      "height": 1.8
+    },
+    {"text": "Place C2 close to U1 pin 1.", "position": {"x": 10.16, "y": 61.468}, "height": 1.8},
+    {"text": "RESET", "position": {"x": 20.32, "y": 56.515}, "height": 2.15},
+    {"text": "BOOT STRAPS", "position": {"x": 53.34, "y": 56.515}, "height": 2.15},
+    {"text": "Hold BOOT while tapping RESET.", "position": {"x": 56.515, "y": 19.05}, "height": 1.8},
+    {"text": "USER LED", "position": {"x": 106.68, "y": 56.515}, "height": 2.15},
+    {"text": "GPIO BREAKOUT", "position": {"x": 124.46, "y": 105.41}, "height": 2.15},
+    {"text": "UART0 PROGRAMMING", "position": {"x": 119.38, "y": 75.946}, "height": 2.15},
+    {"text": "Use a 3.3 V logic adapter.", "position": {"x": 127.254, "y": 58.928}, "height": 1.8},
+    {"text": "TX to J2.2 / RX to J2.3", "position": {"x": 127.254, "y": 55.626}, "height": 1.8},
+    {
+      "text": "Release BOOT 100 ms after RESET.",
+      "position": {"x": 56.515, "y": 15.7988},
+      "height": 1.8
+    }
+  ]
+}

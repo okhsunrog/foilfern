@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `12`). Its `build` object contains
+`api_capability_version` (currently `13`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -293,14 +293,26 @@ For a schematic-only part, omit `device` and use exact component signal names
 in `connections`. The preview reports the pad, signal and library UUIDs.
 Omit the initial position for automatic placement. Set `mirrored: true` for
 an initial mirrored symbol, for example a header with pins facing left.
-Replaying the same entry
-keeps subsequent designator and placement edits. A changed part, value or pin
+For a component with one placed symbol, `fields` sets initial reference and
+value placement. Use `name`, `value` or a text UUID as the key. For example,
+`{"name":{"offset":{"x":2.54,"y":1.27},"rotation":0,"height":1.5}}`
+sets a horizontal designator relative to the final symbol origin in sheet
+axes. Omit a field property to use the library default. Replaying the same
+entry keeps subsequent designator, placement and field edits. A changed part, value or pin
 membership reports a conflict. The key is stored in the component's native
 `FOILFERN_DESIGN_KEY` attribute. Apply and undo include the embedded library
 files. `nets` assertions and `wire_groups` can refer to new component keys in
 the same document. Set `assign_only: true` on a new part to supply its wires
 with explicit paths. By default each assigned pin gets a labeled stub.
 PCB placement remains a separate operation.
+
+The [ESP32-C3 dev board](examples/esp32-c3-devboard.json) creates a complete
+one-page schematic with explicit wiring, notes and initial symbol fields.
+Install `LibrePCB Base`, `LibrePCB Connectors`, `Espressif Systems` and `C&K`
+in the workspace, create a project with a `Main` sheet, then send the document
+to `design_preview` and apply the reviewed patch. The document pins exact
+library identities. If a library update changes a selected part, resolve it
+again through `library_element` and verify its pad mapping and pin positions.
 
 Set `review_components` to document keys to check annotation overlaps in the
 preview. The report gives the object IDs, designators or net names and the
