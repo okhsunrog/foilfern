@@ -56,6 +56,7 @@ mod output_job_runner;
 mod project;
 mod ref_index;
 pub mod schematic;
+pub mod schematic_requirements;
 
 pub use attribute_lookup::ProjectAttributeLookup;
 pub use board::BoardChange;

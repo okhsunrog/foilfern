@@ -473,6 +473,10 @@ differ between platforms/implementations:
 - Declarative component removal and pin reassignment reuse the native editor
   cascade, report its board impact and refuse to change a surviving pin
   outside the requested edit. The native file format is unchanged.
+- Schematic requirements use the optional project asset
+  `project/foilfern-schematic-requirements.json`. The asset uses native UUIDs
+  and integer nanometers. Foilfern evaluates it for declarative schematic
+  updates. Upstream uses the existing native schematic and circuit files.
 
 - Loading validates each schematic page as a whole after deserializing it
   (upstream adds the empty page and then item by item); for a file with

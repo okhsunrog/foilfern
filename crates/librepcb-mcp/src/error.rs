@@ -209,6 +209,11 @@ impl From<librepcb_editor::Error> for ToolError {
         let kind = match &e {
             E::Project(p) => project_kind(p),
             E::FileIo(f) => file_io_kind(f),
+            E::SchematicRequirements(project::schematic_requirements::Error::File(f)) => {
+                file_io_kind(f)
+            }
+            E::DesignRequirementsChanged => ErrorKind::StaleRevision,
+            E::DesignRequirementsBlocked(..) => ErrorKind::Refused,
             E::NotFound { .. } | E::NotInLibrarySource { .. } | E::NotInProjectLibrary { .. } => {
                 ErrorKind::NotFound
             }

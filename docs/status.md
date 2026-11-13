@@ -90,10 +90,11 @@ The editor owns one `RoutingService` per open project; MCP is its transport.
   and via-barrel lengths are excluded. An unavailable trace-only length is
   `not_measured`, not zero length or a connectivity failure.
 
-Current limitations include declarative project creation, persisted engineering
-requirements, automatic diagnosis-to-repair planning, MCP progress/cancellation
-workflow or desktop candidate overlay. The router's cancellation callback is
-not yet wired through the editor/MCP preparation path. `server_info` now reports
+Current limitations include end-to-end board creation from a document,
+persisted board requirements, automatic diagnosis-to-repair planning, MCP
+progress/cancellation workflow and desktop candidate overlay. The router's
+cancellation callback is not yet wired through the editor/MCP preparation path.
+`server_info` now reports
 build-time commit, tracked-source state, Cargo profile label and API capability
 version. `device_place` supports compact responses with `include_pads: false`.
 The P0 release replay and P1a transaction foundation are complete. The first
@@ -110,6 +111,14 @@ The [four-terminal crystal document](examples/esp32-c3-crystal.json) styles Y1
 using explicit resonator and case pin UUIDs. Its replay changed only the embedded
 symbol file. Reapplying after save/reopen produced an empty diff, and upstream
 LibrePCB ERC reported zero messages.
+
+Declarative documents can also create and wire parts from a blank sheet,
+remove existing components and reassign pins with a preview of the affected
+board objects. The [P1 acceptance runs](roadmap.md#p1--declarative-design-updates)
+record empty replay after save/reopen and preservation of unrelated geometry.
+The [schematic requirements tools](mcp-design.md#schematic-requirements) store
+UUID-bound positions, regions and net memberships with explicit evidence and
+enforce hard requirements on declarative apply.
 
 ## Evidence and continuation points
 

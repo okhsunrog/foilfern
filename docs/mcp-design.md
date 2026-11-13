@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `15`). Its `build` object contains
+`api_capability_version` (currently `16`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -343,6 +343,42 @@ Use `text_positions` under an existing component to move its reference or
 value independently of the symbol. Each entry is keyed by the text UUID from
 `schematic_get` and uses `expected` and `set` positions in millimeters.
 Preview symbol moves and absolute text positions in separate requests.
+
+### Schematic requirements
+
+`requirements_get` returns the current `document` and `revision`.
+`requirements_set` takes the full replacement document and the
+`expected_revision` from that read. An empty `requirements` array clears it.
+Repeating an equivalent document in any list order adds no undo entry. A
+change is one undo step and takes effect for previews immediately. Save the
+project to persist it. The version 1 document has a `requirements` array with
+unique `id` strings, a nonempty `source`, `severity` and `check` for each row.
+
+| `check.kind` | Fields | Measurement |
+| --- | --- | --- |
+| `symbol_position` | `symbol: {schematic, symbol}`, `position: {x, y}` | Exact symbol origin in mm on the sheet |
+| `symbol_region` | `symbol: {schematic, symbol}`, `min` and `max` points | Symbol origin inside the inclusive rectangle in mm |
+| `pin_net` | `pin: {component, signal}`, `net` | Net UUID, or explicit `null` for an unconnected signal |
+
+Use `schematic_get` for sheet and symbol instance UUIDs, `component_get` for
+component instance and library signal UUIDs, and `net_list` for net UUIDs.
+These references survive designator and net renames. `requirements_check`
+evaluates the current project. `design_preview` evaluates the proposed project
+and includes the same report under `requirements` when rules are present.
+Each report identifies its project UUID and artifact, with a project revision
+or preview ID and base revision. Findings include the target and threshold,
+source, severity, and either the measured position/net or a missing reference.
+
+Each finding has `status` of `pass`, `fail` or `unresolved`. A `hard` failure
+or unresolved reference appears in `blocking_requirements` and `design_apply`
+returns `refused`. `warning` reports the same evidence without blocking. A
+requirements edit makes older previews stale. Direct schematic editing and
+import can still change the model, with `requirements_check` available for
+review. The requirements cover symbol origins and circuit membership, with
+ERC, placement geometry and board validation handled by their own tools.
+
+Foilfern saves the document in `project/foilfern-schematic-requirements.json`
+using integer nanometers. The native project files keep their usual format.
 
 Library:
 `library_search` (query, kind: component|device|package|symbol, limit;

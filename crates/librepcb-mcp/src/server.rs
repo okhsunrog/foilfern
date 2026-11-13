@@ -1257,7 +1257,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Apply the exact patch from design_preview as one undo step. A stale preview is refused and an empty patch adds no undo step."
+        description = "Apply the exact patch from design_preview as one undo step. Stale previews and hard schematic requirement failures are refused. An empty patch adds no undo step."
     )]
     async fn design_apply(
         &self,
@@ -1265,6 +1265,31 @@ impl LibrePcbMcp {
     ) -> Result<CallToolResult, McpError> {
         self.run(move |s| crate::tools::design::apply(s, args))
             .await
+    }
+
+    #[tool(
+        description = "Read the saved or staged schematic requirements document and its current project revision. Use this revision when replacing the document."
+    )]
+    async fn requirements_get(&self) -> Result<CallToolResult, McpError> {
+        self.run(|s| crate::tools::requirements::get(s)).await
+    }
+
+    #[tool(
+        description = "Replace the version 1 schematic requirements document in one undo step. Supports fixed symbol origins, allowed rectangles and required pin-net memberships. Supply expected_revision from requirements_get."
+    )]
+    async fn requirements_set(
+        &self,
+        Parameters(args): Parameters<crate::tools::requirements::SetArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| crate::tools::requirements::set(s, args))
+            .await
+    }
+
+    #[tool(
+        description = "Check all stored schematic requirements against the current project and report findings, missing references and the checked revision."
+    )]
+    async fn requirements_check(&self) -> Result<CallToolResult, McpError> {
+        self.run(|s| crate::tools::requirements::check(s)).await
     }
 
     // --- Escape hatch -------------------------------------------------------------

@@ -756,8 +756,22 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     if !reviewed.is_empty() {
         payload["annotation_overlaps"] = review_annotations(&project, schematic, &reviewed)?;
     }
-    let result =
-        ToolOutput::new(format!("{} schematic changes.", diff.len()), payload)?.image(image);
+    let findings = preview.requirement_findings();
+    let blockers = findings
+        .iter()
+        .filter(|finding| finding.blocks_apply())
+        .count();
+    if !findings.is_empty() {
+        payload["requirements"] =
+            super::requirements::evidence(&project, findings, preview.revision, Some(preview.id));
+    }
+    let mut summary = format!("{} schematic changes.", diff.len());
+    if blockers > 0 {
+        summary.push_str(&format!(
+            " {blockers} schematic requirement(s) block apply."
+        ));
+    }
+    let result = ToolOutput::new(summary, payload)?.image(image);
     open.design_preview = Some(preview);
     Ok(result)
 }

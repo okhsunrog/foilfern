@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 15);
+    assert_eq!(info["api_capability_version"], 16);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -1846,6 +1846,217 @@ async fn stdio_design_topology_edits_are_guarded_and_replayable() {
     assert_eq!(
         call_ok(&client, "design_preview", document).await["diff"],
         json!([])
+    );
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn stdio_schematic_requirements_persist_and_gate_design_apply() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    let project = call_ok(
+        &client,
+        "project_create",
+        json!({"name":"Design requirements"}),
+    )
+    .await;
+    call_ok(
+        &client,
+        "component_add",
+        json!({"part":"R-0805","designator":"R1","position":{"x":0,"y":0}}),
+    )
+    .await;
+    call_ok(&client, "connect", json!({"net":"EN","pins":["R1.1"]})).await;
+    let part = call_ok(&client, "component_get", json!({"component":"R1"})).await;
+    let sheet = call_ok(&client, "schematic_get", json!({})).await;
+    let net = call_ok(&client, "net_list", json!({"net":"EN"})).await["nets"][0]["uuid"].clone();
+    let signal = part["signals"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|signal| signal["net"] == "EN")
+        .unwrap();
+    let symbol = json!({"schematic":sheet["uuid"],"symbol":sheet["symbols"][0]["uuid"]});
+    let empty = call_ok(&client, "requirements_get", json!({})).await;
+    let stale = call_ok(
+        &client,
+        "design_preview",
+        json!({"version":1,"schematic":"Main"}),
+    )
+    .await;
+    let document = json!({"version":1,"requirements":[
+        {"id":"anchor","source":"placement review","severity":"hard",
+         "check":{"kind":"symbol_position","symbol":symbol,"position":{"x":0.0,"y":0.0}}},
+        {"id":"region","source":"placement review","severity":"warning",
+         "check":{"kind":"symbol_region","symbol":symbol,"min":{"x":-2.0,"y":-2.0},"max":{"x":-1.0,"y":-1.0}}},
+        {"id":"enable","source":"EN/RESET circuit","severity":"hard",
+         "check":{"kind":"pin_net","pin":{"component":part["uuid"],"signal":signal["uuid"]},"net":net}}
+    ]});
+    let mut invalid = document.clone();
+    invalid["requirements"][2]["check"]
+        .as_object_mut()
+        .unwrap()
+        .remove("net");
+    assert_eq!(
+        call(
+            &client,
+            "requirements_set",
+            json!({"expected_revision":empty["revision"],"document":invalid})
+        )
+        .await
+        .is_error,
+        Some(true)
+    );
+    assert_eq!(call_ok(&client, "requirements_get", json!({})).await, empty);
+    let set = call_ok(
+        &client,
+        "requirements_set",
+        json!({"expected_revision":empty["revision"],"document":document}),
+    )
+    .await;
+    assert_eq!(set["change_count"], 1);
+    let error = call(&client, "design_apply", json!({"preview":stale["preview"]}))
+        .await
+        .structured_content
+        .unwrap();
+    assert_eq!(error["error"]["kind"], "stale_revision");
+    let saved = call_ok(&client, "requirements_get", json!({})).await;
+    let mut reversed = document.clone();
+    reversed["requirements"].as_array_mut().unwrap().reverse();
+    let repeated = call_ok(
+        &client,
+        "requirements_set",
+        json!({"expected_revision":saved["revision"],"document":reversed}),
+    )
+    .await;
+    assert_eq!(repeated["change_count"], 0);
+    assert_eq!(call_ok(&client, "requirements_get", json!({})).await, saved);
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(
+        call_ok(&client, "requirements_get", json!({})).await["document"],
+        empty["document"]
+    );
+    call_ok(&client, "redo", json!({})).await;
+    assert_eq!(
+        call_ok(&client, "requirements_get", json!({})).await["document"],
+        saved["document"]
+    );
+    call_ok(&client, "net_rename", json!({"net":"EN","name":"ENABLE"})).await;
+    let live = call_ok(&client, "requirements_check", json!({})).await;
+    assert_eq!(live["findings"][0]["status"], "pass");
+    assert_eq!(live["findings"][1]["status"], "pass");
+    assert_eq!(live["findings"][1]["measured"]["net"], net);
+    assert_eq!(live["findings"][2]["status"], "fail");
+    assert_eq!(live["blocking_requirements"], json!([]));
+
+    let allowed = call_ok(&client, "design_preview", json!({"version":1,"schematic":"Main","components":{"r":{"uuid":part["uuid"],"value":{"expected":part["value"],"set":"10k"}}}})).await;
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":allowed["preview"]}),
+    )
+    .await;
+    let before = call_ok(&client, "project_summary", json!({})).await;
+    let removal = call_ok(
+        &client,
+        "design_preview",
+        json!({"version":1,"schematic":"Main","remove_components":[part["uuid"]]}),
+    )
+    .await;
+    assert_eq!(
+        removal["requirements"]["findings"][0]["missing_reference"],
+        "symbol"
+    );
+    assert_eq!(
+        removal["requirements"]["findings"][1]["missing_reference"],
+        "component"
+    );
+    let moved = call_ok(&client, "design_preview", json!({"version":1,"schematic":"Main","components":{"r":{"uuid":part["uuid"],"position":{"expected":{"x":0,"y":0},"set":{"x":5,"y":5}}}}})).await;
+    let evidence = &moved["requirements"];
+    assert_eq!(
+        evidence["artifact"],
+        json!({"kind":"design_preview","base_revision":moved["base_revision"],"preview":moved["preview"]})
+    );
+    assert_eq!(evidence["blocking_requirements"], json!(["anchor"]));
+    assert_eq!(
+        evidence["findings"][0]["measured"]["position"],
+        json!({"x":5.0,"y":5.0})
+    );
+    let refused = call(&client, "design_apply", json!({"preview":moved["preview"]}))
+        .await
+        .structured_content
+        .unwrap();
+    assert_eq!(refused["error"]["kind"], "refused");
+    assert_eq!(call_ok(&client, "project_summary", json!({})).await, before);
+
+    call_ok(&client, "project_save", json!({})).await;
+    let path = Path::new(project["path"].as_str().unwrap());
+    let asset = path
+        .parent()
+        .unwrap()
+        .join(librepcb_core::project::schematic_requirements::PATH);
+    let bytes = std::fs::read(&asset).unwrap();
+    call_ok(&client, "project_close", json!({})).await;
+    if let Some(cli) = crate::common::upstream_cli() {
+        let (ok, output) =
+            crate::common::run_cli(&cli, &["open-project", path.to_str().unwrap(), "--save"]);
+        assert!(ok, "upstream save failed: {output}");
+        assert_eq!(std::fs::read(&asset).unwrap(), bytes);
+    }
+    call_ok(&client, "project_open", json!({"path":path})).await;
+    let reopened = call_ok(&client, "requirements_get", json!({})).await;
+    assert_eq!(reopened["document"], saved["document"]);
+    assert_eq!(
+        call_ok(&client, "requirements_check", json!({})).await["findings"],
+        live["findings"]
+    );
+    call_ok(
+        &client,
+        "requirements_set",
+        json!({"expected_revision":reopened["revision"],"document":empty["document"]}),
+    )
+    .await;
+    call_ok(&client, "project_save", json!({})).await;
+    assert!(!asset.exists());
+    call_ok(&client, "undo", json!({})).await;
+    call_ok(&client, "project_save", json!({})).await;
+    assert_eq!(std::fs::read(asset).unwrap(), bytes);
+
+    let archive_job =
+        librepcb_core::job::OutputJob::new_default::<librepcb_core::job::LppzOutputJob>();
+    call_ok(
+        &client,
+        "mutation_apply",
+        json!({"mutation":{"SetOutputJobs":[archive_job]}}),
+    )
+    .await;
+    let archive_output = call_ok(
+        &client,
+        "jobs_run",
+        json!({"output_dir":tmp.path().join("archive")}),
+    )
+    .await;
+    let archive =
+        librepcb_core::fileio::FilePath::new(archive_output["files"][0].as_str().unwrap()).unwrap();
+    let directory = librepcb_core::fileio::TransactionalDirectory::new_temporary().unwrap();
+    directory.file_system().load_from_zip(&archive).unwrap();
+    let archived_project = librepcb_core::project::ProjectLoader::new()
+        .open(directory, path.file_name().unwrap().to_str().unwrap())
+        .unwrap();
+    use librepcb_core::fileio::FileSystem;
+    assert_eq!(
+        archived_project
+            .directory()
+            .read(librepcb_core::project::schematic_requirements::PATH)
+            .unwrap(),
+        bytes
     );
     client.cancel().await.unwrap();
 }

@@ -32,7 +32,7 @@ because its tools exist or one board has zero air wires.
 | --- | --- | --- | --- |
 | P0 | Identifiable builds, concise responses and measured operation costs | Existing API | Complete; [release replay](benchmarks/esp-pd-sink/review/performance/p0/REPORT.md) |
 | P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; creation, local rewiring and reviewed topology edits verified |
-| P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | Planned; external review prototypes only |
+| P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | In progress; schematic requirements and apply gate implemented |
 | P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | Planned; router callback only |
 | P4 | Diagnosed local repair with bounded placement alternatives | P2, P3 | Planned; explicit repair primitives already implemented |
 | P5 | Visual candidate review in the desktop editor | Existing candidates; P2/P4 extend the displayed evidence | Planned |
@@ -186,7 +186,19 @@ Done when:
 
 ## P2 — persisted requirements and evidence
 
-Scope: start with fixed devices, allowed placement regions, protected copper,
+The [schematic requirements API](mcp-design.md#schematic-requirements) stores
+fixed symbol origins, allowed origin rectangles and pin-to-net membership by
+UUID. It reports live and proposed results, and hard failures or missing
+references block declarative schematic apply. Rules are a transactional
+project asset with version, source and severity.
+On the ESP32-C3-WROOM-02 dev board, the module origin, reset capacitor region
+and EN membership all passed. A preview disconnecting EN reported the failed
+membership and was refused at apply. LibrePCB 2.1.1 opened, passed ERC and
+saved the project, preserving the asset byte for byte. Foilfern reopened it
+and reproduced all three findings. The stdio test also covers undo/redo,
+stale previews and native project archive export.
+
+Board scope: fixed devices, allowed placement regions, protected copper,
 allowed routing layers, via prohibition and selected reference-coverage targets.
 Reuse native DRC/keepout/lock fields where their semantics match. Additional
 requirements need a versioned project-associated representation with object UUIDs,

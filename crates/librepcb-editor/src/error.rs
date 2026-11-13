@@ -6,6 +6,7 @@
 //! upstream Qt context) plus argument errors of the command parameters,
 //! which have no upstream counterpart (upstream gets them from the UI).
 
+use librepcb_core::project::schematic_requirements;
 use librepcb_core::project::{self, LibraryElementKind};
 use librepcb_core::types::Uuid;
 use librepcb_core::{fileio, library, serialization, types};
@@ -33,6 +34,15 @@ pub enum Error {
     /// A file could not be parsed.
     #[error(transparent)]
     Serialization(#[from] serialization::Error),
+    /// Reading or validating project-associated schematic requirements failed.
+    #[error(transparent)]
+    SchematicRequirements(#[from] schematic_requirements::Error),
+    /// The requirements changed since the schematic preview was prepared.
+    #[error("Schematic requirements changed. Recompute the design preview.")]
+    DesignRequirementsChanged,
+    /// Applying the design would violate or leave hard requirements unresolved.
+    #[error("Schematic requirements block this design: {0}.")]
+    DesignRequirementsBlocked(String),
     /// A group is active, so no other group can be started and undo/redo
     /// are not possible.
     #[error("{}", tr!("librepcb::editor::UndoStack", "Another command is active at the moment. Please finish that command to continue."))]
