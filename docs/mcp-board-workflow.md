@@ -84,6 +84,22 @@ against the schematic and reports conversions that need review.
    electrical rules; it does not establish that a circuit meets its ratings,
    timing or analog requirements.
 
+## Schematic readability
+
+Draw each local circuit with continuous wires so its function is visible on
+the page. Use labels for signals that continue in another block or sheet. At
+a local junction, put that label on a short side branch in a clear direction.
+For example, draw the RESET pull-up, capacitor and switch as one circuit, then
+take a short horizontal branch from their shared node to the `EN` label. Use
+an explicit `wire_groups.paths` endpoint at the junction and place `label` on
+the branch. The same convention applies to a BOOT pull-up and switch.
+
+Leave intentionally unused optional pins open in a native Foilfern schematic.
+Check them against the circuit requirements and use ERC to catch missing
+required connections. Foilfern displays no-connect flags from imported KiCad
+schematics. In KiCad, place those flags on pins confirmed to be intentionally
+unused so the reader and ERC can distinguish them from missed connections.
+
 ## Lay out the board
 
 Set `board_set_outline` and `design_rules_set` before routing. `inner_layers`
