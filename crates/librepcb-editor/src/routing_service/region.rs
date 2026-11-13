@@ -10,7 +10,8 @@ use librepcb_core::types::{Length, Point, PositiveLength, Uuid};
 use serde::Serialize;
 
 use crate::commands::{
-    Autoroute, AutorouteResult, BoardSelection, RoutingBounds, remove_board_items,
+    Autoroute, AutorouteResult, BoardSelection, RoutingBounds, RoutingObject, RoutingObjectKind,
+    remove_board_items,
 };
 use crate::editor::{Command, ProjectEditor, Transaction};
 use crate::{Error, Result};
@@ -25,6 +26,136 @@ pub struct RegionalRoutingRequest {
     /// Optional tighter bounds for copper removal.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rip_up_region: Option<RoutingBounds>,
+    /// Require progress on this net for the candidate to be applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub improve_net: Option<NetSignalId>,
+}
+
+/// One possible repair, anchored in the source copper. It must still be routed and checked.
+#[derive(Debug, Serialize)]
+pub struct RegionalRepairProposal {
+    pub net: NetSignalId,
+    pub blockers: Vec<Uuid>,
+    pub traces: BTreeSet<Uuid>,
+    pub vias: BTreeSet<Uuid>,
+    #[serde(skip)]
+    pub anchors: Vec<(TraceAnchor, Point)>,
+}
+
+impl RegionalRepairProposal {
+    /// Expand a sampled blocker along two-trace junctions inside the edit
+    /// region. Pads, branching junctions and unselected vias remain anchors.
+    pub fn suggest(
+        project: &Project,
+        board: &Board,
+        target: NetSignalId,
+        bounds: RoutingBounds,
+        blockers: &[RoutingObject],
+        editable: &BTreeSet<NetSignalId>,
+        max_objects: usize,
+    ) -> Result<Vec<Self>> {
+        let region = bounds.region()?;
+        let items = copper(project, board)?;
+        let eligible = |id: &Uuid| {
+            items.get(id).filter(|item| {
+                item.net.is_some_and(|net| editable.contains(&net)) && item.geometry.fits(region)
+            })
+        };
+        let mut proposals: Vec<Self> = Vec::new();
+        for object in blockers {
+            let Some(item) = eligible(&object.uuid) else {
+                continue;
+            };
+            let Some(net) = item.net.filter(|net| *net != target) else {
+                continue;
+            };
+            let Some(segment) = board.net_segment(item.segment) else {
+                continue;
+            };
+            let mut vias = BTreeSet::new();
+            let mut pending = match object.kind {
+                RoutingObjectKind::Trace if !item.is_via() => vec![object.uuid],
+                RoutingObjectKind::Via if item.is_via() => {
+                    let traces: Vec<_> = segment
+                        .traces_at(TraceAnchor::Via(object.uuid))
+                        .map(Trace::uuid)
+                        .collect();
+                    if traces.is_empty() || !traces.iter().all(|id| eligible(id).is_some()) {
+                        continue;
+                    }
+                    vias.insert(object.uuid);
+                    traces
+                }
+                _ => continue,
+            };
+            let mut traces = BTreeSet::new();
+            while let Some(id) = pending.pop() {
+                if !traces.insert(id) {
+                    continue;
+                }
+                if traces.len() + vias.len() > max_objects {
+                    break;
+                }
+                let trace = &segment.traces()[&id];
+                for anchor in [trace.p1(), trace.p2()] {
+                    if !matches!(anchor, TraceAnchor::Junction(_)) {
+                        continue;
+                    }
+                    let mut incident = segment.traces_at(anchor).filter(|t| t.uuid() != id);
+                    let neighbor = incident.next();
+                    if incident.next().is_none()
+                        && let Some(neighbor) = neighbor
+                        && !traces.contains(&neighbor.uuid())
+                        && eligible(&neighbor.uuid()).is_some()
+                    {
+                        pending.push(neighbor.uuid());
+                    }
+                }
+            }
+            if traces.len() + vias.len() > max_objects {
+                continue;
+            }
+            if let Some(existing) = proposals
+                .iter_mut()
+                .find(|proposal| proposal.traces == traces && proposal.vias == vias)
+            {
+                if !existing.blockers.contains(&object.uuid) {
+                    existing.blockers.push(object.uuid);
+                }
+            } else {
+                let mut ends = BTreeMap::new();
+                for id in &traces {
+                    let item = &items[id];
+                    let Geometry::Trace { trace, endpoints } = &item.geometry else {
+                        continue;
+                    };
+                    for (anchor, position) in [trace.p1(), trace.p2()].into_iter().zip(endpoints) {
+                        let (count, _) = ends.entry(anchor).or_insert((0, *position));
+                        *count += 1;
+                    }
+                }
+                let anchors = ends
+                    .into_iter()
+                    .filter_map(|(anchor, (count, position))| match anchor {
+                        TraceAnchor::Via(via) if vias.contains(&via) => None,
+                        TraceAnchor::Junction(_) if count == segment.traces_at(anchor).count() => {
+                            None
+                        }
+                        _ => Some((anchor, position)),
+                    })
+                    .collect();
+                proposals.push(Self {
+                    net,
+                    blockers: vec![object.uuid],
+                    traces,
+                    vias,
+                    anchors,
+                });
+            }
+        }
+        proposals.sort_by_key(|proposal| proposal.traces.len() + proposal.vias.len());
+        Ok(proposals)
+    }
 }
 
 #[derive(PartialEq, Eq)]
@@ -201,6 +332,9 @@ impl RegionalRoutingRequest {
             .flatten()
             .map(|net| crate::commands::resolve_net(project, net))
             .collect::<Result<_>>()?;
+        if self.improve_net.is_some_and(|net| !targets.contains(&net)) {
+            return Err(Error::InvalidArgument("improve_net must be a target net.".into()).into());
+        }
         let selected: BTreeSet<_> = self.rip_up.iter().copied().collect();
         let before = copper(project, board)?;
         let mut selection = BoardSelection::default();

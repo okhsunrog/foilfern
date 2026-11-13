@@ -1096,7 +1096,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Inspect effective builtin routing rules and their sources, grid access and local clearance blockers for one net. Optionally attach an annotated PNG for one endpoint and copper layer."
+        description = "Inspect builtin rules, grid access and clearance blockers for one net. With repair, suggest bounded regional rip-up requests for a selected air wire and editable neighboring nets. Prepare and preview a proposal separately. Optionally attach a focused PNG."
     )]
     async fn routing_diagnose(
         &self,

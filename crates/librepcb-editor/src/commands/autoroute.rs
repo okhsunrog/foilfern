@@ -69,7 +69,7 @@ pub struct RoutingBounds {
 }
 
 impl RoutingBounds {
-    pub(crate) fn region(self) -> Result<RoutingRegion> {
+    pub fn region(self) -> Result<RoutingRegion> {
         RoutingRegion::new(self.min, self.max).ok_or_else(|| {
             Error::InvalidArgument("The routing region must have positive width and height.".into())
         })

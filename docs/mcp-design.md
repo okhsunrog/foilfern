@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `15`). Its `build` object contains
+`api_capability_version` (currently `16`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -600,6 +600,9 @@ as `routing_edit_prepare`. It routes remaining connections after the
 explicit changes and a plane rebuild. The continuation preserves copper from
 the staged board, including new escapes. Preview returns both the explicit
 edit counts and the builtin result. Apply and undo cover the combined patch.
+Use only `base_candidate` and `route` to continue routing after a checked
+neighbor repair. The intermediate candidate stays in preview and the combined
+candidate is checked against the original live board.
 Candidate validation reports new DRC warnings by identity as well as errors.
 Review warnings such as undersized drills before applying; warnings alone
 do not block a candidate.
@@ -697,7 +700,34 @@ Copper removal still requires each trace or via UUID in `rip_up`. Air wires
 skipped because an endpoint lies outside the routing rectangle appear in
 `routing.skipped_outside_region` with reason `outside_region`.
 The candidate preserves the geometry and UUIDs of copper outside the list
-and uses the shared preview and apply tools.
+and uses the shared preview and apply tools. With `improve_net`, apply also
+requires a decrease in air wires on that target net.
+
+`routing_diagnose` accepts an optional `repair` object for a supported air
+wire of the selected net. Use `air_wire` to select a zero-based connection
+(default 0), `region` for new copper, `rip_up_region` for the smaller edit
+area and `editable_nets` for the neighboring nets that may be considered.
+`max_objects` caps the number of traces and vias per proposal (1–16,
+default 8). The two endpoints must fit inside `region`.
+
+The response identifies blockers sampled by exact endpoint clearance probes.
+An optional `evidence_candidate` adds original copper IDs from failed
+builtin or staged searches for the same connection, on the same board and
+revision. The planner follows eligible traces through two-trace junctions,
+stops at branches and fixed anchors, and only proposes removing a via when
+all its attached traces fit the permission and bounds. The output gives up
+to eight proposals in ascending order of affected copper count, with exact
+UUIDs and retained anchors. When all groups fit the same object limit, the
+response also gives their union as `combined_region_request`.
+
+Review and optionally edit a proposal's `region_request`, then send it to
+`routing_region_prepare` to authorize those exact removals and prepare a
+checked candidate. Diagnosis only proposes scope. To choose a candidate,
+check the requested connection, full DRC and the rebuilt connectivity.
+For a two-stage repair, route the neighbors first by omitting `improve_net`
+and using only their nets in `route.nets`. Pass that candidate and the
+original target net to `routing_copper_prepare` for continuation. Apply only
+the reviewed combined patch.
 
 See [routing service design](routing-service-design.md) for subsequent stages.
 The existing `autoroute` compatibility path continues to apply directly.

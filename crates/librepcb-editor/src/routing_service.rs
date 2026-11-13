@@ -30,7 +30,7 @@ pub use comparison::{
     RoutingComparison, RoutingComparisonJob, RoutingTrial, RoutingTrials, TracePreference,
 };
 pub use copper::{CopperEndpoint, CopperPlan, PlannedPlacement, PlannedTrace};
-pub use region::RegionalRoutingRequest;
+pub use region::{RegionalRepairProposal, RegionalRoutingRequest};
 pub use staged::StagedRoutingRequest;
 
 /// Bounded session-local storage; callers explicitly discard unwanted candidates.
@@ -149,6 +149,9 @@ impl RoutingCandidateDetails {
                 let target = BTreeSet::from([via_connection.net]);
                 after.unrouted_on(&target) < before.unrouted_on(&target)
             }
+            Self::Regional { regional, .. } => regional
+                .improve_net
+                .is_none_or(|net| after.unrouted_for(net) < before.unrouted_for(net)),
             _ => true,
         };
         let mut validation = RoutingValidation::compare_candidate(before, after);

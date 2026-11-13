@@ -14,7 +14,7 @@ use librepcb_editor::routing_service::{
     RoutingError, RoutingJob, RoutingTrial, RoutingTrials, StagedRoutingRequest,
 };
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use super::{board_edit, ground_reference, trace_path, write};
@@ -25,6 +25,7 @@ use crate::units::PointMm;
 
 mod diagnose_image;
 mod explicit_copper;
+mod repair;
 pub use explicit_copper::{RoutingCopperArgs, prepare_copper_job};
 
 /// Builtin-only options; external backends are deliberately not accepted.
@@ -837,6 +838,8 @@ pub struct RoutingDiagnoseArgs {
     /// Include exact-checked local pad exits in the access report.
     #[serde(default)]
     pub pad_escape: bool,
+    /// Suggest explicit, bounded local copper changes for one air wire.
+    pub repair: Option<repair::RepairArgs>,
     /// Attach one focused PNG for a selected endpoint and copper layer.
     pub image: Option<RoutingDiagnoseImageArgs>,
 }
@@ -856,7 +859,8 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
         extract_problem,
     };
 
-    let p = session.project()?.project();
+    let open = session.project()?;
+    let p = open.project();
     let (_, board, b) = crate::resolve::board(p, args.board.as_deref())?;
     let (net, _) = crate::resolve::net(p, &args.net)?;
     let reach = args.probe_length.unwrap_or(0.6);
@@ -904,6 +908,20 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
     } else {
         diagnose_access(problem, &selected, reach).map_err(librepcb_editor::Error::from)?
     };
+    let repair = args
+        .repair
+        .map(|args| {
+            repair::suggest(
+                p,
+                b,
+                net,
+                &options,
+                &extracted,
+                &open.routing,
+                (reach, args),
+            )
+        })
+        .transpose()?;
     let obstacle_net = |id| crate::resolve::net_name(p, librepcb_core::project::NetSignalId(id));
     let clearance = |pad: Option<librepcb_core::types::Length>| match pad
         .filter(|value| *value > problem.rules.clearance)
@@ -966,6 +984,9 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
         "probe_length_mm":mm(*reach),"unsupported_air_wires":extracted.unsupported.len(),
         "endpoint_count":ids.len(),"endpoints":endpoints,
     }))?.warn("Straight probes show local clearance only. A blocked probe does not rule out another path.");
+    if let Some(repair) = repair {
+        out.result["repair"] = repair;
+    }
     if let Some(image) = args.image {
         let (&id, report) = selected
             .get(image.endpoint)
@@ -1105,11 +1126,24 @@ impl RoutingEditRouteArgs {
 }
 
 /// Rectangular bounds for new copper, in board millimeters.
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RoutingRegionArgs {
     pub min: crate::units::PointMm,
     pub max: crate::units::PointMm,
+}
+
+impl RoutingRegionArgs {
+    fn bounds(&self) -> ToolResult<librepcb_editor::commands::RoutingBounds> {
+        let min = self.min.to_point()?;
+        let max = self.max.to_point()?;
+        if min.x >= max.x || min.y >= max.y {
+            return Err(ToolError::invalid(
+                "A routing rectangle must have positive width and height.",
+            ));
+        }
+        Ok(librepcb_editor::commands::RoutingBounds { min, max })
+    }
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -1123,6 +1157,8 @@ pub struct RoutingRegionPrepareArgs {
     /// UUIDs of existing traces and vias authorized for rip-up.
     #[serde(default)]
     pub rip_up: Vec<String>,
+    /// Require fewer air wires on this target net after the repair.
+    pub improve_net: Option<String>,
     pub expected_revision: Option<u64>,
 }
 
@@ -1130,30 +1166,27 @@ pub fn prepare_regional_job(
     session: &Session,
     args: RoutingRegionPrepareArgs,
 ) -> ToolResult<RoutingJob> {
-    use librepcb_editor::commands::RoutingBounds;
-
     let open = session.project()?;
     let project = open.project();
     write::check_revision(project, args.expected_revision)?;
     let board = board_edit::board_id(project, args.board.as_deref())?;
     let mut request = args.route.command(project, board)?;
-    let bounds = |region: RoutingRegionArgs| -> ToolResult<RoutingBounds> {
-        let min = region.min.to_point()?;
-        let max = region.max.to_point()?;
-        if min.x >= max.x || min.y >= max.y {
-            return Err(ToolError::invalid(
-                "A routing rectangle must have positive width and height.",
-            ));
-        }
-        Ok(RoutingBounds { min, max })
-    };
-    request.region = Some(bounds(args.region)?);
-    let rip_up_region = args.rip_up_region.map(bounds).transpose()?;
+    request.region = Some(args.region.bounds()?);
+    let rip_up_region = args
+        .rip_up_region
+        .as_ref()
+        .map(RoutingRegionArgs::bounds)
+        .transpose()?;
     let rip_up = args
         .rip_up
         .iter()
         .map(|uuid| crate::resolve::required_uuid(uuid, "trace or via"))
         .collect::<ToolResult<_>>()?;
+    let improve_net = args
+        .improve_net
+        .as_deref()
+        .map(|net| crate::resolve::net(project, net).map(|(id, _)| id))
+        .transpose()?;
     open.routing
         .prepare_regional(
             &open.editor,
@@ -1161,6 +1194,7 @@ pub fn prepare_regional_job(
                 request,
                 rip_up,
                 rip_up_region,
+                improve_net,
             },
         )
         .map_err(routing_error)

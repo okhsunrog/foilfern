@@ -103,9 +103,14 @@ pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolRes
             .iter()
             .map(|trace| trace.points.len())
             .sum::<usize>();
-    if !(1..=512).contains(&total) {
+    if total > 512 {
         return Err(ToolError::invalid(
-            "Supply between 1 and 512 placements, vias, traces, removals and intermediate points combined.",
+            "Supply at most 512 placements, vias, traces, removals and intermediate points combined.",
+        ));
+    }
+    if total == 0 && (args.base_candidate.is_none() || args.route.is_none()) {
+        return Err(ToolError::invalid(
+            "Supply a copper edit or a base_candidate with an explicit route.",
         ));
     }
     let open = session.project()?;

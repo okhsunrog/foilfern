@@ -1541,6 +1541,114 @@ fn diagnostics_report_grid_access_and_local_blockers_without_edits() {
 }
 
 #[test]
+fn diagnostics_suggest_bounded_chain_and_prepare_it_for_review() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let chain = board_edit::trace_add(
+        &mut session,
+        args(json!({
+            "from":"R1.2","to":"R2.2","layer":"top","width":0.2,
+            "points":[{"x":7,"y":10.975},{"x":12,"y":10.975}],
+        })),
+    )
+    .unwrap()
+    .result;
+    let before = board_value(&session);
+    let revision = session.project().unwrap().project().revision();
+    let original = json!({
+        "net":"A","layers":["top"],"probe_length":2.0,
+        "repair":{
+            "region":{"min":{"x":3,"y":7},"max":{"x":17,"y":13}},
+            "rip_up_region":{"min":{"x":4,"y":10.5},"max":{"x":16,"y":12}},
+            "editable_nets":["B"],
+        }
+    });
+    let diagnose = |request: Value| {
+        routing::routing_diagnose(&session, args(request))
+            .unwrap()
+            .result["repair"]
+            .clone()
+    };
+    let proposed = diagnose(original.clone());
+    assert_eq!(proposed["outcome"], "suggested", "{proposed:#}");
+    assert_eq!(proposed["proposal_count"], 1);
+    let proposal = &proposed["proposals"][0];
+    let mut requested = proposal["remove_traces"].as_array().unwrap().clone();
+    let mut expected: Vec<_> = chain["traces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|trace| trace["uuid"].clone())
+        .collect();
+    requested.sort_by_key(Value::to_string);
+    expected.sort_by_key(Value::to_string);
+    assert_eq!(requested, expected);
+    assert_eq!(proposal["retained_anchors"].as_array().unwrap().len(), 2);
+    assert_eq!(proposal["region_request"]["expected_revision"], revision);
+    let mut protected = original.clone();
+    protected["repair"]["editable_nets"] = json!([]);
+    assert_eq!(diagnose(protected)["outcome"], "no_eligible_blockers");
+    let mut limited = original.clone();
+    limited["repair"]["max_objects"] = json!(2);
+    assert_eq!(diagnose(limited)["outcome"], "no_eligible_blockers");
+    let mut outside = original.clone();
+    outside["repair"]["region"]["max"]["x"] = json!(14);
+    outside["repair"]["rip_up_region"]["max"]["x"] = json!(14);
+    assert_eq!(diagnose(outside)["outcome"], "outside_region");
+    let job =
+        routing::prepare_regional_job(&session, args(proposal["region_request"].clone())).unwrap();
+    let prepared = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
+        .unwrap()
+        .result;
+    assert_eq!(prepared["validation"]["acceptable"], true, "{prepared:#}");
+    assert_eq!(
+        prepared["validation"]["after"]["unrouted"], 0,
+        "{prepared:#}"
+    );
+    assert_eq!(board_value(&session), before);
+
+    let mut unchanged_goal = proposal["region_request"].clone();
+    unchanged_goal["improve_net"] = json!("B");
+    let job = routing::prepare_regional_job(&session, args(unchanged_goal)).unwrap();
+    let unchanged = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
+        .unwrap()
+        .result;
+    assert_eq!(
+        unchanged["validation"]["acceptable"], false,
+        "{unchanged:#}"
+    );
+    assert_eq!(unchanged["validation"]["after"]["unrouted"], 0);
+
+    let base = routing::routing_prepare(&mut session, args(json!({"nets":["B"]})))
+        .unwrap()
+        .result;
+    let follow_up = routing::prepare_copper_job(
+        &session,
+        args(json!({"base_candidate":base["candidate"],"route":{"nets":["A"],"layers":["top"]}})),
+    )
+    .unwrap();
+    let follow_up = routing::finish_prepare(&mut session, routing::run_job(follow_up).unwrap())
+        .unwrap()
+        .result;
+    assert_eq!(follow_up["route"]["routing"]["routed"], 1);
+    assert_eq!(follow_up["validation"]["acceptable"], true);
+    assert_eq!(board_value(&session), before);
+
+    let evidence = routing::routing_prepare(
+        &mut session,
+        args(json!({"nets":["A"],"layers":["top"],"search_evidence":true})),
+    )
+    .unwrap()
+    .result;
+    let mut with_evidence = original;
+    with_evidence["repair"]["evidence_candidate"] = evidence["candidate"].clone();
+    assert!(routing::routing_diagnose(&session, args(with_evidence.clone())).is_ok());
+    edit_author(&mut session);
+    let error = routing::routing_diagnose(&session, args(with_evidence)).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::StaleRevision);
+}
+
+#[test]
 fn diagnostics_report_rule_precedence_and_effective_dimensions() {
     use librepcb_core::types::{Length, UnsignedLength};
 

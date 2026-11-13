@@ -72,6 +72,8 @@ The editor owns one `RoutingService` per open project; MCP is its transport.
 - Builtin order comparison, diagnostics with local blockers and failed-search
   evidence, pad escapes, short neck-downs, critical-net ordering, optional
   congestion history, authorized regional rip-up and local via-site search.
+  Optional repair diagnosis groups blockers into local regional requests
+  with exact copper UUIDs and retained anchors for separate preparation.
 - Connected via/junction edits, path replacement, explicit copper batches and
   moves/rotations of unlocked devices with their copper in one candidate.
   A rejected candidate can be extended with a checked repair via `base_candidate`.
