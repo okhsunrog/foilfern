@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `29`). Its `build` object contains
+`api_capability_version` (currently `30`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -241,7 +241,10 @@ binding after a rename. In `nets`, address pins as `key.pin`. The existing
 circuit must match the listed memberships. Unlisted endpoints can share those
 nets elsewhere on the project.
 
-Value, position and rotation edits take `expected` and `set` values.
+Value, designator, position and rotation edits take `expected` and `set` values.
+To edit a designator, bind by `uuid` and use `name`, for example
+`{"expected":"R1","set":"R2"}`. The target name must be free, and the
+component keeps its UUID and connectivity.
 Component-level placement fields require a single symbol on the selected
 sheet. To edit individual gates, use `components.<key>.symbols` keyed by
 placed symbol UUID from `schematic_get` or `component_get`. Each entry accepts

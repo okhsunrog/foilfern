@@ -152,6 +152,9 @@ step as its parts and wires, and reuses that sheet after save/reopen.
 Renaming a net by UUID preserves its pin membership and stored requirements.
 The preview reports the new name on the same ERC finding and accepts an empty
 replay of the rename.
+The same document format can rename a UUID-bound component. The stdio replay
+checks the guarded change, retains the component UUID, and preserves its
+subsequent manual move and empty replay after reopening.
 
 Done when:
 

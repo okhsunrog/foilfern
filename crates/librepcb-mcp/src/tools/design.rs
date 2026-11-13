@@ -72,6 +72,8 @@ pub struct ExistingComponent {
     uuid: Option<String>,
     /// Designator of an existing component. Use uuid when the document must survive renames.
     designator: Option<String>,
+    /// Managed designator. Bind by UUID to replay across the rename.
+    name: Option<ManagedValue>,
     /// Managed value. Omission preserves the current value.
     value: Option<ManagedValue>,
     /// Managed position of its single symbol on this sheet.
@@ -451,6 +453,7 @@ pub(crate) fn prepare(
         }
     }
     let mut reviewed = BTreeSet::new();
+    let mut target_names = BTreeSet::new();
     for key in doc.add_components.keys() {
         if key.is_empty() || key.contains('.') || doc.components.contains_key(key) {
             return Err(ToolError::invalid(format!(
@@ -494,6 +497,48 @@ pub(crate) fn prepare(
         if doc.review_components.contains(key) {
             reviewed.insert(id);
         }
+        let mut edit = EditComponent {
+            component: id.into(),
+            name: None,
+            value: None,
+            attributes: None,
+            assembly_options: None,
+            lock_assembly: None,
+        };
+        if let Some(name) = &spec.name {
+            if spec.uuid.is_none() {
+                return Err(ToolError::invalid(format!(
+                    "Component {key:?} must bind by UUID when managing its designator."
+                )));
+            }
+            let desired = super::schematic_edit::identifier(&name.set, "designator")?;
+            if !target_names.insert(desired.clone())
+                || p.circuit()
+                    .component_instance_by_name(desired.as_str())
+                    .is_some_and(|(owner, _)| owner != id)
+            {
+                return Err(ToolError::new(
+                    ErrorKind::Conflict,
+                    format!(
+                        "Designator {desired:?} is already in use or requested by more than one component."
+                    ),
+                ));
+            }
+            let current = component.name().as_str();
+            if current != desired.as_str() {
+                if current != name.expected {
+                    return Err(ToolError::new(
+                        ErrorKind::Conflict,
+                        format!(
+                            "{key}.name: expected {:?}, found {current:?}, desired {:?}.",
+                            name.expected, name.set
+                        ),
+                    ));
+                }
+                diff.push(json!({"component":key,"uuid":id,"field":"name","before":current,"after":desired.as_str()}));
+                edit.name = Some(desired);
+            }
+        }
         if let Some(value) = &spec.value
             && component.value() != &value.set
         {
@@ -509,14 +554,10 @@ pub(crate) fn prepare(
                 ));
             }
             diff.push(json!({"component":key,"uuid":id,"field":"value","before":component.value(),"after":value.set}));
-            edits.push(DesignEdit::Component(EditComponent {
-                component: id.into(),
-                name: None,
-                value: Some(value.set.clone()),
-                attributes: None,
-                assembly_options: None,
-                lock_assembly: None,
-            }));
+            edit.value = Some(value.set.clone());
+        }
+        if edit.name.is_some() || edit.value.is_some() {
+            edits.push(DesignEdit::Component(edit));
         }
         let shorthand = spec.position.is_some() || spec.rotation.is_some();
         if shorthand && !spec.symbols.is_empty() {

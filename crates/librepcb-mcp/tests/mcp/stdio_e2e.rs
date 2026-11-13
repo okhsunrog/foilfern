@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 29);
+    assert_eq!(info["api_capability_version"], 30);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -2563,10 +2563,30 @@ async fn stdio_design_add_component_replays_library_and_keeps_identity() {
         before["counts"]
     );
     call_ok(&client, "redo", json!({})).await;
+    let rename = json!({"version":1,"schematic":"Main", "components":{
+        "cap":{"uuid":id,"name":{"expected":"C1","set":"C7"}}
+    }});
+    let mut conflict = rename.clone();
+    conflict["components"]["cap"]["name"]["expected"] = json!("C2");
+    let refused = call(&client, "design_preview", conflict).await;
+    assert_eq!(
+        refused.structured_content.unwrap()["error"]["kind"],
+        "conflict"
+    );
+    let before_rename = call_ok(&client, "schematic_get", json!({})).await;
+    let renamed = call_ok(&client, "design_preview", rename.clone()).await;
+    assert_eq!(
+        renamed["diff"],
+        json!([{"component":"cap","uuid":id,"field":"name","before":"C1","after":"C7"}])
+    );
+    assert_eq!(
+        call_ok(&client, "schematic_get", json!({})).await,
+        before_rename
+    );
     call_ok(
         &client,
-        "component_update",
-        json!({"component":"C1","designator":"C7"}),
+        "design_apply",
+        json!({"preview":renamed["preview"]}),
     )
     .await;
     let moved = json!({"x":48.26,"y":40.64});
@@ -2591,6 +2611,8 @@ async fn stdio_design_add_component_replays_library_and_keeps_identity() {
     let component = call_ok(&client, "component_get", json!({"component":"C7"})).await;
     assert_eq!(&component["uuid"], id);
     assert_eq!(component["symbols"][0]["position"], moved);
+    let renamed_again = call_ok(&client, "design_preview", rename).await;
+    assert_eq!(renamed_again["diff"], json!([]));
     call_ok(
         &client,
         "component_add",
