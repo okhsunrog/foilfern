@@ -470,6 +470,9 @@ differ between platforms/implementations:
 - A declarative preview can create named nets and library-backed components,
   then wire them on an existing sheet. Replay binds added instances through
   a native component attribute and keeps their existing identities.
+- Declarative component removal and pin reassignment reuse the native editor
+  cascade, report its board impact and refuse to change a surviving pin
+  outside the requested edit. The native file format is unchanged.
 
 - Loading validates each schematic page as a whole after deserializing it
   (upstream adds the empty page and then item by item); for a file with

@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 14);
+    assert_eq!(info["api_capability_version"], 15);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -1734,6 +1734,118 @@ async fn stdio_design_creates_nets_parts_and_paths_together() {
         )
         .await["operation_count"],
         0
+    );
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn stdio_design_topology_edits_are_guarded_and_replayable() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    let project = call_ok(&client, "project_create", json!({"name":"Topology review"})).await;
+    let r1 = call_ok(
+        &client,
+        "component_add",
+        json!({"part":"R-0805","designator":"R1","position":{"x":0,"y":0}}),
+    )
+    .await;
+    let r2 = call_ok(
+        &client,
+        "component_add",
+        json!({"part":"R-0805","designator":"R2","position":{"x":40,"y":0}}),
+    )
+    .await;
+    call_ok(
+        &client,
+        "connect",
+        json!({"net":"EN","pins":["R1.2","R2.1"],"assign_only":true}),
+    )
+    .await;
+    let prepared = call_ok(
+        &client,
+        "design_preview",
+        json!({"version":1,"schematic":"Main","add_nets":["SPARE"],
+            "components":{"R1":{"uuid":r1["uuid"]},"R2":{"uuid":r2["uuid"]}},
+            "wire_groups":[{"net":"EN","paths":[["R1.2","R2.1"]]}]}),
+    )
+    .await;
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":prepared["preview"]}),
+    )
+    .await;
+    let page = call_ok(&client, "schematic_get", json!({})).await;
+    let netlist = call_ok(&client, "netlist", json!({})).await;
+    let segments = page["net_segments"].as_array().unwrap();
+    assert_eq!(segments.len(), 1);
+    assert!(segments[0]["labels"].as_array().unwrap().is_empty());
+    let removal = call_ok(
+        &client,
+        "design_preview",
+        json!({"version":1,"schematic":"Main","remove_components":[r2["uuid"]]}),
+    )
+    .await;
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":removal["preview"]}),
+    )
+    .await;
+    assert_eq!(
+        call_ok(&client, "netlist", json!({})).await["nets"]["EN"],
+        json!(["R1.2"])
+    );
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, page);
+    let summary = call_ok(&client, "project_summary", json!({})).await;
+    let document = json!({"version":1,"schematic":"Main",
+        "components":{"r":{"uuid":r1["uuid"]}},"remove_components":[r2["uuid"]],
+        "add_nets":["RESET"],"pin_nets":{"r.2":{"expected":"EN","set":"RESET"}}});
+    for edit in [
+        json!({"expected":"OTHER","set":"RESET"}),
+        json!({"expected":"EN"}),
+    ] {
+        let mut invalid = document.clone();
+        invalid["pin_nets"]["r.2"] = edit;
+        assert_eq!(
+            call(&client, "design_preview", invalid).await.is_error,
+            Some(true)
+        );
+        assert_eq!(
+            call_ok(&client, "project_summary", json!({})).await,
+            summary
+        );
+    }
+    let preview = call_ok(&client, "design_preview", document.clone()).await;
+    assert_eq!(preview["diff"].as_array().unwrap().len(), 3);
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, page);
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":preview["preview"]}),
+    )
+    .await;
+    let applied = call_ok(&client, "netlist", json!({})).await;
+    assert_eq!(applied["nets"], json!({"RESET":["R1.2"],"SPARE":[]}));
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(call_ok(&client, "netlist", json!({})).await, netlist);
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, page);
+    call_ok(&client, "redo", json!({})).await;
+    assert_eq!(call_ok(&client, "netlist", json!({})).await, applied);
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    call_ok(&client, "project_open", json!({"path":project["path"]})).await;
+    assert_eq!(
+        call_ok(&client, "design_preview", document).await["diff"],
+        json!([])
     );
     client.cancel().await.unwrap();
 }

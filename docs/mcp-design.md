@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `14`). Its `build` object contains
+`api_capability_version` (currently `15`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -307,6 +307,24 @@ files. `nets` assertions and `wire_groups` can refer to new component keys in
 the same document. Set `assign_only: true` on a new part to supply its wires
 with explicit paths. By default each assigned pin gets a labeled stub.
 PCB placement remains a separate operation.
+
+Use `remove_components` to delete component instances by UUID. Repeating an
+already applied removal is a no-op. Use `pin_nets` to change a bound pin's
+membership, for example `{"r.1":{"expected":"EN","set":"RESET"}}`.
+Both fields are required. Use `null` for an unconnected pin. The destination
+must exist or be declared in `add_nets`. A third membership is a conflict.
+The preview refuses a cascade that would also change an unlisted pin's net.
+After reconnecting a pin, `wire_groups` can replace its default labeled stub.
+Reconnecting with a stub requires one placed pin for that signal on the
+selected sheet. Component removal includes its gates on all sheets. Embedded
+library elements and previously unused nets are retained. A net that loses
+its last schematic use is removed unless the document ensures it in `add_nets`.
+
+Review `board_impact` before applying a topology change. It lists each
+affected board and UUIDs of removed or changed traces, vias and planes,
+removed devices, and surviving planes on affected nets whose fills can change.
+This evidence describes the editor patch and the affected plane nets. Use
+board checks separately to evaluate the resulting physical connectivity.
 
 The [ESP32-C3 dev board](examples/esp32-c3-devboard.json) creates a complete
 one-page schematic with explicit wiring, notes and initial symbol fields.

@@ -26,6 +26,8 @@ use crate::session::Session;
 use crate::tools::write::Written;
 use crate::{resolve, units, units::PointMm, views};
 
+mod topology;
+
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ManagedValue {
@@ -89,6 +91,12 @@ pub struct DesignDocument {
     /// Named nets to ensure before adding parts. Existing nets keep their identity and class.
     #[serde(default)]
     add_nets: Vec<String>,
+    /// Existing component UUIDs to remove. A missing UUID is already removed.
+    #[serde(default)]
+    remove_components: Vec<String>,
+    /// Existing pins with explicit before and after net names; null means unconnected.
+    #[serde(default)]
+    pin_nets: BTreeMap<String, topology::ManagedNet>,
     /// Required pin memberships, using `key.pin` (for example `pullup.2`).
     /// These are assertions against the existing circuit.
     #[serde(default)]
@@ -318,6 +326,11 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     let open = session.project_mut()?;
     let p = open.project();
     let (_, page, schematic) = resolve::schematic(p, Some(&doc.schematic))?;
+    let removals = doc
+        .remove_components
+        .iter()
+        .map(|id| resolve::required_uuid(id, "component to remove").map(ComponentInstanceId))
+        .collect::<ToolResult<BTreeSet<_>>>()?;
     let mut bindings = BTreeMap::new();
     let mut seen = BTreeSet::new();
     let mut edits = Vec::new();
@@ -362,6 +375,11 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
         };
         if !seen.insert(id) {
             return Err(ToolError::invalid(format!("Duplicate binding for {id}.")));
+        }
+        if removals.contains(&id) {
+            return Err(ToolError::invalid(format!(
+                "Component {key:?} is also listed for removal."
+            )));
         }
         bindings.insert(key.as_str(), id);
         if doc.review_components.contains(key) {
@@ -539,13 +557,15 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     } else {
         None
     };
-    let (preview, project, (added, verified)) = DesignPreview::prepare(
+    let (preview, project, (added, verified, topology)) = DesignPreview::prepare(
         &open.editor,
         |tx| -> ToolResult<_> {
             for edit in edits {
                 edit.execute(tx)?;
             }
             let mut added = Vec::new();
+            let mut topology = topology::TopologyEdits::default();
+            topology::remove_components(tx, &removals, &mut added, &mut topology)?;
             for name in &doc.add_nets {
                 if tx.project().circuit().net_signal_by_name(name).is_none() {
                     let id = tx.run(AddNet {
@@ -565,6 +585,14 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                     added.push(change);
                 }
             }
+            topology::set_pin_nets(
+                tx,
+                page,
+                &bindings,
+                &doc.pin_nets,
+                &mut added,
+                &mut topology,
+            )?;
             style_symbols(tx, &doc.symbol_styles, &mut added)?;
             let p = tx.project();
             let mut verified = BTreeSet::new();
@@ -708,7 +736,8 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 json!({"field":"page_note","uuid":uuid,"text":note.text,"position":note.position,"height":note.height}),
             );
             }
-            Ok((added, verified.len()))
+            topology.remove_unused_nets(tx, &doc.add_nets)?;
+            Ok((added, verified.len(), topology))
         },
     )?;
     diff.extend(added);
@@ -720,6 +749,10 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
         "preview": preview.id, "base_revision": preview.revision, "diff": diff,
         "verified_pins": verified,
     });
+    let copper = topology::copper_impact(p, &project, &topology);
+    if !copper.is_empty() {
+        payload["board_impact"] = json!(copper);
+    }
     if !reviewed.is_empty() {
         payload["annotation_overlaps"] = review_annotations(&project, schematic, &reviewed)?;
     }

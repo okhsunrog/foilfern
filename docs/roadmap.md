@@ -31,7 +31,7 @@ because its tools exist or one board has zero air wires.
 | Stage | Result | Dependencies | State |
 | --- | --- | --- | --- |
 | P0 | Identifiable builds, concise responses and measured operation costs | Existing API | Complete; [release replay](benchmarks/esp-pd-sink/review/performance/p0/REPORT.md) |
-| P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; 36-component creation and local rewiring verified |
+| P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; creation, local rewiring and reviewed topology edits verified |
 | P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | Planned; external review prototypes only |
 | P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | Planned; router callback only |
 | P4 | Diagnosed local repair with bounded placement alternatives | P2, P3 | Planned; explicit repair primitives already implemented |
@@ -116,6 +116,14 @@ with an empty diff after reopening. These runs covered the schematic.
 On a routed copy of the comparison project, a value-only update preserved
 the complete schematic geometry and netlist and both board snapshots,
 including their 608 traces and 71 vias each, after save/reopen.
+
+The same routed project exercised a component removal and pin reassignment
+in one preview. Both boards lost exactly the four reported trace UUIDs and
+the removed component's device. All 71 vias per board and the other trace
+UUIDs were retained. The remaining LED pin kept its original net. Undo
+restored both board snapshots and the netlist, redo reproduced the patch,
+and the saved result reopened and replayed with an empty diff. This check
+covers patch fidelity. The edited circuit is a topology test fixture.
 
 Done when:
 
