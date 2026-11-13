@@ -159,6 +159,7 @@ async fn schematic_preview_releases_the_session_and_bounds_workers() {
     state.set_project(Some(Arc::clone(&shared)));
     let first = connect(state.clone()).await;
     let second = connect(state).await;
+    let before = call_ok(&second, "project_summary", json!({})).await;
     let waiting = tokio::spawn(async move {
         let err = call_err(&first, "design_preview", json!({"version":1,"schematic":sheet,
             "add_components":{"probe":{"designator":"R999","library_component":Uuid::new_random(),"value":""}}})).await;
@@ -169,6 +170,9 @@ async fn schematic_preview_releases_the_session_and_bounds_workers() {
         reached = reached_library.recv() => assert_eq!(reached, Some(())),
         () = tokio::time::sleep(Duration::from_secs(10)) => panic!("preview did not reach the library source"),
     }
+    let status = call_ok(&second, "design_preview_status", json!({})).await;
+    assert_eq!(status["active"]["stage"], "plan");
+    let job = &status["active"]["job"];
     let (kind, _) = call_err(
         &second,
         "design_preview",
@@ -181,12 +185,23 @@ async fn schematic_preview_releases_the_session_and_bounds_workers() {
         call_ok(&second, "project_summary", json!({})),
     )
     .await;
-    resume.send(()).unwrap();
     assert!(
         result.is_ok(),
         "project read blocked behind the preview worker"
     );
-    assert_eq!(waiting.await.unwrap().0, "not_found");
+    assert_eq!(result.unwrap(), before);
+    let cancellation = call_ok(&second, "design_preview_cancel", json!({"job":job})).await;
+    assert_eq!(cancellation["stop_requested"], "cancelled");
+    let stopping = call_ok(&second, "design_preview_status", json!({})).await;
+    assert_eq!(stopping["active"]["stop_requested"], "cancelled");
+    resume.send(()).unwrap();
+    assert_eq!(waiting.await.unwrap().0, "cancelled");
+    let stopped = call_ok(&second, "design_preview_status", json!({})).await;
+    assert!(stopped["active"].is_null());
+    assert_eq!(stopped["last"]["job"], *job);
+    assert_eq!(stopped["last"]["outcome"], "cancelled");
+    assert!(shared.lock().design_preview.is_none());
+    assert_eq!(call_ok(&second, "project_summary", json!({})).await, before);
     let sheet = schematic_names(&shared).remove(0);
     call_ok(
         &second,
@@ -194,6 +209,8 @@ async fn schematic_preview_releases_the_session_and_bounds_workers() {
         json!({"version":1,"schematic":sheet}),
     )
     .await;
+    let status = call_ok(&second, "design_preview_status", json!({})).await;
+    assert_eq!(status["last"]["outcome"], "complete");
     second.cancel().await.unwrap();
 }
 

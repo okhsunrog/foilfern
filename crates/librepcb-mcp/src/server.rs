@@ -23,7 +23,7 @@ use rmcp::model::{
 use rmcp::service::{RequestContext, RoleServer};
 use rmcp::{ErrorData as McpError, ServerHandler, tool, tool_handler, tool_router};
 
-use crate::error::{ErrorKind, ToolError, ToolResult};
+use crate::error::{ToolError, ToolResult};
 use crate::host::{HostDecision, McpHost, McpState, ProjectCreateRequest, StandaloneHost};
 use crate::outcome::{ToolOutput, error_result};
 use crate::session::{Session, absolute_path};
@@ -88,7 +88,8 @@ Each committed model edit is one undo step (undo/redo/history) and returns the r
 entities, the change events and the new revision; pass expected_revision to avoid lost \
 updates. Results: {outcome: complete|partial|failed, revision, result, warnings}; errors have a \
 stable kind (not_found, invalid_argument, conflict, stale_revision, no_project, no_workspace, \
-io, network, not_available, refused, internal). Nothing is written to disk before project_save. \
+io, network, not_available, refused, cancelled, budget_exhausted, internal). \
+Nothing is written to disk before project_save. \
 When the server runs inside the LibrePCB app, the user sees your edits live and shares the undo \
 history; the app may refuse opening or closing projects (kind refused).";
 
@@ -1258,20 +1259,60 @@ impl LibrePcbMcp {
         &self,
         Parameters(args): Parameters<crate::tools::design::DesignDocument>,
     ) -> Result<CallToolResult, McpError> {
-        let Some(permit) = self.state.try_schematic_preview() else {
-            return self
-                .fail(ToolError::new(
-                    ErrorKind::Conflict,
-                    "A schematic preview is already being prepared. Retry after it finishes.",
-                ))
-                .await;
+        use crate::tools::design::{self, Stage};
+        let guard = match self.state.schematic_previews().try_start(args.budget_ms) {
+            Ok(guard) => guard,
+            Err(error) => return self.fail(error).await,
         };
         self.run_detached(
-            move |s| Ok((crate::tools::design::capture(s, args)?, permit)),
-            |(job, permit)| Ok((crate::tools::design::prepare(job)?, permit)),
-            |s, (prepared, _permit)| crate::tools::design::publish(s, prepared),
+            move |s| {
+                let mut guard = guard;
+                let job = guard
+                    .work
+                    .checkpoint(Stage::Capture)
+                    .and_then(|()| design::capture(s, args));
+                guard.record_failure(&job);
+                Ok((job?, guard))
+            },
+            |(job, mut guard)| {
+                let prepared = design::prepare(job, |stage| guard.work.checkpoint(stage));
+                let prepared = guard.work.checkpoint(Stage::Render).and(prepared);
+                guard.record_failure(&prepared);
+                Ok((prepared?, guard))
+            },
+            |s, (prepared, mut guard)| {
+                let output = guard
+                    .work
+                    .checkpoint(Stage::Publish)
+                    .and_then(|()| design::publish(s, prepared));
+                guard.record(&output);
+                output
+            },
         )
         .await
+    }
+
+    #[tool(
+        description = "Read the active schematic preview job, current stage and latest terminal outcome. Poll while design_preview is running."
+    )]
+    async fn design_preview_status(&self) -> Result<CallToolResult, McpError> {
+        Ok(match self.state.schematic_previews().status() {
+            Ok(output) => output.into_call_tool_result(),
+            Err(error) => error_result(&error, None),
+        })
+    }
+
+    #[tool(
+        description = "Request cooperative cancellation of the active schematic preview by its job UUID. Use design_preview_status to observe when it stops."
+    )]
+    async fn design_preview_cancel(
+        &self,
+        Parameters(args): Parameters<crate::tools::design::CancelArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        Ok(match self.state.schematic_previews().cancel(args) {
+            Ok(output) => output.into_call_tool_result(),
+            Err(error) => error_result(&error, None),
+        })
     }
 
     #[tool(

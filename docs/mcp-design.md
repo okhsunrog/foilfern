@@ -155,8 +155,8 @@ backend and checks the realistic board PDF.
   `{ "outcome": "complete"|"partial"|"failed", "revision": n, "result": {...},
   "warnings": [...] }`. Errors map `project::Error` & co. to stable kinds
   (`not_found`, `invalid_argument`, `conflict`, `stale_revision`,
-  `no_project`, `no_workspace`, `io`, `network`, `not_available`, `refused`
-  (host application), `internal`) plus the upstream message.
+  `no_project`, `no_workspace`, `io`, `network`, `not_available`, `refused`,
+  `cancelled`, `budget_exhausted`, `internal`) plus the message.
 - Checks never read as passing when they did not run: `run_drc` returns
   `ran: true` and the message list, or an error.
 
@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `21`). Its `build` object contains
+`api_capability_version` (currently `22`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -204,6 +204,19 @@ renders on the detached model. One schematic preview may run per server state.
 A second request returns `conflict` and can be retried. Other tools can use
 the project while the preview runs. A changed revision, save context, library
 source or open project causes publication to return `stale_revision`.
+
+`design_preview_status` returns the active job UUID, stage, elapsed time,
+remaining budget and the last terminal outcome. The stages are `capture`,
+`plan`, `check`, `render` and `publish`. `budget_ms` is optional and begins
+at admission. `design_preview_cancel` takes the active job UUID and requests
+a cooperative stop. The worker checks between phases, components and wire
+groups. An in-flight library lookup, wire group, ERC check or render can
+finish before the next checkpoint. Cancellation or expiry returns
+`cancelled` or `budget_exhausted` and prevents publication. The terminal
+report is available after worker capacity is released. This status and the
+cancel request use the worker state directly, without locking the project.
+The terminal `outcome` can be `complete`, `stale`, `failed`, `cancelled`,
+`budget_exhausted` or `request_ended` if the request ended before publication.
 
 The `erc` report compares the source and proposed project and lists
 `introduced`, `inherited` and `resolved` findings. Matching uses the rule and

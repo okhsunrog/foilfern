@@ -220,7 +220,7 @@ struct Inner {
     calls: Mutex<()>,
     host: Arc<dyn McpHost>,
     sequence: watch::Sender<u64>,
-    schematic_previews: Arc<tokio::sync::Semaphore>,
+    schematic_previews: Arc<crate::tools::design::WorkQueue>,
 }
 
 /// The state of an MCP server shared by all its client sessions and the
@@ -260,7 +260,7 @@ impl McpState {
                 calls: Mutex::new(()),
                 host,
                 sequence: watch::Sender::new(0),
-                schematic_previews: Arc::new(tokio::sync::Semaphore::new(1)),
+                schematic_previews: Arc::default(),
             }),
         }
     }
@@ -270,12 +270,8 @@ impl McpState {
         &self.inner.host
     }
 
-    pub(crate) fn try_schematic_preview(&self) -> Option<tokio::sync::OwnedSemaphorePermit> {
-        self.inner
-            .schematic_previews
-            .clone()
-            .try_acquire_owned()
-            .ok()
+    pub(crate) fn schematic_previews(&self) -> &Arc<crate::tools::design::WorkQueue> {
+        &self.inner.schematic_previews
     }
 
     /// The session's workspace.

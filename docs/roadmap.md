@@ -33,7 +33,7 @@ because its tools exist or one board has zero air wires.
 | P0 | Identifiable builds, concise responses and measured operation costs | Existing API | Complete; [release replay](benchmarks/esp-pd-sink/review/performance/p0/REPORT.md) |
 | P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; creation, local rewiring and reviewed topology edits verified |
 | P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | In progress; schematic requirements and apply gate implemented |
-| P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | In progress; schematic preview workers bounded |
+| P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | In progress; schematic preview status, budgets and cancellation |
 | P4 | Diagnosed local repair with bounded placement alternatives | P2, P3 | Planned; explicit repair primitives already implemented |
 | P5 | Visual candidate review in the desktop editor | Existing candidates; P2/P4 extend the displayed evidence | Planned |
 | P6 | Reproducible end-to-end acceptance across boards | P1–P5 for final acceptance | Schematic replay available; board corpus partly available |
@@ -256,8 +256,10 @@ limit of eight retained candidates.
 Schematic previews now use detached workers. The server admits one preview
 at a time per shared state and leaves the project available during planning,
 ERC and rendering. A changed or reopened project refuses publication.
-Progress reporting, cooperative cancellation and routing worker limits remain
-in the scope below.
+Clients can inspect the stage, request cancellation, or supply a budget.
+The worker stops at phase and document-item checkpoints and records a terminal
+outcome. The routing lifecycle and measured worker-stop latency on the frozen
+fixtures remain in scope below.
 
 Done when:
 

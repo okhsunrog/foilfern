@@ -34,6 +34,9 @@ use crate::{resolve, units, units::PointMm, views};
 mod erc;
 mod no_connect;
 mod topology;
+mod work;
+pub use work::CancelArgs;
+pub(crate) use work::{Stage, WorkQueue};
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -110,6 +113,8 @@ pub struct DesignDocument {
     /// If true, interpret schematic as an exact page name and create it if missing.
     #[serde(default)]
     create_schematic: bool,
+    /// Optional time budget in milliseconds, checked between preview stages.
+    pub(crate) budget_ms: Option<u64>,
     /// Stable document keys bound to existing components by UUID or designator.
     #[serde(default)]
     components: BTreeMap<String, ExistingComponent>,
@@ -370,8 +375,14 @@ pub(crate) struct PreparedPreview {
 
 /// Synchronous entry point for clients which already own the session lock.
 pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOutput> {
+    let mut guard = Arc::new(WorkQueue::default()).try_start(doc.budget_ms)?;
     let job = capture(session, doc)?;
-    publish(session, prepare(job)?)
+    let result = prepare(job, |stage| guard.work.checkpoint(stage)).and_then(|prepared| {
+        guard.work.checkpoint(Stage::Publish)?;
+        publish(session, prepared)
+    });
+    guard.record(&result);
+    result
 }
 
 pub(crate) fn capture(session: &mut Session, doc: DesignDocument) -> ToolResult<PreviewJob> {
@@ -388,7 +399,11 @@ pub(crate) fn capture(session: &mut Session, doc: DesignDocument) -> ToolResult<
     })
 }
 
-pub(crate) fn prepare(job: PreviewJob) -> ToolResult<PreparedPreview> {
+pub(crate) fn prepare(
+    job: PreviewJob,
+    checkpoint: impl Fn(Stage) -> ToolResult<()>,
+) -> ToolResult<PreparedPreview> {
+    checkpoint(Stage::Plan)?;
     let PreviewJob {
         source_project,
         source_library,
@@ -432,6 +447,7 @@ pub(crate) fn prepare(job: PreviewJob) -> ToolResult<PreparedPreview> {
         }
     }
     for (key, spec) in &doc.components {
+        checkpoint(Stage::Plan)?;
         if key.is_empty() || key.contains('.') {
             return Err(ToolError::invalid(format!(
                 "Invalid component key {key:?}."
@@ -667,6 +683,7 @@ pub(crate) fn prepare(job: PreviewJob) -> ToolResult<PreparedPreview> {
                 }
             }
             for (key, spec) in &doc.add_components {
+                checkpoint(Stage::Plan)?;
                 let (id, change) = add_component(tx, page, key, spec)?;
                 bindings.insert(key.as_str(), id);
                 if doc.review_components.contains(key) {
@@ -697,6 +714,7 @@ pub(crate) fn prepare(job: PreviewJob) -> ToolResult<PreparedPreview> {
             let mut explicit = Vec::new();
             let mut explicit_diffs = Vec::new();
             for group in &doc.wire_groups {
+                checkpoint(Stage::Plan)?;
                 let names = group.pin_names()?;
                 let (net, pins) =
                     resolve_memberships(p, &bindings, &group.net, names.iter().copied())?;
@@ -832,11 +850,11 @@ pub(crate) fn prepare(job: PreviewJob) -> ToolResult<PreparedPreview> {
             Ok((added, verified.len(), topology))
         },
     )?;
+    checkpoint(Stage::Check)?;
     diff.extend(added);
     let schematic = project
         .schematic(page)
         .ok_or_else(|| ToolError::not_found("Preview schematic not found."))?;
-    let image = super::output::render_schematic_preview(&project, schematic, 1600, 1200)?;
     let mut payload = json!({
         "preview": preview.id, "base_revision": preview.revision, "diff": diff,
         "verified_pins": verified, "erc": erc::compare(&before, &project), "schematic": page,
@@ -863,6 +881,8 @@ pub(crate) fn prepare(job: PreviewJob) -> ToolResult<PreparedPreview> {
             " {blockers} schematic requirement(s) block apply."
         ));
     }
+    checkpoint(Stage::Render)?;
+    let image = super::output::render_schematic_preview(&project, schematic, 1600, 1200)?;
     Ok(PreparedPreview {
         source_project,
         source_library,
@@ -1464,10 +1484,10 @@ mod tests {
     fn schematic_preview_admission_is_shared_and_released() {
         let state = crate::McpState::new(Arc::new(crate::StandaloneHost));
         let client = state.clone();
-        let permit = state.try_schematic_preview().unwrap();
-        assert!(client.try_schematic_preview().is_none());
+        let permit = state.schematic_previews().try_start(None).unwrap();
+        assert!(client.schematic_previews().try_start(None).is_err());
         drop(permit);
-        assert!(client.try_schematic_preview().is_some());
+        assert!(client.schematic_previews().try_start(None).is_ok());
     }
 
     #[test]
@@ -1487,7 +1507,7 @@ mod tests {
             .unwrap()
         };
 
-        let prepared = prepare(capture(&mut session, doc()).unwrap()).unwrap();
+        let prepared = prepare(capture(&mut session, doc()).unwrap(), |_| Ok(())).unwrap();
         session
             .project_mut()
             .unwrap()
@@ -1506,7 +1526,7 @@ mod tests {
         session.project = None;
         session.open_project(path).unwrap();
 
-        let prepared = prepare(capture(&mut session, doc()).unwrap()).unwrap();
+        let prepared = prepare(capture(&mut session, doc()).unwrap(), |_| Ok(())).unwrap();
         session.project = None;
         session.open_project(path).unwrap();
         assert_eq!(
@@ -1523,7 +1543,7 @@ mod tests {
         );
         assert!(session.project().unwrap().design_preview.is_none());
 
-        let prepared = prepare(capture(&mut session, doc()).unwrap()).unwrap();
+        let prepared = prepare(capture(&mut session, doc()).unwrap(), |_| Ok(())).unwrap();
         let output = publish(&mut session, prepared).unwrap();
         assert_eq!(output.result["diff"].as_array().unwrap().len(), 1);
         assert!(
