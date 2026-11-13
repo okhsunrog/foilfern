@@ -124,6 +124,10 @@ UUIDs were retained. The remaining LED pin kept its original net. Undo
 restored both board snapshots and the netlist, redo reproduced the patch,
 and the saved result reopened and replayed with an empty diff. This check
 covers patch fidelity. The edited circuit is a topology test fixture.
+Every preview now compares ERC findings before and after the proposed patch.
+The report identifies introduced, inherited and resolved findings without
+changing live approvals. A fresh replay of the dev board from a blank sheet
+reported zero introduced findings across 77 reviewed changes.
 
 Done when:
 

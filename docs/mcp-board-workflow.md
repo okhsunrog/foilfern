@@ -76,7 +76,10 @@ against the schematic and reports conversions that need review.
    `{"pin":"r.1","offset":2.54}` to place it relative to that pin after
    placement. Add `notes` with `text`, `position` and
    `height` in mm for page annotations. Inspect the render, then use
-   `design_apply`. Use `block` for local placement and
+   `design_apply`. Check `erc.introduced` for new electrical findings and
+   `board_impact` after removing parts or changing a pin's net. Review
+   `requirements.blocking_requirements` if the project has saved requirements.
+   Use `block` for local placement and
    `schematic_tidy` when you intend to replace the layout and wiring of an
    entire sheet. Inspect each sheet for label collisions and circuit grouping.
    Use `symbol_text_move` with `text: "name"`, `text: "value"`, or a text

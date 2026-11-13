@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 16);
+    assert_eq!(info["api_capability_version"], 17);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -1826,6 +1826,16 @@ async fn stdio_design_topology_edits_are_guarded_and_replayable() {
     }
     let preview = call_ok(&client, "design_preview", document.clone()).await;
     assert_eq!(preview["diff"].as_array().unwrap().len(), 3);
+    let erc = &preview["erc"];
+    let mentions = |group: &str, name: &str| {
+        erc[group].as_array().unwrap().iter().any(|message| {
+            message["kind"].as_str().unwrap().starts_with("OpenNet(")
+                && message["message"].as_str().unwrap().contains(name)
+        })
+    };
+    assert!(mentions("introduced", "RESET"));
+    assert!(mentions("inherited", "SPARE"));
+    assert!(!mentions("introduced", "SPARE"));
     assert_eq!(call_ok(&client, "schematic_get", json!({})).await, page);
     call_ok(
         &client,
@@ -1846,6 +1856,68 @@ async fn stdio_design_topology_edits_are_guarded_and_replayable() {
     assert_eq!(
         call_ok(&client, "design_preview", document).await["diff"],
         json!([])
+    );
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn stdio_design_preview_reports_resolved_erc_without_changing_approvals() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    call_ok(&client, "project_create", json!({"name":"ERC review"})).await;
+    for (name, x) in [("R1", 0), ("R2", 40)] {
+        call_ok(
+            &client,
+            "component_add",
+            json!({"part":"R-0805","designator":name,"position":{"x":x,"y":0}}),
+        )
+        .await;
+    }
+    call_ok(&client, "connect", json!({"net":"EN","pins":["R1.2"]})).await;
+    let net = call_ok(&client, "net_list", json!({"net":"EN"})).await["nets"][0]["uuid"].clone();
+    use librepcb_core::serialization::{List, SExpression};
+    let mut approval = List::new("approved");
+    approval.push(SExpression::token("open_net"));
+    let net: librepcb_core::types::Uuid = net.as_str().unwrap().parse().unwrap();
+    approval.append_child("net", &net);
+    call_ok(
+        &client,
+        "mutation_apply",
+        json!({"mutation":{"SetErcApprovals":[SExpression::List(approval)]}}),
+    )
+    .await;
+    let erc = call_ok(&client, "erc_run", json!({"include_approved":true})).await;
+    assert_eq!(erc["approved"], 1);
+    let before = call_ok(&client, "project_summary", json!({})).await;
+    let history = call_ok(&client, "history", json!({})).await;
+    let preview = call_ok(
+        &client,
+        "design_preview",
+        json!({"version":1,"schematic":"Main",
+        "components":{"r2":{"designator":"R2"}},"pin_nets":{"r2.1":{"expected":null,"set":"EN"}}}),
+    )
+    .await;
+    assert_eq!(preview["erc"]["introduced"], json!([]));
+    assert!(
+        preview["erc"]["resolved"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|finding| finding["approved"] == true
+                && finding["kind"].as_str().unwrap().starts_with("OpenNet("))
+    );
+    assert_eq!(call_ok(&client, "project_summary", json!({})).await, before);
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    assert_eq!(
+        call_ok(&client, "erc_run", json!({"include_approved":true})).await,
+        erc
     );
     client.cancel().await.unwrap();
 }

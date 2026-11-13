@@ -75,6 +75,8 @@ then read pin coordinates with schematic_get. In design_preview use wire_groups 
 (pin names and {x,y} vertices in mm), label positions and notes. Branch endpoints on another \
 path become junctions. Omit paths to request automatic local wiring. Use schematic_tidy \
 when regenerating the whole page is intended.\n\
+Before design_apply, review the preview's diff, ERC changes, board impact and schematic \
+requirements when present. Use requirements_get and requirements_check to read saved rules.\n\
 Addressing: designators (\"R1\"), pins \"R1.1\" (pad name) or \"U1.VCC\" (signal name) or a \
 designator alone for single-pin parts (\"GND1\"), net names, schematic/board names or indices; \
 UUIDs work everywhere. Unknown arguments are rejected (invalid_argument). Units: millimeters and degrees \
@@ -1246,7 +1248,7 @@ impl LibrePcbMcp {
     // --- Declarative schematic updates -------------------------------------------
 
     #[tool(
-        description = "Preview a version 1 schematic document and render the resulting page. Create nets and parts, verify pin memberships, review component removals and pin net changes with board impact, manage existing fields, add page notes, place selected blocks, draw local wire paths, and review annotation overlaps."
+        description = "Preview a version 1 schematic document and render the resulting page. Create nets and parts, manage existing fields, place selected blocks, draw local wire paths and review topology changes. Reports ERC changes, affected board objects, schematic requirements and requested annotation overlaps."
     )]
     async fn design_preview(
         &self,

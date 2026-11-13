@@ -14,7 +14,7 @@ use librepcb_core::project::board::{
     BoardFabricationOutputSettings, ExportInfo, export_d356_netlist, export_fabrication_data,
     export_pick_place_csv,
 };
-use librepcb_core::project::erc::run_erc;
+use librepcb_core::project::erc::{ErcMessage, run_erc};
 use librepcb_core::project::{
     AssemblyVariantId, BomGenerator, OutputJobEvent, OutputJobRunner, Project,
 };
@@ -155,6 +155,19 @@ fn severity_str(s: Severity) -> &'static str {
     }
 }
 
+pub(super) fn erc_message_json(p: &Project, message: &ErcMessage) -> Value {
+    let msg = message.message();
+    json!({
+        "severity": severity_str(msg.severity()),
+        "message": msg.message(),
+        "description": msg.description(),
+        "kind": format!("{:?}", message.kind()),
+        "schematic": message.schematic().and_then(|id| p.schematic(id)).map(|s| s.name().as_str()),
+        "approved": p.erc_approvals().contains(message.approval()),
+        "locations": msg.locations().iter().map(views::path).collect::<Vec<_>>(),
+    })
+}
+
 /// `erc_run`.
 pub fn erc_run(session: &mut Session, args: ErcArgs) -> ToolResult<ToolOutput> {
     let open = session.project_mut()?;
@@ -180,15 +193,7 @@ pub fn erc_run(session: &mut Session, args: ErcArgs) -> ToolResult<ToolOutput> {
         if is_approved && !args.include_approved {
             continue;
         }
-        list.push(json!({
-            "severity": severity_str(msg.severity()),
-            "message": msg.message(),
-            "description": msg.description(),
-            "kind": format!("{:?}", m.kind()),
-            "schematic": m.schematic().and_then(|id| p.schematic(id)).map(|s| s.name().as_str()),
-            "approved": is_approved,
-            "locations": msg.locations().iter().map(views::path).collect::<Vec<_>>(),
-        }));
+        list.push(erc_message_json(p, m));
     }
     list.sort_by(|a, b| {
         let rank = |v: &Value| match v["severity"].as_str() {

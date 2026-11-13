@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `16`). Its `build` object contains
+`api_capability_version` (currently `17`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -193,6 +193,13 @@ Session / project:
 
 `design_preview` takes a version 1 document and returns a semantic `diff`,
 the number of checked pin memberships, a preview ID and a native page render.
+Its `erc` report compares the source and proposed project and lists
+`introduced`, `inherited` and `resolved` findings. Matching uses the rule and
+native object identity, so text and designator changes alone do not count as
+new findings. Each entry uses the same format as `erc_run`. An inherited
+finding includes `previously_approved` when its approval status changes.
+The preview leaves approvals and the project revision untouched. ERC findings
+are advisory here. Review them and run `erc_run` on the applied result.
 The [ESP32-C3 EN/RESET example](examples/esp32-c3-en-reset.json) targets the
 saved comparison board. Bind each document key to a component instance UUID
 from `component_get` or to an existing `designator`. Use a UUID to keep the

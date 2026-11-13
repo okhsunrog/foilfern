@@ -26,6 +26,7 @@ use crate::session::Session;
 use crate::tools::write::Written;
 use crate::{resolve, units, units::PointMm, views};
 
+mod erc;
 mod topology;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -747,7 +748,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     let image = super::output::render_schematic_preview(&project, schematic, 1600, 1200)?;
     let mut payload = json!({
         "preview": preview.id, "base_revision": preview.revision, "diff": diff,
-        "verified_pins": verified,
+        "verified_pins": verified, "erc": erc::compare(p, &project),
     });
     let copper = topology::copper_impact(p, &project, &topology);
     if !copper.is_empty() {

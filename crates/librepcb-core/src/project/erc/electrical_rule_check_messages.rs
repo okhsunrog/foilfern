@@ -18,7 +18,7 @@ use crate::serialization::{List, SExpression};
 use crate::types::Uuid;
 
 /// The kind of an ERC message and the items it refers to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum ErcMessageKind {
     /// A net class without nets (upstream `ErcMsgUnusedNetClass`).
