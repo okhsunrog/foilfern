@@ -181,10 +181,17 @@ impl<'a> Inputs<'a> {
                 },
             )
         };
-        Dimension {
-            base,
-            minimum: drc("min_copper_width", *self.drc.min_copper_width()),
-        }
+        let board_minimum = drc("min_copper_width", *self.drc.min_copper_width());
+        let minimum = class
+            .filter(|class| *class.min_copper_width() > board_minimum.length)
+            .map_or(board_minimum, |class| RuleValue {
+                length: *class.min_copper_width(),
+                source: Source::NetClass {
+                    uuid: class.uuid(),
+                    field: "min_copper_width",
+                },
+            });
+        Dimension { base, minimum }
     }
 
     fn board_via_drill(&self) -> (PositiveLength, Source) {
@@ -318,23 +325,18 @@ impl<'a> Inputs<'a> {
         let default = RoutingRules::default();
         let mut net_trace_widths = std::collections::BTreeMap::new();
         let mut neck_downs = std::collections::BTreeMap::new();
-        if self.options.trace_width.is_none() {
-            for net in self.circuit.net_signals().values() {
-                let class = self.circuit.net_class(net.net_class());
-                if class.is_some_and(|c| c.default_trace_width().is_some()) {
-                    net_trace_widths.insert(net.uuid(), self.trace_width(class).effective());
-                }
+        let trace_width = self.trace_width(None).effective();
+        for net in self.circuit.net_signals().values() {
+            let class = self.circuit.net_class(net.net_class());
+            let dimension = self.trace_width(class);
+            let nominal = dimension.effective();
+            if nominal != trace_width {
+                net_trace_widths.insert(net.uuid(), nominal);
             }
-        }
-        if let Some(neck) = self.options.neck_down {
-            for net in self.circuit.net_signals().values() {
-                let class = self.circuit.net_class(net.net_class());
-                let class_minimum = class.map_or(Length::ZERO, |c| *c.min_copper_width());
-                let effective = (*neck.width)
-                    .max(class_minimum)
-                    .max(*self.drc.min_copper_width());
+            if let Some(neck) = self.options.neck_down {
+                let effective = (*neck.width).max(dimension.minimum.length);
                 let width = PositiveLength::new(effective).expect("requested width is positive");
-                if width < self.trace_width(class).effective() {
+                if width < nominal {
                     neck_downs.insert(
                         net.uuid(),
                         librepcb_autoroute::NeckDown {
@@ -348,7 +350,7 @@ impl<'a> Inputs<'a> {
         let clearance = self.copper_clearance_base(self.largest_class_copper_minimum());
         let via_drill = self.via_drill().effective();
         RoutingRules {
-            trace_width: self.trace_width(None).effective(),
+            trace_width,
             net_trace_widths,
             neck_downs,
             clearance: clearance.length + CLEARANCE_MARGIN,

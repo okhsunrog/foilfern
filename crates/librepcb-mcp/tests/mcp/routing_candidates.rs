@@ -1392,7 +1392,11 @@ fn diagnostics_report_rule_precedence_and_effective_dimensions() {
         })
     );
     assert_eq!(rule["trace_width"]["base"]["mm"], 0.15);
-    assert_eq!(rule["trace_width"]["effective_mm"], 0.2);
+    assert_eq!(rule["trace_width"]["effective_mm"], 0.35);
+    assert_eq!(
+        rule["trace_width"]["minimum"]["source"],
+        json!({"kind":"net_class","uuid":signal_id,"field":"min_copper_width"})
+    );
     assert_eq!(rule["trace_width"]["clamped"], true);
     assert_eq!(
         automatic["endpoints"][0]["width_mm"],
@@ -1431,7 +1435,7 @@ fn diagnostics_report_rule_precedence_and_effective_dimensions() {
     })));
     let rule = &requested["rules"];
     for (key, effective) in [
-        ("trace_width", 0.32),
+        ("trace_width", 0.35),
         ("via_drill", 0.35),
         ("via_diameter", 0.81),
         ("grid_pitch", 0.15),
@@ -1442,6 +1446,26 @@ fn diagnostics_report_rule_precedence_and_effective_dimensions() {
     assert_eq!(rule["via_drill"]["base"]["mm"], 0.2);
     assert_eq!(rule["via_diameter"]["base"]["mm"], 0.5);
     assert_eq!(rule["trace_layers"]["effective"], json!(["top_cu"]));
+
+    let candidate = routing::routing_prepare(
+        &mut session,
+        args(json!({"nets":["A"],"layers":["top"],"trace_width":0.22})),
+    )
+    .unwrap()
+    .result;
+    assert_eq!(candidate["validation"]["acceptable"], true, "{candidate:#}");
+    assert_eq!(candidate["validation"]["after"]["unrouted"], 1);
+    routing::routing_apply(
+        &mut session,
+        args(json!({"candidate":candidate["candidate"]})),
+    )
+    .unwrap();
+    let board = librepcb_mcp::tools::layout::board_get(&session, Default::default())
+        .unwrap()
+        .result;
+    let traces = board["traces"].as_array().unwrap();
+    assert!(!traces.is_empty());
+    assert!(traces.iter().all(|trace| trace["width"] == 0.35));
 }
 
 #[test]

@@ -38,7 +38,8 @@ pub struct RoutingPrepareArgs {
     /// Allowed copper layers, e.g. top/bottom; empty means all.
     pub layers: Vec<String>,
     #[serde(default)]
-    /// Trace width in mm for all selected nets. Omit to honor each net class.
+    /// Preferred trace width in mm. Omit to use net-class or board defaults.
+    /// The board and each net class still set the minimum.
     pub trace_width: Option<f64>,
     /// Optional short reduced-width escape at pads.
     pub neck_down: Option<PadNeckDownArgs>,
@@ -793,7 +794,7 @@ pub struct RoutingEditRouteArgs {
     /// Allowed copper layers. Empty means all.
     #[serde(default)]
     pub layers: Vec<String>,
-    /// Trace width in mm for all selected nets. Omit to honor each net class.
+    /// Preferred trace width in mm, clamped to board and net-class minima.
     pub trace_width: Option<f64>,
     /// Optional short reduced-width escape at pads.
     pub neck_down: Option<PadNeckDownArgs>,

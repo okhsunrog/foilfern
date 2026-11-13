@@ -550,7 +550,8 @@ binary at build time from `$LIBREPCB_UPSTREAM_DIR/share/librepcb/fontobene`
 ### Reviewed builtin routing
 
 `routing_prepare` accepts builtin board/nets/layers and optional dimensions in
-mm, plus `expected_revision`. It captures an isolated native snapshot, releases
+mm, plus `expected_revision`. Requested and default trace widths are raised to
+the board and applicable net-class minimum widths. It captures an isolated native snapshot, releases
 the host locks, runs builtin search and before/after DRC, and retains the exact
 mutation candidate only if its source project session and revision still match.
 It does not edit the live board or its revision, dirty state, undo/redo or files.
