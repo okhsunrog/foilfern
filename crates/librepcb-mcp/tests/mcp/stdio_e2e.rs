@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 30);
+    assert_eq!(info["api_capability_version"], 31);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -2295,11 +2295,13 @@ async fn stdio_schematic_requirements_persist_and_gate_design_apply() {
          "check":{"kind":"symbol_position","symbol":symbol,"position":{"x":0.0,"y":0.0}}},
         {"id":"region","source":"placement review","severity":"warning",
          "check":{"kind":"symbol_region","symbol":symbol,"min":{"x":-2.0,"y":-2.0},"max":{"x":-1.0,"y":-1.0}}},
+        {"id":"rotation","source":"placement review","severity":"hard",
+         "check":{"kind":"symbol_orientation","symbol":symbol,"rotation":360.0,"mirrored":false}},
         {"id":"enable","source":"EN/RESET circuit","severity":"hard",
          "check":{"kind":"pin_net","pin":{"component":part["uuid"],"signal":signal["uuid"]},"net":net}}
     ]});
     let mut invalid = document.clone();
-    invalid["requirements"][2]["check"]
+    invalid["requirements"][3]["check"]
         .as_object_mut()
         .unwrap()
         .remove("net");
@@ -2385,6 +2387,11 @@ async fn stdio_schematic_requirements_persist_and_gate_design_apply() {
     assert_eq!(live["findings"][1]["status"], "pass");
     assert_eq!(live["findings"][1]["measured"]["net"], net);
     assert_eq!(live["findings"][2]["status"], "fail");
+    assert_eq!(live["findings"][3]["status"], "pass");
+    assert_eq!(
+        live["findings"][3]["measured"],
+        json!({"rotation":0.0,"mirrored":false})
+    );
     assert_eq!(live["blocking_requirements"], json!([]));
 
     let allowed = call_ok(&client, "design_preview", json!({"version":1,"schematic":"Main","components":{"r":{"uuid":part["uuid"],"value":{"expected":part["value"],"set":"10k"}}}})).await;
@@ -2425,6 +2432,35 @@ async fn stdio_schematic_requirements_persist_and_gate_design_apply() {
         .structured_content
         .unwrap();
     assert_eq!(refused["error"]["kind"], "refused");
+    assert_eq!(call_ok(&client, "project_summary", json!({})).await, before);
+
+    let oriented = call_ok(
+        &client,
+        "design_preview",
+        json!({"version":1,"schematic":"Main",
+        "components":{"r":{"uuid":part["uuid"],"symbols":{(symbol["symbol"].as_str().unwrap()):{
+            "rotation":{"expected":0,"set":90},"mirrored":{"expected":false,"set":true}
+        }}}}}),
+    )
+    .await;
+    assert_eq!(
+        oriented["requirements"]["blocking_requirements"],
+        json!(["rotation"])
+    );
+    assert_eq!(
+        oriented["requirements"]["findings"][3]["measured"],
+        json!({"rotation":90.0,"mirrored":true})
+    );
+    let refused = call(
+        &client,
+        "design_apply",
+        json!({"preview":oriented["preview"]}),
+    )
+    .await;
+    assert_eq!(
+        refused.structured_content.unwrap()["error"]["kind"],
+        "refused"
+    );
     assert_eq!(call_ok(&client, "project_summary", json!({})).await, before);
 
     call_ok(&client, "project_save", json!({})).await;

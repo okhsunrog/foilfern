@@ -15,7 +15,7 @@ use crate::outcome::ToolOutput;
 use crate::resolve::required_uuid;
 use crate::session::Session;
 use crate::tools::write;
-use crate::units::PointMm;
+use crate::units::{PointMm, angle, deg};
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -61,6 +61,12 @@ enum CheckInput {
     SymbolPosition {
         symbol: SymbolInput,
         position: PointMm,
+    },
+    /// Required symbol orientation in degrees and mirror state.
+    SymbolOrientation {
+        symbol: SymbolInput,
+        rotation: f64,
+        mirrored: bool,
     },
     /// Inclusive allowed rectangle for a symbol origin, in mm on the sheet.
     SymbolRegion {
@@ -111,6 +117,15 @@ impl CheckInput {
                 symbol: symbol.resolve()?,
                 position: position.to_point()?,
             },
+            Self::SymbolOrientation {
+                symbol,
+                rotation,
+                mirrored,
+            } => Check::SymbolOrientation {
+                symbol: symbol.resolve()?,
+                rotation: angle(rotation)?.mapped_to_0_360deg(),
+                mirrored,
+            },
             Self::SymbolRegion { symbol, min, max } => Check::SymbolRegion {
                 symbol: symbol.resolve()?,
                 min: min.to_point()?,
@@ -148,6 +163,13 @@ fn requirement_json(requirement: &Requirement) -> Value {
         Check::SymbolPosition { symbol, position } => json!({
             "kind":"symbol_position", "symbol":symbol, "position":PointMm::from(position),
         }),
+        Check::SymbolOrientation {
+            symbol,
+            rotation,
+            mirrored,
+        } => json!({
+            "kind":"symbol_orientation", "symbol":symbol, "rotation":deg(rotation), "mirrored":mirrored,
+        }),
         Check::SymbolRegion { symbol, min, max } => json!({
             "kind":"symbol_region", "symbol":symbol, "min":PointMm::from(min), "max":PointMm::from(max),
         }),
@@ -159,6 +181,9 @@ fn requirement_json(requirement: &Requirement) -> Value {
 fn measured_json(measured: Measured) -> Value {
     match measured {
         Measured::Position(position) => json!({"position":PointMm::from(position)}),
+        Measured::Orientation { rotation, mirrored } => {
+            json!({"rotation":deg(rotation),"mirrored":mirrored})
+        }
         Measured::Net(net) => json!({"net":net}),
     }
 }

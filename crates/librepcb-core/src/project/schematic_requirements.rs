@@ -4,9 +4,9 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
-use super::{ComponentSignalRef, NetSignalId, Project, SymbolRef};
+use super::{ComponentSignalRef, NetSignalId, Project, SymbolRef, schematic::SchematicSymbol};
 use crate::fileio::FileSystem;
-use crate::types::Point;
+use crate::types::{Angle, Point};
 
 /// Transactional project asset. All coordinates in this file are integer nanometers.
 pub const PATH: &str = "project/foilfern-schematic-requirements.json";
@@ -50,6 +50,11 @@ pub enum Check {
     SymbolPosition {
         symbol: SymbolRef,
         position: Point,
+    },
+    SymbolOrientation {
+        symbol: SymbolRef,
+        rotation: Angle,
+        mirrored: bool,
     },
     SymbolRegion {
         symbol: SymbolRef,
@@ -146,6 +151,7 @@ pub enum MissingReference {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Measured {
     Position(Point),
+    Orientation { rotation: Angle, mirrored: bool },
     Net(Option<NetSignalId>),
 }
 
@@ -172,15 +178,30 @@ impl Finding {
 impl Check {
     fn evaluate(self, project: &Project) -> Observation {
         let observation = match self {
-            Self::SymbolPosition { symbol, position } => symbol_position(project, symbol)
+            Self::SymbolPosition { symbol, position } => placed_symbol(project, symbol)
+                .map(SchematicSymbol::position)
                 .map(|actual| (Measured::Position(actual), actual == position)),
-            Self::SymbolRegion { symbol, min, max } => {
-                symbol_position(project, symbol).map(|actual| {
+            Self::SymbolOrientation {
+                symbol,
+                rotation,
+                mirrored,
+            } => placed_symbol(project, symbol).map(|placed| {
+                let actual = placed.rotation().mapped_to_0_360deg();
+                (
+                    Measured::Orientation {
+                        rotation: actual,
+                        mirrored: placed.mirrored(),
+                    },
+                    actual == rotation.mapped_to_0_360deg() && placed.mirrored() == mirrored,
+                )
+            }),
+            Self::SymbolRegion { symbol, min, max } => placed_symbol(project, symbol)
+                .map(SchematicSymbol::position)
+                .map(|actual| {
                     let inside =
                         (min.x..=max.x).contains(&actual.x) && (min.y..=max.y).contains(&actual.y);
                     (Measured::Position(actual), inside)
-                })
-            }
+                }),
             Self::PinNet { pin, net } => {
                 pin_net(project, pin, net).map(|actual| (Measured::Net(actual), actual == net))
             }
@@ -193,13 +214,15 @@ impl Check {
     }
 }
 
-fn symbol_position(project: &Project, symbol: SymbolRef) -> Result<Point, MissingReference> {
+fn placed_symbol(
+    project: &Project,
+    symbol: SymbolRef,
+) -> Result<&SchematicSymbol, MissingReference> {
     project
         .schematic(symbol.schematic)
         .ok_or(MissingReference::Schematic)?
         .symbols()
         .get(&symbol.symbol)
-        .map(|symbol| symbol.position())
         .ok_or(MissingReference::Symbol)
 }
 

@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `30`). Its `build` object contains
+`api_capability_version` (currently `31`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -413,10 +413,8 @@ library identities. If a library update changes a selected part, resolve it
 again through `library_element` and verify its pad mapping and pin positions.
 
 Set `review_components` to document keys to check annotation overlaps in the
-preview. The report gives the object IDs, designators or net names and the
-intersection in sheet coordinates. It checks rendered bounding boxes of
-symbol fields, page text and net labels touching the selected symbols or
-their connected wire segments. It is advisory and covers annotation spacing.
+preview. The report uses the same bounds check as `schematic_review` and
+includes findings involving the selected symbols or their connected segments.
 Use `text_positions` under an existing component to move its reference or
 value independently of the symbol. Each entry is keyed by the text UUID from
 `schematic_get` and uses `expected` and `set` positions in millimeters.
@@ -435,6 +433,7 @@ unique `id` strings, a nonempty `source`, `severity` and `check` for each row.
 | `check.kind` | Fields | Measurement |
 | --- | --- | --- |
 | `symbol_position` | `symbol: {schematic, symbol}`, `position: {x, y}` | Exact symbol origin in mm on the sheet |
+| `symbol_orientation` | `symbol: {schematic, symbol}`, `rotation`, `mirrored` | Exact orientation in degrees modulo 360 and mirror state |
 | `symbol_region` | `symbol: {schematic, symbol}`, `min` and `max` points | Symbol origin inside the inclusive rectangle in mm |
 | `pin_net` | `pin: {component, signal}`, `net` | Net UUID, or explicit `null` for an unconnected signal |
 

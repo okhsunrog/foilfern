@@ -218,7 +218,7 @@ Done when:
 ## P2 — persisted requirements and evidence
 
 The [schematic requirements API](mcp-design.md#schematic-requirements) stores
-fixed symbol origins, allowed origin rectangles and pin-to-net membership by
+fixed symbol origins and orientations, allowed origin rectangles and pin-to-net membership by
 UUID. It reports live and proposed results, and hard failures or missing
 references block declarative schematic apply. Rules are a transactional
 project asset with version, source and severity.
@@ -267,9 +267,12 @@ Schematic previews now use detached workers. The server admits one preview
 at a time per shared state and leaves the project available during planning,
 ERC and rendering. A changed or reopened project refuses publication.
 Clients can inspect the stage, request cancellation, or supply a budget.
-The worker stops at phase and document-item checkpoints and records a terminal
-outcome. The routing lifecycle and measured worker-stop latency on the frozen
-fixtures remain in scope below.
+The worker stops at phase, document-item and comparison-frame checkpoints and
+records a terminal outcome. On the imported ESP-PD-Sink sheet, stdio requests
+to cancel during rendering were acknowledged while the renderer was still
+working. The worker then returned `cancelled`, kept the revision and history,
+and admitted another preview. An in-flight frame or snapshot capture can run
+past the requested budget. The board workflow and its acceptance remain below.
 
 Done when:
 

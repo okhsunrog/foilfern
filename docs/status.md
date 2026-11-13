@@ -117,8 +117,8 @@ remove existing components and reassign pins with a preview of the affected
 board objects. The [P1 acceptance runs](roadmap.md#p1--declarative-design-updates)
 record empty replay after save/reopen and preservation of unrelated geometry.
 The [schematic requirements tools](mcp-design.md#schematic-requirements) store
-UUID-bound positions, regions and net memberships with explicit evidence and
-enforce hard requirements on declarative apply.
+UUID-bound positions, orientations, regions and net memberships with explicit
+evidence and enforce hard requirements on declarative apply.
 Schematic previews report introduced, inherited and resolved ERC findings,
 run in a detached worker with status and cancellation, and can return matched
 before/after PNGs cropped to one area. The [ESP32-C3 schematic replay](benchmarks/esp32-c3-schematic/README.md)
