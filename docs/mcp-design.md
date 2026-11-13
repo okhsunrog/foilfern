@@ -625,7 +625,9 @@ when enabled and ordinary grid entries otherwise.
 The batch is published together after the same source checks as single
 preparation, provided there is room for all candidates. The response contains
 the shared baseline DRC, per-candidate final DRC and costs, and a nullable
-`recommended` ID. Ranking compares acceptance, new and remaining
+`recommended` ID. With `trials`, choose two or three distinct combinations
+of `order` and optional `via_cost` instead of the `orders` list. Each result
+reports the effective `via_cost_mm`. Ranking compares acceptance, new and remaining
 non-connectivity errors, nets whose air-wire count regressed, remaining
 critical and total air wires, via count, then total trace centerline length
 in mm. Metrics describe the resulting whole board; existing copper is common

@@ -1022,7 +1022,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Compare two or three builtin routing orders on one unchanged board snapshot with common options. Returns ranked candidate IDs, DRC, open connections, via counts and total trace length. Preview and apply the chosen ID separately."
+        description = "Compare two or three builtin routing orders or order and via-cost combinations on one board snapshot. Returns ranked candidate IDs, DRC, open connections, via counts and total trace length. Preview and apply the chosen ID separately."
     )]
     async fn routing_compare(
         &self,

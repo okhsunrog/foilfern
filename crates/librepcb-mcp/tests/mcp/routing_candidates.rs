@@ -1077,7 +1077,14 @@ fn comparison_previews_independent_patches_and_applies_only_the_chosen_order() {
     let history = open.editor.undo_stack().index();
     let job = routing::prepare_comparison_job(
         &session,
-        args(json!({"options":{"pad_escape":true, "expected_revision":revision}})),
+        args(json!({
+            "options":{"pad_escape":true,"expected_revision":revision,"via_cost":2},
+            "trials":[
+                {"order":"constrained_first"},
+                {"order":"constrained_first","via_cost":10},
+                {"order":"shortest_first","via_cost":5},
+            ]
+        })),
     )
     .unwrap();
     let result =
@@ -1097,6 +1104,10 @@ fn comparison_previews_independent_patches_and_applies_only_the_chosen_order() {
                 .unwrap()
                 .result;
         assert_eq!(preview["request"]["order"], entry["order"]);
+        assert_eq!(
+            preview["request"]["via_cost"].as_i64().unwrap() as f64 / 1e6,
+            entry["via_cost_mm"].as_f64().unwrap(),
+        );
         assert_eq!(preview["request"]["pad_escape"], true);
         assert_eq!(preview["validation"]["before"], result["before"]);
         assert_eq!(preview["stale"], false);
@@ -1156,6 +1167,20 @@ fn comparison_publication_is_atomic_when_capacity_changes() {
     let temp = tempfile::tempdir().unwrap();
     let mut session = board_session(temp.path());
     let orders = || args(json!({"orders":["longest_first","shortest_first"]}));
+    for params in [
+        json!({
+            "orders":["longest_first","shortest_first"],
+            "trials":[{"order":"longest_first"},{"order":"shortest_first"}],
+        }),
+        json!({"trials":[{"order":"shortest_first"},{"order":"shortest_first","via_cost":2}]}),
+    ] {
+        assert_eq!(
+            routing::prepare_comparison_job(&session, args(params))
+                .unwrap_err()
+                .kind,
+            ErrorKind::InvalidArgument,
+        );
+    }
     let invalid = routing::prepare_comparison_job(
         &session,
         args(json!({"orders":["shortest_first","shortest_first"]})),

@@ -9,7 +9,7 @@ use librepcb_editor::commands::{
 };
 use librepcb_editor::routing_service::{
     RegionalRoutingRequest, RoutingCandidate, RoutingCandidateInfo, RoutingComparisonJob,
-    RoutingError, RoutingJob, RoutingTrials,
+    RoutingError, RoutingJob, RoutingTrial, RoutingTrials,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -116,6 +116,16 @@ pub struct RoutingCompareArgs {
     pub options: RoutingPrepareArgs,
     /// Two or three distinct initial orders. Omit to compare all three.
     pub orders: Option<Vec<RoutingOrderArg>>,
+    /// Two or three distinct order and via-cost combinations, instead of orders.
+    pub trials: Option<Vec<RoutingTrialArgs>>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RoutingTrialArgs {
+    pub order: RoutingOrderArg,
+    /// Cost of a layer change in equivalent mm. Omit to inherit options.via_cost.
+    pub via_cost: Option<f64>,
 }
 
 /// A candidate ID is opaque, session-local and consumed by successful apply.
@@ -432,6 +442,24 @@ pub fn prepare_comparison_job(
 ) -> ToolResult<RoutingComparisonJob> {
     let open = session.project()?;
     let command = builtin_request(open.project(), args.options)?;
+    if let Some(trials) = args.trials {
+        if args.orders.is_some() {
+            return Err(ToolError::invalid("Select orders or trials, not both."));
+        }
+        let trials = trials
+            .into_iter()
+            .map(|trial| {
+                Ok(RoutingTrial {
+                    order: trial.order.into(),
+                    via_cost: via_cost(trial.via_cost)?,
+                })
+            })
+            .collect::<ToolResult<_>>()?;
+        return open
+            .routing
+            .prepare_comparison_trials(&open.editor, command, trials)
+            .map_err(routing_error);
+    }
     let orders = args.orders.map_or_else(
         || {
             vec![
@@ -464,7 +492,7 @@ pub fn finish_comparison(session: &mut Session, trials: RoutingTrials) -> ToolRe
             .find(|entry| entry.candidate == id)
     });
     let mut output = ToolOutput::new(
-        "Compared builtin routing orders; live board unchanged.",
+        "Compared builtin routing trials; live board unchanged.",
         &comparison,
     )?;
     if let Some(entry) = recommended {
