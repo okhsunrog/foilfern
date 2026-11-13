@@ -1,4 +1,4 @@
-//! Declarative edits to existing schematic components with a reviewed patch.
+//! Declarative schematic creation and edits with a reviewed patch.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -9,12 +9,15 @@ use librepcb_core::project::{
     ComponentInstanceId, ComponentSignalRef, LibraryElementKind, Mutation, NetSignalId, Project,
     SchematicId, SchematicMutation, SymbolRef,
 };
-use librepcb_core::types::{Alignment, Angle, Layer, Length, Point, PositiveLength, Uuid};
+use librepcb_core::types::{
+    Alignment, Angle, ElementName, Layer, Length, Point, PositiveLength, Uuid,
+};
 use librepcb_editor::Transaction;
 use librepcb_editor::commands::{
     AddComponent, AddLibraryElement, AddNet, AutoPlaceSymbols, BlockDirection, DrawWirePaths,
     EditComponent, MoveSymbol, PlaceSchematicBlock, Rect, SymbolPlacement, SymbolStyle,
     WireCoordinate, WireGroup, WirePathPoint, WirePathSpec, WireWaypoint, connect_design_pin,
+    new_schematic,
 };
 use librepcb_editor::design_preview::{DesignEdit, DesignPreview};
 use schemars::JsonSchema;
@@ -103,6 +106,9 @@ pub struct DesignDocument {
     version: u32,
     /// Schematic name or UUID for the preview.
     schematic: String,
+    /// If true, interpret schematic as an exact page name and create it if missing.
+    #[serde(default)]
+    create_schematic: bool,
     /// Stable document keys bound to existing components by UUID or designator.
     #[serde(default)]
     components: BTreeMap<String, ExistingComponent>,
@@ -350,7 +356,17 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     }
     let open = session.project_mut()?;
     let p = open.project();
-    let (_, page, schematic) = resolve::schematic(p, Some(&doc.schematic))?;
+    let mut new_page = None;
+    let schematic = if doc.create_schematic {
+        let name = ElementName::new(doc.schematic.trim())?;
+        match p.schematic_by_name(name.as_str()) {
+            Some(schematic) => schematic,
+            None => new_page.insert(new_schematic(p, name)?),
+        }
+    } else {
+        resolve::schematic(p, Some(&doc.schematic))?.2
+    };
+    let page = schematic.id();
     let removals = doc
         .remove_components
         .iter()
@@ -586,10 +602,19 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     let (preview, project, (added, verified, topology)) = DesignPreview::prepare(
         &open.editor,
         |tx| -> ToolResult<_> {
+            let mut added = Vec::new();
+            if let Some(schematic) = new_page {
+                added.push(
+                    json!({"field":"add_schematic","name":schematic.name().as_str(),"uuid":page}),
+                );
+                tx.apply(Mutation::AddSchematic {
+                    schematic,
+                    index: None,
+                })?;
+            }
             for edit in edits {
                 edit.execute(tx)?;
             }
-            let mut added = Vec::new();
             let mut topology = topology::TopologyEdits::default();
             topology::remove_components(tx, &removals, &mut added, &mut topology)?;
             for name in &doc.add_nets {
@@ -774,7 +799,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     let image = super::output::render_schematic_preview(&project, schematic, 1600, 1200)?;
     let mut payload = json!({
         "preview": preview.id, "base_revision": preview.revision, "diff": diff,
-        "verified_pins": verified, "erc": erc::compare(p, &project),
+        "verified_pins": verified, "erc": erc::compare(p, &project), "schematic": page,
     });
     let copper = topology::copper_impact(p, &project, &topology);
     if !copper.is_empty() {
@@ -1046,6 +1071,15 @@ fn add_component(
         {
             return Err(conflict(format!(
                 "Component {key:?} differs in library identity or value."
+            )));
+        }
+        if !p.component_uses(instance.id()).is_some_and(|uses| {
+            uses.symbols
+                .values()
+                .any(|(schematic, _)| *schematic == page)
+        }) {
+            return Err(conflict(format!(
+                "Component {key:?} is already bound to a different sheet or has no placed symbols."
             )));
         }
         (instance.id(), false)

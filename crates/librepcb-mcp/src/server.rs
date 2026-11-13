@@ -1249,7 +1249,7 @@ impl LibrePcbMcp {
     // --- Declarative schematic updates -------------------------------------------
 
     #[tool(
-        description = "Preview a version 1 schematic document and render the resulting page. Create nets and parts, manage existing fields, place selected blocks, draw local wire paths and review topology changes. Reports ERC changes, affected board objects, schematic requirements and requested annotation overlaps."
+        description = "Preview a version 1 schematic document and render the resulting page. Create a sheet, nets and parts, manage existing fields, place selected blocks, draw local wire paths and review topology changes. Reports ERC changes, affected board objects, schematic requirements and requested annotation overlaps."
     )]
     async fn design_preview(
         &self,

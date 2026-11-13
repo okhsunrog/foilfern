@@ -47,7 +47,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 19);
+    assert_eq!(info["api_capability_version"], 20);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -758,20 +758,30 @@ async fn stdio_esp32_c3_schematic_acceptance() {
     let project = call_ok(
         &client,
         "project_create",
-        json!({"name":"ESP32-C3 acceptance"}),
+        json!({"name":"ESP32-C3 acceptance","create_schematic":false,"create_board":false}),
     )
     .await;
     let document: Value = serde_json::from_str(include_str!(
         "../../../../docs/examples/esp32-c3-devboard.json"
     ))
     .unwrap();
-    let empty = call_ok(&client, "schematic_get", json!({})).await;
+    let empty = call_ok(&client, "schematic_list", json!({})).await;
+    assert_eq!(empty["schematics"], json!([]));
+    let mut invalid = document.clone();
+    invalid["no_connects"]["U1.EN"] = json!(true);
+    let rejected = call(&client, "design_preview", invalid).await;
+    assert_eq!(
+        rejected.structured_content.unwrap()["error"]["kind"],
+        "conflict"
+    );
+    assert_eq!(call_ok(&client, "schematic_list", json!({})).await, empty);
     let preview = call_ok(&client, "design_preview", document.clone()).await;
     assert_eq!(
         preview["erc"],
         json!({"introduced":[],"inherited":[],"resolved":[]})
     );
-    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, empty);
+    assert_eq!(preview["diff"][0]["field"], "add_schematic");
+    assert_eq!(call_ok(&client, "schematic_list", json!({})).await, empty);
     call_ok(
         &client,
         "design_apply",
@@ -779,6 +789,7 @@ async fn stdio_esp32_c3_schematic_acceptance() {
     )
     .await;
     let page = call_ok(&client, "schematic_get", json!({})).await;
+    assert_eq!(page["uuid"], preview["schematic"]);
     assert_eq!(page["symbols"].as_array().unwrap().len(), 23);
     assert_eq!(page["net_segments"].as_array().unwrap().len(), 27);
     assert_eq!(page["texts"].as_array().unwrap().len(), 13);
@@ -816,7 +827,7 @@ async fn stdio_esp32_c3_schematic_acceptance() {
     assert_eq!(erc["messages"], json!([]));
 
     call_ok(&client, "undo", json!({})).await;
-    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, empty);
+    assert_eq!(call_ok(&client, "schematic_list", json!({})).await, empty);
     call_ok(&client, "redo", json!({})).await;
     assert_eq!(call_ok(&client, "schematic_get", json!({})).await, page);
     let conflicting = call(
@@ -865,6 +876,7 @@ async fn stdio_esp32_c3_schematic_acceptance() {
     let history = call_ok(&client, "history", json!({})).await;
     let replay = call_ok(&client, "design_preview", document).await;
     assert_eq!(replay["diff"], json!([]));
+    assert_eq!(replay["schematic"], page["uuid"]);
     assert_eq!(replay["erc"]["introduced"], json!([]));
     let applied = call_ok(
         &client,

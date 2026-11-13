@@ -139,6 +139,9 @@ as imported KiCad no-connect flags.
 An existing multi-gate component can be edited by placed symbol UUID.
 The stdio fixture moves, rotates and mirrors one gate, verifies that the
 other gate is unchanged, and checks empty replay and undo.
+The dev-board acceptance replay now starts with a native project that has
+no sheets. The document creates `Main` inside the same preview and undo
+step as its parts and wires, and reuses that sheet after save/reopen.
 
 Done when:
 

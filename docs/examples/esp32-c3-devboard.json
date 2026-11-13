@@ -1,6 +1,7 @@
 {
   "version": 1,
   "schematic": "Main",
+  "create_schematic": true,
   "add_nets": [
     "+3V3",
     "EN",
