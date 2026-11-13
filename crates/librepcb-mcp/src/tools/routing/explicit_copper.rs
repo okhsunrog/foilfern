@@ -9,7 +9,7 @@ use librepcb_editor::routing_service::{
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use super::{board_edit, candidate_id, routing_error, write};
+use super::{RoutingEditRouteArgs, board_edit, candidate_id, routing_error, write};
 use crate::error::{ToolError, ToolResult};
 use crate::resolve;
 use crate::session::Session;
@@ -38,6 +38,8 @@ pub struct RoutingCopperArgs {
     /// Moves and rotations of explicitly selected, unlocked board devices.
     #[serde(default)]
     pub placements: Vec<PlannedPlacementArg>,
+    /// Continue builtin routing on the staged copper for these explicit target nets.
+    pub route: Option<RoutingEditRouteArgs>,
     pub expected_revision: Option<u64>,
 }
 
@@ -110,6 +112,10 @@ pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolRes
     let project = open.project();
     write::check_revision(project, args.expected_revision)?;
     let board = board_edit::board_id(project, args.board.as_deref())?;
+    let route = args
+        .route
+        .map(|args| args.command(project, board))
+        .transpose()?;
     let base_candidate = args
         .base_candidate
         .as_deref()
@@ -199,7 +205,7 @@ pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolRes
         })
         .collect::<ToolResult<_>>()?;
     open.routing
-        .prepare_copper(
+        .prepare_copper_and_route(
             &open.editor,
             CopperPlan {
                 board,
@@ -210,6 +216,7 @@ pub fn prepare_copper_job(session: &Session, args: RoutingCopperArgs) -> ToolRes
                 traces,
             },
             base_candidate,
+            route,
         )
         .map_err(routing_error)
 }

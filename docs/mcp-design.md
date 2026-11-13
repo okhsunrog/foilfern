@@ -580,6 +580,11 @@ placements, vias, paths, intermediate points and removals.
 Use `base_candidate` to add the explicit geometry to an earlier candidate,
 including a rejected route with a plane split. The combined patch is checked
 against the unchanged live board and remains independently previewable.
+An optional `route` with explicit target nets uses the same builtin options
+as `routing_edit_prepare`. It routes remaining connections after the
+explicit changes and a plane rebuild. The continuation preserves copper from
+the staged board, including new escapes. Preview returns both the explicit
+edit counts and the builtin result. Apply and undo cover the combined patch.
 Candidate validation reports new DRC warnings by identity as well as errors.
 Review warnings such as undersized drills before applying; warnings alone
 do not block a candidate.

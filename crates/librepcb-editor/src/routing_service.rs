@@ -84,6 +84,8 @@ pub enum RoutingCandidateDetails {
     },
     Copper {
         copper: CopperAddition,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        route: Option<Box<RoutingEditTrial>>,
     },
     Regional {
         regional: Box<RegionalRoutingRequest>,
@@ -162,6 +164,7 @@ enum RoutingWork {
     Copper {
         plan: CopperPlan,
         base: Option<(Uuid, Vec<Mutation>)>,
+        route: Option<Box<Autoroute>>,
     },
     LocalVia(ConnectLocalVia),
     PlaneStitch(StitchPlaneIsland),
@@ -288,7 +291,7 @@ impl RoutingJob {
                     routing: Box::new(routing),
                 }
             }
-            RoutingWork::Copper { plan, base } => {
+            RoutingWork::Copper { plan, base, route } => {
                 let base_candidate = match base {
                     Some((id, mutations)) => {
                         sandbox.apply_mutations("Replay routing candidate", mutations)?;
@@ -300,6 +303,25 @@ impl RoutingJob {
                 let removed_vias = (!plan.remove_vias.is_empty()).then_some(plan.remove_vias.len());
                 let placements = (!plan.placements.is_empty()).then_some(plan.placements.len());
                 let (vias, trace_segments) = plan.run(sandbox)?;
+                let route = if let Some(mut request) = route {
+                    let protected = existing(sandbox)?;
+                    request.board = Some(board);
+                    sandbox
+                        .update_derived_data(|project| project.rebuild_planes(board, None))?
+                        .map_err(crate::Error::from_export)?;
+                    let routing = sandbox.execute((*request).clone())?;
+                    region::ensure_preserved_copper(
+                        &protected,
+                        &existing(sandbox)?,
+                        &BTreeSet::new(),
+                    )?;
+                    Some(Box::new(RoutingEditTrial {
+                        request: *request,
+                        routing,
+                    }))
+                } else {
+                    None
+                };
                 RoutingCandidateDetails::Copper {
                     copper: CopperAddition {
                         base_candidate,
@@ -309,6 +331,7 @@ impl RoutingJob {
                         vias,
                         trace_segments,
                     },
+                    route,
                 }
             }
             RoutingWork::LocalVia(request) => {
@@ -495,6 +518,28 @@ impl RoutingService {
         plan: CopperPlan,
         base_candidate: Option<Uuid>,
     ) -> Result<RoutingJob, RoutingError> {
+        self.prepare_copper_and_route(editor, plan, base_candidate, None)
+    }
+
+    /// Captures explicit copper and an optional builtin continuation on the
+    /// same detached board. Existing and explicitly planned copper stay fixed
+    /// during the continuation.
+    pub fn prepare_copper_and_route(
+        &self,
+        editor: &ProjectEditor,
+        plan: CopperPlan,
+        base_candidate: Option<Uuid>,
+        route: Option<Autoroute>,
+    ) -> Result<RoutingJob, RoutingError> {
+        if route
+            .as_ref()
+            .is_some_and(|request| request.nets.as_ref().is_none_or(Vec::is_empty))
+        {
+            return Err(crate::Error::InvalidArgument(
+                "A copper-and-route trial requires at least one target net.".into(),
+            )
+            .into());
+        }
         let base = if let Some(id) = base_candidate {
             let candidate = self.candidate(id)?;
             self.check_source(editor.project(), candidate)?;
@@ -508,7 +553,14 @@ impl RoutingService {
         } else {
             None
         };
-        self.prepare_work(editor, RoutingWork::Copper { plan, base })
+        self.prepare_work(
+            editor,
+            RoutingWork::Copper {
+                plan,
+                base,
+                route: route.map(Box::new),
+            },
+        )
     }
 
     /// Captures a connected edit and a builtin trial on the edited board.

@@ -995,7 +995,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Prepare explicit traces and through vias together as a checked routing candidate. Optionally replace existing traces by UUID. Traces can refer to new vias by label. Coordinates and dimensions are in millimeters. Review with routing_preview and apply in one undo step with routing_apply."
+        description = "Prepare explicit traces and through vias together as a checked routing candidate. Optionally replace existing traces by UUID and continue builtin routing for selected nets on the staged geometry. Traces can refer to new vias by label. Coordinates and dimensions are in millimeters. Review with routing_preview and apply in one undo step with routing_apply."
     )]
     async fn routing_copper_prepare(
         &self,

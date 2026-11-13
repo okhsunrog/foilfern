@@ -66,6 +66,66 @@ fn board_value(session: &Session) -> Value {
 }
 
 #[test]
+fn explicit_escape_and_builtin_continuation_share_one_candidate() {
+    use librepcb_mcp::tools::layout::board_get;
+
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    let before = board_get(&session, Default::default()).unwrap().result;
+    let y = before["devices"][0]["pads"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|pad| pad["net"] == "A")
+        .unwrap()["position"]["y"]
+        .as_f64()
+        .unwrap();
+    let revision = session.project().unwrap().project().revision();
+    let history = session.project().unwrap().editor.undo_stack().index();
+    let input = json!({
+        "traces":[{"from":"R1.1","to":{"x":7,"y":y},"layer":"top","width":0.2}],
+        "route":{"nets":["A"],"layers":["top"],"trace_width":0.2},
+        "expected_revision":revision
+    });
+    let job = routing::prepare_copper_job(&session, args(input)).unwrap();
+    let candidate = routing::finish_prepare(&mut session, routing::run_job(job).unwrap())
+        .unwrap()
+        .result;
+    assert_eq!(candidate["copper"]["trace_segments"], 1);
+    assert_eq!(candidate["route"]["routing"]["routed"], 1);
+    assert_eq!(candidate["validation"]["acceptable"], true, "{candidate:#}");
+    assert_eq!(candidate["validation"]["after"]["unrouted"], 1);
+    assert_eq!(
+        board_get(&session, Default::default()).unwrap().result,
+        before
+    );
+    assert_eq!(session.project().unwrap().project().revision(), revision);
+    let candidate = json!({"candidate":candidate["candidate"]});
+    let preview = routing::routing_preview(&session, args(candidate.clone()))
+        .unwrap()
+        .result;
+    assert_eq!(preview["route"]["routing"]["routed"], 1);
+    routing::routing_apply(&mut session, args(candidate)).unwrap();
+    let after = board_get(&session, Default::default()).unwrap().result;
+    assert_eq!(after["air_wires"][0]["net"], "B");
+    assert!(after["traces"].as_array().unwrap().iter().any(|trace| {
+        trace["net"] == "A"
+            && [trace["from"].clone(), trace["to"].clone()]
+                .iter()
+                .any(|end| end["position"] == json!({"x":7.0,"y":y}))
+    }));
+    assert_eq!(
+        session.project().unwrap().editor.undo_stack().index(),
+        history + 1
+    );
+    write::undo_redo(&mut session, Default::default(), false).unwrap();
+    assert_eq!(
+        board_get(&session, Default::default()).unwrap().result,
+        before
+    );
+}
+
+#[test]
 fn board_get_reports_effective_dimensions_for_automatic_vias() {
     use librepcb_mcp::tools::layout::board_get;
 
