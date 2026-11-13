@@ -1,0 +1,96 @@
+{
+  "symbols": 23,
+  "segments": 27,
+  "notes": 13,
+  "nets": {
+    "+3V3": [
+      "C1.2",
+      "C2.2",
+      "J1.1",
+      "R1.2",
+      "R2.2",
+      "R3.2",
+      "R4.2",
+      "U1.3V3",
+      "VCC1.Net",
+      "VCC2.Net",
+      "VCC3.Net"
+    ],
+    "EN": [
+      "C3.2",
+      "R1.1",
+      "S1.2",
+      "U1.EN"
+    ],
+    "GND": [
+      "C1.1",
+      "C2.1",
+      "C3.1",
+      "D1.C",
+      "GND1.Net",
+      "GND2.Net",
+      "GND3.Net",
+      "GND4.Net",
+      "GND5.Net",
+      "J1.2",
+      "J2.1",
+      "J3.1",
+      "S1.1",
+      "S2.1",
+      "U1.GND",
+      "U1.GND_EPAD"
+    ],
+    "GPIO10": [
+      "R5.2",
+      "U1.IO10"
+    ],
+    "GPIO2": [
+      "R4.1",
+      "U1.IO2"
+    ],
+    "GPIO3": [
+      "J3.2",
+      "U1.IO3"
+    ],
+    "GPIO4": [
+      "J3.3",
+      "U1.IO4/MTMS"
+    ],
+    "GPIO5": [
+      "J3.4",
+      "U1.IO5/MTDI"
+    ],
+    "GPIO6": [
+      "J3.5",
+      "U1.IO6/MTCK"
+    ],
+    "GPIO8": [
+      "R3.1",
+      "U1.IO8"
+    ],
+    "GPIO9": [
+      "R2.1",
+      "S2.2",
+      "U1.IO9"
+    ],
+    "LED_A": [
+      "D1.A",
+      "R5.1"
+    ],
+    "UART0_RX": [
+      "J2.2",
+      "U1.IO20/RXD"
+    ],
+    "UART0_TX": [
+      "J2.3",
+      "U1.IO21/TXD"
+    ]
+  },
+  "no_connects": [
+    "U1.IO0/XTAL_32K_P",
+    "U1.IO1/XTAL_32K_N",
+    "U1.IO18/USB_D-",
+    "U1.IO19/USB_D+",
+    "U1.IO7/MTDO"
+  ]
+}

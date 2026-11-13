@@ -1,7 +1,7 @@
 # Foilfern roadmap
 
-Updated 2026-11-12. Capability baseline reviewed against `f3c3fda` (including
-the merged `work` branch); the P1a transaction decision was added after that review.
+Updated 2026-11-13. The original capability baseline was reviewed against
+`f3c3fda`, including the merged `work` branch.
 This is the delivery order for new work. [Status](status.md) describes what
 exists; [routing service design](routing-service-design.md) owns the routing
 contract; [COMPAT.md](../COMPAT.md) records upstream differences and gaps.
@@ -33,10 +33,10 @@ because its tools exist or one board has zero air wires.
 | P0 | Identifiable builds, concise responses and measured operation costs | Existing API | Complete; [release replay](benchmarks/esp-pd-sink/review/performance/p0/REPORT.md) |
 | P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; creation, local rewiring and reviewed topology edits verified |
 | P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | In progress; schematic requirements and apply gate implemented |
-| P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | Planned; router callback only |
+| P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | In progress; schematic preview workers bounded |
 | P4 | Diagnosed local repair with bounded placement alternatives | P2, P3 | Planned; explicit repair primitives already implemented |
 | P5 | Visual candidate review in the desktop editor | Existing candidates; P2/P4 extend the displayed evidence | Planned |
-| P6 | Reproducible end-to-end acceptance across boards | P1–P5 for final acceptance | Corpus/evidence partly available |
+| P6 | Reproducible end-to-end acceptance across boards | P1–P5 for final acceptance | Schematic replay available; board corpus partly available |
 
 Start with P0, then P1. P2 and P3 can be developed independently once their
 contracts are defined. Select and freeze the P6 corpus before tuning P4.
@@ -330,6 +330,11 @@ Done when:
 Scope: make the entire creation/update/review/save/export workflow reproducible.
 Use ESP32-C3 for declarative updates and last connections, ESP-PD-Sink for
 placement/requirements, and a held-out board selected before planner tuning.
+
+The [ESP32-C3 schematic replay](benchmarks/esp32-c3-schematic/README.md)
+starts from an empty native project and checks the full netlist, ERC, undo/redo,
+native reopen and replay after a manual annotation edit. It records the binary,
+document and library hashes alongside the results and the preview image.
 
 Done when:
 
