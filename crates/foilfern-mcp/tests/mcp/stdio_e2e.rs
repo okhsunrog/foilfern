@@ -499,7 +499,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 46);
+    assert_eq!(info["api_capability_version"], 47);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -3937,6 +3937,7 @@ async fn stdio_declarative_board_placement_reviews_and_replays_one_patch() {
                 "value":"1k","connections":{"1":"LINK"}}
         },
         "board_layout":{
+            "image_side":"bottom",
             "regions":{"connector":{"min":{"x":10,"y":12},"max":{"x":10,"y":12}}},
             "placements":{
                 "anchor":{"position":{"x":10,"y":12},"locked":true,"rotation":90,"region":"connector"},
@@ -3948,8 +3949,31 @@ async fn stdio_declarative_board_placement_reviews_and_replays_one_patch() {
                     "min":{"x":10,"y":12},"max":{"x":10,"y":12}}}]
         }
     });
-    let planned = call_ok(&client, "design_preview", document.clone()).await;
+    let planned_reply = call(&client, "design_preview", document.clone()).await;
+    assert_ne!(planned_reply.is_error, Some(true), "{planned_reply:?}");
+    let images = planned_reply
+        .content
+        .iter()
+        .filter_map(|content| content.as_image())
+        .collect::<Vec<_>>();
+    assert_eq!(images.len(), 2);
+    let preview_board_png = images[1].data.clone();
+    if let Ok(directory) = std::env::var("FOILFERN_BOARD_PREVIEW_DIR") {
+        use base64::Engine;
+        std::fs::create_dir_all(&directory).unwrap();
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(&preview_board_png)
+            .unwrap();
+        std::fs::write(
+            Path::new(&directory).join("board-placement-bottom.png"),
+            bytes,
+        )
+        .unwrap();
+    }
+    let planned = planned_reply.structured_content.unwrap()["result"].clone();
     let review = &planned["board_layout"];
+    assert_eq!(review["image"]["index"], 1);
+    assert_eq!(review["image"]["side"], "bottom");
     assert_eq!(review["applicable"], true, "{planned:#}");
     assert_eq!(review["regions"][0]["met"], true);
     assert_eq!(review["validation"]["after"]["unrouted"], 1, "{review:#}");
@@ -3988,6 +4012,47 @@ async fn stdio_declarative_board_placement_reviews_and_replays_one_patch() {
     );
     assert_eq!(follower["side"], "bottom");
     assert_eq!(anchor["locked"], true);
+    for actual in devices {
+        let reviewed = review["devices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|device| device["component"] == actual["component"])
+            .unwrap();
+        assert_eq!(reviewed["pads"], actual["pads"]);
+    }
+    // Preview includes derived air wires from its fresh checks; compare the
+    // committed image after refreshing that same derived state.
+    call_ok(&client, "drc_run", json!({})).await;
+    let rendered = call(&client, "render", json!({"target":"board","side":"bottom"})).await;
+    if let Ok(directory) = std::env::var("FOILFERN_BOARD_PREVIEW_DIR") {
+        use base64::Engine;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(
+                &rendered
+                    .content
+                    .iter()
+                    .find_map(|content| content.as_image())
+                    .unwrap()
+                    .data,
+            )
+            .unwrap();
+        std::fs::write(
+            Path::new(&directory).join("board-applied-bottom.png"),
+            bytes,
+        )
+        .unwrap();
+    }
+    assert!(
+        rendered
+            .content
+            .iter()
+            .find_map(|content| content.as_image())
+            .unwrap()
+            .data
+            == preview_board_png,
+        "Candidate PNG differs from the applied board render."
+    );
     call_ok(&client, "undo", json!({})).await;
     assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
     assert_eq!(
@@ -4022,7 +4087,7 @@ async fn stdio_declarative_board_placement_reviews_and_replays_one_patch() {
         cycle.structured_content.unwrap()["error"]["kind"],
         "invalid_argument"
     );
-    let region = call_ok(
+    let region_reply = call(
         &client,
         "design_preview",
         json!({"version":1,"board_layout":{
@@ -4031,6 +4096,16 @@ async fn stdio_declarative_board_placement_reviews_and_replays_one_patch() {
         }}),
     )
     .await;
+    assert_eq!(
+        region_reply
+            .content
+            .iter()
+            .filter(|content| content.as_image().is_some())
+            .count(),
+        1
+    );
+    let region = region_reply.structured_content.unwrap()["result"].clone();
+    assert_eq!(region["board_layout"]["image"]["index"], 0);
     assert_eq!(region["board_layout"]["applicable"], false);
     let rejected = call(
         &client,

@@ -168,8 +168,8 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `46`, including supplier part acquisition,
-per-request library installation reports and pinned official KiCad imports).
+`api_capability_version` (currently `47`, including supplier acquisition,
+official KiCad imports and rendered board-placement reviews).
 Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
@@ -514,6 +514,17 @@ expected air wires. The check still blocks increased gaps among the
 previously placed terminals of any existing net, new DRC errors, courtyard
 conflicts and failed hard rules. Use `unrouted_after` to see the total
 remaining connections, including new devices.
+
+Board placement previews include a candidate PNG, even when checks block apply.
+Set `board_layout.image_side` to `top` (default) or `bottom`.
+`board_layout.image.index` identifies the image among MCP image content blocks:
+index 0 for board-only previews; for combined documents the board image follows
+the schematic image(s). It shows the checked candidate, including any reviewed
+repair and fresh derived plane/air-wire data. It does not mutate the live board.
+`board_layout.devices` contains the selected devices and their absolute pad
+positions/rotations using the same schema as `board_get`. Coordinates remain in
+board X/Y even for a mirrored bottom-side view. Connector mating direction is not
+inferred from pad numbering or the rendered image.
 
 Use `board_layout.repair` to inspect or replace local copper on a board
 with existing routes. Pass a routing rectangle in `region`, an optional

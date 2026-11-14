@@ -16,6 +16,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+use super::work::Stage;
 use crate::error::{ErrorKind, ToolError, ToolResult};
 use crate::tools::board_edit::Side;
 use crate::tools::board_requirements::{CheckInput, RuleInput, SeverityInput, requirement_json};
@@ -30,6 +31,9 @@ mod repair;
 pub(super) struct BoardLayout {
     /// Board name, index or UUID. Defaults to the first board.
     board: Option<String>,
+    /// Side shown in the candidate PNG (default top). Pad coordinates always
+    /// use board X/Y coordinates, including when viewing the bottom side.
+    image_side: Option<Side>,
     /// Component keys from the design document, or designators/UUIDs.
     placements: BTreeMap<String, Placement>,
     /// Named rectangles for device origins, in board millimeters.
@@ -148,6 +152,8 @@ impl From<&BoardDevice> for PlacedDevice {
 
 pub(super) struct AppliedLayout {
     board: BoardId,
+    image_side: Side,
+    reviewed_devices: BTreeSet<ComponentInstanceId>,
     new_devices: BTreeSet<ComponentInstanceId>,
     regions: Vec<Value>,
     moved: bool,
@@ -160,6 +166,7 @@ pub(super) struct AppliedLayout {
 pub(super) struct LayoutReview {
     pub(super) evidence: Value,
     pub(super) blocked: bool,
+    pub(super) image: Vec<u8>,
 }
 
 fn component(
@@ -284,6 +291,7 @@ impl BoardLayout {
                 )));
             }
         }
+        let reviewed_devices = selected.keys().copied().collect();
         let mut users = BTreeMap::<_, Vec<_>>::new();
         let mut ready = BTreeSet::new();
         for (&instance, (_, _, dependency)) in &selected {
@@ -539,6 +547,8 @@ impl BoardLayout {
         }
         Ok(AppliedLayout {
             board: id,
+            image_side: self.image_side.unwrap_or(Side::Top),
+            reviewed_devices,
             new_devices,
             regions: region_checks,
             moved,
@@ -598,8 +608,9 @@ impl AppliedLayout {
         preview: &mut DesignPreview,
         source: &Project,
         proposed: &Project,
-        checkpoint: impl Fn() -> ToolResult<()> + Sync,
+        stage: impl Fn(Stage) -> ToolResult<()> + Sync,
     ) -> ToolResult<LayoutReview> {
+        let checkpoint = || stage(Stage::Check);
         let before = self.placement_baseline.as_ref().unwrap_or(source);
         let repair = self
             .repair
@@ -710,9 +721,40 @@ impl AppliedLayout {
         if let Some(repair) = repair_evidence {
             evidence["repair"] = repair;
         }
+        let project = updated.project();
+        let board = board(project, self.board)?;
+        let devices = self
+            .reviewed_devices
+            .iter()
+            .map(|id| {
+                let device = board
+                    .device(*id)
+                    .ok_or_else(|| ToolError::not_found("Reviewed device disappeared."))?;
+                crate::tools::circuit::device_json(project, board, device, true)
+            })
+            .collect::<ToolResult<Vec<_>>>()?;
+        evidence["devices"] = json!(devices);
+        stage(Stage::Render)?;
+        let side = if self.image_side == Side::Bottom {
+            foilfern_scene::BoardSide::Bottom
+        } else {
+            foilfern_scene::BoardSide::Top
+        };
+        let image = foilfern_scene::render_board_png(
+            project,
+            self.board,
+            side,
+            &foilfern_scene::RenderOptions::default(),
+        )?;
+        stage(Stage::Render)?;
+        evidence["image"] = json!({"index":0,"side":self.image_side,"width":1600,"height":1200,"mime_type":"image/png","pad_coordinate_system":"board"});
         if let Some(trial) = trial {
             preview.append_board_routing(trial.mutations);
         }
-        Ok(LayoutReview { evidence, blocked })
+        Ok(LayoutReview {
+            evidence,
+            blocked,
+            image,
+        })
     }
 }

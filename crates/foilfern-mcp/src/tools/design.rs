@@ -508,13 +508,13 @@ pub(crate) fn prepare(
             })
         })?;
         checkpoint(Stage::Check)?;
-        let review =
-            placement.review(&mut preview, &before, &after, || checkpoint(Stage::Check))?;
+        let review = placement.review(&mut preview, &before, &after, &checkpoint)?;
         let mut output = ToolOutput::new(
             format!("{} board design changes.", diff.len()),
             json!({"preview":preview.id,"base_revision":preview.revision,"diff":diff,
                 "board_layout":review.evidence}),
-        )?;
+        )?
+        .image(review.image);
         if review.blocked {
             output = output.warn("Board placement checks block apply.");
         }
@@ -1061,16 +1061,17 @@ pub(crate) fn prepare(
             " {blockers} schematic requirement(s) block apply."
         ));
     }
+    let mut board_image = None;
     if let Some(placement) = placement {
-        let review =
-            placement.review(&mut preview, &before, &project, || checkpoint(Stage::Check))?;
+        let review = placement.review(&mut preview, &before, &project, &checkpoint)?;
         if review.blocked {
             summary.push_str(" Board placement checks block apply.");
         }
         payload["board_layout"] = review.evidence;
+        board_image = Some(review.image);
     }
     checkpoint(Stage::Render)?;
-    let output = if doc.compare_images || region.is_some() {
+    let mut output = if doc.compare_images || region.is_some() {
         let images = super::output::render_schematic_comparison(
             &before,
             &project,
@@ -1093,6 +1094,10 @@ pub(crate) fn prepare(
         let image = super::output::render_schematic_preview(&project, schematic, 1600, 1200, None)?;
         ToolOutput::new(summary, payload)?.image(image)
     };
+    if let Some(image) = board_image {
+        output.result["board_layout"]["image"]["index"] = json!(output.images.len());
+        output.images.push(image);
+    }
     Ok(PreparedPreview {
         source_project,
         source_library,

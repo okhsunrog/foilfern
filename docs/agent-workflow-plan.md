@@ -13,9 +13,9 @@ preview/apply revision checks, undo and native LibrePCB interoperability.
 | A1 | Safe library search | Warn about ambiguous 0201/0402/0603 even with limit 1; explain that whole is textual, not dimensional. Later rank by verified dimensions and explicit unit convention, not name guesses. | Warning implemented; focused integration test and Clippy passed; dimension-based ranking remains planned |
 | A2 | Part identity and BOM | Declarative components accept manufacturer/MPN, supplier identity and attributes through editor mutations; preserve identities on reconciliation, undo and save/reopen. BOM without an explicit board selects the first board consistently; schematic-only projects still work. Test package, MPN and supplier fields end to end. | Implemented: board-default BOM and native instance part identity; stdio replay/save/reopen covered |
 | A3 | Resolve devices and pins | Device alone resolves its library component. Exact MPN/name lookup returns candidates and rejects ambiguous selections. One detail response exposes signals, named pads, footprint dimensions and model availability. UUIDs remain the stable persisted identity. | Implemented: device-only creation, exact lookup and complete device/model details |
-| A4 | Import a concrete purchasable part | LCSC ID or exact MPN produces a reviewed native component/device/package/symbol bundle with pin mapping, MPN, supplier ID and available 3D assets. See the import stages below. | Priority after A2/A3 |
-| A5 | Partial library install and official KiCad discovery | One unresolved library does not discard successful independent requests; report per-item results and dependency failures. Discover official KiCad libraries explicitly and import a selected pinned source. | Planned |
-| A6 | Board placement review | Board-layout preview returns an image plus absolute pad positions after rotation/mirroring. Preview performs no mutation and preserves stale-source refusal. Connector orientation comes from explicit metadata or geometry with confidence, never a guessed direction. | Planned |
+| A4 | Import a concrete purchasable part | LCSC ID or exact MPN produces a reviewed native component/device/package/symbol bundle with pin mapping, MPN, supplier ID and available 3D assets. See the import stages below. | Acquisition/native corpus delivered; datasheet and model-alignment gates remain open |
+| A5 | Partial library install and official KiCad discovery | One unresolved library does not discard successful independent requests; report per-item results and dependency failures. Discover official KiCad libraries explicitly and import a selected pinned source. | Implemented; deeper inheritance and shared-source updates remain explicitly unsupported |
+| A6 | Board placement review | Board-layout preview returns an image plus absolute pad positions after rotation/mirroring. Preview performs no mutation and preserves stale-source refusal. Connector orientation comes from explicit metadata or geometry with confidence, never a guessed direction. | Candidate images and absolute pads delivered; connector orientation remains open |
 | A7 | Legend editing | Identify text by device instance plus footprint-text UUID; report transformed bbox. Bounded text placement tests mask/courtyard constraints and reports fresh DRC delta with undo. | Planned |
 | A8 | Output access and plane defaults | Create/update validated output jobs through MCP; fresh projects can export STEP and graphics. Default plane outline uses the actual board contour; test nonrectangular boards and holes. | Planned |
 | A9 | Response and tool discovery cost | Measure current tools/list and representative preview/apply payloads. Add compact change summaries with detail retrieval. Investigate opt-in tool groups and client compatibility; preserve default discoverability. Budget tests catch payload regressions. | Planned; extend existing P0 |
@@ -356,3 +356,20 @@ then A6 board preview/absolute pads, A7 legend placement, A8 jobs/planes, A9 res
 cost, A10 rule provenance, A11 design-document CI and A12 3D/electrical intent.
 Use the delivered CLI and acquisition tools for those checks; do not replace the
 remaining product work with board experiments or mark the entire plan complete.
+
+### Board placement candidate images and absolute pads (A6)
+
+Board-only `design_preview` now returns a candidate PNG; combined schematic/board
+documents append it after the schematic images. `board_layout.image_side` selects
+top/bottom, and the report gives its image index. The rendered copy contains the
+same checked placement/authorized repair and fresh derived data used for review.
+Selected-device details include absolute pad geometry through the `board_get`
+adapter; coordinates stay in board X/Y even in a mirrored bottom-side image.
+
+The focused stdio acceptance checks combined and board-only image counts,
+rotation/mirroring, identical pad read-back after apply, preview isolation,
+undo/redo and blocked apply. The PNG matches the committed board render after
+refreshing its derived DRC data; a raw render can otherwise retain stale air-wire
+cache data, which is outside this change. The bottom-side candidate image was
+inspected. All 93 ordinary MCP tests and all-target MCP Clippy passed. Connector-direction metadata and the
+remaining A6/A4 visual acceptance remain open. Capability version is 47.
