@@ -352,7 +352,7 @@ impl RoutingService {
         let project = editor.project();
         let board = resolve_board(project, request.route.board)?;
         let trials = request.plan(project, board)?;
-        let strategy_count = 1 + usize::from(request.joint_route.is_some());
+        let strategy_count = request.strategies().len();
         let source = self.capture_source(editor, request.max_candidates)?;
         let state = Arc::new(ActiveRepairSearch {
             id: Uuid::new_random(),
@@ -481,6 +481,14 @@ impl Drop for RoutingService {
 }
 
 impl RepairSearchRequest {
+    fn strategies(&self) -> &'static [RepairStrategy] {
+        if self.groups.is_empty() || self.joint_route.is_none() {
+            &[RepairStrategy::Sequential]
+        } else {
+            &[RepairStrategy::Sequential, RepairStrategy::Joint]
+        }
+    }
+
     fn launch_pad<'a>(
         &self,
         project: &'a Project,
@@ -529,11 +537,13 @@ impl RepairSearchRequest {
             .region
             .unwrap_or(self.rip_up_region)
             .region()?;
-        if ![self.rip_up_region.min, self.rip_up_region.max]
-            .into_iter()
-            .all(|p| {
-                target_bounds.contains(p, Length::ZERO) && neighbor_bounds.contains(p, Length::ZERO)
-            })
+        if !self.groups.is_empty()
+            && ![self.rip_up_region.min, self.rip_up_region.max]
+                .into_iter()
+                .all(|p| {
+                    target_bounds.contains(p, Length::ZERO)
+                        && neighbor_bounds.contains(p, Length::ZERO)
+                })
         {
             return Err(Error::InvalidArgument(
                 "rip_up_region must fit both routing regions.".into(),
@@ -805,23 +815,28 @@ impl RepairSearchJob {
                     rip_up_region: Some(self.request.rip_up_region),
                     improve_net: None,
                 };
-                let result = neighbor.run_with_staging(
-                    sandbox,
-                    board,
-                    None,
-                    &trial.branches,
-                    cancelled,
-                    |_| Ok(()),
-                )?;
-                report.neighbor_failures = summarize_failures(&result, |_| true);
-                if cancelled() {
-                    return Ok(None);
-                }
-                require_branches_routed(&result, &trial.branches)?;
-                rebuild_connectivity(sandbox, board)?;
-                if cancelled() {
-                    return Ok(None);
-                }
+                let neighbor = if trial.groups.is_empty() {
+                    None
+                } else {
+                    let result = neighbor.run_with_staging(
+                        sandbox,
+                        board,
+                        None,
+                        &trial.branches,
+                        cancelled,
+                        |_| Ok(()),
+                    )?;
+                    report.neighbor_failures = summarize_failures(&result, |_| true);
+                    if cancelled() {
+                        return Ok(None);
+                    }
+                    require_branches_routed(&result, &trial.branches)?;
+                    rebuild_connectivity(sandbox, board)?;
+                    if cancelled() {
+                        return Ok(None);
+                    }
+                    Some(neighbor)
+                };
                 self.state.phase(RepairSearchPhase::Target);
                 let route = Autoroute {
                     board: Some(board),
@@ -836,7 +851,7 @@ impl RepairSearchJob {
                 };
                 let routing =
                     request.run_with_staging(sandbox, board, None, &[], cancelled, stage_launch)?;
-                (Some(neighbor), None, route, routing)
+                (neighbor, None, route, routing)
             }
             RepairStrategy::Joint => {
                 let Some(settings) = &self.request.joint_route else {
@@ -936,8 +951,7 @@ impl RepairSearchJob {
             .iter()
             .map(|path| path.measure(self.source.sandbox.project(), board))
             .collect::<crate::Result<Vec<_>>>()?;
-        let strategies = [RepairStrategy::Sequential, RepairStrategy::Joint];
-        let strategies = &strategies[..1 + usize::from(self.request.joint_route.is_some())];
+        let strategies = self.request.strategies();
         let launches = if let Some(search) = &self.request.target_launch_search {
             self.state.phase(RepairSearchPhase::LaunchSites);
             let sites = self.find_launch_sites(search)?;

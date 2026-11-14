@@ -247,6 +247,7 @@ async fn stdio_repair_search_deduplicates_groups_and_publishes_a_checked_candida
     let mut auto = json!({
         "target":"A",
         "region":{"min":{"x":3,"y":7},"max":{"x":17,"y":13}},
+        "neighbor_region":{"min":{"x":4,"y":8},"max":{"x":16,"y":12}},
         "route":{"via_drill":0.3,"via_size":0.6,"layers":["top","bottom"]},
         "target_launch_search":{"from":"R1.1","layer":"top","radius":0.8,"max_sites":2},
         "trace_requirements":[{"path":{"from":"R1.1","to":"R2.1"}}],
