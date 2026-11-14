@@ -87,6 +87,17 @@ Install the standalone server from the checkout.
 cargo install --locked --path crates/foilfern-mcp
 ```
 
+Tools also run directly without an MCP client:
+
+```sh
+foilfern-mcp call server_info '{}'
+foilfern-mcp --project /path/to/project.lpp batch calls.json --save
+```
+
+Batch calls share one session and can reference earlier results. Output is JSON
+Lines; errors produce a nonzero exit status. See the [local call contract](docs/mcp-design.md#local-calls-without-an-mcp-client)
+for file/stdin input, preview/apply references and explicit saving.
+
 Register it with your MCP client. The server opens the workspace you pass and
 creates it if needed.
 

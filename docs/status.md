@@ -25,6 +25,11 @@ the next task merely because their last paragraph once said "next".
 
 ## Implemented foundation
 
+- **Local tool execution:** `foilfern-mcp call TOOL JSON` and `batch FILE` use
+  the same dispatcher as MCP without a client. Batches share a session, support
+  prior-result references and stop on failure by default. Saving is explicit;
+  see the [local call contract](mcp-design.md#local-calls-without-an-mcp-client).
+
 - **Native model and compatibility:** UUID-keyed circuit, schematic and board
   data, validating mutations with inverses, reverse indices, change journal,
   transactional files and migrations from v0.1 through v2. Upstream fixtures

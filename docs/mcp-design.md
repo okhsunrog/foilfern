@@ -1328,3 +1328,54 @@ or attribute that differs from the current instance reports a conflict. Omitted
 fields preserve current selections. `component_get.assembly_options` exposes
 native selected parts. `export_bom.additional_attributes` appends columns to the
 project defaults; `LCSC[]` exports the per-part LCSC attribute.
+
+## Local calls without an MCP client
+
+The standalone binary dispatches through the same tool registry and validators:
+
+```sh
+foilfern-mcp call server_info '{}'
+foilfern-mcp --project /path/to/project.lpp call export_bom '{"additional_attributes":["LCSC[]"]}'
+foilfern-mcp --project /path/to/project.lpp call design_preview @design.json
+foilfern-mcp --project /path/to/project.lpp batch calls.json --save
+```
+
+`call TOOL JSON` accepts inline JSON, `@file`, or `-` for stdin. The default
+arguments are `{}`. `batch FILE` accepts a JSON array of `{tool, arguments}`;
+`arguments` defaults to `{}`, and `FILE` may be `-` for stdin. The complete file
+is parsed before the first call, then calls run sequentially in a shared session.
+Each operation retains its usual transaction/undo boundary. A batch is not one
+atomic transaction: explicit saves and exports performed before an error persist.
+
+Stdout is JSON Lines, one `{index, tool, response}` per executed operation.
+`response` is the ordinary MCP CallToolResult, including structuredContent,
+text, warnings and base64 image blocks. Logs and diagnostics go to stderr.
+Protocol dispatch errors have `response.isError: true` and an `error` object.
+Malformed input/setup errors print a diagnostic and return a nonzero exit code.
+
+By default execution stops at the first failed call. `--continue-on-error` runs
+remaining calls but still exits unsuccessfully. Saving is explicit: use the
+`project_save` tool or `--save`, which appends a save after successful calls if a
+project is open (and emits its result as another JSON line). A failure prevents
+this final automatic save. Remaining unsaved changes cause a stderr diagnostic
+and nonzero exit status. No implicit save happens on failure or process exit.
+
+A singleton object `{"$ref":"INDEX#JSON_POINTER"}` in batch arguments selects a
+value from an earlier raw `response`. References are zero-based and can address
+only completed earlier calls. For example, after a design preview at index 0:
+
+```json
+[
+  {"tool":"design_preview","arguments":{"version":1,"schematic":"Main"}},
+  {"tool":"design_apply","arguments":{"preview":{"$ref":"0#/structuredContent/result/preview"}}},
+  {"tool":"project_save"}
+]
+```
+
+`$ref` singleton objects are reserved in local arguments. Other argument objects
+are passed through unchanged. A missing or forward reference fails that call.
+`--workspace` and `--project` work before or after the local subcommand. HTTP
+serving and local execution cannot be combined. No client, subprocess bridge,
+network transport or protocol initialization is required; the SDK peer context
+is local plumbing for the same dispatcher. Interactive client requests are not
+supported in this mode.

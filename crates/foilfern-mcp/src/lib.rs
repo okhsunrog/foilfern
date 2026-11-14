@@ -133,6 +133,7 @@
 
 pub mod error;
 pub mod host;
+pub mod local;
 pub mod outcome;
 pub mod resolve;
 pub mod server;

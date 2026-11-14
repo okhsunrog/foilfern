@@ -5,6 +5,7 @@ mod common;
 mod design;
 mod embedded;
 mod import;
+mod local_calls;
 mod routing;
 mod routing_candidates;
 mod stdio_e2e;

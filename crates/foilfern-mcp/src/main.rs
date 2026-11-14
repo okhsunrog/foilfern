@@ -7,20 +7,27 @@ use std::sync::Arc;
 
 use foilfern_mcp::{McpState, Session, StandaloneHost};
 
-/// MCP server for LibrePCB projects and libraries.
-#[derive(Debug, Parser)]
+mod local_cli;
+
+/// Foilfern tool server and local calls for LibrePCB-compatible projects and libraries.
+#[derive(Debug, Clone, Parser)]
 #[command(name = "foilfern-mcp", version, about)]
 struct Args {
     /// Workspace directory to open (created if it does not exist).
-    #[arg(long)]
+    #[arg(long, global = true)]
     workspace: Option<String>,
     /// Project (*.lpp file or directory) to open at startup.
-    #[arg(long)]
+    #[arg(long, global = true)]
     project: Option<String>,
     /// Serve streamable HTTP on this address (e.g. 127.0.0.1:8080, path
     /// /mcp) instead of stdio (needs the cargo feature `http`).
     #[arg(long)]
     http: Option<std::net::SocketAddr>,
+    /// Save the open project after successful local calls.
+    #[arg(long, global = true)]
+    save: bool,
+    #[command(subcommand)]
+    command: Option<local_cli::Command>,
 }
 
 fn setup(args: &Args) -> Result<Session, String> {
@@ -45,12 +52,12 @@ async fn main() -> ExitCode {
         .target(env_logger::Target::Stderr)
         .init();
     let args = Args::parse();
+    if (args.command.is_some() && args.http.is_some()) || (args.save && args.command.is_none()) {
+        eprintln!("foilfern-mcp: call/batch cannot use --http; --save requires call or batch.");
+        return ExitCode::FAILURE;
+    }
     let session = match tokio::task::spawn_blocking({
-        let args = Args {
-            workspace: args.workspace.clone(),
-            project: args.project.clone(),
-            http: args.http,
-        };
+        let args = args.clone();
         move || setup(&args).map(Session::into_slots)
     })
     .await
@@ -67,6 +74,22 @@ async fn main() -> ExitCode {
     };
     // The standalone binary is a host which allows everything.
     let state = McpState::from_slots(session, Arc::new(StandaloneHost));
+    if let Some(command) = args.command {
+        return match local_cli::execute(
+            foilfern_mcp::FoilfernMcp::with_state(state),
+            command,
+            args.save,
+        )
+        .await
+        {
+            Ok(true) => ExitCode::SUCCESS,
+            Ok(false) => ExitCode::FAILURE,
+            Err(error) => {
+                eprintln!("foilfern-mcp: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     let result = match args.http {
         Some(addr) => serve_http(state, addr).await,
         None => foilfern_mcp::transport::serve_stdio(state).await,

@@ -11,7 +11,7 @@ preview/apply revision checks, undo and native LibrePCB interoperability.
 | Order | Scope | Acceptance | State |
 | --- | --- | --- | --- |
 | A1 | Safe library search | Warn about ambiguous 0201/0402/0603 even with limit 1; explain that whole is textual, not dimensional. Later rank by verified dimensions and explicit unit convention, not name guesses. | Warning implemented; focused integration test and Clippy passed; dimension-based ranking remains planned |
-| A2 | Part identity and BOM | Declarative components accept manufacturer/MPN, supplier identity and attributes through editor mutations; preserve identities on reconciliation, undo and save/reopen. BOM without an explicit board selects the first board consistently; schematic-only projects still work. Test package, MPN and supplier fields end to end. | In progress: board-default BOM patch; declarative part identity next |
+| A2 | Part identity and BOM | Declarative components accept manufacturer/MPN, supplier identity and attributes through editor mutations; preserve identities on reconciliation, undo and save/reopen. BOM without an explicit board selects the first board consistently; schematic-only projects still work. Test package, MPN and supplier fields end to end. | Implemented: board-default BOM and native instance part identity; stdio replay/save/reopen covered |
 | A3 | Resolve devices and pins | Device alone resolves its library component. Exact MPN/name lookup returns candidates and rejects ambiguous selections. One detail response exposes signals, named pads, footprint dimensions and model availability. UUIDs remain the stable persisted identity. | Planned |
 | A4 | Import a concrete purchasable part | LCSC ID or exact MPN produces a reviewed native component/device/package/symbol bundle with pin mapping, MPN, supplier ID and available 3D assets. See the import stages below. | Priority after A2/A3 |
 | A5 | Partial library install and official KiCad discovery | One unresolved library does not discard successful independent requests; report per-item results and dependency failures. Discover official KiCad libraries explicitly and import a selected pinned source. | Planned |
@@ -20,7 +20,7 @@ preview/apply revision checks, undo and native LibrePCB interoperability.
 | A8 | Output access and plane defaults | Create/update validated output jobs through MCP; fresh projects can export STEP and graphics. Default plane outline uses the actual board contour; test nonrectangular boards and holes. | Planned |
 | A9 | Response and tool discovery cost | Measure current tools/list and representative preview/apply payloads. Add compact change summaries with detail retrieval. Investigate opt-in tool groups and client compatibility; preserve default discoverability. Budget tests catch payload regressions. | Planned; extend existing P0 |
 | A10 | Rules with diagnostic provenance | Identify footprint-internal versus placement-induced DRC findings. Versioned factory profiles record source/date and require explicit selection; no silent relaxation to pass a footprint. | Planned |
-| A11 | Reproducible design as code | CLI tool/batch execution reuses the same tool implementations and session. Commit a design document; CI checks idempotence, semantic diff, ERC/DRC, exports and upstream reopen. Reports have bounded output and deterministic failure status. | Planned; extend P1/P6 |
+| A11 | Reproducible design as code | CLI tool/batch execution reuses the same tool implementations and session. Commit a design document; CI checks idempotence, semantic diff, ERC/DRC, exports and upstream reopen. Reports have bounded output and deterministic failure status. | Local call/batch implemented; CI design-document workflow remains planned |
 | A12 | Rich review and electrical intent | Expose existing offscreen 3D through render. Group schematic layout by connectivity/function. Add opt-in power-source and decoupling constraints with explicit pin roles, thresholds and evidence; report unknown intent rather than invent electrical guarantees. | Planned; extend P2/P5 |
 
 ## Concrete-part import stages (A4)
@@ -96,3 +96,17 @@ Focused integration and all-target MCP Clippy passed.
 
 Priority update: direct CLI call/batch execution (A11) moves before the remaining
 A3/A4 work, as requested on 2026-11-14.
+
+### Delivered local execution substep (A11, prioritized)
+
+`foilfern-mcp call TOOL JSON` and `batch FILE` invoke the shared tool registry
+without an MCP client or protocol handshake. File/stdin input, JSON-lines output,
+prior-result references, stop/continue-on-error, explicit save and nonzero failure
+status are implemented. Unsaved edits are diagnosed and never silently treated
+as persisted. Batch operations retain their individual transaction boundaries;
+this is not batch-level rollback. Four process-level tests cover file/stdin,
+validation, references, session reuse, persisted reopen and failure/save behavior.
+All 89 MCP integration tests and all-target MCP Clippy passed. The CLI entry point
+is complete; the broader design-document CI workflow in A11 is still pending.
+
+The MCP server Rust type is now `FoilfernMcp`; the old type name was removed.
