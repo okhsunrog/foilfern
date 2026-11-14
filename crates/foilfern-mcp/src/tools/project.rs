@@ -109,7 +109,7 @@ pub struct ProjectCloseArgs {
 /// `server_info`.
 pub fn server_info(session: &Session) -> ToolResult<ToolOutput> {
     // Increment when callers need to distinguish changes in the tool contract.
-    const API_CAPABILITY_VERSION: u32 = 47;
+    const API_CAPABILITY_VERSION: u32 = 48;
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     let source_state = env!("FOILFERN_TRACKED_SOURCE_STATE");
     let cargo_profile = env!("FOILFERN_CARGO_PROFILE");

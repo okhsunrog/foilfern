@@ -15,7 +15,7 @@ preview/apply revision checks, undo and native LibrePCB interoperability.
 | A3 | Resolve devices and pins | Device alone resolves its library component. Exact MPN/name lookup returns candidates and rejects ambiguous selections. One detail response exposes signals, named pads, footprint dimensions and model availability. UUIDs remain the stable persisted identity. | Implemented: device-only creation, exact lookup and complete device/model details |
 | A4 | Import a concrete purchasable part | LCSC ID or exact MPN produces a reviewed native component/device/package/symbol bundle with pin mapping, MPN, supplier ID and available 3D assets. See the import stages below. | Acquisition/native corpus delivered; datasheet and model-alignment gates remain open |
 | A5 | Partial library install and official KiCad discovery | One unresolved library does not discard successful independent requests; report per-item results and dependency failures. Discover official KiCad libraries explicitly and import a selected pinned source. | Implemented; deeper inheritance and shared-source updates remain explicitly unsupported |
-| A6 | Board placement review | Board-layout preview returns an image plus absolute pad positions after rotation/mirroring. Preview performs no mutation and preserves stale-source refusal. Connector orientation comes from explicit metadata or geometry with confidence, never a guessed direction. | Candidate images and absolute pads delivered; connector orientation remains open |
+| A6 | Board placement review | Board-layout preview returns an image plus absolute pad positions after rotation/mirroring. Preview performs no mutation and preserves stale-source refusal. Connector orientation comes from explicit metadata or geometry with confidence, never a guessed direction. | Implemented: candidate images, absolute pads and explicitly declared connector axes; physical model alignment is a separate A4 gate |
 | A7 | Legend editing | Identify text by device instance plus footprint-text UUID; report transformed bbox. Bounded text placement tests mask/courtyard constraints and reports fresh DRC delta with undo. | Planned |
 | A8 | Output access and plane defaults | Create/update validated output jobs through MCP; fresh projects can export STEP and graphics. Default plane outline uses the actual board contour; test nonrectangular boards and holes. | Planned |
 | A9 | Response and tool discovery cost | Measure current tools/list and representative preview/apply payloads. Add compact change summaries with detail retrieval. Investigate opt-in tool groups and client compatibility; preserve default discoverability. Budget tests catch payload regressions. | Planned; extend existing P0 |
@@ -373,3 +373,18 @@ refreshing its derived DRC data; a raw render can otherwise retain stale air-wir
 cache data, which is outside this change. The bottom-side candidate image was
 inspected. All 93 ordinary MCP tests and all-target MCP Clippy passed. Connector-direction metadata and the
 remaining A6/A4 visual acceptance remain open. Capability version is 47.
+
+### Declared connector mating axes (A6)
+
+Placed-device read-back and previews now report `connector_orientation` from the
+explicit `FOILFERN_CONNECTOR_MATING_DIRECTION` string attribute. Instance metadata
+overrides library-device metadata. Cardinal footprint-local axes transform through
+the native placement into board vectors, including mirroring. No pad numbering,
+name or image heuristic supplies a direction. Missing metadata stays unknown;
+invalid declarations are reported rather than replaced by a fallback guess.
+
+The focused test covers library metadata, top/bottom 90-degree placements,
+translation independence, instance overrides and invalid input. Existing upstream
+board fixtures verify the unknown case. All 94 ordinary MCP tests and all-target
+MCP Clippy passed. Capability version is 48. Imported libraries without mating-axis
+metadata still require explicit mechanical review; no physical fit is certified.

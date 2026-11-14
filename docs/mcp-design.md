@@ -168,8 +168,8 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `47`, including supplier acquisition,
-official KiCad imports and rendered board-placement reviews).
+`api_capability_version` (currently `48`, including supplier acquisition,
+official KiCad imports, rendered board-placement reviews and declared connector axes).
 Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
@@ -525,6 +525,18 @@ repair and fresh derived plane/air-wire data. It does not mutate the live board.
 positions/rotations using the same schema as `board_get`. Coordinates remain in
 board X/Y even for a mirrored bottom-side view. Connector mating direction is not
 inferred from pad numbering or the rendered image.
+
+Device read-back (also in placement previews) includes `connector_orientation`.
+An instance or library-device string attribute
+`FOILFERN_CONNECTOR_MATING_DIRECTION` can declare `+x`, `-x`, `+y` or `-y` in
+footprint-local axes, pointing from the connector body toward the external plug.
+Instance attributes override library-device attributes. Status `declared` reports
+the attribute source, local axis and a unitless `board_vector` transformed through
+the native device placement, including bottom-side mirroring. The vector uses
+board X/Y coordinates, independently of viewing side, rounded at nanometre
+precision for a one-millimetre reference axis. Missing metadata gives `unknown`;
+unsupported values give `invalid_metadata` without falling back to a direction
+guess. A declaration is metadata, not verified mechanical compatibility.
 
 Use `board_layout.repair` to inspect or replace local copper on a board
 with existing routes. Pass a routing rectangle in `region`, an optional

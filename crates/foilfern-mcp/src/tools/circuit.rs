@@ -17,6 +17,8 @@ use crate::session::Session;
 use crate::units::deg;
 use crate::views;
 
+mod orientation;
+
 /// Arguments of `component_get`.
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -217,6 +219,7 @@ pub fn device_json(
         "rotation": deg(d.rotation()),
         "side": if d.mirrored() { "bottom" } else { "top" },
         "locked": d.locked(),
+        "connector_orientation": orientation::describe(p,d),
     });
     if !include_pads {
         return Ok(result);

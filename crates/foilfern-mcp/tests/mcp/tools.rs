@@ -39,6 +39,149 @@ fn names(list: &Value, key: &str) -> Vec<String> {
 }
 
 #[test]
+fn declared_connector_axes_follow_rotation_mirroring_and_instance_overrides() {
+    use foilfern_core::attribute::{Attribute, AttributeKey, AttributeType};
+    use foilfern_core::fileio::{TransactionalDirectory, TransactionalFileSystem};
+    use foilfern_core::library::{LibraryBaseElement, dev::Device};
+    use foilfern_mcp::tools::{board_edit, schematic_edit};
+    let temporary = tempfile::tempdir().unwrap();
+    let mut session = Session::new();
+    project::workspace_open(
+        &mut session,
+        WorkspacePathArgs {
+            path: temporary
+                .path()
+                .join("workspace")
+                .to_string_lossy()
+                .into_owned(),
+        },
+        true,
+    )
+    .unwrap();
+    let root = session
+        .workspace()
+        .unwrap()
+        .libraries_path()
+        .as_path()
+        .to_owned();
+    crate::common::install_populated_library(&root);
+    library::library_rescan(&session).unwrap();
+    let part = library::library_search(
+        &session,
+        LibrarySearchArgs {
+            query: "R-0805".into(),
+            kind: Some(LibKind::Device),
+            exact: true,
+            limit: None,
+        },
+    )
+    .unwrap();
+    let uuid = part.result["elements"][0]["uuid"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    {
+        let path = session
+            .workspace()
+            .unwrap()
+            .library_db()
+            .latest(foilfern_core::workspace::ElementKind::Device, uuid)
+            .unwrap()
+            .unwrap();
+        let fs = std::sync::Arc::new(TransactionalFileSystem::open_rw(&path).unwrap());
+        let mut device = Device::open(TransactionalDirectory::new(fs.clone(), "")).unwrap();
+        device.attributes_mut().push(
+            Attribute::new(
+                AttributeKey::new("FOILFERN_CONNECTOR_MATING_DIRECTION").unwrap(),
+                AttributeType::String,
+                "+x",
+                None,
+            )
+            .unwrap(),
+        );
+        device.save().unwrap();
+        fs.save().unwrap();
+    }
+    library::library_rescan(&session).unwrap();
+    project::project_create(
+        &mut session,
+        serde_json::from_value(json!({"name":"Declared connector axes"})).unwrap(),
+    )
+    .unwrap();
+    for (name, side, expected) in [
+        ("R1", "top", json!({"x":0.0,"y":1.0})),
+        ("R2", "bottom", json!({"x":0.0,"y":-1.0})),
+    ] {
+        schematic_edit::component_add(
+            &mut session,
+            serde_json::from_value(json!({"part":"R-0805","designator":name})).unwrap(),
+        )
+        .unwrap();
+        let output = board_edit::device_place(
+            &mut session,
+            serde_json::from_value(
+                json!({"component":name,"position":{"x":12,"y":34},"rotation":90,"side":side}),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        // Read through board_get as well as the placement reply; direction
+        // vectors must not accidentally include the device translation.
+        let board = layout::board_get(
+            &session,
+            BoardGetArgs {
+                board: None,
+                include_pads: Some(false),
+            },
+        )
+        .unwrap();
+        let device = board.result["devices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|device| device["designator"] == name)
+            .unwrap();
+        assert_eq!(
+            device["connector_orientation"]["board_vector"], expected,
+            "{output:?}"
+        );
+        assert_eq!(
+            device["connector_orientation"]["source"],
+            "device_attribute"
+        );
+    }
+    for (value, status) in [("-y", "declared"), ("front", "invalid_metadata")] {
+        schematic_edit::component_update(&mut session,serde_json::from_value(json!({"component":"R2","attributes":{"FOILFERN_CONNECTOR_MATING_DIRECTION":value}})).unwrap()).unwrap();
+        let board = layout::board_get(
+            &session,
+            BoardGetArgs {
+                board: None,
+                include_pads: Some(false),
+            },
+        )
+        .unwrap();
+        let device = board.result["devices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|device| device["designator"] == "R2")
+            .unwrap();
+        assert_eq!(device["connector_orientation"]["status"], status);
+        assert_eq!(
+            device["connector_orientation"]["source"],
+            "instance_attribute"
+        );
+        if status == "declared" {
+            assert_eq!(
+                device["connector_orientation"]["board_vector"],
+                json!({"x":1.0,"y":0.0})
+            );
+        }
+    }
+}
+
+#[test]
 fn exact_library_resolution_checks_all_candidates_and_returns_details() {
     let tmp = tempfile::tempdir().unwrap();
     let mut session = Session::new();
@@ -439,6 +582,13 @@ fn project_read_tools() {
     assert_eq!(b["copper_layers"], 2);
     assert_eq!(b["planes"].as_array().unwrap().len(), 9);
     assert!(!b["devices"].as_array().unwrap().is_empty());
+    assert!(
+        b["devices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|device| device["connector_orientation"]["status"] == "unknown")
+    );
     assert!(!b["traces"].as_array().unwrap().is_empty());
     assert!(!b["outlines"].as_array().unwrap().is_empty());
     let trace = &b["traces"][0];
