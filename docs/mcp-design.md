@@ -787,6 +787,11 @@ the board and applicable net-class minimum widths. It captures an isolated nativ
 the host locks, runs builtin search and before/after DRC, and retains the exact
 mutation candidate only if its source project session and revision still match.
 It does not edit the live board or its revision, dirty state, undo/redo or files.
+The builtin router connects coincident same-net round-rect SMT pads of a
+single footprint before grid routing. It uses the pad's copper layer and a
+native trace between the two pad UUIDs when the trace width fits within both
+pads. The saved trace preserves connectivity in LibrePCB. `trace_add` accepts
+the same connection when given both pad anchors.
 The optional nonnegative `via_cost` expresses the cost of a layer change
 in equivalent millimeters of trace, with a default of 2 mm. The same
 preference is available in comparisons, regional routing and post-edit

@@ -44,7 +44,7 @@ use librepcb_core::types::{Layer, Length, MaskConfig, Point, PositiveLength, Uui
 use librepcb_core::utils::transform::Transform;
 use librepcb_i18n::tr;
 
-use super::board::{AddTrace, TraceEndpoint, add_via_connected};
+use super::board::{AddTrace, TraceEndpoint, add_via_connected, centered_smt_diameter};
 use super::{NetRef, resolve};
 use crate::editor::{Command, Transaction};
 use crate::error::{Error, Result};
@@ -387,6 +387,12 @@ impl Autoroute {
         let started = std::time::Instant::now();
         let mut extracted =
             extract_with_branches(tx.project(), board, &self, nets.as_ref(), branches)?;
+        let links = self.connect_coincident_pads(tx, board, &extracted, branches, &cancelled)?;
+        if links != 0 {
+            // Native connectivity now includes the pad links. The grid only
+            // needs to handle the remaining requests.
+            extracted = extract_with_branches(tx.project(), board, &self, nets.as_ref(), branches)?;
+        }
         if let Some(region) = branch_region {
             extracted
                 .problem
@@ -459,10 +465,10 @@ impl Autoroute {
             .collect();
         Ok(AutorouteResult {
             board,
-            air_wires: result.stats.air_wires,
-            routed: result.routes.len(),
+            air_wires: result.stats.air_wires + links,
+            routed: result.routes.len() + links,
             unrouted: failed_requests.len(),
-            traces,
+            traces: traces + links,
             vias,
             grid_pitch: result.stats.grid_pitch,
             effort: RoutingEffort {
@@ -482,6 +488,105 @@ impl Autoroute {
                 .collect(),
             remaining_air_wires,
         })
+    }
+
+    fn connect_coincident_pads(
+        &self,
+        tx: &mut Transaction<'_>,
+        board: BoardId,
+        extracted: &ExtractedProblem,
+        branches: &[AirWire],
+        cancelled: &impl Fn() -> bool,
+    ) -> Result<usize> {
+        let branch_nets: BTreeSet<_> = branches.iter().map(AirWire::net).collect();
+        let mut open_pads = BTreeMap::<_, BTreeSet<_>>::new();
+        for (component, pad) in extracted.request_wires[..extracted.first_branch]
+            .iter()
+            .filter(|wire| !branch_nets.contains(&wire.net()))
+            .flat_map(|wire| [wire.p1(), wire.p2()])
+            .filter_map(|anchor| match anchor {
+                TraceAnchor::FootprintPad { device, pad } => {
+                    Some((ComponentInstanceId(device), pad))
+                }
+                _ => None,
+            })
+        {
+            open_pads.entry(component).or_default().insert(pad);
+        }
+        let project = tx.project();
+        let layout = resolve::board(project, Some(board))?;
+        let rules = &extracted.problem.rules;
+        let mut links = Vec::new();
+        for (component, open_pads) in open_pads {
+            let Some(device) = layout.device(component) else {
+                continue;
+            };
+            let mut groups = BTreeMap::<_, Vec<_>>::new();
+            for pad in device.pads(project.library(), project.circuit())? {
+                let (Some(net), Some(diameter)) = (pad.net(), centered_smt_diameter(&pad)) else {
+                    continue;
+                };
+                let layer = pad.solder_layer();
+                let width = rules.trace_width_of(&net.0);
+                if width > diameter
+                    || rules
+                        .allowed_layers
+                        .as_ref()
+                        .is_some_and(|layers| !layers.contains(&layer))
+                    || rules
+                        .net_layers
+                        .get(&net.0)
+                        .is_some_and(|layers| !layers.contains(&layer))
+                    || extracted.problem.region.is_some_and(|region| {
+                        let w = width.to_nm();
+                        !region.contains(pad.position(), Length::new(w / 2 + w % 2))
+                    })
+                {
+                    continue;
+                }
+                groups
+                    .entry((net, layer, pad.position()))
+                    .or_default()
+                    .push(pad.uuid());
+            }
+            for ((net, layer, _), pads) in groups {
+                if pads.len() < 2 {
+                    continue;
+                }
+                let Some(&anchor) = pads.iter().find(|&&pad| open_pads.contains(&pad)) else {
+                    continue;
+                };
+                for pad in pads.into_iter().filter(|&pad| pad != anchor) {
+                    links.push((component, anchor, pad, net, layer));
+                }
+            }
+        }
+        let mut connected = 0;
+        for (component, from, to, net, layer) in links {
+            if cancelled() {
+                break;
+            }
+            let layout = resolve::board(tx.project(), Some(board))?;
+            if let Some(segment) = layout.footprint_pad_segment(component, from)
+                && layout.footprint_pad_segment(component, to) == Some(segment)
+            {
+                continue;
+            }
+            tx.run(AddTrace {
+                board: Some(board),
+                start: TraceEndpoint::FootprintPad {
+                    component,
+                    pad: from,
+                },
+                end: TraceEndpoint::FootprintPad { component, pad: to },
+                points: Vec::new(),
+                layer: Some(layer),
+                width: Some(rules.trace_width_of(&net.0)),
+                net: Some(NetRef::Id(net)),
+            })?;
+            connected += 1;
+        }
+        Ok(connected)
     }
 }
 

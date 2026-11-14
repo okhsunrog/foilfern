@@ -18,12 +18,14 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use librepcb_core::geometry::{Junction, Path, Trace, TraceAnchor, Vertex, Via, ZoneRules};
+use librepcb_core::geometry::{
+    Junction, PadShape, Path, Trace, TraceAnchor, Vertex, Via, ZoneRules,
+};
 use librepcb_core::library::org::BoardDesignRuleCheckSettings;
 use librepcb_core::project::board::{
     BoardDesignRules, BoardHoleData, BoardItem, BoardItemKind, BoardNetSegment,
     BoardNetSegmentSplitter, BoardPlane, BoardPolygonData, BoardSegmentElements, BoardSettings,
-    BoardStrokeTextData, BoardZoneData, PlaneConnectStyle,
+    BoardStrokeTextData, BoardZoneData, FootprintPadView, PlaneConnectStyle,
 };
 use librepcb_core::project::{
     BoardId, BoardMutation, BoardNetSegmentRef, ComponentInstanceId, DeviceRef, Mutation,
@@ -316,6 +318,15 @@ impl Command for RemoveBoardItems {
         let board = board_ref(tx, self.board)?;
         remove_board_items(tx, board, &self.selection, true)
     }
+}
+
+/// A centered round-rect SMT pad contains a copper disk of this diameter,
+/// even after rotation. This is sufficient to represent a common center
+/// with a native trace whose two distinct anchors have equal positions.
+pub(super) fn centered_smt_diameter(pad: &FootprintPadView<'_>) -> Option<PositiveLength> {
+    let properties = pad.properties();
+    (!properties.is_tht() && properties.shape() == PadShape::RoundedRect)
+        .then(|| properties.width().min(properties.height()))
 }
 
 /// An end of a trace.
@@ -616,11 +627,6 @@ impl Command for AddTrace {
                 positions.push(p);
             }
         }
-        if positions.len() < 2 {
-            return Err(Error::InvalidArgument(
-                "The start and end of the trace are at the same position.".to_owned(),
-            ));
-        }
 
         // The net.
         let p = tx.project();
@@ -681,6 +687,41 @@ impl Command for AddTrace {
                 .and_then(|c| c.default_trace_width())
                 .unwrap_or_else(|| b_ref.design_rules().default_trace_width()),
         };
+
+        if positions.len() == 1 {
+            let valid = match (a.anchor, b.anchor) {
+                (
+                    Some(TraceAnchor::FootprintPad { device, pad: first }),
+                    Some(TraceAnchor::FootprintPad {
+                        device: second_device,
+                        pad: second,
+                    }),
+                ) if device == second_device => {
+                    let device = b_ref
+                        .device(ComponentInstanceId(device))
+                        .ok_or_else(|| Error::not_found("Device", device))?;
+                    let mut valid = true;
+                    for id in [first, second] {
+                        valid &= device
+                            .pad(&id, p.library(), p.circuit())?
+                            .is_some_and(|pad| {
+                                pad.solder_layer() == layer
+                                    && centered_smt_diameter(&pad)
+                                        .is_some_and(|diameter| width <= diameter)
+                            });
+                    }
+                    valid
+                }
+                _ => false,
+            };
+            if !valid {
+                return Err(Error::InvalidArgument(
+                    "Coincident endpoints require two SMT pads of one footprint whose copper contains the trace on the selected layer.".into(),
+                ));
+            }
+            // Preserve both anchors in the native net segment.
+            positions.push(b.position);
+        }
 
         // The target segment and the segment to combine into it.
         let (target, merge_from) = match (a.segment, b.segment) {

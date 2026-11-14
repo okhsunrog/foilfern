@@ -809,6 +809,11 @@ Rendering only; no file is affected.
   candidate service with detached native snapshots, exact mutation previews,
   revision-bound single-undo apply and full applied-model validation. Candidate
   state is never serialized; project/library file formats remain unchanged.
+- **Coincident footprint pads**: the trace command and builtin router can
+  connect two distinct, same-net centered round-rect SMT pads of one
+  footprint at the same location when the trace fits inside both pads on
+  their common copper layer. This uses an ordinary native board trace with
+  two distinct pad anchors. LibrePCB recognizes the resulting connection.
 - **Autorouter** (`Autoroute`): no upstream counterpart (upstream only
   exports Specctra DSN); see the `commands::autoroute` module docs.
 - **`create_project()`** copies the stroke fonts from a given directory

@@ -413,3 +413,172 @@ fn schematic_review_identifies_overlapping_imported_pin_names() {
     assert_eq!(finding["bounds_mm"].as_array().unwrap().len(), 4);
     assert!(!session.project().unwrap().has_unsaved_changes());
 }
+
+#[test]
+fn kicad_import_routes_coincident_same_net_pads_and_reports_different_net_overlap() {
+    use librepcb_mcp::tools::{board_edit, layout, output, routing, write};
+    use serde_json::json;
+
+    let temp = tempfile::tempdir().unwrap();
+    let schematic = temp.path().join("shared.kicad_sch");
+    std::fs::write(
+        &schematic,
+        r#"
+(kicad_sch (version 20260306) (generator "eeschema")
+  (lib_symbols
+    (symbol "Fixture:Connector"
+      (property "Reference" "J" (at 0 0 0) (effects (font (size 1 1))))
+      (symbol "Connector_1_1"
+        (pin passive line (at -2 0 0) (length 1)
+          (name "A" (effects (font (size 1 1)))) (number "A" (effects (font (size 1 1)))))
+        (pin passive line (at 2 0 180) (length 1)
+          (name "B" (effects (font (size 1 1)))) (number "B" (effects (font (size 1 1))))))))
+  (symbol (lib_id "Fixture:Connector") (at 20 20 0) (unit 1)
+    (property "Reference" "J1" (at 20 15 0) (effects (font (size 1 1)))))
+  (global_label "LINK" (shape input) (at 18 20 0) (effects (font (size 1 1))))
+  (global_label "LINK" (shape input) (at 22 20 0) (effects (font (size 1 1)))))
+"#,
+    )
+    .unwrap();
+    let pcb = temp.path().join("shared.kicad_pcb");
+    let board = r#"
+(kicad_pcb (version 20260206)
+  (general (thickness 1.6))
+  (layers (0 "F.Cu" signal) (2 "B.Cu" signal))
+  (gr_line (start 0 0) (end 40 0) (layer "Edge.Cuts"))
+  (gr_line (start 40 0) (end 40 40) (layer "Edge.Cuts"))
+  (gr_line (start 40 40) (end 0 40) (layer "Edge.Cuts"))
+  (gr_line (start 0 40) (end 0 0) (layer "Edge.Cuts"))
+  (footprint "Fixture:Connector" (layer "F.Cu") (at 20 20) (attr smd)
+    (property "Reference" "J1" (at 0 2 0) (layer "F.SilkS") (effects (font (size 1 1))))
+    (pad "A" smd roundrect (at 0 0) (size 0.6 1.45) (roundrect_rratio 0.25)
+      (layers "F.Cu" "F.Mask") (net "LINK"))
+    (pad "B" smd roundrect (at 0 0) (size 0.6 1.45) (roundrect_rratio 0.25)
+      (layers "F.Cu" "F.Mask") (net "LINK"))))
+"#;
+    std::fs::write(&pcb, board).unwrap();
+    let open = |session: &mut Session, name: &str| {
+        project::project_create(
+            session,
+            serde_json::from_value(json!({
+                "name":name, "directory":temp.path().join(name),
+                "kicad_schematic":schematic,"kicad_board":pcb
+            }))
+            .unwrap(),
+        )
+        .unwrap()
+    };
+
+    let mut session = Session::new();
+    let created = open(&mut session, "shared");
+    let path = created.result["path"].clone();
+    let before = layout::board_get(&session, Default::default())
+        .unwrap()
+        .result;
+    let wires = before["air_wires"].as_array().unwrap();
+    assert_eq!(wires.len(), 1, "{before}");
+    assert_eq!(wires[0]["length"], 0.0);
+    let history = write::history(&session).unwrap().result;
+    let trace = |layer, width| {
+        serde_json::from_value(json!({"from":"J1.A","to":"J1.B","layer":layer,"width":width}))
+            .unwrap()
+    };
+    assert!(board_edit::trace_add(&mut session, trace("bottom", 0.2)).is_err());
+    assert!(board_edit::trace_add(&mut session, trace("top", 0.7)).is_err());
+    assert_eq!(write::history(&session).unwrap().result, history);
+
+    let result = routing::routing_prepare(
+        &mut session,
+        serde_json::from_value(json!({"nets":["LINK"],"layers":["top"]})).unwrap(),
+    )
+    .unwrap()
+    .result;
+    assert_eq!(result["validation"]["acceptable"], true, "{result}");
+    assert_eq!(result["validation"]["after"]["unrouted"], 0);
+    assert_eq!(
+        layout::board_get(&session, Default::default())
+            .unwrap()
+            .result,
+        before
+    );
+    let args = serde_json::from_value(json!({"candidate":result["candidate"]})).unwrap();
+    routing::routing_apply(&mut session, args).unwrap();
+
+    let after = layout::board_get(&session, Default::default())
+        .unwrap()
+        .result;
+    let traces = after["traces"].as_array().unwrap();
+    assert_eq!(traces.len(), 1);
+    let link = &traces[0];
+    assert_eq!(link["from"]["position"], link["to"]["position"]);
+    assert_ne!(link["from"]["pad_uuid"], link["to"]["pad_uuid"]);
+    assert_eq!(after["devices"], before["devices"]);
+    assert_eq!(after["air_wires"], json!([]));
+    write::undo_redo(
+        &mut session,
+        serde_json::from_value(json!({})).unwrap(),
+        false,
+    )
+    .unwrap();
+    assert_eq!(
+        layout::board_get(&session, Default::default())
+            .unwrap()
+            .result,
+        before
+    );
+    write::undo_redo(
+        &mut session,
+        serde_json::from_value(json!({})).unwrap(),
+        true,
+    )
+    .unwrap();
+    project::project_save(&mut session, serde_json::from_value(json!({})).unwrap()).unwrap();
+    project::project_close(&mut session, serde_json::from_value(json!({})).unwrap()).unwrap();
+    project::project_open(
+        &mut session,
+        serde_json::from_value(json!({"path":path})).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        layout::board_get(&session, Default::default())
+            .unwrap()
+            .result,
+        after
+    );
+    assert_eq!(
+        output::drc_run(&mut session, Default::default())
+            .unwrap()
+            .result["errors"],
+        0
+    );
+
+    // Preserve the overlapping copper while giving the second pin another net.
+    let short = std::fs::read_to_string(&schematic).unwrap().replace(
+        r#"global_label "LINK" (shape input) (at 22"#,
+        r#"global_label "OTHER" (shape input) (at 22"#,
+    );
+    std::fs::write(&schematic, short).unwrap();
+    let (prefix, _) = board.rsplit_once(r#"(net "LINK")"#).unwrap();
+    std::fs::write(&pcb, format!(r#"{prefix}(net "OTHER"))))"#)).unwrap();
+    let mut session = Session::new();
+    open(&mut session, "short");
+    assert!(board_edit::trace_add(&mut session, trace("top", 0.2)).is_err());
+    let result = routing::routing_prepare(
+        &mut session,
+        serde_json::from_value(json!({"nets":["LINK","OTHER"]})).unwrap(),
+    )
+    .unwrap()
+    .result;
+    assert_eq!(result["mutation_count"], 0, "{result}");
+    let drc = output::drc_run(&mut session, Default::default())
+        .unwrap()
+        .result;
+    assert!(
+        drc["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["kind"] == "CopperCopperClearanceViolation"),
+        "{drc}"
+    );
+}
