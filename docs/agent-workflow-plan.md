@@ -309,3 +309,22 @@ per-library report API. Capability version is 45.
 both crates. A local HTTP regression covers a valid name beside a missing name,
 and a successful dependent-library download beside a failed dependency update,
 including fresh index visibility. Official KiCad source discovery remains next.
+
+### Official KiCad source acquisition foundation (A5)
+
+`OfficialKiCad` resolves an explicit tag/commit in the official symbol, footprint
+or model repository and fetches individual files only at the resolved full commit.
+It shares bounded/cancellable HTTP and SHA-256 snapshot storage with supplier
+acquisition. Offline replay verifies bytes; failed/mismatched revisions never
+fall back to another branch. Local HTTP tests cover pinned URLs, path validation,
+offline replay, cancellation and cache tampering; all-target network Clippy passed.
+
+The opt-in live check acquired CH340G, SOIC-16 and its STEP from release 10.0.8:
+symbol commit `45efbd93be87e365a21d743daf9b8a07e6414df6`, footprint commit
+`a337146e090931ad1176e20ed0b7100990fac5fa`, model commit
+`8975715167d1a76f9b44be155ac02326f704cdbb`. Version 10 stores symbols separately
+under `Interface_USB.kicad_symdir`; the 9.0.9.1 aggregate symbol file also remains
+available. Official licensing/attribution must accompany fetched/converted library
+collections; references: https://www.kicad.org/libraries/download/ and
+https://www.kicad.org/libraries/license/. MCP automatic assembly/import is next;
+fetching valid bytes alone is not native conversion evidence.

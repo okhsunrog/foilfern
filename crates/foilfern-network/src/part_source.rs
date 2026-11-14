@@ -225,7 +225,7 @@ pub fn canonical_lcsc(value: &str) -> Result<String, Error> {
     Ok(format!("C{number}"))
 }
 
-async fn read_current(
+pub(crate) async fn read_current(
     directory: PathBuf,
     extension: &'static str,
     limit: usize,
@@ -321,7 +321,7 @@ fn source(
     })
 }
 
-async fn fetch(
+pub(crate) async fn fetch(
     manager: &NetworkAccessManager,
     url: reqwest::Url,
     referer: &str,
@@ -362,7 +362,7 @@ async fn fetch(
     }
 }
 
-async fn publish(
+pub(crate) async fn publish(
     directory: PathBuf,
     extension: &'static str,
     hash: String,

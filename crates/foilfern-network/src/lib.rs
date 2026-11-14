@@ -24,6 +24,7 @@
 mod api_endpoint;
 mod error;
 mod file_download;
+pub mod kicad_source;
 mod library_download;
 pub mod library_git;
 pub mod library_installer;
