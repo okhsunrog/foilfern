@@ -65,7 +65,8 @@ pub struct LibrarySearchArgs {
     /// matches come first (`match: "whole"`); if there are fewer than
     /// `limit`, elements containing all words of the query in their name,
     /// keywords, description or (devices) component/package name follow
-    /// (`match: "all_words"`), e.g. "resistor 0805".
+    /// (`match: "all_words"`), e.g. "resistor 0805". These labels describe
+    /// text matching, not package dimensions. Ambiguous size codes produce warnings.
     pub query: String,
     /// Restrict to one kind (default: components, devices, packages and
     /// symbols).
@@ -409,11 +410,28 @@ pub fn library_search(session: &Session, args: LibrarySearchArgs) -> ToolResult<
         format!("{} element(s) found for \"{}\".", results.len(), args.query),
         json!({ "elements": results }),
     )?;
+    let out = out.warnings(package_size_warnings(&args.query));
     Ok(if session.workspace.is_none() {
         out.warn("No workspace is open: only the project library was searched.")
     } else {
         out
     })
+}
+
+// These codes are used in both imperial and metric chip-size conventions.
+// Search labels are textual evidence only; never infer physical dimensions
+// from a match or silently pick a unit system for the caller.
+fn package_size_warnings(query: &str) -> Vec<String> {
+    let codes: BTreeSet<_> = query
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|token| matches!(*token, "0201" | "0402" | "0603"))
+        .collect();
+    codes.into_iter().map(|code| format!(
+        "Package size code {code} is ambiguous between imperial and metric conventions. \
+         For example, imperial 0603 is metric 1608 (about 1.6 x 0.8 mm), while metric \
+         0603 is imperial 0201 (about 0.6 x 0.3 mm). Search match labels describe text \
+         matching only. Inspect the package dimensions with library_element before selecting a device."
+    )).collect()
 }
 
 fn default_description<E: LibraryBaseElement>(e: &E) -> &str {

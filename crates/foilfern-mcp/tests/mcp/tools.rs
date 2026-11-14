@@ -102,6 +102,25 @@ fn workspace_library_tools() {
     assert_eq!(elements[0]["uuid"], device["uuid"], "{elements:#?}");
     assert_eq!(elements[0]["match"], "all_words");
 
+    // A whole-string match is not evidence of the physical package size.
+    // Warn even with a one-result limit, before the caller selects a device.
+    let ambiguous = library::library_search(
+        &session,
+        LibrarySearchArgs {
+            query: "resistor 0603".into(),
+            kind: Some(LibKind::Device),
+            limit: Some(1),
+        },
+    )
+    .unwrap();
+    assert!(
+        ambiguous
+            .warnings
+            .iter()
+            .any(|w| { w.contains("0603") && w.contains("1608") && w.contains("library_element") })
+    );
+    assert!(out.warnings.is_empty());
+
     // Device details: pad-signal map and footprints with pads.
     let out = library::library_element(
         &session,

@@ -8,6 +8,10 @@ contract; [COMPAT.md](../COMPAT.md) records upstream differences and gaps.
 The old M1–M5 porting labels and R0–R6 routing labels remain useful historical
 references, but are not a second priority queue.
 
+The [agent workflow improvement queue](agent-workflow-plan.md) breaks current
+agent feedback into ordered patches within these stages, including concrete-part
+acquisition from LCSC/MPN through native library import and manufacturing BOM.
+
 ## Goal and baseline
 
 Let an engineer or agent create, update and finish an editable PCB design,
