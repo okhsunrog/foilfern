@@ -13,8 +13,8 @@ use serde::Serialize;
 use super::comparison::TracePreferenceResult;
 use super::copper::{PlanCounts, finish_copper};
 use super::{CopperPlan, PlannedPlacement, RoutingCandidate, RoutingError, RoutingService};
-use super::{RoutingSource, SourceContext, TracePreference};
-use crate::commands::{Autoroute, NetRef, resolve_board};
+use super::{RoutingCandidateDetails, RoutingSource, SourceContext, TracePreference};
+use crate::commands::{Autoroute, NetRef, UnroutedAirWire, resolve_board};
 use crate::routing_validation::{
     RoutingCheckSummary, RoutingValidation, capture_routing_state_with_cancel,
 };
@@ -113,6 +113,8 @@ pub struct PlacementTrial {
     pub clearance_errors: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub clearance_conflicts: Vec<PlacementClearanceConflict>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub route_failures: Vec<UnroutedAirWire>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub validation: Option<RoutingValidation>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -302,6 +304,28 @@ impl RoutingService {
             self.candidates.insert(candidate.info.candidate, candidate);
         }
         Ok(report)
+    }
+}
+
+fn placement_route_failure(failure: &UnroutedAirWire) -> UnroutedAirWire {
+    let evidence = &failure.search_evidence;
+    let via_reserve = evidence.iter().filter(|sample| sample.via).take(4).count();
+    let mut samples = evidence
+        .iter()
+        .filter(|sample| !sample.via)
+        .take(8 - via_reserve)
+        .cloned()
+        .collect::<Vec<_>>();
+    samples.extend(
+        evidence
+            .iter()
+            .filter(|sample| sample.via)
+            .take(8 - samples.len())
+            .cloned(),
+    );
+    UnroutedAirWire {
+        search_evidence: samples,
+        ..failure.clone()
     }
 }
 
@@ -552,6 +576,20 @@ impl PlacementJob {
                 capture_routing_state_with_cancel(&mut source.sandbox, board, &interrupted)?;
             if interrupted() {
                 break;
+            }
+            if let RoutingCandidateDetails::Copper {
+                route: Some(route), ..
+            } = &details
+                && route.request.search_evidence
+            {
+                trial.route_failures = route
+                    .routing
+                    .failed_requests
+                    .iter()
+                    .chain(&route.routing.skipped_outside_region)
+                    .take(8)
+                    .map(placement_route_failure)
+                    .collect();
             }
             let validation = details.validate(&before, &after);
             let (traces, length) =

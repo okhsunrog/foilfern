@@ -1442,6 +1442,7 @@ pub(crate) fn builtin_command(
             .transpose()?,
         via_cost: None,
         search_evidence: false,
+        detour_search: false,
         pad_escape: false,
         neck_down: None,
         congestion_history: false,

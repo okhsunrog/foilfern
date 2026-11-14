@@ -364,6 +364,7 @@ impl<'a> Inputs<'a> {
             allowed_layers: self.options.layers.clone(),
             grid_pitch: self.options.grid_pitch,
             search_evidence: self.options.search_evidence,
+            detour_search: self.options.detour_search,
             pad_escape: self.options.pad_escape,
             congestion_history: self.options.congestion_history,
             order: self.options.order.map(Into::into).unwrap_or_default(),

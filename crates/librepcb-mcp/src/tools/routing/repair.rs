@@ -191,6 +191,7 @@ pub(super) fn suggest(
                 "via_cost":options.via_cost.map(|value| value.to_mm()),
                 "pad_escape":options.pad_escape,
                 "search_evidence":true,
+                "detour_search": options.detour_search,
             },
         })
     };

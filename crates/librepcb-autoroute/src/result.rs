@@ -81,6 +81,8 @@ pub enum UnroutedReason {
     NoAccess,
     /// The heuristic grid search exhausted its frontier.
     NoPath,
+    /// No path even without heading constraints on the current strict grid.
+    DisconnectedGrid,
     /// The grid search reached the expansion limit without finding a path.
     SearchBudget,
     /// The proposed route failed the exact geometry checks.
@@ -146,6 +148,8 @@ pub struct RoutingStats {
     pub air_wires: usize,
     /// Number of path searches.
     pub searches: usize,
+    /// Strict fallback searches using obstacle-aware distances.
+    pub detour_searches: usize,
     /// Number of routes ripped up for rerouting.
     pub rip_ups: usize,
     /// Trace-layer and via tiles recorded as contested by successful rip-up.

@@ -949,7 +949,18 @@ impl<'p> Router<'p> {
         };
         self.stats.searches += 1;
         let collect = self.problem.rules.search_evidence && !soft;
-        let found = match self.search.run(&query, collect, cancelled) {
+        let result = self.search.run(&query, collect, cancelled);
+        let retry = self.problem.rules.detour_search
+            && !soft
+            && matches!(result, Err(SearchFailure::Budget));
+        let result = if retry {
+            self.stats.detour_searches += 1;
+            self.search
+                .retry_around_obstacles(&query, collect, cancelled)
+        } else {
+            result
+        };
+        let found = match result {
             Ok(path) => path,
             Err(failure) => {
                 if collect && failure != SearchFailure::Cancelled {
@@ -957,6 +968,7 @@ impl<'p> Router<'p> {
                 }
                 let reason = match failure {
                     SearchFailure::Exhausted => UnroutedReason::NoPath,
+                    SearchFailure::DisconnectedGrid => UnroutedReason::DisconnectedGrid,
                     SearchFailure::Budget => UnroutedReason::SearchBudget,
                     SearchFailure::Cancelled => UnroutedReason::Cancelled,
                 };

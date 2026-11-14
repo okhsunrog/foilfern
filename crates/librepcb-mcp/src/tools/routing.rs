@@ -64,6 +64,9 @@ pub struct RoutingPrepareArgs {
     /// Include samples of rejected grid steps for failed requests.
     #[serde(default)]
     pub search_evidence: bool,
+    /// Retry a budget-limited strict search using obstacle-aware distances.
+    #[serde(default)]
+    pub detour_search: bool,
     /// Try extra exact-checked exits from nearby pads.
     #[serde(default)]
     pub pad_escape: bool,
@@ -345,6 +348,7 @@ fn builtin_request(project: &Project, args: RoutingPrepareArgs) -> ToolResult<Au
     let mut command = board_edit::builtin_command(project, board, &options)?;
     command.via_cost = via_cost(args.via_cost)?;
     command.search_evidence = args.search_evidence;
+    command.detour_search = args.detour_search;
     command.neck_down = args.neck_down.map(PadNeckDownArgs::command).transpose()?;
     command.pad_escape = args.pad_escape;
     command.congestion_history = args.congestion_history;
@@ -854,6 +858,9 @@ pub struct RoutingDiagnoseArgs {
     /// Include exact-checked local pad exits in the access report.
     #[serde(default)]
     pub pad_escape: bool,
+    /// Carry obstacle-aware retry into suggested regional routing requests.
+    #[serde(default)]
+    pub detour_search: bool,
     /// Suggest explicit, bounded local copper changes for one air wire.
     pub repair: Option<repair::RepairArgs>,
     /// Attach one focused PNG for a selected endpoint and copper layer.
@@ -898,6 +905,7 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
     )?;
     options.via_cost = via_cost(args.via_cost)?;
     options.pad_escape = args.pad_escape;
+    options.detour_search = args.detour_search;
     let extracted = extract_problem(p, board, &options, Some(&[net].into_iter().collect()))?;
     let problem = &extracted.problem;
     let mm = crate::units::mm;
@@ -1102,6 +1110,9 @@ pub struct RoutingEditRouteArgs {
     /// Include samples of rejected grid steps for failed requests.
     #[serde(default)]
     pub search_evidence: bool,
+    /// Retry a budget-limited strict search using obstacle-aware distances.
+    #[serde(default)]
+    pub detour_search: bool,
     /// Try extra exact-checked exits from nearby pads.
     #[serde(default)]
     pub pad_escape: bool,
@@ -1134,6 +1145,7 @@ impl RoutingEditRouteArgs {
         )?;
         command.via_cost = via_cost(self.via_cost)?;
         command.search_evidence = self.search_evidence;
+        command.detour_search = self.detour_search;
         command.neck_down = self.neck_down.map(PadNeckDownArgs::command).transpose()?;
         command.pad_escape = self.pad_escape;
         command.congestion_history = self.congestion_history;

@@ -204,6 +204,8 @@ pub struct RoutingRules {
     pub congestion_history: bool,
     /// Collect bounded rejected-move samples for failed strict searches.
     pub search_evidence: bool,
+    /// Retry budget-limited strict searches with an obstacle-aware distance field.
+    pub detour_search: bool,
     /// Initial air-wire order within each priority tier.
     pub order: RoutingOrder,
     /// Add exact-checked exits from pads to nearby grid nodes.
@@ -232,6 +234,7 @@ impl Default for RoutingRules {
             max_rip_ups: 3,
             congestion_history: false,
             search_evidence: false,
+            detour_search: false,
             order: RoutingOrder::Auto,
             pad_escape: false,
             critical_nets: BTreeSet::new(),

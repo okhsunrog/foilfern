@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `21`). Its `build` object contains
+`api_capability_version` (currently `22`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -664,6 +664,11 @@ A via created on the detached board includes its index into `copper.vias`
 for identification across trials. A suggested pose's `suggested_by` pair
 indexes its parent trial and that trial's `clearance_conflicts` in the
 report, counting from zero. All patches still require full validation.
+
+With `copper.route.search_evidence: true`, a placement trial that ran
+builtin includes up to eight `route_failures` with original anchors,
+reasons and at most eight exact-checked grid samples per failure. Rejected
+poses carry this evidence in the comparison and need no candidate UUID.
 
 Pass the returned UUID as `search` to `routing_placement_status`.
 It reports the stage, current poses, planned and completed trial counts,

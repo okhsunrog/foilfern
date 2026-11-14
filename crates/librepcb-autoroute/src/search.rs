@@ -94,6 +94,117 @@ pub(crate) struct Query<'a> {
     pub targets: &'a HashMap<u32, u32>,
 }
 
+/// Grid-coordinate distance to a terminal set's bounding box.
+fn octile_to_bounds(grid: &Grid, nodes: impl Iterator<Item = u32>) -> impl Fn(usize) -> u32 {
+    let cells = grid.cells();
+    let nx = grid.nx;
+    let (mut x0, mut y0, mut x1, mut y1) = (usize::MAX, usize::MAX, 0, 0);
+    for node in nodes {
+        let cell = node as usize % cells;
+        let (x, y) = (cell % nx, cell / nx);
+        (x0, y0, x1, y1) = (x0.min(x), y0.min(y), x1.max(x), y1.max(y));
+    }
+    move |node| {
+        let cell = node % cells;
+        let (x, y) = (cell % nx, cell / nx);
+        let dx = x0.saturating_sub(x).max(x.saturating_sub(x1)) as u32;
+        let dy = y0.saturating_sub(y).max(y.saturating_sub(y1)) as u32;
+        STEP * dx.abs_diff(dy) + DIAG * dx.min(dy)
+    }
+}
+
+/// Lower bound over the same occupancy, without heading constraints. Walking
+/// the grid backwards from the target estimates the cost of going around
+/// fixed walls rather than drawing the search repeatedly towards them.
+fn detour_distances(
+    q: &Query<'_>,
+    mut evidence: Option<&mut Frontier>,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Vec<u32>, SearchFailure> {
+    if cancelled() {
+        return Err(SearchFailure::Cancelled);
+    }
+    let cells = q.grid.cells();
+    let mut distance = vec![u32::MAX; q.layers * cells];
+    let mut queue = BinaryHeap::new();
+    let clear =
+        |node| usable(q.trace_fixed[node], q.owner) && usable(q.trace_routes[node], q.owner);
+    for (&node, &cost) in q.targets {
+        if clear(node as usize) {
+            distance[node as usize] = cost;
+            queue.push(Reverse((cost, node as usize)));
+        }
+    }
+    let toward_sources = octile_to_bounds(q.grid, q.sources.iter().map(|&(node, _)| node));
+    let mut visited = 0;
+    let nx = q.grid.nx;
+    while let Some(Reverse((cost, node))) = queue.pop() {
+        if cost != distance[node] {
+            continue;
+        }
+        visited += 1;
+        if visited % 1024 == 0 && cancelled() {
+            return Err(SearchFailure::Cancelled);
+        }
+        let (layer, cell) = (node / cells, node % cells);
+        let (x, y) = ((cell % nx) as i64, (cell / nx) as i64);
+        let mut relax = |target, movement: u32, via: bool| {
+            let generated = usable(q.trace_fixed[target], q.owner);
+            if !clear(target) {
+                if let Some(frontier) = evidence.as_deref_mut() {
+                    frontier.record(
+                        toward_sources(target),
+                        BlockedStep {
+                            from: node,
+                            to: target,
+                            via,
+                            generated,
+                        },
+                    );
+                }
+                return;
+            }
+            let next = cost.saturating_add(movement);
+            if next < distance[target] {
+                distance[target] = next;
+                queue.push(Reverse((next, target)));
+            }
+        };
+        for (direction, (dx, dy)) in DIRS.iter().copied().enumerate() {
+            let (x, y) = (x + dx, y + dy);
+            if x >= 0 && y >= 0 && x < nx as i64 && y < q.grid.ny as i64 {
+                let predecessor = (direction + 4) % DIRS.len();
+                let base = if direction % 2 == 0 { STEP } else { DIAG };
+                relax(
+                    layer * cells + y as usize * nx + x as usize,
+                    base * q.factors[layer][predecessor] / 100,
+                    false,
+                );
+            }
+        }
+        let static_via_free = usable(q.via_fixed[cell], q.owner);
+        let route_via_free = usable(q.via_routes[cell], q.owner);
+        if q.layers > 1 && static_via_free && route_via_free {
+            for predecessor in (0..q.layers).filter(|&predecessor| predecessor != layer) {
+                relax(predecessor * cells + cell, q.via_cost, true);
+            }
+        } else if q.layers > 1
+            && let Some(frontier) = evidence.as_deref_mut()
+        {
+            frontier.record(
+                toward_sources(node),
+                BlockedStep {
+                    from: node,
+                    to: node,
+                    via: true,
+                    generated: static_via_free,
+                },
+            );
+        }
+    }
+    Ok(distance)
+}
+
 /// A found path.
 #[derive(Debug, Clone)]
 pub(crate) struct Found {
@@ -104,6 +215,7 @@ pub(crate) struct Found {
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum SearchFailure {
     Exhausted,
+    DisconnectedGrid,
     Budget,
     Cancelled,
 }
@@ -125,6 +237,12 @@ struct Frontier {
 }
 
 impl Frontier {
+    fn clear(&mut self) {
+        for samples in &mut self.samples {
+            samples.clear();
+        }
+    }
+
     fn record(&mut self, score: u32, step: BlockedStep) {
         let kind = 2 * usize::from(step.via) + usize::from(step.generated);
         let samples = &mut self.samples[kind];
@@ -160,7 +278,33 @@ impl Search {
         collect_evidence: bool,
         cancelled: &dyn Fn() -> bool,
     ) -> Result<Found, SearchFailure> {
-        self.run_with_limit(q, MAX_EXPANSIONS, collect_evidence, cancelled)
+        self.run_with_limit(q, MAX_EXPANSIONS, collect_evidence, cancelled, None)
+    }
+
+    pub fn retry_around_obstacles(
+        &mut self,
+        query: &Query<'_>,
+        collect_evidence: bool,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<Found, SearchFailure> {
+        debug_assert!(!query.soft);
+        self.frontier.clear();
+        let evidence = collect_evidence.then_some(&mut self.frontier);
+        let distances = detour_distances(query, evidence, cancelled)?;
+        if query
+            .sources
+            .iter()
+            .all(|&(node, _)| distances[node as usize] == u32::MAX)
+        {
+            return Err(SearchFailure::DisconnectedGrid);
+        }
+        self.run_with_limit(
+            query,
+            MAX_EXPANSIONS,
+            collect_evidence,
+            cancelled,
+            Some(&distances),
+        )
     }
 
     pub fn frontier(&self) -> impl Iterator<Item = BlockedStep> + '_ {
@@ -177,13 +321,12 @@ impl Search {
         limit: usize,
         collect_evidence: bool,
         cancelled: &dyn Fn() -> bool,
+        distances: Option<&[u32]>,
     ) -> Result<Found, SearchFailure> {
         if cancelled() {
             return Err(SearchFailure::Cancelled);
         }
-        for samples in &mut self.frontier.samples {
-            samples.clear();
-        }
+        self.frontier.clear();
         let cells = q.grid.cells();
         let nodes = cells * q.layers;
         let states = nodes * STATES_PER_NODE;
@@ -205,36 +348,21 @@ impl Search {
             return Err(SearchFailure::Exhausted);
         }
 
-        // Target bounding box in grid coordinates for the heuristic.
         let nx = q.grid.nx;
-        let (mut tx0, mut ty0, mut tx1, mut ty1) = (usize::MAX, usize::MAX, 0, 0);
-        for &node in q.targets.keys() {
-            let c = node as usize % cells;
-            let (x, y) = (c % nx, c / nx);
-            tx0 = tx0.min(x);
-            ty0 = ty0.min(y);
-            tx1 = tx1.max(x);
-            ty1 = ty1.max(y);
-        }
-        let heuristic = |c: usize| -> u32 {
-            let (x, y) = (c % nx, c / nx);
-            let dx = if x < tx0 {
-                tx0 - x
-            } else {
-                x.saturating_sub(tx1)
-            } as u32;
-            let dy = if y < ty0 {
-                ty0 - y
-            } else {
-                y.saturating_sub(ty1)
-            } as u32;
-            let (lo, hi) = (dx.min(dy), dx.max(dy));
-            (STEP * (hi - lo) + DIAG * lo) * HEURISTIC_WEIGHT / 100
+        let octile = octile_to_bounds(q.grid, q.targets.keys().copied());
+        let heuristic = |node: usize| -> u32 {
+            distances.map_or_else(
+                || octile(node) * HEURISTIC_WEIGHT / 100,
+                |distances| distances[node].saturating_mul(HEURISTIC_WEIGHT / 100),
+            )
         };
 
         let generation = self.generation;
         let mut heap: BinaryHeap<Reverse<(u32, u32, u32)>> = BinaryHeap::new();
         for &(node, cost) in q.sources {
+            if distances.is_some_and(|distance| distance[node as usize] == u32::MAX) {
+                continue;
+            }
             let s = node as usize * STATES_PER_NODE + NO_DIR;
             if self.stamp[s] == generation && self.g[s] <= cost {
                 continue;
@@ -242,7 +370,7 @@ impl Search {
             self.stamp[s] = generation;
             self.g[s] = cost;
             self.parent[s] = NONE;
-            let f = cost.saturating_add(heuristic(node as usize % cells));
+            let f = cost.saturating_add(heuristic(node as usize));
             heap.push(Reverse((f, u32::MAX - cost, s as u32)));
         }
 
@@ -261,7 +389,7 @@ impl Search {
             let dir = s % STATES_PER_NODE;
             // Dominance pruning: a state much worse than the best state of
             // the same node (in another direction) is not worth expanding.
-            if self.node_stamp[node] == generation {
+            if distances.is_none() && self.node_stamp[node] == generation {
                 if g > self.node_g[node].saturating_add(DOMINANCE) {
                     continue;
                 }
@@ -286,10 +414,10 @@ impl Search {
             let layer = node / cells;
             let c = node % cells;
             let (x, y) = ((c % nx) as i64, (c / nx) as i64);
-            let mut record_block = |to, target_cell, via, generated| {
+            let mut record_block = |to, via, generated| {
                 if collect_evidence {
                     self.frontier.record(
-                        heuristic(target_cell),
+                        heuristic(to),
                         BlockedStep {
                             from: node,
                             to,
@@ -300,9 +428,13 @@ impl Search {
                 }
             };
 
-            let mut relax = |heap: &mut BinaryHeap<_>, ns: usize, ng: u32, nc: usize| {
+            let mut relax = |heap: &mut BinaryHeap<_>, ns: usize, ng: u32| {
                 let nn = ns / STATES_PER_NODE;
-                if self.node_stamp[nn] == generation
+                if distances.is_some_and(|distance| distance[nn] == u32::MAX) {
+                    return;
+                }
+                if distances.is_none()
+                    && self.node_stamp[nn] == generation
                     && ng > self.node_g[nn].saturating_add(DOMINANCE)
                 {
                     return;
@@ -312,7 +444,7 @@ impl Search {
                     self.g[ns] = ng;
                     self.parent[ns] = s as u32;
                     heap.push(Reverse((
-                        ng.saturating_add(heuristic(nc)),
+                        ng.saturating_add(heuristic(nn)),
                         u32::MAX - ng,
                         ns as u32,
                     )));
@@ -338,13 +470,13 @@ impl Search {
                 let nc = ny_ as usize * nx + nx_ as usize;
                 let idx = layer * cells + nc;
                 if !usable(q.trace_fixed[idx], q.owner) {
-                    record_block(idx, nc, false, false);
+                    record_block(idx, false, false);
                     continue;
                 }
                 let mut cost = if k % 2 == 0 { STEP } else { DIAG } * q.factors[layer][k] / 100;
                 if !usable(q.trace_routes[idx], q.owner) {
                     if !q.soft {
-                        record_block(idx, nc, false, true);
+                        record_block(idx, false, true);
                         continue;
                     }
                     cost += CONFLICT;
@@ -353,17 +485,17 @@ impl Search {
                     cost += history.cost(history.tile(layer, nc));
                 }
                 let ng = g.saturating_add(cost + turn);
-                relax(&mut heap, idx * STATES_PER_NODE + k, ng, nc);
+                relax(&mut heap, idx * STATES_PER_NODE + k, ng);
             }
 
             // Layer changes.
             if q.layers > 1 && !usable(q.via_fixed[c], q.owner) {
-                record_block(node, c, true, false);
+                record_block(node, true, false);
             } else if q.layers > 1 {
                 let mut cost = q.via_cost;
                 let via_free = usable(q.via_routes[c], q.owner);
                 if !via_free && !q.soft {
-                    record_block(node, c, true, true);
+                    record_block(node, true, true);
                 } else {
                     if !via_free {
                         cost = cost.saturating_add(CONFLICT);
@@ -374,13 +506,13 @@ impl Search {
                     for l in (0..q.layers).filter(|&l| l != layer) {
                         let idx = l * cells + c;
                         if !usable(q.trace_fixed[idx], q.owner) {
-                            record_block(idx, c, true, false);
+                            record_block(idx, true, false);
                             continue;
                         }
                         let mut extra = 0;
                         if !usable(q.trace_routes[idx], q.owner) {
                             if !q.soft {
-                                record_block(idx, c, true, true);
+                                record_block(idx, true, true);
                                 continue;
                             }
                             extra = CONFLICT;
@@ -392,7 +524,6 @@ impl Search {
                             &mut heap,
                             idx * STATES_PER_NODE + NO_DIR,
                             g.saturating_add(cost).saturating_add(extra),
-                            c,
                         );
                     }
                 }
@@ -447,7 +578,7 @@ mod tests {
         let mut search = Search::default();
         assert_eq!(
             search
-                .run_with_limit(&query, 1, false, &|| false)
+                .run_with_limit(&query, 1, false, &|| false, None)
                 .unwrap_err(),
             SearchFailure::Budget
         );
@@ -462,7 +593,7 @@ mod tests {
         query.trace_fixed = &[FREE, BLOCKED, FREE];
         assert_eq!(
             search
-                .run_with_limit(&query, 1, true, &|| false)
+                .run_with_limit(&query, 1, true, &|| false, None)
                 .unwrap_err(),
             SearchFailure::Exhausted
         );
@@ -472,6 +603,64 @@ mod tests {
                 .map(|sample| sample.to)
                 .collect::<Vec<_>>(),
             [1]
+        );
+    }
+
+    #[test]
+    fn detour_retry_finds_an_exit_around_a_wall_and_detects_disconnection() {
+        let grid = Grid::new(P::new(0, 0), P::new(10, 8), 1);
+        let node = |x, y| y * grid.nx + x;
+        let mut fixed = vec![FREE; grid.cells()];
+        for y in 0..8 {
+            fixed[node(4, y)] = BLOCKED;
+        }
+        let routes = vec![FREE; grid.cells()];
+        let targets = HashMap::from([(node(8, 1) as u32, 0)]);
+        let sources = [(node(2, 1) as u32, 0)];
+        let mut query = Query {
+            grid: &grid,
+            layers: 1,
+            trace_fixed: &fixed,
+            trace_routes: &routes,
+            via_fixed: &routes,
+            via_routes: &routes,
+            owner: 1,
+            via_cost: 0,
+            factors: &[NEUTRAL],
+            soft: false,
+            congestion: None,
+            sources: &sources,
+            targets: &targets,
+        };
+        let mut search = Search::default();
+        assert_eq!(
+            search
+                .run_with_limit(&query, 5, false, &|| false, None)
+                .unwrap_err(),
+            SearchFailure::Budget
+        );
+        let path = search
+            .retry_around_obstacles(&query, true, &|| false)
+            .unwrap();
+        assert_eq!(path.nodes.first(), Some(&sources[0].0));
+        assert_eq!(path.nodes.last(), Some(&(node(8, 1) as u32)));
+        assert!(path.nodes.contains(&(node(4, 8) as u32)));
+
+        let mut closed = fixed.clone();
+        closed[node(4, 8)] = BLOCKED;
+        query.trace_fixed = &closed;
+        assert_eq!(
+            search
+                .retry_around_obstacles(&query, true, &|| false)
+                .unwrap_err(),
+            SearchFailure::DisconnectedGrid
+        );
+        assert!(search.frontier().any(|step| step.to == node(4, 1)));
+        assert_eq!(
+            search
+                .retry_around_obstacles(&query, true, &|| true)
+                .unwrap_err(),
+            SearchFailure::Cancelled
         );
     }
 

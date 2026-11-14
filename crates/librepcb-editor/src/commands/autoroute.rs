@@ -57,6 +57,10 @@ pub const CLEARANCE_MARGIN: Length = Length::new(10_000);
 /// Tolerance for flattening arcs to polygons (5 µm).
 const ARC_TOLERANCE: Length = Length::new(5_000);
 
+fn is_zero(value: &usize) -> bool {
+    *value == 0
+}
+
 fn positive(length: Length) -> Option<PositiveLength> {
     PositiveLength::new(length).ok()
 }
@@ -119,6 +123,9 @@ pub struct Autoroute {
     /// Collect rejected grid steps for failed strict searches.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub search_evidence: bool,
+    /// Use obstacle-aware distances after a strict search hits its budget.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub detour_search: bool,
     /// Check additional ways to reach the grid from pads.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pad_escape: bool,
@@ -306,6 +313,8 @@ fn trace_width_profile(
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RoutingEffort {
     pub searches: usize,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub detour_searches: usize,
     pub rip_ups: usize,
     pub congestion_tiles: usize,
 }
@@ -413,6 +422,7 @@ impl Autoroute {
             grid_pitch: result.stats.grid_pitch,
             effort: RoutingEffort {
                 searches: result.stats.searches,
+                detour_searches: result.stats.detour_searches,
                 rip_ups: result.stats.rip_ups,
                 congestion_tiles: result.stats.congestion_tiles,
             },
@@ -441,6 +451,7 @@ fn reason_name(reason: UnroutedReason) -> &'static str {
     match reason {
         UnroutedReason::NoAccess => "no_access",
         UnroutedReason::NoPath => "no_path",
+        UnroutedReason::DisconnectedGrid => "disconnected_grid",
         UnroutedReason::SearchBudget => "search_budget",
         UnroutedReason::GeometryRejected => "geometry_rejected",
         UnroutedReason::RipUpLimit => "rip_up_limit",

@@ -677,6 +677,23 @@ SHA-256 `47876d3e09a84f58d39eea5ff67aa29693467a00c52034a7e5d93e16dcc9619d`.
 It retains the benchmark placement. The separate finished project also
 shifts C10 and its local ground via for assembly clearance.
 
+### Obstacle-aware retry after the search budget
+
+Set `detour_search: true` in a reviewed builtin preparation or a nested
+builtin `route`. If strict A* runs out of expansions, walk backwards from
+the destination over the same allowed trace nodes and via sites. This
+gives a distance estimate around occupied copper and guides a bounded
+retry that keeps heading in its state. The original path checks, copper
+permissions and exact validation still apply. The option is off by default.
+
+If the relaxed reverse graph reaches none of the source nodes, the strict
+result is `disconnected_grid`. This conclusion applies to the current
+pitch, rasterized rules, layers and occupancy. It cannot rule out every
+legal off-grid route. Enable `search_evidence` for rejected reverse steps
+near the source with exact object hits when available. The original
+soft-search outcome remains separate. The number of fallback runs appears
+as `routing.effort.detour_searches`. Both search passes poll cancellation.
+
 ### Short pad escapes on a wide net
 
 Pass `neck_down: {"width":0.2,"max_length":1.0}` to a reviewed builtin
