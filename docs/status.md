@@ -102,8 +102,8 @@ The editor owns one `RoutingService` per open project; MCP is its transport.
   `not_measured`, not zero length or a connectivity failure.
 
 Remaining work includes end-to-end board creation from a document,
-persisted board requirements, composing escape and blocker suggestions,
-shared worker admission limits and the desktop candidate overlay.
+persisted reference-coverage requirements, shared worker admission limits
+and the desktop candidate overlay.
 `server_info` now reports
 build-time commit, tracked-source state, Cargo profile label and API capability
 version. `device_place` supports compact responses with `include_pads: false`.
@@ -129,6 +129,10 @@ record empty replay after save/reopen and preservation of unrelated geometry.
 The [schematic requirements tools](mcp-design.md#schematic-requirements) store
 UUID-bound positions, orientations, regions and net memberships with explicit
 evidence and enforce hard requirements on declarative apply.
+The [board requirements tools](mcp-design.md#saved-board-requirements) store
+device regions, pad proximity, trace limits, net routing rules and protected
+copper. Routing and placement candidates report the saved rules and enforce
+hard violations at apply.
 Schematic previews report introduced, inherited and resolved ERC findings,
 run in a detached worker with status and cancellation, and can return matched
 before/after PNGs cropped to one area. The [ESP32-C3 schematic replay](benchmarks/esp32-c3-schematic/README.md)

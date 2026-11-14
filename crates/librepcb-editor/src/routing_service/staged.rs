@@ -115,7 +115,7 @@ impl StagedRoutingRequest {
             .flatten()
             .map(|net| resolve_net(project, net))
             .collect::<Result<BTreeSet<_>, _>>()?;
-        let critical = self.options.critical_net_ids(project)?;
+        let critical = self.options.critical_net_ids(project, board)?;
         let model = resolve_board(project, Some(board))?;
         let original_copper = region::copper(project, model)?;
         let mut initial_gaps = BTreeMap::new();

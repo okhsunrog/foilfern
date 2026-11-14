@@ -12,11 +12,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use librepcb_core::geometry::TraceAnchor;
 use librepcb_core::project::board::AirWire;
 use librepcb_core::project::board::drc::DrcMessageKind;
+use librepcb_core::project::board_requirements::Requirements;
 use librepcb_core::project::{BoardId, ComponentInstanceId, NetSignalId};
 use librepcb_core::rule_check::Severity;
 use librepcb_core::types::Uuid;
 use serde::{Deserialize, Serialize};
 
+use crate::board_requirements::{Finding, State};
 use crate::{ProjectEditor, Result, routing_stats};
 
 /// A full DRC snapshot of the actual board. Counts exclude approved messages.
@@ -46,6 +48,7 @@ pub type RoutingError = RoutingDrcFinding;
 #[derive(Debug, Clone)]
 pub struct RoutingSnapshot {
     pub checks: RoutingCheckSummary,
+    requirements: State,
     errors: BTreeMap<String, RoutingError>,
     warnings: BTreeMap<String, RoutingDrcFinding>,
     unrouted_by_net: BTreeMap<NetSignalId, usize>,
@@ -149,6 +152,10 @@ pub struct RoutingValidation {
     pub new_warning_count: usize,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub new_warnings: Vec<RoutingDrcFinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub board_requirements_before: Vec<Finding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub board_requirements_after: Vec<Finding>,
 }
 
 fn is_zero(value: &usize) -> bool {
@@ -284,6 +291,7 @@ pub(crate) fn capture_routing_state_with_cancel(
         .collect();
     Ok(RoutingSnapshot {
         checks,
+        requirements: State::capture(p, board, &Requirements::load(p)?)?,
         unrouted_by_net,
         unrouted_examples,
         errors,
@@ -373,11 +381,16 @@ impl RoutingValidation {
         } else {
             ConnectivityProgress::Unchanged
         };
+        let board_requirements_after: Vec<_> = after
+            .requirements
+            .findings_after(&before.requirements)
+            .collect();
         Self {
             acceptable: before.checks.complete
                 && after.checks.complete
                 && netlist_preserved
-                && new_errors.is_empty(),
+                && new_errors.is_empty()
+                && !board_requirements_after.iter().any(Finding::blocks_routing),
             drc_clean: after.checks.complete && after.checks.errors == 0,
             netlist_preserved,
             new_error_count: new_errors.len(),
@@ -396,6 +409,8 @@ impl RoutingValidation {
             new_warnings,
             before: before.checks.clone(),
             after: after.checks.clone(),
+            board_requirements_before: before.requirements.findings.clone(),
+            board_requirements_after,
         }
     }
 

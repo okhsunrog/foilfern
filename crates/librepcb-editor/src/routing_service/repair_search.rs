@@ -644,6 +644,7 @@ impl RepairSearchRequest {
                 )
                 .into());
             }
+            super::region::check_rip_up_permissions(project, board.id(), group)?;
             for id in group {
                 let item = copper
                     .get(id)
@@ -787,6 +788,15 @@ impl RepairSearchJob {
             Some(&BTreeSet::from([target])),
         )?;
         let problem = &mut extracted.problem;
+        if problem.rules.no_vias.contains(&target.0)
+            || problem
+                .rules
+                .net_layers
+                .get(&target.0)
+                .is_some_and(|layers| !layers.contains(&search.layer) || layers.len() < 2)
+        {
+            return Ok(Vec::new());
+        }
         // Test exact lead and via geometry at the native rule thresholds.
         // The grid router keeps its extra margin for continuations.
         use crate::commands::autoroute::CLEARANCE_MARGIN;
@@ -1141,7 +1151,11 @@ impl RepairSearchJob {
             let checked_launch = validation.after.complete
                 && validation.netlist_preserved
                 && validation.new_error_count == 0
-                && validation.unrouted_regressions.is_empty();
+                && validation.unrouted_regressions.is_empty()
+                && !validation
+                    .board_requirements_after
+                    .iter()
+                    .any(crate::board_requirements::Finding::blocks_routing);
             if validation.acceptable {
                 let (vias, trace_length_mm) = copper_cost(source.sandbox.project(), board)?;
                 let candidate = source.freeze(board, details, before.clone(), after)?;

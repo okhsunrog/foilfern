@@ -99,6 +99,17 @@ impl Command for ConnectLocalVia {
         };
         let extracted =
             extract_problem(p, self.board, &options, Some(&[net].into_iter().collect()))?;
+        let net_name = resolve::net_name(p, Some(net));
+        let rules = &extracted.problem.rules;
+        if rules.no_vias.contains(&net.0)
+            || rules.net_layers.get(&net.0).is_some_and(|layers| {
+                !layers.contains(&self.from_layer) || !layers.contains(&self.to_layer)
+            })
+        {
+            return Err(Error::BoardRequirementsBlocked(format!(
+                "saved layer or via restriction for {net_name}"
+            )));
+        }
         let site = self.position.map_or(
             LocalViaSite::Search(self.search_radius),
             LocalViaSite::Exact,
@@ -117,7 +128,6 @@ impl Command for ConnectLocalVia {
                 "No clear via and short leads for the selected anchors and site.".into(),
             )
         })?;
-        let net_name = resolve::net_name(p, Some(net));
         let (drill, size) = extracted.via_sizes[&net];
         let via = Via::new(
             Uuid::new_random(),

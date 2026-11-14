@@ -430,6 +430,32 @@ fn crossing_nets_need_a_via() {
     assert!(r.vias().count() >= 2, "expected vias, got {:?}", r.routes);
     assert!(r.segments().any(|s| s.layer == Layer::BOT_COPPER));
     assert_clean(&p, &r);
+
+    // Fix the horizontal wall in place. With no way around its ends,
+    // the vertical net requires a layer change.
+    p.connections.remove(0);
+    p.obstacles.push(Obstacle::copper(
+        Shape::Segment {
+            start: pt(0.0, 10.0),
+            end: pt(20.0, 10.0),
+            width: pos(0.25),
+        },
+        LayerScope::single(Layer::TOP_COPPER),
+        Some(a),
+    ));
+    let unrestricted = route(&p).unwrap();
+    assert!(unrestricted.is_complete());
+    assert!(unrestricted.vias().count() >= 2);
+    p.rules.no_vias.insert(b);
+    let restricted = route(&p).unwrap();
+    assert_eq!(restricted.unrouted.len(), 1);
+    assert_eq!(restricted.vias().count(), 0);
+
+    p.rules.no_vias.clear();
+    p.rules.net_layers.insert(b, [Layer::TOP_COPPER].into());
+    let restricted = route(&p).unwrap();
+    assert_eq!(restricted.unrouted.len(), 1);
+    assert_eq!(restricted.vias().count(), 0);
 }
 
 #[test]

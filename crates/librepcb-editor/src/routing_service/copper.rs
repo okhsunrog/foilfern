@@ -74,6 +74,7 @@ impl CopperPlan {
         } else {
             let project = sandbox.project();
             let board = resolve_board(project, Some(self.board))?;
+            region::check_rip_up_permissions(project, self.board, &removed)?;
             let mut selection = BoardSelection::default();
             let before = region::copper(project, board)?;
             for &uuid in &self.remove_traces {

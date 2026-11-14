@@ -48,6 +48,7 @@ use super::board::{AddTrace, TraceEndpoint, add_via_connected};
 use super::{NetRef, resolve};
 use crate::editor::{Command, Transaction};
 use crate::error::{Error, Result};
+use librepcb_core::project::board_requirements::{Check, Requirements, Severity};
 
 mod rules;
 
@@ -171,11 +172,38 @@ impl From<RoutingOrder> for librepcb_autoroute::RoutingOrder {
 }
 
 impl Autoroute {
-    pub(crate) fn critical_net_ids(&self, project: &Project) -> Result<BTreeSet<NetSignalId>> {
-        self.critical_nets
+    pub(crate) fn critical_net_ids(
+        &self,
+        project: &Project,
+        board: BoardId,
+    ) -> Result<BTreeSet<NetSignalId>> {
+        self.critical_net_ids_with_requirements(project, board, &Requirements::load(project)?)
+    }
+
+    fn critical_net_ids_with_requirements(
+        &self,
+        project: &Project,
+        board: BoardId,
+        requirements: &Requirements,
+    ) -> Result<BTreeSet<NetSignalId>> {
+        let mut ids = self
+            .critical_nets
             .iter()
             .map(|net| resolve::required_net(project, net))
-            .collect()
+            .collect::<Result<BTreeSet<_>>>()?;
+        ids.extend(
+            requirements
+                .on_board(board)
+                .filter_map(|rule| match rule.check {
+                    Check::NetRouting {
+                        net,
+                        priority: true,
+                        ..
+                    } => Some(net),
+                    _ => None,
+                }),
+        );
+        Ok(ids)
     }
 }
 
@@ -943,11 +971,35 @@ fn extract_with_branches(
 
     let inputs = rules::Inputs::new(p, b, options);
     let mut routing_rules = inputs.routing_rules();
+    let requirements = Requirements::load(p)?;
     routing_rules.critical_nets = options
-        .critical_net_ids(p)?
+        .critical_net_ids_with_requirements(p, board, &requirements)?
         .into_iter()
         .map(|id| id.0)
         .collect();
+    for rule in requirements
+        .on_board(board)
+        .filter(|rule| rule.severity == Severity::Hard)
+    {
+        if let Check::NetRouting {
+            net,
+            layers,
+            allow_vias,
+            ..
+        } = &rule.check
+        {
+            if let Some(layers) = layers {
+                routing_rules
+                    .net_layers
+                    .entry(net.0)
+                    .and_modify(|allowed| allowed.retain(|layer| layers.contains(layer)))
+                    .or_insert_with(|| layers.clone());
+            }
+            if *allow_vias == Some(false) {
+                routing_rules.no_vias.insert(net.0);
+            }
+        }
+    }
     let trace_width = routing_rules.trace_width;
     let region = options.region.map(RoutingBounds::region).transpose()?;
 

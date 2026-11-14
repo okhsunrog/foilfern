@@ -218,8 +218,11 @@ impl From<librepcb_editor::Error> for ToolError {
             E::SchematicRequirements(project::schematic_requirements::Error::File(f)) => {
                 file_io_kind(f)
             }
+            E::BoardRequirements(project::board_requirements::Error::File(f)) => file_io_kind(f),
             E::DesignRequirementsChanged => ErrorKind::StaleRevision,
-            E::DesignRequirementsBlocked(..) => ErrorKind::Refused,
+            E::DesignRequirementsBlocked(..) | E::BoardRequirementsBlocked(..) => {
+                ErrorKind::Refused
+            }
             E::NotFound { .. } | E::NotInLibrarySource { .. } | E::NotInProjectLibrary { .. } => {
                 ErrorKind::NotFound
             }

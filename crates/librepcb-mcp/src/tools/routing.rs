@@ -615,7 +615,7 @@ fn candidate_output(summary: &str, info: &RoutingCandidateInfo) -> ToolResult<To
     }
     if !info.validation.acceptable {
         out = out.warn(
-            "Validation is unacceptable: inspect checks, netlist, new DRC errors and unrouted regressions.",
+            "Validation is unacceptable. Inspect checks, netlist, DRC, unresolved connections and saved board requirements.",
         );
     }
     if !info.validation.drc_clean {

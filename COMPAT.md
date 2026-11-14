@@ -478,6 +478,10 @@ differ between platforms/implementations:
   `project/foilfern-schematic-requirements.json`. The asset uses native UUIDs
   and integer nanometers. Foilfern evaluates it for declarative schematic
   updates. Upstream uses the existing native schematic and circuit files.
+- Board requirements use the optional project asset
+  `project/foilfern-board-requirements.json` with native UUID references
+  and integer nanometers. Foilfern evaluates the asset for reviewed routing,
+  placement and edit operations. LibrePCB reads the usual native board files.
 - Intentional no-connect marks use the existing Foilfern sheet appearance
   asset. Foilfern renders crosses for marked open pins in previews and exports.
   The native circuit and its ERC behavior are unchanged.

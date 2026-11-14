@@ -27,7 +27,7 @@ use crate::routing_validation::{
 mod comparison;
 mod copper;
 mod placement;
-mod region;
+pub(crate) mod region;
 mod repair_search;
 mod staged;
 pub use comparison::{
@@ -769,25 +769,30 @@ impl RoutingService {
             return Err(crate::Error::GroupActive.into());
         }
         if !candidate.info.validation.acceptable {
-            return Err(RoutingError::Refused("Checks incomplete, netlist changed, new DRC errors or connectivity regression; inspect the candidate.".into()));
+            return Err(RoutingError::Refused("The candidate failed routing validation. Inspect its DRC, connectivity and board requirements.".into()));
         }
-        editor.apply_mutations(
-            match candidate.info.details {
-                RoutingCandidateDetails::Builtin { .. }
-                | RoutingCandidateDetails::Regional { .. }
-                | RoutingCandidateDetails::Repair { .. }
-                | RoutingCandidateDetails::Staged { .. }
-                | RoutingCandidateDetails::LocalVia { .. } => {
-                    librepcb_i18n::tr!("Autorouter", "Autoroute Board")
-                }
-                RoutingCandidateDetails::Edit { .. } => {
-                    librepcb_i18n::tr!("librepcb::editor::CmdBoardNetLineEdit", "Edit trace")
-                }
-                RoutingCandidateDetails::Copper { .. } => "Add routed copper".into(),
-                RoutingCandidateDetails::PlaneStitch { .. } => "Stitch copper plane island".into(),
-            },
-            candidate.mutations.clone(),
-        )?;
+        let text = match candidate.info.details {
+            RoutingCandidateDetails::Builtin { .. }
+            | RoutingCandidateDetails::Regional { .. }
+            | RoutingCandidateDetails::Repair { .. }
+            | RoutingCandidateDetails::Staged { .. }
+            | RoutingCandidateDetails::LocalVia { .. } => {
+                librepcb_i18n::tr!("Autorouter", "Autoroute Board")
+            }
+            RoutingCandidateDetails::Edit { .. } => {
+                librepcb_i18n::tr!("librepcb::editor::CmdBoardNetLineEdit", "Edit trace")
+            }
+            RoutingCandidateDetails::Copper { .. } => "Add routed copper".into(),
+            RoutingCandidateDetails::PlaneStitch { .. } => "Stitch copper plane island".into(),
+        };
+        editor.execute_atomic(text, |tx| -> crate::Result<()> {
+            let guard = crate::board_requirements::RoutingGuard::capture(
+                tx.project(),
+                candidate.info.board,
+            )?;
+            tx.apply_all(candidate.mutations.clone())?;
+            guard.enforce(tx.project())
+        })?;
         let candidate = self
             .candidates
             .remove(&id)

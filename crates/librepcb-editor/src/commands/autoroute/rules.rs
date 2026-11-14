@@ -21,6 +21,7 @@ enum Source {
     BuiltinDefault,
     BuiltinAuto,
     BoardStackup,
+    BoardRequirement,
 }
 
 #[derive(Clone, Copy, Serialize)]
@@ -134,6 +135,8 @@ struct Report {
     net_class_drc: Option<NetClassDrc>,
     grid_pitch: GridPitchReport,
     trace_layers: LayerReport,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    new_vias_allowed: Option<bool>,
     via_cost: RuleValue,
     max_rip_ups: u32,
 }
@@ -449,15 +452,22 @@ impl<'a> Inputs<'a> {
                             .allowed_layers
                             .as_ref()
                             .is_none_or(|allowed| allowed.contains(layer))
+                            && rules
+                                .net_layers
+                                .get(&net.0)
+                                .is_none_or(|allowed| allowed.contains(layer))
                     })
                     .map(|layer| layer.id())
                     .collect(),
-                source: if rules.allowed_layers.is_some() {
+                source: if rules.net_layers.contains_key(&net.0) {
+                    Source::BoardRequirement
+                } else if rules.allowed_layers.is_some() {
                     Source::Request { field: "layers" }
                 } else {
                     Source::BoardStackup
                 },
             },
+            new_vias_allowed: rules.no_vias.contains(&net.0).then_some(false),
             via_cost: RuleValue {
                 length: rules.via_cost,
                 source: self

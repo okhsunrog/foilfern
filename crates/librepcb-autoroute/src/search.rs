@@ -78,6 +78,8 @@ pub(crate) const NEUTRAL: DirFactors = [100; 8];
 pub(crate) struct Query<'a> {
     pub grid: &'a Grid,
     pub layers: usize,
+    /// Routing layers reachable via a new via. Zero disables new vias.
+    pub via_layers: u64,
     /// Trace map of the net's width (fixed and routes), `layers * cells`.
     pub trace_fixed: &'a [u32],
     pub trace_routes: &'a [u32],
@@ -205,11 +207,13 @@ fn detour_distances(
         }
         let static_via_free = usable(q.via_fixed[cell], q.owner) && q.within_region(cell, true);
         let route_via_free = usable(q.via_routes[cell], q.owner);
-        if q.layers > 1 && static_via_free && route_via_free {
-            for predecessor in (0..q.layers).filter(|&predecessor| predecessor != layer) {
+        if q.via_layers != 0 && static_via_free && route_via_free {
+            for predecessor in (0..q.layers).filter(|&predecessor| {
+                predecessor != layer && q.via_layers & (1 << predecessor) != 0
+            }) {
                 relax(predecessor * cells + cell, q.via_cost, true);
             }
-        } else if q.layers > 1
+        } else if q.via_layers != 0
             && let Some(frontier) = evidence.as_deref_mut()
         {
             frontier.record_spread(
@@ -577,9 +581,10 @@ impl Search {
             }
 
             // Layer changes.
-            if q.layers > 1 && (!usable(q.via_fixed[c], q.owner) || !q.within_region(c, true)) {
+            if q.via_layers != 0 && (!usable(q.via_fixed[c], q.owner) || !q.within_region(c, true))
+            {
                 record_block(node, true, false);
-            } else if q.layers > 1 {
+            } else if q.via_layers != 0 {
                 let mut cost = q.via_cost;
                 let via_free = usable(q.via_routes[c], q.owner);
                 if !via_free && !q.soft {
@@ -591,7 +596,7 @@ impl Search {
                     if let Some(history) = q.congestion {
                         cost = cost.saturating_add(history.cost(history.via_tile(c)));
                     }
-                    for l in (0..q.layers).filter(|&l| l != layer) {
+                    for l in (0..q.layers).filter(|&l| l != layer && q.via_layers & (1 << l) != 0) {
                         let idx = l * cells + c;
                         if !usable(q.trace_fixed[idx], q.owner) {
                             record_block(idx, true, false);
@@ -678,6 +683,7 @@ mod tests {
     fn distinguishes_search_budget_from_exhausted_frontier() {
         let grid = Grid::new(P::new(0, 0), P::new(2, 0), 1);
         let mut query = Query {
+            via_layers: 0,
             grid: &grid,
             layers: 1,
             trace_fixed: &[FREE; 3],
@@ -736,6 +742,7 @@ mod tests {
         let targets = HashMap::from([(node(8, 1) as u32, 0)]);
         let sources = [(node(2, 1) as u32, 0)];
         let mut query = Query {
+            via_layers: 0,
             grid: &grid,
             layers: 1,
             trace_fixed: &fixed,
@@ -800,6 +807,7 @@ mod tests {
         routes[alternative] = 3;
         let vias = vec![FREE; grid.cells()];
         let mut query = Query {
+            via_layers: 0,
             grid: &grid,
             layers: 1,
             trace_fixed: &fixed,

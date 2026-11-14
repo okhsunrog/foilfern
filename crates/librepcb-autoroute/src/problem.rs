@@ -192,6 +192,10 @@ pub struct RoutingRules {
     /// Layers routes may use; `None` allows all copper layers. Vias always go
     /// through all copper layers.
     pub allowed_layers: Option<Vec<Layer>>,
+    /// Per-net restrictions, intersected with the globally allowed layers.
+    pub net_layers: BTreeMap<NetId, BTreeSet<Layer>>,
+    /// Nets for which the router may not create vias.
+    pub no_vias: BTreeSet<NetId>,
     /// Preferred trace direction per layer. Moves against it cost more.
     pub preferred_directions: BTreeMap<Layer, PreferredDirection>,
     /// Pitch of the routing grid; `None` chooses 0.1 mm, coarser for large
@@ -229,6 +233,8 @@ impl Default for RoutingRules {
             via_diameter: positive(700_000),
             via_cost: Length::new(2_000_000),
             allowed_layers: None,
+            net_layers: BTreeMap::new(),
+            no_vias: BTreeSet::new(),
             preferred_directions: BTreeMap::new(),
             grid_pitch: None,
             max_rip_ups: 3,

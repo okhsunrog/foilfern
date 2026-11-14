@@ -18,6 +18,7 @@ use librepcb_core::project::{
 use librepcb_core::types::{
     Angle, ElementName, Layer, Length, Point, PositiveLength, UnsignedLength,
 };
+use librepcb_editor::board_requirements::RoutingGuard;
 use librepcb_editor::commands::{
     AddBoard, AddBoardPolygon, AddDevice, AddPlane, AddTrace, AddVia, AutoPlaceDevices, Autoroute,
     BoardSelection, EditBoardSettings, EditPlane, EditTraceWidths, ImportSpecctraSession,
@@ -514,6 +515,7 @@ pub fn device_place(session: &mut Session, args: DevicePlaceArgs) -> ToolResult<
     };
     let default_position = center();
     let done = write(session, "device_place", args.expected_revision, |tx| {
+        let guard = RoutingGuard::capture(tx.project(), board)?;
         match existing {
             None => {
                 tx.run(AddDevice {
@@ -546,6 +548,7 @@ pub fn device_place(session: &mut Session, args: DevicePlaceArgs) -> ToolResult<
                 })?;
             }
         }
+        guard.enforce(tx.project())?;
         Ok(())
     })?;
     let open = session.project()?;
@@ -601,11 +604,14 @@ pub fn device_auto_place(
         .collect::<ToolResult<_>>()?;
     let spacing = args.spacing.map(|s| unsigned(s, "spacing")).transpose()?;
     let done = write(session, "device_auto_place", args.expected_revision, |tx| {
-        Ok(tx.run(AutoPlaceDevices {
+        let guard = RoutingGuard::capture(tx.project(), board)?;
+        let result = tx.run(AutoPlaceDevices {
             board: Some(board),
             components: components.into_iter().map(Into::into).collect(),
             spacing,
-        })?)
+        })?;
+        guard.enforce(tx.project())?;
+        Ok(result)
     })?;
     let open = session.project()?;
     let p = open.project();
@@ -733,7 +739,8 @@ pub fn trace_add(session: &mut Session, args: TraceAddArgs) -> ToolResult<ToolOu
         .map(|n| resolve::net(p, n).map(|(id, _)| NetRef::Id(id)))
         .transpose()?;
     let done = write(session, "trace_add", args.expected_revision, |tx| {
-        Ok(tx.run(AddTrace {
+        let guard = RoutingGuard::capture(tx.project(), board)?;
+        let result = tx.run(AddTrace {
             board: Some(board),
             start,
             end,
@@ -741,7 +748,9 @@ pub fn trace_add(session: &mut Session, args: TraceAddArgs) -> ToolResult<ToolOu
             layer,
             width,
             net,
-        })?)
+        })?;
+        guard.enforce(tx.project())?;
+        Ok(result)
     })?;
     let open = session.project()?;
     let p = open.project();
@@ -846,11 +855,14 @@ pub fn trace_update(session: &mut Session, args: TraceUpdateArgs) -> ToolResult<
     let before = capture_routing_state(&mut session.project_mut()?.editor, board)?;
     let revision = session.project()?.project().revision();
     let done = write(session, "trace_update", Some(revision), |tx| {
-        Ok(tx.run(EditTraceWidths {
+        let guard = RoutingGuard::capture(tx.project(), board)?;
+        let result = tx.run(EditTraceWidths {
             board: Some(board),
             traces: traces.into_iter().collect(),
             width,
-        })?)
+        })?;
+        guard.enforce(tx.project())?;
+        Ok(result)
     })?;
     let validation = RoutingValidation::compare(
         before,
@@ -915,7 +927,8 @@ pub fn via_add(session: &mut Session, args: ViaAddArgs) -> ToolResult<ToolOutput
     let drill = args.drill.map(|d| positive(d, "drill")).transpose()?;
     let size = args.size.map(|d| positive(d, "size")).transpose()?;
     let done = write(session, "via_add", args.expected_revision, |tx| {
-        Ok(tx.run(AddVia {
+        let guard = RoutingGuard::capture(tx.project(), board)?;
+        let result = tx.run(AddVia {
             board: Some(board),
             position,
             net: Some(NetRef::Id(net)),
@@ -924,7 +937,9 @@ pub fn via_add(session: &mut Session, args: ViaAddArgs) -> ToolResult<ToolOutput
             drill_diameter: drill,
             size,
             exposure: None,
-        })?)
+        })?;
+        guard.enforce(tx.project())?;
+        Ok(result)
     })?;
     let open = session.project()?;
     let p = open.project();
@@ -1009,10 +1024,13 @@ pub fn trace_remove(session: &mut Session, args: TraceRemoveArgs) -> ToolResult<
     }
     let (traces, vias) = (selection.traces.len(), selection.vias.len());
     let done = write(session, "trace_remove", args.expected_revision, |tx| {
-        Ok(tx.run(RemoveBoardItems {
+        let guard = RoutingGuard::capture(tx.project(), board)?;
+        let result = tx.run(RemoveBoardItems {
             board: Some(board),
             selection,
-        })?)
+        })?;
+        guard.enforce(tx.project())?;
+        Ok(result)
     })?;
     let open = session.project()?;
     let result = board_overview(open.project(), board)?;
@@ -1458,11 +1476,24 @@ pub fn autoroute_prepare(session: &mut Session, args: AutorouteArgs) -> ToolResu
     let p = session.project()?.project();
     crate::tools::write::check_revision(p, args.expected_revision)?;
     let board = board_id(p, args.board.as_deref())?;
+    let requirements = librepcb_core::project::board_requirements::Requirements::load(p)
+        .map_err(librepcb_editor::Error::from)?;
+    let constrained = requirements.on_board(board).any(|rule| {
+        matches!(
+            rule.check,
+            librepcb_core::project::board_requirements::Check::NetRouting { .. }
+        )
+    });
     let filtered = !args.nets.is_empty() || !args.layers.is_empty();
     let mut notes = Vec::new();
     let router = match args.backend {
         RouterBackend::Builtin => None,
         RouterBackend::Freerouting => {
+            if constrained {
+                return Err(ToolError::invalid(
+                    "Use the builtin router to search with this board's saved net routing rules.",
+                ));
+            }
             if filtered {
                 return Err(ToolError::invalid(
                     "Freerouting routes the whole board; nets and layers are only supported \
@@ -1476,7 +1507,7 @@ pub fn autoroute_prepare(session: &mut Session, args: AutorouteArgs) -> ToolResu
                 )
             })?)
         }
-        RouterBackend::Auto if filtered => None,
+        RouterBackend::Auto if filtered || constrained => None,
         RouterBackend::Auto => match FreeroutingRouter::detect() {
             Ok(r) => Some(r),
             Err(e) => {
@@ -1532,7 +1563,10 @@ pub fn autoroute_builtin(
     // before it, then use the current revision while holding the same lock.
     let revision = session.project()?.project().revision();
     let done = write(session, "autoroute", Some(revision), |tx| {
-        Ok(tx.run(command)?)
+        let guard = RoutingGuard::capture(tx.project(), board)?;
+        let result = tx.run(command)?;
+        guard.enforce(tx.project())?;
+        Ok(result)
     })?;
     let validation = RoutingValidation::compare(
         before,
@@ -1629,11 +1663,14 @@ pub fn autoroute_freerouting_finish(
     let elapsed = output.elapsed;
     let manifest = job.manifest.clone();
     let done = write(session, "autoroute", Some(revision), |tx| {
-        Ok(tx.run(ImportSpecctraSession {
+        let guard = RoutingGuard::capture(tx.project(), board)?;
+        let result = tx.run(ImportSpecctraSession {
             board: Some(board),
             session: output.session,
             manifest: Some(manifest),
-        })?)
+        })?;
+        guard.enforce(tx.project())?;
+        Ok(result)
     })?;
     let validation = RoutingValidation::compare(
         job.validation_before,
@@ -1800,11 +1837,14 @@ pub fn specctra_import(session: &mut Session, args: SpecctraImportArgs) -> ToolR
     let before = capture_routing_state(&mut session.project_mut()?.editor, board)?;
     let revision = session.project()?.project().revision();
     let done = write(session, "specctra_import", Some(revision), |tx| {
-        Ok(tx.run(ImportSpecctraSession {
+        let guard = RoutingGuard::capture(tx.project(), board)?;
+        let result = tx.run(ImportSpecctraSession {
             board: Some(board),
             session: content,
             manifest: None,
-        })?)
+        })?;
+        guard.enforce(tx.project())?;
+        Ok(result)
     })?;
     let validation = RoutingValidation::compare(
         before,

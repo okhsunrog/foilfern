@@ -1493,6 +1493,32 @@ impl LibrePcbMcp {
         self.run(|s| crate::tools::requirements::check(s)).await
     }
 
+    #[tool(
+        description = "Read the saved board requirements and revision. Rules use stable board, device, pad, net and copper UUIDs."
+    )]
+    async fn board_requirements_get(&self) -> Result<CallToolResult, McpError> {
+        self.run(|s| crate::tools::board_requirements::get(s)).await
+    }
+
+    #[tool(
+        description = "Replace the project's saved board requirements as one undoable edit. Device regions, pad distances, trace paths, net routing rules and protected trace/via UUIDs are supported. Use expected_revision from board_requirements_get."
+    )]
+    async fn board_requirements_set(
+        &self,
+        Parameters(args): Parameters<crate::tools::board_requirements::SetArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| crate::tools::board_requirements::set(s, args))
+            .await
+    }
+
+    #[tool(
+        description = "Measure saved board requirements on the current boards. Reports hard blockers, warnings and pending anchored trace paths."
+    )]
+    async fn board_requirements_check(&self) -> Result<CallToolResult, McpError> {
+        self.run(|s| crate::tools::board_requirements::evaluate(s))
+            .await
+    }
+
     // --- Escape hatch -------------------------------------------------------------
 
     #[tool(

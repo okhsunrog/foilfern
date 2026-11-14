@@ -3,6 +3,7 @@
 //! [`server`](crate::server). Each module documents its tools.
 
 pub mod board_edit;
+pub mod board_requirements;
 pub mod circuit;
 pub mod design;
 pub mod ground_reference;

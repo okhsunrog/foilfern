@@ -41,6 +41,7 @@
 
 mod attribute_lookup;
 pub mod board;
+pub mod board_requirements;
 mod bom_generator;
 mod change;
 pub mod circuit;

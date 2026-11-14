@@ -376,7 +376,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 36);
+    assert_eq!(info["api_capability_version"], 37);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -2582,6 +2582,278 @@ async fn stdio_design_preview_reports_resolved_erc_without_changing_approvals() 
     );
     assert_eq!(call_ok(&client, "project_summary", json!({})).await, before);
     assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn stdio_board_requirements_gate_routing_and_survive_reopen() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    let project = call_ok(
+        &client,
+        "project_create",
+        json!({"name":"Board requirements"}),
+    )
+    .await;
+    for (name, x) in [("R1", 5), ("R2", 15), ("R3", 23)] {
+        call_ok(
+            &client,
+            "component_add",
+            json!({"part":"R-0805","designator":name}),
+        )
+        .await;
+        call_ok(
+            &client,
+            "device_place",
+            json!({
+                "component":name,"position":{"x":x,"y":10},"rotation":90
+            }),
+        )
+        .await;
+    }
+    call_ok(
+        &client,
+        "connect",
+        json!({"net":"A","pins":["R1.1","R2.1"]}),
+    )
+    .await;
+    call_ok(
+        &client,
+        "connect",
+        json!({"net":"B","pins":["R1.2","R3.2"]}),
+    )
+    .await;
+    call_ok(
+        &client,
+        "board_set_outline",
+        json!({"width":30,"height":20}),
+    )
+    .await;
+    let protected = call_ok(
+        &client,
+        "trace_add",
+        json!({
+            "from":"R1.2","to":"R3.2","layer":"top","width":0.3
+        }),
+    )
+    .await["traces"][0]["uuid"]
+        .clone();
+    let baseline = call_ok(&client, "board_get", json!({})).await;
+    let stale = call_ok(&client, "routing_prepare", json!({"nets":["A"]})).await;
+    let empty = call_ok(&client, "board_requirements_get", json!({})).await;
+    assert_eq!(empty["document"]["requirements"], json!([]));
+    let document = json!({"version":1,"requirements":[
+        {"id":"placement","source":"Mechanical review","severity":"hard","board":"default",
+         "check":{"kind":"device_region","component":"R2","min":{"x":11,"y":9},"max":{"x":15,"y":11}}},
+        {"id":"distance","source":"Board layout","severity":"hard","board":"default",
+         "check":{"kind":"pad_distance","from":"R1.1","to":"R2.1","max_distance_mm":10.1}},
+        {"id":"short-path","source":"Board layout","severity":"hard","board":"default",
+         "check":{"kind":"trace_path","from":"R1.1","to":"R2.1","max_length_mm":7,"max_layer_changes":0,"layers":["top"]}},
+        {"id":"top-only","source":"Layer plan","severity":"hard","board":"default",
+         "check":{"kind":"net_routing","net":"A","layers":["top"],"allow_vias":false,"priority":true}},
+        {"id":"reference","source":"Board layout","severity":"hard","board":"default",
+         "check":{"kind":"protected_copper","object":protected}},
+        {"id":"distance-advisory","source":"Board layout","severity":"warning","board":"default",
+         "check":{"kind":"pad_distance","from":"R1.1","to":"R2.1","max_distance_mm":5}}
+    ]});
+    let stored = call_ok(
+        &client,
+        "board_requirements_set",
+        json!({
+            "expected_revision":empty["revision"],"document":document
+        }),
+    )
+    .await["document"]
+        .clone();
+    let status = call_ok(&client, "board_requirements_check", json!({})).await;
+    assert_eq!(status["pending_requirements"], json!(["short-path"]));
+    assert_eq!(status["blocking_requirements"], json!([]));
+    let stale_apply = call(
+        &client,
+        "routing_apply",
+        json!({"candidate":stale["candidate"]}),
+    )
+    .await;
+    assert_eq!(
+        stale_apply.structured_content.unwrap()["error"]["kind"],
+        "stale_revision"
+    );
+    call_ok(
+        &client,
+        "routing_discard",
+        json!({"candidate":stale["candidate"]}),
+    )
+    .await;
+    let revision = status["revision"].clone();
+    let unchanged = call_ok(
+        &client,
+        "board_requirements_set",
+        json!({
+            "expected_revision":revision,"document":stored
+        }),
+    )
+    .await;
+    assert_eq!(unchanged["change_count"], 0);
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(
+        call_ok(&client, "board_requirements_get", json!({})).await["document"],
+        empty["document"]
+    );
+    call_ok(&client, "redo", json!({})).await;
+    let saved = call_ok(&client, "board_requirements_get", json!({})).await;
+    assert_eq!(saved["document"], stored);
+
+    let blocked = call(&client, "trace_remove", json!({"uuids":[protected]})).await;
+    assert_eq!(
+        blocked.structured_content.unwrap()["error"]["kind"],
+        "refused"
+    );
+    let blocked = call(
+        &client,
+        "routing_repair_start",
+        json!({
+            "target":"A","groups":[[protected]],
+            "region":{"min":{"x":0,"y":0},"max":{"x":30,"y":20}},
+            "rip_up_region":{"min":{"x":0.5,"y":8},"max":{"x":27,"y":13}}
+        }),
+    )
+    .await;
+    let error = &blocked.structured_content.unwrap()["error"];
+    assert_eq!(error["kind"], "refused", "{error:#}");
+    assert!(
+        error["message"]
+            .as_str()
+            .unwrap()
+            .contains("protected copper"),
+        "{error:#}"
+    );
+
+    let denied = call(
+        &client,
+        "routing_prepare",
+        json!({
+            "nets":["A"],"layers":["bottom"]
+        }),
+    )
+    .await
+    .structured_content
+    .unwrap()["result"]
+        .clone();
+    assert_eq!(denied["routing"]["traces"], 0, "{denied:#}");
+    call_ok(
+        &client,
+        "routing_discard",
+        json!({"candidate":denied["candidate"]}),
+    )
+    .await;
+    let too_long = call(&client, "routing_prepare", json!({"nets":["A"]}))
+        .await
+        .structured_content
+        .unwrap();
+    let result = &too_long["result"];
+    let findings = result["validation"]["board_requirements_after"]
+        .as_array()
+        .unwrap();
+    let path = findings
+        .iter()
+        .find(|finding| finding["id"] == "short-path")
+        .unwrap();
+    assert_eq!(path["status"], "fail");
+    assert_eq!(path["measured"]["layers"], json!(["top_cu"]));
+    let refused = call(
+        &client,
+        "routing_apply",
+        json!({"candidate":result["candidate"]}),
+    )
+    .await;
+    assert_eq!(
+        refused.structured_content.unwrap()["error"]["kind"],
+        "refused"
+    );
+    call_ok(
+        &client,
+        "routing_discard",
+        json!({"candidate":result["candidate"]}),
+    )
+    .await;
+    let direct = call(
+        &client,
+        "autoroute",
+        json!({"backend":"builtin","nets":["A"]}),
+    )
+    .await;
+    assert_eq!(
+        direct.structured_content.unwrap()["error"]["kind"],
+        "refused"
+    );
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, baseline);
+
+    let compare = call_ok(
+        &client,
+        "routing_placement_compare",
+        json!({
+            "targets":[{"component":"R2","positions":[{"x":11,"y":10},{"x":10,"y":10}]}],
+            "copper":{"route":{"nets":["A"]}}
+        }),
+    )
+    .await;
+    assert_eq!(
+        compare["trials"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|trial| trial["candidate"].is_string())
+            .count(),
+        1,
+        "{compare:#}"
+    );
+    assert!(
+        compare["trials"].as_array().unwrap().iter().any(|trial| {
+            trial["validation"]["board_requirements_after"]
+                .as_array()
+                .is_some_and(|findings| {
+                    findings
+                        .iter()
+                        .any(|finding| finding["id"] == "placement" && finding["status"] == "fail")
+                })
+        }),
+        "{compare:#}"
+    );
+    let applied = call_ok(
+        &client,
+        "routing_apply",
+        json!({"candidate":compare["recommended"]}),
+    )
+    .await;
+    assert_eq!(applied["validation"]["acceptable"], true, "{applied:#}");
+    let status = call_ok(&client, "board_requirements_check", json!({})).await;
+    assert_eq!(status["pending_requirements"], json!([]));
+    assert_eq!(status["blocking_requirements"], json!([]));
+    assert!(
+        status["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|finding| finding["id"] == "distance-advisory" && finding["status"] == "fail")
+    );
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    call_ok(&client, "project_open", json!({"path":project["path"]})).await;
+    assert_eq!(
+        call_ok(&client, "board_requirements_get", json!({})).await["document"],
+        stored
+    );
+    assert_eq!(
+        call_ok(&client, "board_requirements_check", json!({})).await["findings"],
+        status["findings"]
+    );
     client.cancel().await.unwrap();
 }
 

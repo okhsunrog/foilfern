@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `36`). Its `build` object contains
+`api_capability_version` (currently `37`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -735,6 +735,51 @@ binary at build time from `$LIBREPCB_UPSTREAM_DIR/share/librepcb/fontobene`
   `cargo test -p librepcb-mcp --test mcp stdio_esp32_c3_schematic_acceptance`.
 
 ### Reviewed builtin routing
+
+#### Saved board requirements
+
+`board_requirements_get` returns the version 1 `document` and current
+`revision`. Pass the full replacement `document` and that
+`expected_revision` to `board_requirements_set`. Each rule has a unique
+`id`, a nonempty engineering `source`, `severity` (`hard` or
+`warning`), a `board` and a `check`. Rewriting an equivalent document
+is a no-op. An empty list clears the asset. Save the project to persist it.
+The edit is undoable and invalidates earlier candidates.
+
+| `check.kind` | Fields |
+| --- | --- |
+| `device_region` | `component`, inclusive board-mm `min` and `max` for the footprint origin. Equal corners fix the position. |
+| `pad_distance` | `from`, `to`, `max_distance_mm` for straight-line distance between physical pad centers. |
+| `trace_path` | `from`, `to` and optional `net`, `max_length_mm`, `max_layer_changes`, `layers`. Measures the shortest anchored trace path. |
+| `net_routing` | `net`, optional `layers`, `allow_vias`, `priority`. Hard layer sets intersect existing request limits and other saved sets. A hard `allow_vias: false` forbids vias on this net. Priority uses the builtin critical-net tier. |
+| `protected_copper` | `object`, the UUID of an existing trace or via. A hard rule excludes it from suggested and authorized removals. Candidate checks compare its native properties and resolved geometry to the source. |
+
+Board, device and net names may be used to author a document. Pads accept
+a label such as `C5.1` or an object with `component` and `pad`. Reads
+return normalized UUIDs and native copper layer IDs. With an omitted
+trace-path net, the pads must resolve to the same assigned net.
+
+`board_requirements_check` reports measurements at the live revision.
+Routing validation reports `board_requirements_before` and
+`board_requirements_after`. Findings carry the source, normalized check
+in native nanometers, and measurements in mm where applicable. A hard failure or missing reference makes a
+candidate inapplicable. A trace path that is still unwired is `pending`
+so incremental routing can proceed. Removing an existing anchored path
+fails its requirement. A pending path still needs closure for board
+completion. Warning findings provide evidence and priority remains a
+search preference. Trace-path rules measure explicit traces without plane
+copper, via barrel length, or unanchored copper contacts.
+
+The builtin search, staged routing, joint repair and placement comparison
+inherit saved rules. Placement and path outcomes are measured on the
+candidate instead of rerunning with relaxed constraints. Review and apply
+still require explicit copper removal groups. Auto backend selection uses
+builtin when saved net-routing rules are present. Explicit Freerouting
+search requires a board without those rules, and Specctra import is checked
+against the saved rules before commit. The project asset is
+`project/foilfern-board-requirements.json` and uses integer nanometers.
+
+#### Routing candidates
 
 `routing_prepare` accepts builtin board/nets/layers and optional dimensions in
 mm, plus `expected_revision`. Requested and default trace widths are raised to

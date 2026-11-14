@@ -6,8 +6,8 @@
 //! upstream Qt context) plus argument errors of the command parameters,
 //! which have no upstream counterpart (upstream gets them from the UI).
 
-use librepcb_core::project::schematic_requirements;
 use librepcb_core::project::{self, LibraryElementKind};
+use librepcb_core::project::{board_requirements, schematic_requirements};
 use librepcb_core::types::Uuid;
 use librepcb_core::{fileio, library, serialization, types};
 use librepcb_i18n::tr;
@@ -37,6 +37,10 @@ pub enum Error {
     /// Reading or validating project-associated schematic requirements failed.
     #[error(transparent)]
     SchematicRequirements(#[from] schematic_requirements::Error),
+    #[error(transparent)]
+    BoardRequirements(#[from] board_requirements::Error),
+    #[error("Board requirements block this edit: {0}.")]
+    BoardRequirementsBlocked(String),
     /// The requirements changed since the schematic preview was prepared.
     #[error("Schematic requirements changed. Recompute the design preview.")]
     DesignRequirementsChanged,

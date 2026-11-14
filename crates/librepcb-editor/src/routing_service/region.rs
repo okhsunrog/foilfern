@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use librepcb_autoroute::RoutingRegion;
 use librepcb_core::geometry::{Trace, TraceAnchor, Via};
 use librepcb_core::project::board::{AirWire, Board, ViaView};
+use librepcb_core::project::board_requirements::Requirements;
 use librepcb_core::project::{BoardId, NetSegmentId, NetSignalId, Project};
 use librepcb_core::types::{Length, Point, PositiveLength, Uuid};
 use serde::Serialize;
@@ -58,9 +59,12 @@ impl RegionalRepairProposal {
     ) -> Result<Vec<Self>> {
         let region = bounds.region()?;
         let items = copper(project, board)?;
+        let requirements = Requirements::load(project)?;
         let eligible = |id: &Uuid| {
             items.get(id).filter(|item| {
-                item.net.is_some_and(|net| editable.contains(&net)) && item.geometry.fits(region)
+                item.net.is_some_and(|net| editable.contains(&net))
+                    && item.geometry.fits(region)
+                    && !requirements.protects(board.id(), *id)
             })
         };
         let mut proposals: Vec<Self> = Vec::new();
@@ -168,10 +172,36 @@ impl RegionalRepairProposal {
     }
 }
 
-#[derive(PartialEq, Eq)]
+pub(super) fn check_rip_up_permissions(
+    project: &Project,
+    board: BoardId,
+    selected: &BTreeSet<Uuid>,
+) -> Result<()> {
+    if !selected.is_empty() {
+        let requirements = Requirements::load(project)?;
+        if let Some(id) = selected
+            .iter()
+            .find(|id| requirements.protects(board, **id))
+        {
+            return Err(Error::BoardRequirementsBlocked(format!(
+                "protected copper {id}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Geometry {
-    Trace { trace: Trace, endpoints: [Point; 2] },
-    Via { via: Via, diameter: PositiveLength },
+    Trace {
+        trace: Trace,
+        endpoints: [Point; 2],
+    },
+    Via {
+        via: Via,
+        diameter: PositiveLength,
+        drill: PositiveLength,
+    },
 }
 
 impl Geometry {
@@ -182,12 +212,13 @@ impl Geometry {
         };
         match self {
             Self::Trace { trace, endpoints } => endpoints.iter().all(|&p| fits(p, trace.width())),
-            Self::Via { via, diameter } => fits(via.position(), *diameter),
+            Self::Via { via, diameter, .. } => fits(via.position(), *diameter),
         }
     }
 }
 
-pub(super) struct Copper {
+#[derive(Debug, Clone)]
+pub(crate) struct Copper {
     segment: NetSegmentId,
     net: Option<NetSignalId>,
     geometry: Geometry,
@@ -196,6 +227,10 @@ pub(super) struct Copper {
 impl Copper {
     pub(super) fn net(&self) -> Option<NetSignalId> {
         self.net
+    }
+
+    pub(crate) fn same_geometry(&self, other: &Self) -> bool {
+        self.net == other.net && self.geometry == other.geometry
     }
 
     pub(super) fn fits(&self, region: RoutingRegion) -> bool {
@@ -295,7 +330,15 @@ pub(super) fn retained_branch(
     (seen.len() == edges.len()).then(|| AirWire::new(net, (from, a), (to, b)))
 }
 
-pub(super) fn copper(project: &Project, board: &Board) -> Result<BTreeMap<Uuid, Copper>> {
+pub(crate) fn copper(project: &Project, board: &Board) -> Result<BTreeMap<Uuid, Copper>> {
+    copper_matching(project, board, |_| true)
+}
+
+pub(crate) fn copper_matching(
+    project: &Project,
+    board: &Board,
+    include: impl Fn(Uuid) -> bool,
+) -> Result<BTreeMap<Uuid, Copper>> {
     let mut items = BTreeMap::new();
     for (id, segment) in board.net_segments() {
         let mut record = |uuid: Uuid, geometry| {
@@ -317,7 +360,11 @@ pub(super) fn copper(project: &Project, board: &Board) -> Result<BTreeMap<Uuid, 
             }
             Ok(())
         };
-        for trace in segment.traces().values() {
+        for trace in segment
+            .traces()
+            .values()
+            .filter(|trace| include(trace.uuid()))
+        {
             let position = |anchor| {
                 board
                     .anchor_position(segment, anchor, project.library(), project.circuit())
@@ -331,13 +378,14 @@ pub(super) fn copper(project: &Project, board: &Board) -> Result<BTreeMap<Uuid, 
                 },
             )?;
         }
-        for via in segment.vias().values() {
+        for via in segment.vias().values().filter(|via| include(via.uuid())) {
             let view = ViaView::new(via, board, segment.net(), project.circuit())?;
             record(
                 via.uuid(),
                 Geometry::Via {
                     via: via.clone(),
                     diameter: view.size(),
+                    drill: view.drill_diameter(),
                 },
             )?;
         }
@@ -351,10 +399,7 @@ pub(super) fn ensure_preserved_copper(
     selected: &BTreeSet<Uuid>,
 ) -> std::result::Result<(), RoutingError> {
     for (uuid, item) in before {
-        if !selected.contains(uuid)
-            && !after
-                .get(uuid)
-                .is_some_and(|next| next.net == item.net && next.geometry == item.geometry)
+        if !selected.contains(uuid) && !after.get(uuid).is_some_and(|next| item.same_geometry(next))
         {
             return Err(RoutingError::Refused(format!(
                 "Routing would change protected copper {uuid}."
@@ -438,6 +483,7 @@ impl RegionalRoutingRequest {
             return Err(Error::InvalidArgument("improve_net must be a target net.".into()).into());
         }
         let selected: BTreeSet<_> = self.rip_up.iter().copied().collect();
+        check_rip_up_permissions(project, board_id, &selected)?;
         let before = copper(project, board)?;
         let mut selection = BoardSelection::default();
         for uuid in &selected {

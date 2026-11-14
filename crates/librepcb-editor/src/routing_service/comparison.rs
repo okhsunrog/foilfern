@@ -235,7 +235,9 @@ impl RoutingComparisonJob {
     pub fn run(mut self) -> Result<RoutingTrials, RoutingError> {
         let source = &mut self.source;
         let board = resolve_board(source.sandbox.project(), self.request.board)?.id();
-        let critical = self.request.critical_net_ids(source.sandbox.project())?;
+        let critical = self
+            .request
+            .critical_net_ids(source.sandbox.project(), board)?;
         let before = source.capture_before(board)?;
         let mut candidates = Vec::with_capacity(self.trials.len());
         for settings in self.trials {

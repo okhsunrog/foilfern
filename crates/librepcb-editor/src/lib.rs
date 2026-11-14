@@ -39,6 +39,7 @@
 //! interactive steps (dialogs, cursor positions, snapping) are replaced by
 //! explicit parameters.
 
+pub mod board_requirements;
 pub mod commands;
 pub mod design_preview;
 mod editor;

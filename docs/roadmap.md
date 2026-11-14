@@ -236,11 +236,15 @@ saved the project, preserving the asset byte for byte. Foilfern reopened it
 and reproduced all three findings. The stdio test also covers undo/redo,
 stale previews and native project archive export.
 
-Board scope: fixed devices, allowed placement regions, protected copper,
-allowed routing layers, via prohibition and selected reference-coverage targets.
-Reuse native DRC/keepout/lock fields where their semantics match. Additional
-requirements need a versioned project-associated representation with object UUIDs,
-source, units, severity and the revision of their evidence.
+The [board requirements API](mcp-design.md#saved-board-requirements) stores
+device regions, pad proximity, anchored trace limits, per-net layer and via
+rules, routing priority and protected trace/via UUIDs. Builtin search uses
+the saved per-net rules. Placement and routing candidates carry measured
+before/after evidence and the same rules gate apply. Explicit removals
+still use the caller's UUID allowlist.
+
+Continue P2 with selected reference-coverage targets and broader RF/crystal
+acceptance. Reuse native DRC, keepouts and locks where their semantics match.
 
 Done when:
 

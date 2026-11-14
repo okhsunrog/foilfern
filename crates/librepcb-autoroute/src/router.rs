@@ -432,6 +432,14 @@ impl<'p> Router<'p> {
         self.problem.rules.trace_width_of(&self.nets[net as usize])
     }
 
+    fn layer_allowed(&self, net: u32, layer: usize) -> bool {
+        self.problem
+            .rules
+            .net_layers
+            .get(&self.nets[net as usize])
+            .is_none_or(|layers| layers.contains(&self.problem.copper_layers[self.routing[layer]]))
+    }
+
     fn net_region(&self, net: u32) -> Option<RoutingRegion> {
         self.problem
             .net_regions
@@ -505,7 +513,7 @@ impl<'p> Router<'p> {
             |node: usize| usable(map.fixed[node], owner) && usable(map.routes[node], owner);
         let mut out: HashMap<u32, (u32, Ep)> = HashMap::new();
         let add = |out: &mut HashMap<u32, (u32, Ep)>, node: usize, cost: u32, ep: Ep| {
-            if !usable_node(node) {
+            if !usable_node(node) || !self.layer_allowed(wire.net, node / cells) {
                 return;
             }
             let e = out.entry(node as u32).or_insert((cost, ep));
@@ -662,7 +670,7 @@ impl<'p> Router<'p> {
                     (((hi.y - g.y0) as f64 / pitch).floor().max(-1.0) as i64).min(g.ny as i64 - 1);
                 let mut out = Vec::new();
                 for (l, &cu) in self.routing.iter().enumerate() {
-                    if scope_bits & (1u64 << cu) == 0 {
+                    if scope_bits & (1u64 << cu) == 0 || !self.layer_allowed(net, l) {
                         continue;
                     }
                     for j in j0 as i64..=j1 {
@@ -834,9 +842,11 @@ impl<'p> Router<'p> {
             })
             .collect();
         let mut probes = Vec::new();
-        for &cu in &self.routing {
+        for (index, &cu) in self.routing.iter().enumerate() {
             let layer = self.problem.copper_layers[cu];
-            if matches!(&t.layers, LayerScope::Only(layers) if !layers.contains(&layer)) {
+            if !self.layer_allowed(net, index)
+                || matches!(&t.layers, LayerScope::Only(layers) if !layers.contains(&layer))
+            {
                 continue;
             }
             for (dx, dy) in [
@@ -941,9 +951,27 @@ impl<'p> Router<'p> {
         source_list.sort_unstable();
         let target_costs: HashMap<u32, u32> = targets.iter().map(|(n, (c, _))| (*n, *c)).collect();
         let map = &self.trace_maps[&h];
+        let mut via_layers = 0u64;
+        if !self
+            .problem
+            .rules
+            .no_vias
+            .contains(&self.nets[wire.net as usize])
+        {
+            for layer in 0..self.routing.len() {
+                if self.layer_allowed(wire.net, layer) {
+                    via_layers |= 1 << layer;
+                }
+            }
+        }
         let query = Query {
             grid: &self.grid,
             layers: self.routing.len(),
+            via_layers: if via_layers.count_ones() > 1 {
+                via_layers
+            } else {
+                0
+            },
             trace_fixed: &map.fixed,
             trace_routes: &map.routes,
             via_fixed: &self.via_map.fixed,
