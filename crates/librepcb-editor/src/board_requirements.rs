@@ -107,6 +107,16 @@ pub struct RoutingGuard {
 impl RoutingGuard {
     pub fn capture(project: &Project, board: BoardId) -> Result<Self> {
         let requirements = Requirements::load(project)?;
+        Self::capture_with(project, board, requirements)
+    }
+
+    /// Measures the source using the proposed requirements before an edit
+    /// that may also change the saved rules.
+    pub fn capture_with(
+        project: &Project,
+        board: BoardId,
+        requirements: Requirements,
+    ) -> Result<Self> {
         let before = State::capture(project, board, &requirements)?;
         Ok(Self {
             board,
@@ -115,10 +125,19 @@ impl RoutingGuard {
         })
     }
 
-    pub fn enforce(&self, project: &Project) -> Result<()> {
+    pub fn findings_before(&self) -> &[Finding] {
+        &self.before.findings
+    }
+
+    pub fn findings_after(&self, project: &Project) -> Result<Vec<Finding>> {
         let after = State::capture(project, self.board, &self.requirements)?;
-        let blockers: Vec<_> = after
-            .findings_after(&self.before)
+        Ok(after.findings_after(&self.before).collect())
+    }
+
+    pub fn enforce(&self, project: &Project) -> Result<()> {
+        let blockers: Vec<_> = self
+            .findings_after(project)?
+            .into_iter()
             .filter(Finding::blocks_routing)
             .map(|finding| finding.id)
             .collect();
@@ -193,10 +212,9 @@ impl State {
                 };
             }
             if finding.status == Status::Pending
-                && before
-                    .findings
-                    .iter()
-                    .any(|old| old.id == finding.id && old.status != Status::Pending)
+                && before.findings.iter().any(|old| {
+                    old.id == finding.id && matches!(old.measured, Measurement::TracePath { .. })
+                })
             {
                 finding.status = Status::Fail;
             }

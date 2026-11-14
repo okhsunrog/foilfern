@@ -459,7 +459,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 39);
+    assert_eq!(info["api_capability_version"], 40);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -3786,5 +3786,305 @@ async fn stdio_manufacturing_profile_preview_apply_and_reopen() {
     call_ok(&client, "project_open", json!({"path":project["path"]})).await;
     let reopened = call_ok(&client, "design_rules_get", json!({})).await;
     assert_eq!(reopened["profile"], applied["profile"]);
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn stdio_declarative_board_placement_reviews_and_replays_one_patch() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(temp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    let project = call_ok(&client, "project_create", json!({"name":"Board layout"})).await;
+    let part = call_ok(
+        &client,
+        "component_add",
+        json!({"part":"R-0805","designator":"R3"}),
+    )
+    .await;
+    let component = call_ok(&client, "component_get", json!({"component":"R3"})).await;
+    let library_component = component["library_component"]["uuid"].clone();
+    let device = component["selected_device"].clone();
+    assert!(
+        library_component.is_string() && device.is_string(),
+        "{part:#}\n{component:#}"
+    );
+    call_ok(&client, "component_remove", json!({"component":"R3"})).await;
+
+    let before = call_ok(&client, "board_get", json!({})).await;
+    let history = call_ok(&client, "history", json!({})).await;
+    let document = json!({
+        "version":1, "schematic":"Main", "add_nets":["LINK"],
+        "add_components":{
+            "anchor":{"designator":"R1","library_component":library_component,"device":device,
+                "value":"1k","connections":{"1":"LINK"}},
+            "follower":{"designator":"R2","library_component":library_component,"device":device,
+                "value":"1k","connections":{"1":"LINK"}}
+        },
+        "board_layout":{
+            "regions":{"connector":{"min":{"x":10,"y":12},"max":{"x":10,"y":12}}},
+            "placements":{
+                "anchor":{"position":{"x":10,"y":12},"locked":true,"rotation":90,"region":"connector"},
+                "follower":{"relative_to":{"component":"anchor","pad":"1","offset":{"x":8,"y":2}},
+                    "side":"bottom"}
+            },
+            "requirements":[{"id":"fixed-connector","source":"Enclosure drawing","severity":"hard",
+                "check":{"kind":"device_region","component":"anchor",
+                    "min":{"x":10,"y":12},"max":{"x":10,"y":12}}}]
+        }
+    });
+    let planned = call_ok(&client, "design_preview", document.clone()).await;
+    let review = &planned["board_layout"];
+    assert_eq!(review["applicable"], true, "{planned:#}");
+    assert_eq!(review["regions"][0]["met"], true);
+    assert_eq!(review["validation"]["after"]["unrouted"], 1, "{review:#}");
+    assert_eq!(
+        review["validation"]["board_requirements_after"][0]["status"],
+        "pass"
+    );
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":planned["preview"]}),
+    )
+    .await;
+    let after = call_ok(&client, "board_get", json!({})).await;
+    let devices = after["devices"].as_array().unwrap();
+    let anchor = devices.iter().find(|d| d["designator"] == "R1").unwrap();
+    let follower = devices.iter().find(|d| d["designator"] == "R2").unwrap();
+    let pad = anchor["pads"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["name"] == "1")
+        .unwrap();
+    assert_eq!(
+        follower["position"]["x"].as_f64().unwrap(),
+        pad["position"]["x"].as_f64().unwrap() + 8.0
+    );
+    assert!(
+        (follower["position"]["y"].as_f64().unwrap()
+            - pad["position"]["y"].as_f64().unwrap()
+            - 2.0)
+            .abs()
+            < 1e-9
+    );
+    assert_eq!(follower["side"], "bottom");
+    assert_eq!(anchor["locked"], true);
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
+    assert_eq!(
+        call_ok(&client, "board_requirements_get", json!({})).await["document"]["requirements"],
+        json!([])
+    );
+    call_ok(&client, "redo", json!({})).await;
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, after);
+
+    let locked = call(
+        &client,
+        "design_preview",
+        json!({"version":1,"board_layout":{"placements":{
+            "R1":{"position":{"x":11,"y":12},"expected":{"position":{"x":10,"y":12}}}
+        }}}),
+    )
+    .await;
+    assert_eq!(
+        locked.structured_content.unwrap()["error"]["kind"],
+        "refused"
+    );
+    let cycle = call(
+        &client,
+        "design_preview",
+        json!({"version":1,"board_layout":{"placements":{
+            "R1":{"relative_to":{"component":"R2","offset":{"x":0,"y":1}}},
+            "R2":{"relative_to":{"component":"R1","offset":{"x":0,"y":1}}}
+        }}}),
+    )
+    .await;
+    assert_eq!(
+        cycle.structured_content.unwrap()["error"]["kind"],
+        "invalid_argument"
+    );
+    let region = call_ok(
+        &client,
+        "design_preview",
+        json!({"version":1,"board_layout":{
+            "placements":{"R2":{"region":"outside"}},
+            "regions":{"outside":{"min":{"x":1,"y":1},"max":{"x":2,"y":2}}}
+        }}),
+    )
+    .await;
+    assert_eq!(region["board_layout"]["applicable"], false);
+    let rejected = call(
+        &client,
+        "design_apply",
+        json!({"preview":region["preview"]}),
+    )
+    .await;
+    assert_eq!(
+        rejected.structured_content.unwrap()["error"]["kind"],
+        "refused"
+    );
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, after);
+
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    call_ok(&client, "project_open", json!({"path":project["path"]})).await;
+    let replay = call_ok(&client, "design_preview", document).await;
+    assert_eq!(replay["diff"], json!([]), "{replay:#}");
+    let history = call_ok(&client, "history", json!({})).await;
+    assert_eq!(
+        call_ok(
+            &client,
+            "design_apply",
+            json!({"preview":replay["preview"]})
+        )
+        .await["operation_count"],
+        0
+    );
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    call_ok(
+        &client,
+        "autoroute",
+        json!({"backend":"builtin","nets":["LINK"]}),
+    )
+    .await;
+    let routed = call_ok(&client, "board_get", json!({})).await;
+    assert_eq!(routed["air_wires"], json!([]), "{routed:#}");
+    let current = routed["devices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["designator"] == "R2")
+        .unwrap()["position"]
+        .clone();
+    let x = current["x"].as_f64().unwrap();
+    let crowded = call_ok(
+        &client,
+        "design_preview",
+        json!({"version":1,"board_layout":{"placements":{
+            "R2":{"position":{"x":x+0.1,"y":current["y"]},"expected":{"position":current}}
+        }}}),
+    )
+    .await;
+    assert_eq!(crowded["board_layout"]["applicable"], false, "{crowded:#}");
+    assert_eq!(
+        crowded["board_layout"]["validation"]["new_copper_error_count"],
+        1
+    );
+    let position = json!({"x":x-0.1,"y":current["y"]});
+    let mut move_doc = json!({"version":1,"board_layout":{"placements":{
+        "R2":{"position":position}
+    }}});
+    let conflict = call(&client, "design_preview", move_doc.clone()).await;
+    assert_eq!(
+        conflict.structured_content.unwrap()["error"]["kind"],
+        "conflict"
+    );
+    move_doc["board_layout"]["placements"]["R2"]["expected"] = json!({"position":current});
+    let movement = call_ok(&client, "design_preview", move_doc).await;
+    let layout = &movement["board_layout"];
+    assert_eq!(layout["applicable"], true, "{layout:#}");
+    let changed = layout["changed_traces"].as_array().unwrap();
+    assert!(!changed.is_empty());
+    assert!(changed.iter().all(|t| t["before"] != t["after"]));
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, routed);
+    let guarded_trace = changed[0]["uuid"].clone();
+    let protect = json!({"version":1,"board_layout":{
+        "placements":{"R2":{"position":position,"expected":{"position":current}}},
+        "requirements":[{"id":"preserve-branch","source":"Reviewed routing","severity":"hard",
+            "check":{"kind":"protected_copper","object":guarded_trace}}]
+    }});
+    let protected = call_ok(&client, "design_preview", protect).await;
+    assert_eq!(
+        protected["board_layout"]["applicable"], false,
+        "{protected:#}"
+    );
+    assert!(
+        protected["board_layout"]["blockers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|b| b == "board requirement preserve-branch")
+    );
+    let rejected = call(
+        &client,
+        "design_apply",
+        json!({"preview":protected["preview"]}),
+    )
+    .await;
+    assert_eq!(
+        rejected.structured_content.unwrap()["error"]["kind"],
+        "refused"
+    );
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, routed);
+    let movement = json!({"version":1,"board_layout":{"placements":{
+        "R2":{"position":position,"expected":{"position":current}}
+    }}});
+    let stale = call_ok(&client, "design_preview", movement.clone()).await;
+    call_ok(
+        &client,
+        "design_rules_set",
+        json!({"min_pth_slot_width":0.65}),
+    )
+    .await;
+    let refused = call(&client, "design_apply", json!({"preview":stale["preview"]})).await;
+    assert_eq!(
+        refused.structured_content.unwrap()["error"]["kind"],
+        "stale_revision"
+    );
+    let movement = call_ok(&client, "design_preview", movement).await;
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":movement["preview"]}),
+    )
+    .await;
+    let moved = call_ok(&client, "board_get", json!({})).await;
+    assert_eq!(moved["air_wires"], json!([]));
+    assert_eq!(
+        moved["traces"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| &t["uuid"])
+            .collect::<Vec<_>>(),
+        routed["traces"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| &t["uuid"])
+            .collect::<Vec<_>>()
+    );
+    let follower = moved["devices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["designator"] == "R2")
+        .unwrap();
+    let removal = call_ok(
+        &client,
+        "design_preview",
+        json!({"version":1,"schematic":"Main","remove_components":[follower["component"]],
+            "board_layout":{"placements":{},"requirements":[
+                {"id":"preserve-branch","source":"Reviewed routing","severity":"hard",
+                 "check":{"kind":"protected_copper","object":guarded_trace}}
+            ]}
+        }),
+    )
+    .await;
+    assert_eq!(removal["board_layout"]["applicable"], false, "{removal:#}");
+    assert_eq!(
+        removal["board_layout"]["blockers"],
+        json!(["board requirement preserve-branch"])
+    );
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, moved);
     client.cancel().await.unwrap();
 }

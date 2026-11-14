@@ -38,25 +38,25 @@ struct Document {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-struct RuleInput {
-    id: String,
-    source: String,
-    severity: SeverityInput,
+pub(super) struct RuleInput {
+    pub(super) id: String,
+    pub(super) source: String,
+    pub(super) severity: SeverityInput,
     /// Board name, index or UUID.
-    board: String,
-    check: CheckInput,
+    pub(super) board: String,
+    pub(super) check: CheckInput,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-enum SeverityInput {
+pub(super) enum SeverityInput {
     Hard,
     Warning,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-enum CheckInput {
+pub(super) enum CheckInput {
     /// Required rectangle for a placed device origin in board millimeters.
     DeviceRegion {
         component: String,
@@ -125,7 +125,7 @@ fn pad(project: &Project, id: BoardId, address: &trace_path::PadAddress) -> Tool
 }
 
 impl RuleInput {
-    fn resolve(self, project: &Project) -> ToolResult<Requirement> {
+    pub(super) fn resolve(self, project: &Project) -> ToolResult<Requirement> {
         let board_id = match resolve::parse_uuid(&self.board) {
             Some(id) => id.into(),
             None => board_edit::board_id(project, Some(&self.board))?,
@@ -218,7 +218,7 @@ impl RuleInput {
     }
 }
 
-fn requirement_json(rule: &Requirement) -> Value {
+pub(super) fn requirement_json(rule: &Requirement) -> Value {
     let check = match &rule.check {
         Check::DeviceRegion {
             component,

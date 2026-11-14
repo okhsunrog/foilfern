@@ -1,4 +1,4 @@
-//! Admission, progress and cooperative cancellation for schematic previews.
+//! Admission, progress and cooperative cancellation for design previews.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -96,7 +96,7 @@ impl WorkQueue {
         if state.active.is_some() {
             return Err(ToolError::new(
                 ErrorKind::Conflict,
-                "A schematic preview is already being prepared.",
+                "A design preview is already being prepared.",
             ));
         }
         let work = Arc::new(Work {
@@ -120,7 +120,7 @@ impl WorkQueue {
         let state = self.state.lock();
         let active = state.active.as_ref().map(|work| work.report(None));
         ToolOutput::new(
-            "Schematic preview status.",
+            "Design preview status.",
             json!({"active":active,"last":state.last}),
         )
     }
@@ -133,18 +133,18 @@ impl WorkQueue {
             .as_ref()
             .filter(|work| work.id == id)
             .ok_or_else(|| {
-                ToolError::not_found("There is no active schematic preview with that job ID.")
+                ToolError::not_found("There is no active design preview with that job ID.")
             })?;
         let mut status = work.state.lock();
         if matches!(status.stage, Stage::Publish) {
             return Err(ToolError::new(
                 ErrorKind::Conflict,
-                "The schematic preview is already publishing.",
+                "The design preview is already publishing.",
             ));
         }
         work.request_stop(&mut status, Stop::Cancelled);
         ToolOutput::new(
-            "Schematic preview stop requested.",
+            "Design preview stop requested.",
             json!({"job":id,"stop_requested":status.stop}),
         )
     }
@@ -175,11 +175,11 @@ impl Work {
         match state.stop {
             Some(Stop::Cancelled) => Err(ToolError::new(
                 ErrorKind::Cancelled,
-                "The schematic preview was cancelled.",
+                "The design preview was cancelled.",
             )),
             Some(Stop::BudgetExhausted) => Err(ToolError::new(
                 ErrorKind::BudgetExhausted,
-                "The schematic preview exceeded its time budget.",
+                "The design preview exceeded its time budget.",
             )),
             None => {
                 state.stage = stage;

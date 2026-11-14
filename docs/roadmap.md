@@ -31,7 +31,7 @@ because its tools exist or one board has zero air wires.
 | Stage | Result | Dependencies | State |
 | --- | --- | --- | --- |
 | P0 | Identifiable builds, concise responses and measured operation costs | Existing API | Complete; [release replay](benchmarks/esp-pd-sink/review/performance/p0/REPORT.md) |
-| P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; creation, local rewiring and reviewed topology edits verified |
+| P1 | Declarative schematic and board updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; creation, local rewiring, reviewed topology edits and board placement implemented |
 | P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | In progress; schematic requirements and apply gate implemented, board requirements next |
 | P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | In progress; schematic preview, local repair and placement searches report status, budgets and cancellation |
 | P4 | Diagnosed local repair with bounded placement alternatives | P2, P3 | In progress; authorized branch repair and region-based placement trials implemented |
@@ -162,6 +162,13 @@ replay of the rename.
 The same document format can rename a UUID-bound component. The stdio replay
 checks the guarded change, retains the component UUID, and preserves its
 subsequent manual move and empty replay after reopening.
+
+The same document can select a board, place components at explicit
+coordinates or relative to a pad, lock interfaces, check named regions and
+save board requirements. Preview shows pose changes, affected trace
+endpoints, board DRC and connectivity. Existing placements use expected
+values for changed fields. Placement and schematic edits can share one
+reviewed patch.
 
 Done when:
 

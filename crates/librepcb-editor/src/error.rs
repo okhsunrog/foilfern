@@ -47,6 +47,10 @@ pub enum Error {
     /// Applying the design would violate or leave hard requirements unresolved.
     #[error("Schematic requirements block this design: {0}.")]
     DesignRequirementsBlocked(String),
+    #[error("Board requirements changed. Recompute the design preview.")]
+    BoardDesignRequirementsChanged,
+    #[error("Board placement blocks apply: {0}.")]
+    BoardDesignBlocked(String),
     /// A group is active, so no other group can be started and undo/redo
     /// are not possible.
     #[error("{}", tr!("librepcb::editor::UndoStack", "Another command is active at the moment. Please finish that command to continue."))]

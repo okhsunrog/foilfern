@@ -2,10 +2,12 @@
 
 use librepcb_core::fileio::FilePath;
 use librepcb_core::geometry::Text;
+use librepcb_core::project::board_requirements::Requirements as BoardRequirements;
 use librepcb_core::project::schematic_requirements::{Finding, Requirements};
-use librepcb_core::project::{Mutation, Project, SchematicMutation, SymbolRef};
+use librepcb_core::project::{BoardId, Mutation, Project, SchematicMutation, SymbolRef};
 use librepcb_core::types::Uuid;
 
+use crate::board_requirements::RoutingGuard;
 use crate::commands::{EditComponent, MoveSymbol, WireGroup};
 use crate::{Error, Operation, ProjectEditor, Result, Transaction};
 
@@ -47,6 +49,15 @@ pub struct DesignPreview {
     operations: Vec<Operation>,
     requirements: Requirements,
     requirement_findings: Vec<Finding>,
+    board_review: Option<BoardReview>,
+}
+
+#[derive(Debug)]
+struct BoardReview {
+    board: BoardId,
+    before: BoardRequirements,
+    after: BoardRequirements,
+    blockers: Vec<String>,
 }
 
 /// The source context and independent model used to prepare one preview.
@@ -100,6 +111,7 @@ impl DesignPreviewJob {
                 operations,
                 requirements,
                 requirement_findings,
+                board_review: None,
             },
             detached.into_project(),
             preview_project,
@@ -143,11 +155,28 @@ impl DesignPreview {
         &self.requirement_findings
     }
 
+    /// Binds a board placement review to the exact patch and requirements.
+    pub fn review_board(
+        &mut self,
+        board: BoardId,
+        before: &Project,
+        after: &Project,
+        blockers: Vec<String>,
+    ) -> Result<()> {
+        self.board_review = Some(BoardReview {
+            board,
+            before: BoardRequirements::load(before)?,
+            after: BoardRequirements::load(after)?,
+            blockers,
+        });
+        Ok(())
+    }
+
     /// Replays the reviewed patch as one undo step.
     pub fn apply(self, editor: &mut ProjectEditor) -> Result<()> {
         if !self.matches(editor.project()) {
             return Err(crate::Error::InvalidArgument(
-                "The schematic preview is stale.".into(),
+                "The design preview is stale.".into(),
             ));
         }
         if editor.undo_stack().is_group_active() {
@@ -157,12 +186,34 @@ impl DesignPreview {
             return Err(Error::DesignRequirementsChanged);
         }
         check_requirements(&self.requirement_findings)?;
+        let board_guard = self
+            .board_review
+            .map(|review| -> Result<_> {
+                let project = editor.project();
+                if BoardRequirements::load(project)? != review.before {
+                    return Err(Error::BoardDesignRequirementsChanged);
+                }
+                if !review.blockers.is_empty() {
+                    return Err(Error::BoardDesignBlocked(review.blockers.join(", ")));
+                }
+                let guard =
+                    RoutingGuard::capture_with(project, review.board, review.after.clone())?;
+                Ok((guard, review.after))
+            })
+            .transpose()?;
         if !self.operations.is_empty() {
-            editor.execute_atomic("Apply schematic design", |tx| -> Result<()> {
+            editor.execute_atomic("Apply design", |tx| -> Result<()> {
                 for operation in self.operations {
                     tx.apply_operation(operation)?;
                 }
-                check_requirements(&self.requirements.evaluate(tx.project()))
+                check_requirements(&self.requirements.evaluate(tx.project()))?;
+                if let Some((guard, expected)) = board_guard {
+                    if BoardRequirements::load(tx.project())? != expected {
+                        return Err(Error::BoardDesignRequirementsChanged);
+                    }
+                    guard.enforce(tx.project())?;
+                }
+                Ok(())
             })?;
         }
         Ok(())

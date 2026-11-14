@@ -1,4 +1,4 @@
-//! Declarative schematic creation and edits with a reviewed patch.
+//! Declarative schematic and board edits with a reviewed patch.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Weak};
@@ -31,6 +31,7 @@ use crate::session::Session;
 use crate::tools::write::Written;
 use crate::{resolve, units, units::PointMm, views};
 
+mod board_layout;
 mod erc;
 mod no_connect;
 mod text_placement;
@@ -111,8 +112,8 @@ struct ManagedMirror {
 pub struct DesignDocument {
     /// Schema version. Currently 1.
     version: u32,
-    /// Schematic name or UUID for the preview.
-    schematic: String,
+    /// Schematic name or UUID. Omit for a board-only document.
+    schematic: Option<String>,
     /// If true, interpret schematic as an exact page name and create it if missing.
     #[serde(default)]
     create_schematic: bool,
@@ -166,6 +167,8 @@ pub struct DesignDocument {
     place_text: Option<text_placement::PlaceText>,
     /// Bounded row/column placement of selected existing components.
     block: Option<SchematicBlock>,
+    /// Place components and establish board requirements in the same patch.
+    board_layout: Option<board_layout::BoardLayout>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -414,7 +417,7 @@ pub(crate) fn capture(session: &mut Session, doc: DesignDocument) -> ToolResult<
 
 pub(crate) fn prepare(
     job: PreviewJob,
-    checkpoint: impl Fn(Stage) -> ToolResult<()>,
+    checkpoint: impl Fn(Stage) -> ToolResult<()> + Sync,
 ) -> ToolResult<PreparedPreview> {
     checkpoint(Stage::Plan)?;
     let PreviewJob {
@@ -423,6 +426,56 @@ pub(crate) fn prepare(
         snapshot,
         document: doc,
     } = job;
+    let Some(schematic_selector) = &doc.schematic else {
+        let layout = doc.board_layout.ok_or_else(|| {
+            ToolError::invalid("Supply schematic or board_layout in the design document.")
+        })?;
+        if doc.create_schematic
+            || doc.compare_images
+            || doc.image_region.is_some()
+            || !doc.components.is_empty()
+            || !doc.add_components.is_empty()
+            || !doc.add_nets.is_empty()
+            || !doc.rename_nets.is_empty()
+            || !doc.remove_components.is_empty()
+            || !doc.pin_nets.is_empty()
+            || !doc.no_connects.is_empty()
+            || !doc.nets.is_empty()
+            || !doc.wire_groups.is_empty()
+            || !doc.notes.is_empty()
+            || !doc.symbol_styles.is_empty()
+            || !doc.review_components.is_empty()
+            || doc.place_text.is_some()
+            || doc.block.is_some()
+        {
+            return Err(ToolError::invalid(
+                "Schematic edits require a schematic selector. For board-only placement use designators or component UUIDs.",
+            ));
+        }
+        let mut diff = Vec::new();
+        let (mut preview, before, after, placement) = snapshot.prepare(|tx| {
+            layout.apply(tx, &BTreeMap::new(), false, &mut diff, || {
+                checkpoint(Stage::Plan)
+            })
+        })?;
+        checkpoint(Stage::Check)?;
+        let review =
+            placement.review(&mut preview, &before, &after, || checkpoint(Stage::Check))?;
+        let mut output = ToolOutput::new(
+            format!("{} board design changes.", diff.len()),
+            json!({"preview":preview.id,"base_revision":preview.revision,"diff":diff,
+                "board_layout":review.evidence}),
+        )?;
+        if review.blocked {
+            output = output.warn("Board placement checks block apply.");
+        }
+        return Ok(PreparedPreview {
+            source_project,
+            source_library,
+            preview,
+            output,
+        });
+    };
     let region = doc
         .image_region
         .map(super::output::SchematicRegion::points)
@@ -430,13 +483,13 @@ pub(crate) fn prepare(
     let p = snapshot.project();
     let mut new_page = None;
     let schematic = if doc.create_schematic {
-        let name = ElementName::new(doc.schematic.trim())?;
+        let name = ElementName::new(schematic_selector.trim())?;
         match p.schematic_by_name(name.as_str()) {
             Some(schematic) => schematic,
             None => new_page.insert(new_schematic(p, name)?),
         }
     } else {
-        resolve::schematic(p, Some(&doc.schematic))?.2
+        resolve::schematic(p, Some(schematic_selector))?.2
     };
     let page = schematic.id();
     let removals = doc
@@ -711,7 +764,7 @@ pub(crate) fn prepare(
     } else {
         None
     };
-    let (preview, before, project, (added, verified, topology, text_placement)) = snapshot.prepare(
+    let (mut preview, before, project, (added, verified, topology, text_placement, placement)) = snapshot.prepare(
         |tx| -> ToolResult<_> {
             let mut added = Vec::new();
             if let Some(schematic) = new_page {
@@ -911,7 +964,10 @@ pub(crate) fn prepare(
                 }
                 Ok::<_, ToolError>(evidence)
             }).transpose()?;
-            Ok((added, verified.len(), topology, text_placement))
+            let placement = doc.board_layout.map(|layout| {
+                layout.apply(tx, &bindings, true, &mut added, || checkpoint(Stage::Plan))
+            }).transpose()?;
+            Ok((added, verified.len(), topology, text_placement, placement))
         },
     )?;
     checkpoint(Stage::Check)?;
@@ -950,11 +1006,19 @@ pub(crate) fn prepare(
         payload["requirements"] =
             super::requirements::evidence(&project, findings, preview.revision, Some(preview.id));
     }
-    let mut summary = format!("{} schematic changes.", diff.len());
+    let mut summary = format!("{} design changes.", diff.len());
     if blockers > 0 {
         summary.push_str(&format!(
             " {blockers} schematic requirement(s) block apply."
         ));
+    }
+    if let Some(placement) = placement {
+        let review =
+            placement.review(&mut preview, &before, &project, || checkpoint(Stage::Check))?;
+        if review.blocked {
+            summary.push_str(" Board placement checks block apply.");
+        }
+        payload["board_layout"] = review.evidence;
     }
     checkpoint(Stage::Render)?;
     let output = if doc.compare_images || region.is_some() {
@@ -992,7 +1056,7 @@ pub(crate) fn publish(session: &mut Session, prepared: PreparedPreview) -> ToolR
     let stale = || {
         ToolError::new(
             ErrorKind::StaleRevision,
-            "The project changed while the schematic preview was prepared. Retry design_preview.",
+            "The project changed while the design preview was prepared. Retry design_preview.",
         )
     };
     let current = session.shared_project().ok_or_else(stale)?;
@@ -1528,7 +1592,7 @@ pub fn discard(session: &mut Session, args: DesignPreviewArgs) -> ToolResult<Too
     {
         return Err(ToolError::not_found("Unknown design preview."));
     }
-    ToolOutput::new("Discarded the schematic preview.", json!({"preview": id}))
+    ToolOutput::new("Discarded the design preview.", json!({"preview": id}))
 }
 
 #[cfg(test)]

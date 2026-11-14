@@ -1407,10 +1407,10 @@ impl LibrePcbMcp {
         self.run(move |s| output::render(s, args)).await
     }
 
-    // --- Declarative schematic updates -------------------------------------------
+    // --- Declarative design updates ----------------------------------------------
 
     #[tool(
-        description = "Preview a version 1 schematic document and render the resulting page. Create a sheet, nets and parts, manage fields, find a clear field position with place_text, place selected blocks and draw local wire paths. Reports ERC changes, affected board objects, schematic requirements and reviewed annotation overlaps."
+        description = "Preview a version 1 design document for schematic edits, board placement or both. Board placement reports pose diffs, DRC, connectivity and saved requirements. Create a sheet, nets and parts, manage fields, find a clear field position with place_text, place selected blocks and draw local wire paths. Reports ERC changes, affected board objects, schematic requirements and reviewed annotation overlaps."
     )]
     async fn design_preview(
         &self,
@@ -1450,7 +1450,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Read the active schematic preview job, current stage and latest terminal outcome. Poll while design_preview is running."
+        description = "Read the active design preview job, current stage and latest terminal outcome. Poll while design_preview is running."
     )]
     async fn design_preview_status(&self) -> Result<CallToolResult, McpError> {
         Ok(match self.state.schematic_previews().status() {
@@ -1460,7 +1460,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Request cooperative cancellation of the active schematic preview by its job UUID. Use design_preview_status to observe when it stops."
+        description = "Request cooperative cancellation of the active design preview by its job UUID. Use design_preview_status to observe when it stops."
     )]
     async fn design_preview_cancel(
         &self,
@@ -1473,7 +1473,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Apply the exact patch from design_preview as one undo step. Stale previews and hard schematic requirement failures are refused. An empty patch adds no undo step."
+        description = "Apply the exact patch from design_preview as one undo step. Stale previews and blocking design checks are refused. An empty patch adds no undo step."
     )]
     async fn design_apply(
         &self,
@@ -1484,7 +1484,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Discard a completed schematic preview by its UUID without editing the project. Use design_preview_cancel for a running preview job."
+        description = "Discard a completed design preview by its UUID without editing the project. Use design_preview_cancel for a running preview job."
     )]
     async fn design_discard(
         &self,

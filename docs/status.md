@@ -126,6 +126,10 @@ Declarative documents can also create and wire parts from a blank sheet,
 remove existing components and reassign pins with a preview of the affected
 board objects. The [P1 acceptance runs](roadmap.md#p1--declarative-design-updates)
 record empty replay after save/reopen and preservation of unrelated geometry.
+[Declarative board placement](mcp-design.md#declarative-board-placement) adds
+explicit poses, pad-relative offsets, fixed interfaces, and saved board
+rules to the same preview and undo group. The board review shows affected
+trace endpoints, DRC, and connectivity before apply.
 The [schematic requirements tools](mcp-design.md#schematic-requirements) store
 UUID-bound positions, orientations, regions and net memberships with explicit
 evidence and enforce hard requirements on declarative apply.

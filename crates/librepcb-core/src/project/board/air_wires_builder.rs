@@ -24,7 +24,7 @@ use crate::project::Project;
 use crate::project::change::Change;
 use crate::project::circuit::Circuit;
 use crate::project::error::{EntityKind, Error, Result};
-use crate::project::id::{BoardId, NetSignalId, PlaneId};
+use crate::project::id::{BoardId, ComponentInstanceId, NetSignalId, PlaneId};
 use crate::project::library::ProjectLibrary;
 use crate::types::{Layer, Point};
 use crate::utils::painter_path::PainterPathPx;
@@ -59,12 +59,26 @@ impl<'a> BoardAirWiresBuilder<'a> {
     /// elements are missing are skipped (they cannot be in a validated
     /// project).
     pub fn new(board: &'a Board, library: &ProjectLibrary, circuit: &Circuit) -> Self {
+        Self::excluding_unwired_devices(board, library, circuit, &BTreeSet::new())
+    }
+
+    /// Collects existing connectivity while omitting newly placed, unwired
+    /// devices. Wired devices are always retained so traces keep all anchors.
+    pub fn excluding_unwired_devices(
+        board: &'a Board,
+        library: &ProjectLibrary,
+        circuit: &Circuit,
+        excluded: &BTreeSet<ComponentInstanceId>,
+    ) -> Self {
         let mut nets: BTreeMap<NetSignalId, NetItems> = BTreeMap::new();
         // Footprint pads, in upstream's registration order: component
         // signals of the net (by component, then signal), then the pads of
         // each signal (by pad UUID).
         let mut footprint_pads = Vec::new();
         for device in board.devices().values() {
+            if excluded.contains(&device.component()) && !board.is_device_used(device.component()) {
+                continue;
+            }
             let Ok(pads) = device.pads(library, circuit) else {
                 continue;
             };

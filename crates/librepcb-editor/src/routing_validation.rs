@@ -10,8 +10,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use librepcb_core::geometry::TraceAnchor;
-use librepcb_core::project::board::AirWire;
 use librepcb_core::project::board::drc::{DrcMessage, DrcMessageKind};
+use librepcb_core::project::board::{AirWire, BoardAirWiresBuilder};
 use librepcb_core::project::board_requirements::Requirements;
 use librepcb_core::project::{BoardId, ComponentInstanceId, NetSignalId};
 use librepcb_core::rule_check::Severity;
@@ -232,6 +232,26 @@ pub(crate) fn capture_routing_state_with_cancel(
     board: BoardId,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<RoutingSnapshot> {
+    capture_state(editor, board, cancelled, &BTreeSet::new())
+}
+
+/// Checks physical placement against the same DRC as routing. Exclude newly
+/// placed unwired devices from the connectivity comparison only.
+pub fn capture_placement_state(
+    editor: &mut ProjectEditor,
+    board: BoardId,
+    new_devices: &BTreeSet<ComponentInstanceId>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<RoutingSnapshot> {
+    capture_state(editor, board, cancelled, new_devices)
+}
+
+fn capture_state(
+    editor: &mut ProjectEditor,
+    board: BoardId,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    omitted_devices: &BTreeSet<ComponentInstanceId>,
+) -> Result<RoutingSnapshot> {
     let result = editor
         .update_derived_data(|p| p.run_drc_with_cancel(board, None, false, &|_| {}, cancelled))?;
     let p = editor.project();
@@ -298,12 +318,31 @@ pub(crate) fn capture_routing_state_with_cancel(
                 .map(move |(signal, instance)| ((component.id(), *signal), instance.net()))
         })
         .collect();
-    let air_wires: Vec<_> = p
+    let existing_wires = p
         .board(board)
-        .into_iter()
-        .flat_map(|b| b.derived().air_wires())
-        .filter_map(|(net, wires)| net.map(|net| (net, wires)))
-        .collect();
+        .filter(|_| !omitted_devices.is_empty())
+        .map(|board| {
+            let builder = BoardAirWiresBuilder::excluding_unwired_devices(
+                board,
+                p.library(),
+                p.circuit(),
+                omitted_devices,
+            );
+            p.circuit()
+                .net_signals()
+                .keys()
+                .map(|&net| (net, builder.build_air_wires(net)))
+                .collect::<BTreeMap<_, _>>()
+        });
+    let air_wires: Vec<_> = match &existing_wires {
+        Some(wires) => wires.iter().map(|(&net, wires)| (net, wires)).collect(),
+        None => p
+            .board(board)
+            .into_iter()
+            .flat_map(|b| b.derived().air_wires())
+            .filter_map(|(net, wires)| net.map(|net| (net, wires)))
+            .collect(),
+    };
     let unrouted_by_net = air_wires
         .iter()
         .map(|(id, wires)| (*id, wires.len()))
@@ -341,6 +380,14 @@ pub(crate) fn capture_routing_state_with_cancel(
 impl RoutingValidation {
     pub fn compare(before: RoutingSnapshot, after: RoutingSnapshot) -> Self {
         Self::compare_snapshots(&before, &after)
+    }
+
+    /// Placement additionally rejects new courtyard conflicts.
+    pub fn compare_placement(before: RoutingSnapshot, after: RoutingSnapshot) -> (Self, bool) {
+        let mut result = Self::compare_candidate(&before, &after);
+        let courtyard = after.has_new_warning(&before, DrcMessageKind::DeviceInCourtyard);
+        result.acceptable &= !courtyard;
+        (result, courtyard)
     }
 
     /// Reviewed candidates also require every net to keep its connectivity.

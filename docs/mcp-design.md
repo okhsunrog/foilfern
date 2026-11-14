@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `37`). Its `build` object contains
+`api_capability_version` (currently `40`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -178,10 +178,10 @@ report unknown provenance. The values are captured at build time.
 custom profiles by inheritance. `cargo_opt_level` reports Cargo's optimization
 setting for the MCP crate. Record the actual build command for timing comparisons.
 
-Declarative schematic creation (P1) starts with an open native project.
-Persisted schematic requirements (P2) are checked during declarative apply.
-Schematic previews have worker status, cancellation and matched images.
-Board requirements and desktop candidate review remain pending.
+Declarative schematic creation and board placement (P1) start with an open
+native project. Saved schematic and board requirements (P2) are checked
+during design apply. Design previews have worker status and cancellation.
+Schematic previews can return matched images.
 
 `routing_compare` ranks builtin candidates by order, via cost and path
 preferences. Local repair and region-based placement searches expose progress,
@@ -212,7 +212,7 @@ The read-only `render` tool accepts the same `image_region` on a schematic
 target. It returns one image of the live sheet with the requested frame.
 
 The server captures the source under the session lock, then plans, checks and
-renders on the detached model. One schematic preview may run per server state.
+renders on the detached model. One design preview may run per server state.
 A second request returns `conflict` and can be retried. Other tools can use
 the project while the preview runs. A changed revision, save context, library
 source or open project causes publication to return `stale_revision`.
@@ -373,7 +373,7 @@ membership reports a conflict. The key is stored in the component's native
 files. `nets` assertions and `wire_groups` can refer to new component keys in
 the same document. Set `assign_only: true` on a new part to supply its wires
 with explicit paths. By default each assigned pin gets a labeled stub.
-PCB placement remains a separate operation.
+Use `board_layout` to place those parts on the PCB in the same patch.
 
 Use `remove_components` to delete component instances by UUID. Repeating an
 already applied removal is a no-op. Use `pin_nets` to change a bound pin's
@@ -455,6 +455,67 @@ use either `place_text` or an explicit `text_positions` entry.
 as `text_position`, and the preview includes annotation changes for the target
 component. On sheets with embedded images the planner also checks the export
 geometry and font used by the PNG preview.
+
+### Declarative board placement
+
+Supply `board_layout` in a version 1 design document. Omit `schematic` for
+a board-only update, or include the two sections to plan and apply them in
+one operation. Select the board by name, index or UUID. The first board is the
+default. Placement keys resolve to document component keys, designators or
+component instance UUIDs. New parts can use the same keys as `add_components`.
+
+```json
+{
+  "version": 1,
+  "board_layout": {
+    "regions": {
+      "connector": {"min": {"x": 6, "y": 9}, "max": {"x": 8, "y": 11}}
+    },
+    "placements": {
+      "J1": {"position": {"x": 7, "y": 10}, "rotation": 90, "side": "top",
+             "locked": true, "region": "connector"},
+      "U1": {"position": {"x": 16, "y": 10}},
+      "C5": {"relative_to": {"component": "U1", "pad": "5",
+                             "offset": {"x": 1.2, "y": -0.8}}}
+    }
+  }
+}
+```
+
+For an unplaced part, choose either `position` or `relative_to`. The latter
+uses the final position of the anchor's origin or of a pad named by package
+pad name or footprint pad UUID. Offsets are in board X/Y millimeters.
+Rotation is in counterclockwise degrees. New placements default to zero
+rotation, the top side and unlocked. Optionally specify exact library
+`device` and `footprint` UUIDs. On an existing placement these UUIDs act as
+identity assertions. A named region checks the device origin against the
+inclusive bounds in board millimeters.
+
+For an existing placement, omitted pose fields keep their current values.
+To change a field, provide its current value in `expected`, for example
+`"expected":{"position":{"x":15,"y":10}}`. A field already at the requested
+value is a no-op. Moving, rotating or flipping a locked part requires a
+separate reviewed unlock.
+
+`board_layout.requirements` takes entries with `id`, `source`, `severity`
+and `check` from [saved board requirements](#saved-board-requirements).
+The selected board is implicit. Existing IDs must resolve to the same
+rule. New IDs are saved with the patch. Use a saved `device_region` check
+for a region that should also constrain later edits.
+
+The semantic `diff` reports device poses and new saved rules.
+`board_layout.changed_traces` shows the UUIDs and endpoint positions of
+traces that follow the moved pads. The board report includes DRC, rebuilt
+planes, connectivity, region checks and saved requirement evidence.
+`applicable: false` lists why apply is blocked. New devices can introduce
+expected air wires. The check still blocks increased gaps among the
+previously placed terminals of any existing net, new DRC errors, courtyard
+conflicts and failed hard rules. Use `unrouted_after` to see the total
+remaining connections, including new devices.
+
+Use `design_apply` with the preview ID. The exact patch is tied to the
+reviewed revision and goes into one undo entry. After save and reopen, an
+identical document at its desired state gives an empty diff.
 
 ### Schematic requirements
 

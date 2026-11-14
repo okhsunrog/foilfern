@@ -432,7 +432,7 @@ pub fn board_text_move(session: &mut Session, args: BoardTextMoveArgs) -> ToolRe
 }
 
 /// Board side of a device.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, serde::Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Side {
     /// Top side (default).

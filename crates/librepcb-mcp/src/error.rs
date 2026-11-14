@@ -219,10 +219,12 @@ impl From<librepcb_editor::Error> for ToolError {
                 file_io_kind(f)
             }
             E::BoardRequirements(project::board_requirements::Error::File(f)) => file_io_kind(f),
-            E::DesignRequirementsChanged => ErrorKind::StaleRevision,
-            E::DesignRequirementsBlocked(..) | E::BoardRequirementsBlocked(..) => {
-                ErrorKind::Refused
+            E::DesignRequirementsChanged | E::BoardDesignRequirementsChanged => {
+                ErrorKind::StaleRevision
             }
+            E::DesignRequirementsBlocked(..)
+            | E::BoardRequirementsBlocked(..)
+            | E::BoardDesignBlocked(..) => ErrorKind::Refused,
             E::NotFound { .. } | E::NotInLibrarySource { .. } | E::NotInProjectLibrary { .. } => {
                 ErrorKind::NotFound
             }

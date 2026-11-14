@@ -129,11 +129,14 @@ and IDs of non-edge polygons under `polygons` and board edges under
 `outlines`. To connect a copper polygon to a net, use `plane_add` with a
 custom `outline`, then rebuild planes.
 
-Use `device_place` to anchor connectors and mechanically constrained parts;
-then `device_auto_place` for the remaining components. Inspect `board_get`
-and `render` before routing. Automatic placement is a starting point;
-decoupling, return paths, thermal layout and sensitive signals need circuit
-specific placement decisions.
+Use [`design_preview` with `board_layout`](mcp-design.md#declarative-board-placement)
+to place a group at explicit coordinates or relative to device pads.
+Lock mechanically constrained parts and review DRC and any copper changes
+before applying. Use `device_place` for individual placements or
+`device_auto_place` to seed positions for the remaining components. Inspect
+`board_get` and `render` before routing. Automatic placement is a starting
+point. Decoupling, return paths, thermal layout and sensitive signals need
+circuit-specific placement decisions.
 
 `autoroute` supports `backend: "auto"`, `"builtin"` or `"freerouting"`.
 Auto uses an installed Freerouting executable when supported and otherwise
