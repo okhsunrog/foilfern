@@ -172,3 +172,19 @@ plus all-target importer Clippy. The external C8734 snapshot was converted,
 installed and reopened with the native reader: 48 pins, 48 pads, 48 mappings.
 Upstream CLI verification was skipped because the oracle binary was absent.
 This does not yet constitute a complete MCP acquisition flow or 3D alignment check.
+
+### STEP reference audit and representation appearance
+
+SolidCraft was inspected at `22aa00d0072686af2faf1a1f310e9ee6a73ad2a8`,
+particularly `crates/kernel/src/step_in/mod.rs` (representation traversal and
+appearance) and `solidcore/crates/solidcore-step`. Its software is MIT/Apache-2.0;
+the SolidCore subtree is Apache-2.0. UI/branding restrictions are outside this
+work. No SolidCraft code was copied. Its CAD backend differs from ours, so this
+is a reference audit rather than a proposed backend replacement.
+
+The actual C8734 STEP exposed a missing appearance case: a style on the shape
+representation itself. The STEP adapter now applies that style as a default for
+direct solid items, below explicit solid/shell/face styles. Conflicting defaults
+and mapped representation styles are refused instead of guessing instance colors.
+All 19 STEP tests passed; the original C8734 asset also loaded successfully in
+the supplier conversion experiment. Model/footprint alignment remains unverified.

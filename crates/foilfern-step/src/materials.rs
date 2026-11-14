@@ -1,6 +1,6 @@
 //! Port of libs/librepcb/core/3d/occmodel.cpp's surface appearance boundary.
 //! Uses step-p21's AST; Monstertruck 0.4.1 has no appearance import/export.
-//! The adapter retains surface RGB/opacity, with face > shell > solid priority.
+//! The adapter retains surface RGB/opacity, with face > shell > solid > representation priority.
 //! Unsupported style semantics fail rather than silently becoming gray.
 use crate::{
     PlacedSolid,
@@ -267,6 +267,8 @@ impl Records {
                     "OPEN_SHELL",
                     "ADVANCED_FACE",
                     "FACE_SURFACE",
+                    "ADVANCED_BREP_SHAPE_REPRESENTATION",
+                    "SHAPE_REPRESENTATION",
                 ]
                 .iter()
                 .any(|kind| self.part(target, kind).is_some())
@@ -288,6 +290,54 @@ impl Records {
                 owners.insert(target, id);
             }
         }
+        // AP214 producers also style a shape representation itself. Its
+        // material is a default for direct body items, below explicit body,
+        // shell and face styles. Do not flatten mapped/instance-specific
+        // representations into a global color or guess between conflicting
+        // defaults for a shared solid.
+        let mut inherited = BTreeMap::new();
+        for (&representation, &material) in &styles {
+            let kind = if self
+                .part(representation, "ADVANCED_BREP_SHAPE_REPRESENTATION")
+                .is_some()
+            {
+                "ADVANCED_BREP_SHAPE_REPRESENTATION"
+            } else if self.part(representation, "SHAPE_REPRESENTATION").is_some() {
+                "SHAPE_REPRESENTATION"
+            } else {
+                continue;
+            };
+            let args = self.args(representation, kind)?;
+            let items = args
+                .get(1)
+                .ok_or_else(|| invalid(representation, "missing representation items"))?;
+            for item in list(items, representation)? {
+                let item = reference(item, representation)?;
+                if self.part(item, "AXIS2_PLACEMENT_3D").is_some() {
+                    continue;
+                }
+                if !["MANIFOLD_SOLID_BREP", "BREP_WITH_VOIDS"]
+                    .iter()
+                    .any(|kind| self.part(item, kind).is_some())
+                {
+                    return Err(invalid(item, "unsupported styled representation item"));
+                }
+                if styles.contains_key(&item) {
+                    continue;
+                }
+                if inherited
+                    .get(&item)
+                    .is_some_and(|previous| previous != &material)
+                {
+                    return Err(invalid(
+                        item,
+                        "conflicting representation material defaults",
+                    ));
+                }
+                inherited.insert(item, material);
+            }
+        }
+        styles.extend(inherited);
         Ok(styles)
     }
     fn overrides(&self, mut style: u64, ancestor: Option<u64>) -> Result<bool> {
@@ -623,6 +673,45 @@ mod tests {
         let values = data.appearance(1, &data.surface_styles().unwrap()).unwrap();
         assert_eq!(values[0][0].unwrap().color, [0., 1., 0.]);
         assert_eq!(values[0][1].unwrap().color, [1., 0., 0.]);
+    }
+    #[test]
+    fn representation_style_is_a_default_below_body_and_face() {
+        let representation = "#6=ADVANCED_BREP_SHAPE_REPRESENTATION('',(#1,#7),#8);#7=AXIS2_PLACEMENT_3D('',#9,$,$);";
+        let data = records(&format!(
+            "{TOPOLOGY}{representation}{}",
+            style(100, 6, "1.,0.,0.", None)
+        ));
+        let colors = data.appearance(1, &data.surface_styles().unwrap()).unwrap();
+        assert!(
+            colors[0]
+                .iter()
+                .all(|color| color.unwrap().color == [1., 0., 0.])
+        );
+        let data = records(&format!(
+            "{TOPOLOGY}{representation}{}{}{}",
+            style(100, 6, "1.,0.,0.", None),
+            style(200, 1, "0.,1.,0.", None),
+            style(300, 3, "0.,0.,1.", None)
+        ));
+        let colors = data.appearance(1, &data.surface_styles().unwrap()).unwrap();
+        assert_eq!(colors[0][0].unwrap().color, [0., 0., 1.]);
+        assert_eq!(colors[0][1].unwrap().color, [0., 1., 0.]);
+    }
+
+    #[test]
+    fn conflicting_or_mapped_representation_defaults_are_refused() {
+        let representations = "#6=ADVANCED_BREP_SHAPE_REPRESENTATION('',(#1),#8);#7=ADVANCED_BREP_SHAPE_REPRESENTATION('',(#1),#8);";
+        let data = records(&format!(
+            "{TOPOLOGY}{representations}{}{}",
+            style(100, 6, "1.,0.,0.", None),
+            style(200, 7, "0.,1.,0.", None)
+        ));
+        assert!(data.surface_styles().is_err());
+        let data = records(&format!(
+            "{TOPOLOGY}#6=SHAPE_REPRESENTATION('',(#7),#8);#7=MAPPED_ITEM(#9,#10);{}",
+            style(100, 6, "1.,0.,0.", None)
+        ));
+        assert!(data.surface_styles().is_err());
     }
     #[test]
     fn transparency_named_colors_and_invalid_styles() {
