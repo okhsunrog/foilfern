@@ -57,6 +57,7 @@ GND plane and outline. Treat shove as a candidate strategy for further study.
 | ESP32-C3 GPIO6 | An explicit escape and joint search closed GPIO6 on a copy with C5 at 1.550 mm. The matched exploratory route took 42.593 mm with three transitions. | GPIO2 grew from 46.884 mm and one transition to 70.902 mm and three. With the experimental GPIO2 limit of 50 mm and one transition, 58 trials with exact branch endpoints yielded no candidate. |
 | ESP32-C3 GPIO6 with continuation evidence | An explicit escape exposed the Bottom GPIO2 diagonal and V3V3 branch. Joint repair of the two proposed branches replaced seven traces and closed GPIO6 at 37.147 mm with four transitions. C5 stayed at 1.550 mm and GPIO2 measured 47.030 mm with its original one transition. | The launch and edit permissions were supplied by the operator. Four other opens remain on this snapshot. |
 | ESP32-C3 GPIO6, generated escape sites | Starting from U1.12 and a 1 mm radius, the worker found five sites. All five closed GPIO6 when the same seven neighbor traces were authorized. The top-ranked site independently reproduced the 37.147 mm result. | None of the sites closed GPIO6 with fixed neighbor copper. The agent still selects which branch removals to authorize. |
+| ESP32-C3 GPIO6, diagnosis from generated sites | The five failed continuations exposed the GPIO2 and V3V3 branches missing from pad-only diagnosis. With one returned site and both returned branches explicitly authorized, joint repair closed GPIO6 at 37.176 mm. GPIO2 kept one transition and C5 stayed at 1.550 mm. LibrePCB 2.1.1 confirmed the removed gap and no added findings. | The replay allowed proposals on GPIO2 and V3V3 and chose branches that preserve existing vias and the C5 lead. Four other opens remain. |
 | ESP-PD-Sink, staged 146-open board | Joint repair replaced three GPIO4 traces between the retained via and junction. Both ESP_EN opens closed, for 146 → 144. Apply, undo/redo, save/reopen and LibrePCB 2.1.1 agreed. | One new useless-via warning in GPIO4. Sequential repair left both ESP_EN connections open. |
 | ESP-PD-Sink, separate fully connected review snapshot | Region-based placement tried 16 of 81 possible C29/C30 poses. The selected candidate changed the sum of four measured supply paths from 7.971 to 7.736 mm, preserved both In1 contacts and added no findings. | The comparison measures centerline geometry and connectivity. The two PD snapshots serve different tests. |
 
@@ -67,8 +68,7 @@ bounded placement and rotation search. The joint-repair experiment informs
 the existing A* workflow. External engines remain comparison tools, apart
 from the existing Freerouting integration.
 
-GPIO6 covers diagnosis through a staged escape, generated escape sites and
-joint branch repair. The next repair step is to feed failed site continuations
-into blocker diagnosis before the operator authorizes branch edits. Board-level
-persistence of pad-pair and placement requirements is tracked in
+GPIO6 covers diagnosis from a blocked pad through generated escape sites to
+joint branch repair. Board-level persistence of pad-pair and placement
+requirements is tracked in
 [P2](../roadmap.md#p2--persisted-requirements-and-evidence).

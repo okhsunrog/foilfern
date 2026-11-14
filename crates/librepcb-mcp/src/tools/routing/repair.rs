@@ -37,6 +37,8 @@ pub struct RepairArgs {
     pub editable_nets: Vec<String>,
     /// Optional builtin, staged or additive copper continuation candidate with search_evidence.
     pub evidence_candidate: Option<String>,
+    /// Finished additive escape search from this board and revision.
+    pub evidence_search: Option<String>,
     /// Max number of existing traces and vias in one suggestion, 1–16 (default 8).
     pub max_objects: Option<usize>,
 }
@@ -127,6 +129,11 @@ pub(super) fn suggest(
     service: &RoutingService,
     (reach, args): (PositiveLength, RepairArgs),
 ) -> ToolResult<Value> {
+    if args.evidence_search.is_some() && args.evidence_candidate.is_some() {
+        return Err(ToolError::invalid(
+            "Supply either evidence_search or evidence_candidate.",
+        ));
+    }
     let region = args.region.bounds()?.region()?;
     let edits = args.rip_up_region.bounds()?;
     if !region.contains(edits.min, Length::ZERO) || !region.contains(edits.max, Length::ZERO) {
@@ -185,6 +192,72 @@ pub(super) fn suggest(
     }
     let mut search_blockers = Vec::new();
     let mut continuation_failures = Vec::new();
+    let mut escape_sites = Vec::new();
+    let mut escape_blockers = Vec::new();
+    if let Some(id) = &args.evidence_search {
+        let id = crate::resolve::required_uuid(id, "repair search")?;
+        let failures = service
+            .repair_launch_failures(project, board.id(), net, id)
+            .map_err(super::routing_error)?;
+        let segments = copper_segments(board, net);
+        let same_branch = |a, b| {
+            a == b
+                || segments
+                    .get(&a)
+                    .is_some_and(|id| segments.get(&b) == Some(id))
+        };
+        for failure in failures {
+            let wire = &failure.wire;
+            let launch = &failure.launch;
+            let via = TraceAnchor::Via(failure.via);
+            let other = if wire.p1 == via { wire.p2 } else { wire.p1 };
+            let (component, pad) = launch.from;
+            let origin = TraceAnchor::FootprintPad {
+                device: component.0,
+                pad,
+            };
+            let matches = |[a, b]: [TraceAnchor; 2]| {
+                !same_branch(a, b)
+                    && ((same_branch(a, origin) && same_branch(b, other))
+                        || (same_branch(b, origin) && same_branch(a, other)))
+            };
+            if !matches(native_anchors)
+                || connections
+                    .iter()
+                    .filter(|ids| matches(ids.map(|id| extracted.terminal_anchors[id.0])))
+                    .take(2)
+                    .count()
+                    != 1
+            {
+                continue;
+            }
+            let mut blockers = Vec::new();
+            for sample in &wire.search_evidence {
+                if let Some(RoutingSearchBlocker::Existing { object }) = sample.blocker {
+                    if !search_blockers.contains(&object) {
+                        search_blockers.push(object);
+                    }
+                    if !blockers.contains(&object.uuid) {
+                        blockers.push(object.uuid);
+                    }
+                }
+            }
+            escape_blockers.push(blockers.clone());
+            escape_sites.push(json!({
+                "target_launch": {
+                    "from": {"component":component,"pad":pad},
+                    "layer": launch.layer.id(),
+                    "position": crate::views::point(launch.position),
+                    "width": launch.width.to_mm(),
+                    "drill": launch.drill.map(|drill| drill.to_mm()),
+                    "size": launch.size.map(|size| size.to_mm()),
+                },
+                "reason":wire.reason,
+                "soft_reason":wire.soft_reason,
+                "blockers":blockers,
+            }));
+        }
+    }
     let staged_project = evidence
         .as_ref()
         .and_then(|evidence| evidence.staged.as_ref())
@@ -259,7 +332,7 @@ pub(super) fn suggest(
         &allowed,
         max_objects,
     )?;
-    if evidence_board.is_some() {
+    if evidence_board.is_some() || args.evidence_search.is_some() {
         proposals.sort_by_key(|proposal| {
             !proposal
                 .blockers
@@ -326,6 +399,19 @@ pub(super) fn suggest(
                 "retained_anchors":anchors,
                 "region_request":regional_request(&rip_up, vec![net,proposal.net]),
             });
+            if args.evidence_search.is_some() {
+                result["escape_sites"] = json!(
+                    escape_blockers
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, blockers)| proposal
+                            .blockers
+                            .iter()
+                            .any(|id| blockers.contains(id)))
+                        .map(|(index, _)| index)
+                        .collect::<Vec<_>>()
+                );
+            }
             if let Some(pair) = proposal.branch {
                 let anchor = |anchor| match anchor {
                     TraceAnchor::Junction(id) => json!({"junction":id}),
@@ -354,6 +440,9 @@ pub(super) fn suggest(
     });
     if evidence_board.is_some() {
         out["continuation_failures"] = json!(continuation_failures);
+    }
+    if args.evidence_search.is_some() {
+        out["escape_sites"] = json!(escape_sites);
     }
     Ok(out)
 }

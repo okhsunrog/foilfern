@@ -292,6 +292,80 @@ async fn stdio_repair_search_deduplicates_groups_and_publishes_a_checked_candida
     );
     call_ok(&client, "undo", json!({})).await;
     assert_eq!(call_ok(&client, "board_get", json!({})).await, source);
+
+    call_ok(&client, "design_rules_set", json!({"min_copper_width":0.2})).await;
+    let arrival = call_ok(
+        &client,
+        "via_add",
+        json!({"net":"A","position":{"x":14,"y":8.5},"drill":0.3,"size":0.7}),
+    )
+    .await;
+    call_ok(
+        &client,
+        "trace_add",
+        json!({"from":"R2.1","to":arrival["uuid"],"layer":"top","width":0.2}),
+    )
+    .await;
+    let wall = call_ok(
+        &client,
+        "trace_add",
+        json!({
+            "from":{"x":10,"y":-2},"to":{"x":10,"y":22},"layer":"bottom",
+            "net":"B","width":0.2,
+        }),
+    )
+    .await;
+    let before = call_ok(&client, "board_get", json!({})).await;
+    let history = call_ok(&client, "history", json!({})).await;
+    let region = json!({"min":{"x":0,"y":-3},"max":{"x":23,"y":23}});
+    let started = call_ok(
+        &client,
+        "routing_repair_start",
+        json!({
+            "target":"A","region":region,
+            "route":{
+                "trace_width":0.2,"grid_pitch":0.1,"via_drill":0.3,"via_size":0.6,
+                "layers":["bottom"],"search_evidence":true,
+            },
+            "target_launch_search":{"from":"R1.1","layer":"top","radius":0.8,"max_sites":1},
+        }),
+    )
+    .await;
+    let status = poll(started["search"].clone()).await;
+    assert_eq!(status["stop_reason"], "completed", "{status:#}");
+    assert_eq!(status["candidates"], json!([]), "{status:#}");
+    let request = json!({
+        "net":"A","layers":["bottom"],
+        "repair":{
+            "region":region,
+            "rip_up_region":{"min":{"x":9,"y":-3},"max":{"x":11,"y":23}},
+            "editable_nets":["B"],
+            "evidence_search":started["search"],
+        }
+    });
+    let diagnosed = call_ok(&client, "routing_diagnose", request.clone()).await;
+    let repair = &diagnosed["repair"];
+    let sites = repair["escape_sites"].as_array().unwrap();
+    let wall = &wall["traces"][0]["uuid"];
+    assert_eq!(sites.len(), 1, "{repair:#}\n{status:#}");
+    assert_eq!(repair["proposals"][0]["remove_traces"], json!([wall]));
+    assert_eq!(repair["proposals"][0]["escape_sites"], json!([0]));
+    for site in sites {
+        assert_eq!(site["reason"], "no_path");
+        assert!(site["blockers"].as_array().unwrap().contains(wall));
+        let launch = &site["target_launch"];
+        assert_eq!(launch["layer"], "top_cu");
+        assert!(launch["from"]["pad"].is_string());
+        assert!((4.0..6.0).contains(&launch["position"]["x"].as_f64().unwrap()));
+    }
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    call_ok(&client, "undo", json!({})).await;
+    let stale = call(&client, "routing_diagnose", request).await;
+    assert_eq!(
+        stale.structured_content.unwrap()["error"]["kind"],
+        "stale_revision"
+    );
     client.cancel().await.unwrap();
 }
 
@@ -302,7 +376,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 35);
+    assert_eq!(info["api_capability_version"], 36);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(

@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `35`). Its `build` object contains
+`api_capability_version` (currently `36`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -974,6 +974,17 @@ candidate's copper to the failed continuation's anchors, such as a new
 escape via, and reports matching attempts in `continuation_failures`.
 Ambiguous matches are omitted.
 
+Alternatively, set `repair.evidence_search` to the UUID of the current
+finished additive `routing_repair_start` search on the same board revision
+and target net. In that search, use `target_launch_search`, omit `groups`
+and enable `route.search_evidence`. Diagnosis follows failed continuations
+from the generated vias back to the requested air wire. Its `escape_sites`
+array contains matching failures, sampled blocker UUIDs and a
+`target_launch` in board millimeters ready to reuse in a new repair
+request. Each proposal's `escape_sites` array indexes those failures
+starting at zero. The operator can choose a launch and authorize specific
+groups with `neighbor_anchors`, choose other combinations, or apply no edit.
+
 Search evidence includes bounded samples at multiple locations and layers
 along a failed frontier. Proposals supported by continuation samples appear
 before those based only on the original pad probes. The planner follows
@@ -1062,6 +1073,9 @@ With this option, omit `groups` and `rip_up_region` to try an additive
 continuation. The `launch_sites` status lists the sites that passed
 screening even if no continuation succeeds. Each trial, choice,
 and preview identifies its exact `target_launch`.
+For blocked continuations, pass the finished `search` UUID as
+`routing_diagnose.repair.evidence_search` to inspect the corresponding
+neighboring copper before authorizing removals.
 
 `trace_requirements` adds up to 16 hard requirements measured on each
 fully checked repair. Each entry names a pad pair under `path` and may

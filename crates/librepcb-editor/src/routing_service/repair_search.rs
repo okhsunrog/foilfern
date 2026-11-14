@@ -173,6 +173,14 @@ pub struct RepairFailure {
     pub reason: String,
 }
 
+/// Failed continuation from a checked additive escape trial.
+#[derive(Debug, Clone)]
+pub struct RepairLaunchFailure {
+    pub launch: RepairLaunch,
+    pub via: Uuid,
+    pub wire: UnroutedAirWire,
+}
+
 fn summarize_failures(
     result: &AutorouteResult,
     include: impl Fn(&UnroutedAirWire) -> bool,
@@ -241,6 +249,7 @@ struct Progress {
     strategy: Option<RepairStrategy>,
     planned: usize,
     launch_sites: Option<Vec<RepairLaunch>>,
+    launch_failures: Vec<RepairLaunchFailure>,
     trials: Vec<RepairTrial>,
     stop: Option<StopReason>,
     candidates: Vec<RepairChoice>,
@@ -378,6 +387,7 @@ impl RoutingService {
                         .map_or(1, |search| search.max_sites))
                 .min(request.max_trials),
                 launch_sites: None,
+                launch_failures: Vec::new(),
                 trials: Vec::new(),
                 stop: None,
                 candidates: Vec::new(),
@@ -411,6 +421,43 @@ impl RoutingService {
             search.cancel.store(true, Ordering::Relaxed);
         }
         Ok(search.status())
+    }
+
+    /// Returns evidence only for a finished search on the unchanged source.
+    pub fn repair_launch_failures(
+        &self,
+        project: &Project,
+        board: BoardId,
+        target: NetSignalId,
+        id: Uuid,
+    ) -> Result<Vec<RepairLaunchFailure>, RoutingError> {
+        let search = self
+            .repair_search
+            .as_ref()
+            .filter(|s| s.id == id)
+            .ok_or(RoutingError::RepairSearchNotFound(id))?;
+        if search.board != board || search.target != target {
+            return Err(Error::InvalidArgument(
+                "The escape search is for a different board or target net.".into(),
+            )
+            .into());
+        }
+        if search.project != project.uuid() || search.context != SourceContext::of(project) {
+            return Err(RoutingError::StaleContext);
+        }
+        if search.revision != project.revision() {
+            return Err(RoutingError::StaleRevision {
+                expected: search.revision,
+                actual: project.revision(),
+            });
+        }
+        let progress = search.progress.lock();
+        if progress.stop.is_none() || progress.stop == Some(StopReason::Failed) {
+            return Err(RoutingError::Refused(
+                "Use a finished escape search with checked trials.".into(),
+            ));
+        }
+        Ok(progress.launch_failures.clone())
     }
 
     pub fn cancel_repair_search(&self) {
@@ -682,7 +729,7 @@ impl RepairLaunch {
         editor: &mut ProjectEditor,
         board: BoardId,
         net: NetSignalId,
-    ) -> Result<(), RoutingError> {
+    ) -> Result<Uuid, RoutingError> {
         let plan = CopperPlan {
             board,
             remove_traces: BTreeSet::new(),
@@ -710,8 +757,8 @@ impl RepairLaunch {
                 net: Some(NetRef::Id(net)),
             }],
         };
-        plan.run(editor)?;
-        Ok(())
+        let (vias, _) = plan.run(editor)?;
+        Ok(vias[0]) // The plan adds exactly one via.
     }
 }
 
@@ -785,14 +832,15 @@ impl RepairSearchJob {
         sandbox: &mut ProjectEditor,
         trial: &Trial,
         report: &mut RepairTrial,
-    ) -> Result<Option<RepairCandidateDetails>, RoutingError> {
+    ) -> Result<Option<(RepairCandidateDetails, Option<Uuid>)>, RoutingError> {
         let board = self.state.board;
         let target = self.state.target;
         let cancelled = || self.state.stop().is_some();
         let launch = report.target_launch.clone();
+        let mut launch_via = None;
         let stage_launch = |sandbox: &mut ProjectEditor| {
             if let Some(launch) = &launch {
-                launch.stage(sandbox, board, target)?;
+                launch_via = Some(launch.stage(sandbox, board, target)?);
             }
             Ok(())
         };
@@ -897,19 +945,23 @@ impl RepairSearchJob {
             }
         };
         report.target_failures = summarize_failures(&routing, |failure| failure.net == target);
-        Ok(Some(RepairCandidateDetails {
-            target,
-            groups: trial.groups.clone(),
-            strategy: report.strategy,
-            neighbor,
-            joint,
-            neighbor_region: (report.strategy == RepairStrategy::Joint).then_some(neighbor_bounds),
-            route,
-            routing,
-            trace_requirements: Vec::new(),
-            target_launch: launch,
-            neighbor_branches: trial.branches.clone(),
-        }))
+        Ok(Some((
+            RepairCandidateDetails {
+                target,
+                groups: trial.groups.clone(),
+                strategy: report.strategy,
+                neighbor,
+                joint,
+                neighbor_region: (report.strategy == RepairStrategy::Joint)
+                    .then_some(neighbor_bounds),
+                route,
+                routing,
+                trace_requirements: Vec::new(),
+                target_launch: launch,
+                neighbor_branches: trial.branches.clone(),
+            },
+            launch_via,
+        )))
     }
 
     pub fn run(mut self) -> Result<RepairSearchResults, RoutingError> {
@@ -1017,8 +1069,8 @@ impl RepairSearchJob {
                 stop = reason;
                 break;
             }
-            let mut repair = match routed {
-                Ok(Some(details)) => details,
+            let (mut repair, launch_via) = match routed {
+                Ok(Some(result)) => result,
                 Ok(None) => {
                     // run_trial returns None only after observing cancellation.
                     stop = self.state.stop().unwrap_or(StopReason::Cancelled);
@@ -1042,6 +1094,28 @@ impl RepairSearchJob {
             }
             let target_unrouted = after.unrouted_for(target);
             report.target_unrouted = Some(target_unrouted);
+            let mut launch_failures = Vec::new();
+            if self.request.groups.is_empty()
+                && let (Some(via), Some(launch)) = (launch_via, &launch)
+            {
+                launch_failures.extend(
+                    repair
+                        .routing
+                        .failed_requests
+                        .iter()
+                        .filter(|wire| {
+                            wire.net == target
+                                && !wire.search_evidence.is_empty()
+                                && [wire.p1, wire.p2].contains(&TraceAnchor::Via(via))
+                        })
+                        .take(8)
+                        .map(|wire| RepairLaunchFailure {
+                            launch: launch.clone(),
+                            via,
+                            wire: wire.clone(),
+                        }),
+                );
+            }
             if after.checks.complete {
                 report.trace_requirements = self
                     .request
@@ -1064,6 +1138,10 @@ impl RepairSearchJob {
                 repair: Box::new(repair),
             };
             let validation = details.validate(&before, &after);
+            let checked_launch = validation.after.complete
+                && validation.netlist_preserved
+                && validation.new_error_count == 0
+                && validation.unrouted_regressions.is_empty();
             if validation.acceptable {
                 let (vias, trace_length_mm) = copper_cost(source.sandbox.project(), board)?;
                 let candidate = source.freeze(board, details, before.clone(), after)?;
@@ -1089,7 +1167,13 @@ impl RepairSearchJob {
                 candidates.truncate(self.request.max_candidates);
             }
             report.validation = Some(validation);
-            self.state.progress.lock().trials.push(report);
+            {
+                let mut progress = self.state.progress.lock();
+                progress.trials.push(report);
+                if checked_launch {
+                    progress.launch_failures.extend(launch_failures);
+                }
+            }
             if let Some(reason) = self.state.stop() {
                 stop = reason;
                 break;

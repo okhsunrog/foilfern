@@ -326,11 +326,11 @@ Diagnosis can follow a failed continuation through a staged escape and
 propose local branches with retained endpoints. On ESP32-C3, this exposed
 the Bottom GPIO2 diagonal and V3V3 branch. An authorized joint repair
 closed GPIO6 while preserving the C5 lead and the original GPIO2 layer
-change count. The worker can now generate escape sites from the pad and
-compare routes over user-authorized branches. Next, connect site selection
-to blocker diagnosis so the operator can review proposed edit permissions
-from the blocked pad in one workflow. Board-level requirement persistence
-remains tracked in P2.
+change count. The worker generates escape sites from the pad and compares
+routes over user-authorized branches. Diagnosis can reuse failed additive
+searches to link those sites with the neighboring branches that blocked
+them. The operator can select a site and authorize each branch in a new
+repair request. Board-level requirement persistence remains tracked in P2.
 
 Done when:
 
