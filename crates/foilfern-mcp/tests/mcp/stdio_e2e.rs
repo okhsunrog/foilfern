@@ -41,6 +41,108 @@ async fn call_ok(
 }
 
 #[tokio::test]
+async fn stdio_configures_native_jobs_and_exports_a_fresh_project() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let project = call_ok(
+        &client,
+        "project_create",
+        json!({"name":"Output jobs","directory":tmp.path().join("native")}),
+    )
+    .await;
+    assert_eq!(
+        call_ok(&client, "jobs_list", json!({})).await["jobs"],
+        json!([])
+    );
+    let request =
+        json!({"name":"Mechanical","preset":"step","output_path":"mechanical.step","board":"0"});
+    let created = call_ok(&client, "jobs_configure", request.clone()).await;
+    let uuid = created["job"]["uuid"].clone();
+    let repeat = call_ok(&client, "jobs_configure", request).await;
+    assert_eq!(repeat["changed"], false);
+    assert_eq!(repeat["job"]["uuid"], uuid);
+    assert_eq!(repeat["change_count"], 0);
+    call_ok(
+        &client,
+        "jobs_configure",
+        json!({"job":uuid,"output_path":"board.step"}),
+    )
+    .await;
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(
+        call_ok(&client, "jobs_list", json!({"job":uuid})).await["jobs"][0]["output_path"],
+        "mechanical.step"
+    );
+    call_ok(&client, "redo", json!({})).await;
+    let before = call_ok(&client, "jobs_list", json!({"include_settings":true})).await;
+    let invalid = call(
+        &client,
+        "jobs_configure",
+        json!({"job":uuid,"output_path":"wrong.svg"}),
+    )
+    .await;
+    assert_eq!(invalid.is_error, Some(true));
+    assert_eq!(
+        call_ok(&client, "jobs_list", json!({"include_settings":true})).await,
+        before
+    );
+    call_ok(&client,"jobs_configure",json!({"preset":"board_rendering_png","name":"Board image","output_path":"board.png","board":"0"})).await;
+    call_ok(
+        &client,
+        "jobs_configure",
+        json!({"preset":"board_assembly_pdf","name":"Assembly","output_path":"assembly.pdf"}),
+    )
+    .await;
+    let files = call_ok(
+        &client,
+        "jobs_run",
+        json!({"output_dir":tmp.path().join("exports")}),
+    )
+    .await;
+    let files = files["files"].as_array().unwrap();
+    assert!(files.iter().any(|file| {
+        let path = Path::new(file.as_str().unwrap());
+        path.extension().is_some_and(|ext| ext == "step")
+            && std::fs::read(path).unwrap().starts_with(b"ISO-10303-21;")
+    }));
+    assert!(files.iter().any(|file| {
+        let path = Path::new(file.as_str().unwrap());
+        path.extension().is_some_and(|ext| ext == "png")
+            && std::fs::read(path)
+                .unwrap()
+                .starts_with(b"\x89PNG\r\n\x1a\n")
+    }));
+    assert!(files.iter().any(|file| {
+        let path = Path::new(file.as_str().unwrap());
+        path.extension().is_some_and(|ext| ext == "pdf")
+            && std::fs::read(path).unwrap().starts_with(b"%PDF-")
+    }));
+    let before = call_ok(&client, "jobs_list", json!({"include_settings":true})).await;
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    call_ok(&client, "project_open", json!({"path":project["path"]})).await;
+    assert_eq!(
+        call_ok(&client, "jobs_list", json!({"include_settings":true})).await,
+        before
+    );
+    call_ok(&client, "project_close", json!({})).await;
+    if let Some(cli) = crate::common::upstream_cli() {
+        let (ok, text) = crate::common::run_cli(
+            &cli,
+            &[
+                "open-project",
+                "--strict",
+                project["path"].as_str().unwrap(),
+            ],
+        );
+        assert!(ok, "{text}");
+    }
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
 async fn stdio_legend_search_checks_obstacles_and_replays_one_patch() {
     let tmp = tempfile::tempdir().unwrap();
     let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));
@@ -638,7 +740,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 51);
+    assert_eq!(info["api_capability_version"], 52);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(

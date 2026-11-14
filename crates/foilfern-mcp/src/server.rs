@@ -1423,9 +1423,24 @@ impl FoilfernMcp {
         self.run(move |s| output::export_netlist(s, args)).await
     }
 
-    #[tool(description = "List the output jobs of the project.")]
-    async fn jobs_list(&self) -> Result<CallToolResult, McpError> {
-        self.run(|s| output::jobs_list(s)).await
+    #[tool(
+        description = "List output jobs; select an exact name or UUID and include_settings to inspect complete native settings."
+    )]
+    async fn jobs_list(
+        &self,
+        Parameters(args): Parameters<output::JobsListArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| output::jobs_list_with(s, args)).await
+    }
+
+    #[tool(
+        description = "Create or update a native STEP or graphics output job. Omit job to upsert by name; new jobs require a preset. Preserves existing UUIDs and settings. Run it with jobs_run."
+    )]
+    async fn jobs_configure(
+        &self,
+        Parameters(args): Parameters<output::JobsConfigureArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| output::jobs_configure(s, args)).await
     }
 
     #[tool(

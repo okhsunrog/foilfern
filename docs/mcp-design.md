@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `51`, including supplier acquisition,
+`api_capability_version` (currently `52`, including supplier acquisition,
 official KiCad imports, rendered board-placement reviews, declared connector axes, scoped legend targets and bounded legend placement).
 Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
@@ -1501,3 +1501,17 @@ including native arcs and footprint-provided board contours. It refuses missing
 or multiple outer contours and asks for explicit vertices. Native cutouts stay
 separate and are subtracted by the ordinary plane fill. The editor's interactive
 automatic drawing gesture still uses the upstream enclosing rectangle.
+
+`jobs_configure` creates or updates native output jobs using `step`,
+`schematic_pdf`, `board_assembly_pdf` or `board_rendering_png` presets. New jobs
+require a preset; provide a stable `name` for replay. Omit `job` to upsert by
+that name, or use an existing exact name/UUID to update or rename it. Existing
+UUIDs, forward-compatible options, job order and unspecified settings stay
+intact. A supplied preset asserts the existing content type instead of resetting
+custom settings. `output_path` supports native placeholders and validates the
+exporter's extension; `board` selects one board for STEP or board graphics.
+Identical configuration produces no mutation. Changes use ordinary revision
+checks and one undo group. `jobs_list` stays compact by default; `job` filters by
+exact name/UUID and `include_settings:true` returns complete native settings.
+Ambiguous names are rejected in listing, configuration and execution. Exporting
+files remains a separate `jobs_run` operation.

@@ -17,7 +17,7 @@ preview/apply revision checks, undo and native LibrePCB interoperability.
 | A5 | Partial library install and official KiCad discovery | One unresolved library does not discard successful independent requests; report per-item results and dependency failures. Discover official KiCad libraries explicitly and import a selected pinned source. | Implemented; deeper inheritance and shared-source updates remain explicitly unsupported |
 | A6 | Board placement review | Board-layout preview returns an image plus absolute pad positions after rotation/mirroring. Preview performs no mutation and preserves stale-source refusal. Connector orientation comes from explicit metadata or geometry with confidence, never a guessed direction. | Implemented: candidate images, absolute pads and explicitly declared connector axes; physical model alignment is a separate A4 gate |
 | A7 | Legend editing | Identify text by device instance plus footprint-text UUID; report transformed bbox. Bounded text placement tests mask/courtyard constraints and reports fresh DRC delta with undo. | Implemented: scoped targets, transformed ink bounds and bounded native-geometry search with fresh DRC review |
-| A8 | Output access and plane defaults | Create/update validated output jobs through MCP; fresh projects can export STEP and graphics. Default plane outline uses the actual board contour; test nonrectangular boards and holes. | Plane contour default delivered; output-job management next |
+| A8 | Output access and plane defaults | Create/update validated output jobs through MCP; fresh projects can export STEP and graphics. Default plane outline uses the actual board contour; test nonrectangular boards and holes. | Implemented: actual plane contours and native STEP/graphics job configuration |
 | A9 | Response and tool discovery cost | Measure current tools/list and representative preview/apply payloads. Add compact change summaries with detail retrieval. Investigate opt-in tool groups and client compatibility; preserve default discoverability. Budget tests catch payload regressions. | Planned; extend existing P0 |
 | A10 | Rules with diagnostic provenance | Identify footprint-internal versus placement-induced DRC findings. Versioned factory profiles record source/date and require explicit selection; no silent relaxation to pass a footprint. | Planned |
 | A11 | Reproducible design as code | CLI tool/batch execution reuses the same tool implementations and session. Commit a design document; CI checks idempotence, semantic diff, ERC/DRC, exports and upstream reopen. Reports have bounded output and deterministic failure status. | Local call/batch implemented; CI design-document workflow remains planned |
@@ -425,3 +425,19 @@ outline. The upstream editor gesture remains unchanged. Native plane calculation
 continues to subtract cutouts. A focused integration test verifies exact contour
 readback on an L-shaped board, copper inside its body but absent from its notch
 and cutout, and preservation of rounded-outline arcs. All-target MCP Clippy passed.
+
+### A8: native output-job management
+
+`jobs_configure` creates STEP, schematic PDF, board assembly PDF and realistic
+board PNG jobs through native `SetOutputJobs` mutations. Named upserts preserve
+UUIDs, job order, options and unspecified settings; exact job selection supports
+renames and path/board updates. Preset/content conflicts, duplicate names and
+unsupported output extensions fail before writing. Repeated configuration does
+not add history. `jobs_list` optionally filters and returns complete native
+settings, while the default stays compact. Execution now rejects ambiguous names.
+
+The new stdio scenario starts from an empty project, configures jobs, exports
+real STEP/PNG/PDF files, verifies idempotence and undo/redo, saves/reopens settings
+and passes upstream `librepcb-cli 2.1.1 open-project --strict`. The full MCP suite
+passed: 98 ordinary tests, two live-source tests opt-in; all-target Clippy passed.
+Model availability/alignment is independent of making the STEP job accessible.

@@ -7,6 +7,11 @@
 //! `drc_run`, `export_fabrication` and `jobs_run` rebuild planes and air
 //! wires first (derived data outside the undo history, like upstream).
 
+mod jobs;
+pub use jobs::{
+    JobsConfigureArgs, JobsListArgs, configure as jobs_configure, list as jobs_list_with,
+};
+
 use foilfern_core::export::{BomCsvWriter, PickPlaceSides, Timestamp};
 use foilfern_core::fileio::FilePath;
 use foilfern_core::job::OutputJobKind;
@@ -453,22 +458,7 @@ pub fn export_netlist(session: &Session, args: ExportNetlistArgs) -> ToolResult<
 
 /// `jobs_list`.
 pub fn jobs_list(session: &Session) -> ToolResult<ToolOutput> {
-    let p = session.project()?.project();
-    let jobs: Vec<Value> = p
-        .output_jobs()
-        .iter()
-        .map(|j| {
-            json!({
-                "uuid": j.uuid(),
-                "name": j.name().as_str(),
-                "type": job_type(j.kind()),
-            })
-        })
-        .collect();
-    ToolOutput::new(
-        format!("{} output job(s) (run them with jobs_run).", jobs.len()),
-        json!({ "jobs": jobs }),
-    )
+    jobs_list_with(session, JobsListArgs::default())
 }
 
 fn job_type(kind: &OutputJobKind) -> String {
@@ -813,25 +803,13 @@ pub fn jobs_run(session: &mut Session, args: JobsRunArgs) -> ToolResult<ToolOutp
     } else {
         args.jobs
             .iter()
-            .map(|key| {
-                all.iter()
-                    .find(|j| {
-                        j.name().as_str() == key.trim()
-                            || resolve::parse_uuid(key).is_some_and(|u| u == j.uuid())
-                    })
-                    .cloned()
-                    .ok_or_else(|| {
-                        ToolError::not_found(format!(
-                            "There is no output job \"{key}\" (see jobs_list)."
-                        ))
-                    })
-            })
+            .map(|key| jobs::resolve_job(open.project(), key).cloned())
             .collect::<ToolResult<_>>()?
     };
     let count = jobs.len();
     if count == 0 {
         return Ok(ToolOutput::new(
-            "No output jobs to run (use the export_* tools).",
+            "No output jobs to run (create one with jobs_configure).",
             json!({ "files": [] }),
         )?
         .warn("The project has no output jobs."));
