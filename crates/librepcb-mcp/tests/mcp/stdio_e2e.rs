@@ -459,7 +459,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 38);
+    assert_eq!(info["api_capability_version"], 39);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -3675,5 +3675,116 @@ async fn stdio_placement_search_generates_poses_and_stops_on_budget_or_cancel() 
         json!([5.7, 10.0])
     );
     assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn stdio_manufacturing_profile_preview_apply_and_reopen() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_librepcb-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let project = call_ok(
+        &client,
+        "project_create",
+        json!({"name":"Manufacturing profile"}),
+    )
+    .await;
+    call_ok(
+        &client,
+        "board_polygon_add",
+        json!({"layer":"top_legend","line_width":0.12,"vertices":[
+            {"x":8,"y":8},{"x":9,"y":8},{"x":9,"y":9},{"x":8,"y":9}
+        ]}),
+    )
+    .await;
+    call_ok(&client, "project_save", json!({})).await;
+    let before = call_ok(&client, "design_rules_get", json!({})).await;
+    let history = call_ok(&client, "history", json!({})).await;
+    let patch = json!({
+        "min_silkscreen_width":0.12, "min_pth_slot_width":0.6,
+        "allowed_pth_slots":"single_segment_straight","allowed_npth_slots":"any",
+        "allowed_pcb_thicknesses":[1.6,1.2,1.6],
+        "allowed_solder_resist":["green","none"],"allowed_silkscreen":["white"],
+        "min_board_size":{"width":10,"height":10},
+        "via_annular_ring":{"ratio_ppm":250000,"min_mm":0.13,"max_mm":0.4},
+        "default_via_drill":0.31,"pcb_thickness":1.6,
+    });
+    let preview = call_ok(&client, "design_rules_preview", patch.clone()).await;
+    assert_eq!(preview["base_revision"], before["revision"]);
+    assert_eq!(preview["board"], before["board"]);
+    assert_eq!(
+        preview["profile_changes"]["min_pth_slot_width"],
+        json!({"before":0.7,"after":0.6})
+    );
+    assert_eq!(
+        preview["profile_changes"]["min_silkscreen_width"],
+        json!({"before":0.15,"after":0.12})
+    );
+    assert_eq!(
+        preview["profile"]["allowed_pcb_thicknesses"],
+        json!([1.2, 1.6])
+    );
+    assert_eq!(preview["drc"]["complete"], true);
+    assert_eq!(
+        preview["drc"]["resolved_by_kind"]["MinimumWidthViolation"], 1,
+        "{preview:#}"
+    );
+    assert_eq!(preview["drc"]["introduced_by_kind"], json!({}));
+    assert_eq!(
+        call_ok(&client, "design_rules_get", json!({})).await,
+        before
+    );
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    assert_eq!(
+        call_ok(&client, "project_summary", json!({})).await["unsaved_changes"],
+        false
+    );
+
+    let mut invalid = patch.clone();
+    invalid["via_annular_ring"]["max_mm"] = json!(0.1);
+    let invalid = call(&client, "design_rules_set", invalid).await;
+    assert_eq!(
+        invalid.structured_content.unwrap()["error"]["kind"],
+        "invalid_argument"
+    );
+    assert_eq!(
+        call_ok(&client, "design_rules_get", json!({})).await,
+        before
+    );
+    let mut stale = patch.clone();
+    stale["expected_revision"] = json!(0);
+    let stale = call(&client, "design_rules_set", stale).await;
+    assert_eq!(
+        stale.structured_content.unwrap()["error"]["kind"],
+        "stale_revision"
+    );
+
+    let mut apply = patch;
+    apply["board"] = preview["board"].clone();
+    apply["expected_revision"] = preview["base_revision"].clone();
+    let applied = call_ok(&client, "design_rules_set", apply).await;
+    assert_eq!(applied["profile"], preview["profile"]);
+    assert_eq!(applied["default_via_drill"], 0.31);
+    assert_eq!(applied["change_count"], 1);
+    let checked = call_ok(&client, "drc_run", json!({})).await;
+    assert_eq!(checked["warnings"], preview["drc"]["after"]["warnings"]);
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(
+        call_ok(&client, "design_rules_get", json!({})).await["profile"],
+        before["profile"]
+    );
+    call_ok(&client, "redo", json!({})).await;
+    let mut copy = applied["profile"].clone();
+    copy["board"] = preview["board"].clone();
+    assert_eq!(
+        call_ok(&client, "design_rules_set", copy).await["change_count"],
+        0
+    );
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    call_ok(&client, "project_open", json!({"path":project["path"]})).await;
+    let reopened = call_ok(&client, "design_rules_get", json!({})).await;
+    assert_eq!(reopened["profile"], applied["profile"]);
     client.cancel().await.unwrap();
 }

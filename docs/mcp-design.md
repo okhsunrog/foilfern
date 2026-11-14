@@ -553,7 +553,7 @@ pads/vias/junctions at the given coordinates), `trace_update` (batch width
 changes by trace UUIDs or net names, preserving UUIDs and connected geometry,
 with before/after DRC evidence), `via_add`, `trace_remove`,
 `plane_add` (net, layer, outline or whole board, clearance, connect style),
-`design_rules_set`, `planes_rebuild`, `autoroute` (built-in router for
+`design_rules_get`, `design_rules_preview`, `design_rules_set`, `planes_rebuild`, `autoroute` (built-in router for
 simple boards, see below), `unrouted` (air wires).
 
 `device_place` returns full pad geometry by default. With `include_pads: false`
@@ -571,6 +571,39 @@ given).
 
 Escape hatch: `mutation_apply` (core `Mutation` JSON, full validation, one
 undo group), `mutation_schema`.
+
+### Board manufacturing profile
+
+`design_rules_get` reads the selected board and returns its UUID, revision,
+and the editable `profile`. The profile covers native board design defaults,
+DRC settings and selected board thickness, copper layers, solder resist
+and silkscreen. Manufacturer source records and opaque native DRC options
+are reported alongside the profile and carried through edits. Board size,
+permitted thicknesses, layer count and colors describe manufacturing
+capabilities stored in the native profile. The DRC preview reports checks
+implemented by native board DRC.
+
+`design_rules_preview` and `design_rules_set` accept the same flat patch.
+For example, for a process that supports the following limits, pass
+`{"min_silkscreen_width":0.12,"min_pth_slot_width":0.6}`.
+The preview compares full-board DRC before and after on a snapshot and
+returns `profile_changes`, the resulting `profile`, and introduced and
+resolved counts by finding kind. Check `drc.complete` before relying on
+the delta. Preview leaves the project revision, undo history and approved
+findings untouched.
+
+Call `design_rules_set` with the same patch, the preview's `board` UUID
+and `expected_revision` set to its `base_revision`. Changes form a single
+undo step. Omitted fields are preserved. For profile reuse, pass the
+`profile` returned by `design_rules_get` as the patch for another board.
+Use `project_save` to persist the values in native board files.
+
+Lengths are in mm. For bounded mask, paste and annular-ring ratios, use
+`{ratio_ppm,min_mm,max_mm}` (250000 is 25%). For board dimensions use
+`{width,height}`. Layer arrays take native layer IDs such as `top_legend`.
+`solder_resist:"none"` selects exposed copper. In allowed color lists
+`"none"` permits an absent coating or legend. Empty capability lists
+leave the corresponding choice unrestricted.
 
 ### Read-only trace path measurements
 

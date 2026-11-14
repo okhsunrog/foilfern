@@ -21,9 +21,9 @@ use librepcb_core::types::{
 use librepcb_editor::board_requirements::RoutingGuard;
 use librepcb_editor::commands::{
     AddBoard, AddBoardPolygon, AddDevice, AddPlane, AddTrace, AddVia, AutoPlaceDevices, Autoroute,
-    BoardSelection, EditBoardSettings, EditPlane, EditTraceWidths, ImportSpecctraSession,
-    MessageLevel, MoveDevice, NetRef, PadRef, PlaneSettings, RemoveBoardItems, ReplaceDevice,
-    SetBoardOutline, SpecctraExportManifest, TraceEndpoint, closed_path, export_specctra_dsn,
+    BoardSelection, EditPlane, EditTraceWidths, ImportSpecctraSession, MessageLevel, MoveDevice,
+    NetRef, PadRef, PlaneSettings, RemoveBoardItems, ReplaceDevice, SetBoardOutline,
+    SpecctraExportManifest, TraceEndpoint, closed_path, export_specctra_dsn,
 };
 use librepcb_editor::routing_validation::{
     RoutingSnapshot, RoutingValidation, capture_routing_state,
@@ -41,6 +41,7 @@ use crate::outcome::ToolOutput;
 use crate::resolve;
 use crate::session::Session;
 use crate::tools::circuit::device_json;
+pub use crate::tools::design_rules::{DesignRulesSetArgs, set as design_rules_set};
 use crate::tools::layout::{air_wires_json, air_wires_json_with_fill, current_plane_fill};
 use crate::tools::write::write;
 use crate::units::{PointMm, angle, length, mm};
@@ -1217,109 +1218,6 @@ pub fn plane_set_outline(
             "outline": views::path(updated.outline()),
         }),
     )
-}
-
-/// Arguments of `design_rules_set`.
-#[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct DesignRulesSetArgs {
-    /// Board name, index or UUID (default: first board).
-    #[serde(default)]
-    pub board: Option<String>,
-    /// Default trace width in mm.
-    #[serde(default)]
-    pub default_trace_width: Option<f64>,
-    /// Default via drill diameter in mm.
-    #[serde(default)]
-    pub default_via_drill: Option<f64>,
-    /// DRC: minimum copper to copper clearance in mm.
-    #[serde(default)]
-    pub min_copper_clearance: Option<f64>,
-    /// DRC: minimum copper to board edge clearance in mm.
-    #[serde(default)]
-    pub min_copper_board_clearance: Option<f64>,
-    /// DRC: minimum copper width in mm.
-    #[serde(default)]
-    pub min_copper_width: Option<f64>,
-    /// DRC: minimum annular ring of plated holes in mm.
-    #[serde(default)]
-    pub min_annular_ring: Option<f64>,
-    /// DRC: minimum plated drill diameter in mm.
-    #[serde(default)]
-    pub min_drill_diameter: Option<f64>,
-    /// DRC: minimum drill to drill clearance in mm.
-    #[serde(default)]
-    pub min_drill_clearance: Option<f64>,
-    /// Number of inner copper layers (0 = 2-layer board).
-    #[serde(default)]
-    pub inner_layers: Option<u32>,
-    /// Fail with `stale_revision` if the project revision differs.
-    #[serde(default)]
-    pub expected_revision: Option<u64>,
-}
-
-fn rules_json(p: &Project, board: BoardId) -> Value {
-    let Some(b) = p.board(board) else {
-        return json!({});
-    };
-    let s = b.settings();
-    let r = &s.design_rules;
-    let d = &s.drc_settings;
-    json!({
-        "copper_layers": s.inner_layer_count + 2,
-        "default_trace_width": mm(r.default_trace_width()),
-        "default_via_drill": mm(r.default_via_drill_diameter()),
-        "min_copper_clearance": mm(d.min_copper_copper_clearance()),
-        "min_copper_board_clearance": mm(d.min_copper_board_clearance()),
-        "min_copper_width": mm(d.min_copper_width()),
-        "min_annular_ring": mm(d.min_pth_annular_ring()),
-        "min_drill_diameter": mm(d.min_pth_drill_diameter()),
-        "min_drill_clearance": mm(d.min_drill_drill_clearance()),
-    })
-}
-
-/// `design_rules_set`.
-pub fn design_rules_set(session: &mut Session, args: DesignRulesSetArgs) -> ToolResult<ToolOutput> {
-    let p = session.project()?.project();
-    let (_, board, b) = resolve::board(p, args.board.as_deref())?;
-    let mut rules = b.settings().design_rules.clone();
-    let mut drc = b.settings().drc_settings.clone();
-    if let Some(v) = args.default_trace_width {
-        rules.set_default_trace_width(positive(v, "default_trace_width")?);
-    }
-    if let Some(v) = args.default_via_drill {
-        rules.set_default_via_drill_diameter(positive(v, "default_via_drill")?);
-    }
-    if let Some(v) = args.min_copper_clearance {
-        drc.set_min_copper_copper_clearance(unsigned(v, "min_copper_clearance")?);
-    }
-    if let Some(v) = args.min_copper_board_clearance {
-        drc.set_min_copper_board_clearance(unsigned(v, "min_copper_board_clearance")?);
-    }
-    if let Some(v) = args.min_copper_width {
-        drc.set_min_copper_width(unsigned(v, "min_copper_width")?);
-    }
-    if let Some(v) = args.min_annular_ring {
-        drc.set_min_pth_annular_ring(unsigned(v, "min_annular_ring")?);
-    }
-    if let Some(v) = args.min_drill_diameter {
-        drc.set_min_pth_drill_diameter(unsigned(v, "min_drill_diameter")?);
-    }
-    if let Some(v) = args.min_drill_clearance {
-        drc.set_min_drill_drill_clearance(unsigned(v, "min_drill_clearance")?);
-    }
-    let done = write(session, "design_rules_set", args.expected_revision, |tx| {
-        Ok(tx.run(EditBoardSettings {
-            board: Some(board),
-            settings: None,
-            design_rules: Some(rules),
-            drc_settings: Some(drc),
-            inner_layer_count: args.inner_layers,
-        })?)
-    })?;
-    let open = session.project()?;
-    let result = rules_json(open.project(), board);
-    done.output(open, "Design rules updated.", result)
 }
 
 /// Routing backend of `autoroute`.

@@ -6,6 +6,7 @@ pub mod board_edit;
 pub mod board_requirements;
 pub mod circuit;
 pub mod design;
+pub mod design_rules;
 pub mod ground_reference;
 pub mod import;
 pub mod layout;

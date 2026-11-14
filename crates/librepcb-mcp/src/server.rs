@@ -909,8 +909,34 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Set board design rules (default trace width, via drill) and DRC \
-                       minimums (clearances, widths, drills) in mm, or the inner layer count."
+        description = "Read the board manufacturing profile in millimeters, including native design defaults, fabrication DRC constraints and current stackup selections."
+    )]
+    async fn design_rules_get(
+        &self,
+        Parameters(args): Parameters<BoardArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| crate::tools::design_rules::get(s, args))
+            .await
+    }
+
+    #[tool(
+        description = "Preview a manufacturing profile patch without editing the board. Returns changed fields and the full-board DRC delta. Apply the same fields with design_rules_set and expected_revision from the preview."
+    )]
+    async fn design_rules_preview(
+        &self,
+        Parameters(args): Parameters<DesignRulesSetArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        use crate::tools::design_rules;
+        self.run_detached(
+            move |s| design_rules::prepare_preview(s, args),
+            design_rules::run_preview,
+            |session, preview| design_rules::finish_preview(session, preview),
+        )
+        .await
+    }
+
+    #[tool(
+        description = "Patch the board manufacturing profile in one undoable edit. Omitted fields keep their values. Use expected_revision from design_rules_preview, then project_save to write the board files."
     )]
     async fn design_rules_set(
         &self,

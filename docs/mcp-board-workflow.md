@@ -110,9 +110,12 @@ no-connect flags imported from KiCad. ERC still checks required connections.
 
 ## Lay out the board
 
-Set `board_set_outline` and `design_rules_set` before routing. `inner_layers`
-counts inner copper layers: `0` means two total layers, `2` means four.
-Set clearances, widths and drill sizes from the fabrication requirements.
+Set `board_set_outline` before routing. Read the board's manufacturing
+profile with `design_rules_get`. Use limits from the selected fabricator,
+then use `design_rules_preview` to see the changes and their effect on DRC.
+Apply the reviewed patch with `design_rules_set` and the preview's revision.
+`inner_layers` counts inner copper layers. A value of `0` means two total
+layers, and `2` means four. Save the applied profile with `project_save`.
 `net_class_set` assigns routing dimensions to selected nets.
 Omit `trace_width` from builtin routing requests to honor the per-net
 widths. An explicit value applies to all selected nets. A net class sets
