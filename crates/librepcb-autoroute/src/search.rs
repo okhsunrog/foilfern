@@ -31,8 +31,11 @@
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
+use librepcb_core::types::Length;
+
 use crate::congestion::Congestion;
 use crate::grid::{Grid, usable};
+use crate::problem::RoutingRegion;
 
 /// Direction deltas `(dx, dy)`, counter-clockwise starting east.
 const DIRS: [(i64, i64); 8] = [
@@ -81,6 +84,8 @@ pub(crate) struct Query<'a> {
     /// Via map (fixed and routes), `cells`.
     pub via_fixed: &'a [u32],
     pub via_routes: &'a [u32],
+    /// Optional per-net limits, with trace and via radii respectively.
+    pub region: Option<(RoutingRegion, Length, Length)>,
     /// Map value of the net (`net + 1`).
     pub owner: u32,
     pub via_cost: u32,
@@ -92,6 +97,18 @@ pub(crate) struct Query<'a> {
     pub sources: &'a [(u32, u32)],
     /// Target nodes with final cost.
     pub targets: &'a HashMap<u32, u32>,
+}
+
+impl Query<'_> {
+    fn within_region(&self, cell: usize, via: bool) -> bool {
+        self.region
+            .is_none_or(|(region, trace_radius, via_radius)| {
+                region.contains(
+                    self.grid.point(cell).to_point(),
+                    if via { via_radius } else { trace_radius },
+                )
+            })
+    }
 }
 
 /// Grid-coordinate distance to a terminal set's bounding box.
@@ -127,8 +144,11 @@ fn detour_distances(
     let cells = q.grid.cells();
     let mut distance = vec![u32::MAX; q.layers * cells];
     let mut queue = BinaryHeap::new();
-    let clear =
-        |node| usable(q.trace_fixed[node], q.owner) && usable(q.trace_routes[node], q.owner);
+    let clear = |node| {
+        usable(q.trace_fixed[node], q.owner)
+            && usable(q.trace_routes[node], q.owner)
+            && q.within_region(node % cells, false)
+    };
     for (&node, &cost) in q.targets {
         if clear(node as usize) {
             distance[node as usize] = cost;
@@ -158,7 +178,7 @@ fn detour_distances(
                             from: node,
                             to: target,
                             via,
-                            generated,
+                            generated: generated && q.within_region(target % cells, false),
                         },
                     );
                 }
@@ -182,7 +202,7 @@ fn detour_distances(
                 );
             }
         }
-        let static_via_free = usable(q.via_fixed[cell], q.owner);
+        let static_via_free = usable(q.via_fixed[cell], q.owner) && q.within_region(cell, true);
         let route_via_free = usable(q.via_routes[cell], q.owner);
         if q.layers > 1 && static_via_free && route_via_free {
             for predecessor in (0..q.layers).filter(|&predecessor| predecessor != layer) {
@@ -469,7 +489,7 @@ impl Search {
                 }
                 let nc = ny_ as usize * nx + nx_ as usize;
                 let idx = layer * cells + nc;
-                if !usable(q.trace_fixed[idx], q.owner) {
+                if !usable(q.trace_fixed[idx], q.owner) || !q.within_region(nc, false) {
                     record_block(idx, false, false);
                     continue;
                 }
@@ -489,7 +509,7 @@ impl Search {
             }
 
             // Layer changes.
-            if q.layers > 1 && !usable(q.via_fixed[c], q.owner) {
+            if q.layers > 1 && (!usable(q.via_fixed[c], q.owner) || !q.within_region(c, true)) {
                 record_block(node, true, false);
             } else if q.layers > 1 {
                 let mut cost = q.via_cost;
@@ -567,6 +587,7 @@ mod tests {
             trace_routes: &[FREE; 3],
             via_fixed: &[FREE; 3],
             via_routes: &[FREE; 3],
+            region: None,
             owner: 1,
             via_cost: 0,
             factors: &[NEUTRAL],
@@ -624,6 +645,7 @@ mod tests {
             trace_routes: &routes,
             via_fixed: &routes,
             via_routes: &routes,
+            region: None,
             owner: 1,
             via_cost: 0,
             factors: &[NEUTRAL],
@@ -687,6 +709,7 @@ mod tests {
             trace_routes: &routes,
             via_fixed: &vias,
             via_routes: &vias,
+            region: None,
             owner: 1,
             via_cost: 0,
             factors: &[NEUTRAL],

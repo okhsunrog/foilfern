@@ -1,10 +1,12 @@
 //! Bounded trials of authorized local repairs using the builtin router.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
+use librepcb_core::geometry::TraceAnchor;
+use librepcb_core::project::board::AirWire;
 use librepcb_core::project::{BoardId, NetSignalId, Project};
 use librepcb_core::types::{Length, Uuid};
 use parking_lot::Mutex;
@@ -32,6 +34,8 @@ pub struct RepairSearchRequest {
     pub joint_route: Option<Autoroute>,
     pub rip_up_region: RoutingBounds,
     pub groups: Vec<BTreeSet<Uuid>>,
+    /// Optional exact endpoints by zero-based removal group index.
+    pub neighbor_anchors: BTreeMap<usize, [TraceAnchor; 2]>,
     pub max_objects: usize,
     pub max_trials: usize,
     pub max_candidates: usize,
@@ -69,6 +73,8 @@ pub struct RepairCandidateDetails {
     pub target_launch: Option<RepairLaunch>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub trace_requirements: Vec<RepairTraceCheck>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub neighbor_branches: Vec<AirWire>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -141,6 +147,8 @@ pub struct RepairTrial {
     pub target_failures: Vec<RepairFailure>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub trace_requirements: Vec<RepairTraceCheck>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub neighbor_branches: Vec<AirWire>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -167,6 +175,23 @@ fn summarize_failures(
         .take(8)
         .map(summarize)
         .collect()
+}
+
+fn require_branches_routed(
+    result: &AutorouteResult,
+    branches: &[AirWire],
+) -> Result<(), RoutingError> {
+    if let Some(failure) = result
+        .failed_requests
+        .iter()
+        .find(|failure| branches.iter().any(|wire| wire.net() == failure.net))
+    {
+        return Err(RoutingError::Refused(format!(
+            "Could not reconnect the selected branch of {} between its retained anchors: {}.",
+            failure.net_name, failure.reason
+        )));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -273,6 +298,7 @@ struct Trial {
     groups: Vec<usize>,
     rip_up: BTreeSet<Uuid>,
     nets: BTreeSet<NetSignalId>,
+    branches: Vec<AirWire>,
 }
 
 #[derive(Debug)]
@@ -488,6 +514,16 @@ impl RepairSearchRequest {
             }
         }
         let copper = super::region::copper(project, board)?;
+        if self
+            .neighbor_anchors
+            .keys()
+            .any(|i| *i >= self.groups.len())
+        {
+            return Err(
+                Error::InvalidArgument("neighbor_anchors must refer to a group.".into()).into(),
+            );
+        }
+        let mut branches = BTreeMap::new();
         let mut seen = BTreeSet::new();
         let mut trials = Vec::new();
         for (i, group) in self.groups.iter().enumerate() {
@@ -511,23 +547,54 @@ impl RepairSearchRequest {
                     item.select_via(*id, board, group, &mut Default::default())?;
                 }
             }
-            if seen.insert(group.clone()) {
+            let mut branch = None;
+            if let Some(&ends) = self.neighbor_anchors.get(&i) {
+                let wire = super::region::retained_branch(&copper, board, group, ends).ok_or_else(|| {
+                    Error::InvalidArgument(format!(
+                        "Group {i} must be a single branch between the two retained neighbor anchors."
+                    ))
+                })?;
+                branches.insert(i, wire.clone());
+                branch = Some(wire);
+            }
+            let pair = branch.as_ref().map(|wire| [wire.p1(), wire.p2()]);
+            if seen.insert((group.clone(), pair.into_iter().collect::<Vec<_>>())) {
                 trials.push(Trial {
                     groups: vec![i],
                     rip_up: group.clone(),
                     nets: group.iter().filter_map(|id| copper[id].net()).collect(),
+                    branches: branch.into_iter().collect(),
                 });
             }
         }
         for (i, first) in self.groups.iter().enumerate() {
             for (j, second) in self.groups.iter().enumerate().skip(i + 1) {
                 let rip_up: BTreeSet<_> = first.union(second).copied().collect();
-                if rip_up.len() <= self.max_objects && seen.insert(rip_up.clone()) {
+                let constrained = [branches.get(&i), branches.get(&j)];
+                // A constrained net has exactly one route request. An extra removal
+                // on that net could delete an endpoint or require another connection.
+                if constrained[0].is_some_and(|branch| {
+                    second
+                        .iter()
+                        .any(|id| copper[id].net() == Some(branch.net()))
+                }) || constrained[1].is_some_and(|branch| {
+                    first
+                        .iter()
+                        .any(|id| copper[id].net() == Some(branch.net()))
+                }) {
+                    continue;
+                }
+                let branches: Vec<_> = constrained.into_iter().flatten().cloned().collect();
+                let mut pairs: Vec<_> =
+                    branches.iter().map(|wire| [wire.p1(), wire.p2()]).collect();
+                pairs.sort_unstable();
+                if rip_up.len() <= self.max_objects && seen.insert((rip_up.clone(), pairs)) {
                     let nets = rip_up.iter().filter_map(|id| copper[id].net()).collect();
                     trials.push(Trial {
                         groups: vec![i, j],
                         rip_up,
                         nets,
+                        branches,
                     });
                 }
             }
@@ -617,11 +684,19 @@ impl RepairSearchJob {
                     rip_up_region: Some(self.request.rip_up_region),
                     improve_net: None,
                 };
-                let result = neighbor.run_with_cancel(sandbox, board, cancelled)?;
+                let result = neighbor.run_with_staging(
+                    sandbox,
+                    board,
+                    None,
+                    &trial.branches,
+                    cancelled,
+                    |_| Ok(()),
+                )?;
                 report.neighbor_failures = summarize_failures(&result, |_| true);
                 if cancelled() {
                     return Ok(None);
                 }
+                require_branches_routed(&result, &trial.branches)?;
                 rebuild_connectivity(sandbox, board)?;
                 if cancelled() {
                     return Ok(None);
@@ -639,7 +714,7 @@ impl RepairSearchJob {
                     improve_net: Some(target),
                 };
                 let routing =
-                    request.run_with_staging(sandbox, board, None, cancelled, |sandbox| {
+                    request.run_with_staging(sandbox, board, None, &[], cancelled, |sandbox| {
                         self.stage_launch(sandbox, board, target)
                     })?;
                 (Some(neighbor), None, route, routing)
@@ -672,11 +747,18 @@ impl RepairSearchJob {
                     sandbox,
                     board,
                     Some((target, neighbor_bounds.region()?)),
+                    &trial.branches,
                     cancelled,
                     |sandbox| self.stage_launch(sandbox, board, target),
                 )?;
                 report.neighbor_failures =
                     summarize_failures(&routing, |failure| failure.net != target);
+                report.target_failures =
+                    summarize_failures(&routing, |failure| failure.net == target);
+                if cancelled() {
+                    return Ok(None);
+                }
+                require_branches_routed(&routing, &trial.branches)?;
                 (None, Some(request), route, routing)
             }
         };
@@ -692,6 +774,7 @@ impl RepairSearchJob {
             routing,
             trace_requirements: Vec::new(),
             target_launch: self.request.target_launch.clone(),
+            neighbor_branches: trial.branches.clone(),
         }))
     }
 
@@ -769,6 +852,7 @@ impl RepairSearchJob {
                 neighbor_failures: Vec::new(),
                 target_failures: Vec::new(),
                 trace_requirements: Vec::new(),
+                neighbor_branches: trial.branches.clone(),
             };
             let routed = self.run_trial(&mut source.sandbox, trial, &mut report);
             if let Some(reason) = self.state.stop() {

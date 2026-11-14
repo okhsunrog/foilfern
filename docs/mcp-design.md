@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `23`). Its `build` object contains
+`api_capability_version` (currently `24`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -823,6 +823,18 @@ to bound new target copper. Both routing rectangles must contain
 and `route`. The selected group determines neighbor nets, and `target`
 determines the target net. Include `expected_revision` to bind the search
 to the reviewed revision.
+
+`neighbor_anchors` optionally supplies an exact retained pair for a removal
+group, for example
+`[{"group":0,"from":{"junction":"<uuid>"},"to":{"pad":"R2.2"}}]`.
+The zero-based group must contain one continuous branch with no third retained
+attachment point, including any via removed from its interior. Endpoints can
+also be `{"via":"<uuid>"}` or `{"board_pad":"<uuid>"}`. A junction endpoint
+must still have copper attached after rip-up. The router reconnects these
+two anchors. Other open connections of that neighbor net remain outside
+the trial. Both endpoints and all replacement copper must fit the routing
+bounds. A pairwise trial skips combining a constrained group with another
+removal on the same net. Trial status and preview report `neighbor_branches`.
 
 `joint_route` optionally adds a joint pass with its own builtin settings
 for the same target and neighbor nets. The sequential pass routes

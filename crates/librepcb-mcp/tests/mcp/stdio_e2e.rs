@@ -168,6 +168,81 @@ async fn stdio_repair_search_deduplicates_groups_and_publishes_a_checked_candida
     );
     call_ok(&client, "undo", json!({})).await;
     assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
+    call_ok(&client, "trace_remove", json!({"uuids":[id]})).await;
+    call_ok(
+        &client,
+        "trace_add",
+        json!({
+            "from":"R1.2","to":"R2.2","layer":"top","width":0.2,
+            "points":[{"x":6,"y":11},{"x":14,"y":11}]
+        }),
+    )
+    .await;
+    let source = call_ok(&client, "board_get", json!({})).await;
+    let traces = source["traces"].as_array().unwrap();
+    let branch = traces
+        .iter()
+        .find(|trace| trace["from"]["junction"].is_string() && trace["to"]["junction"].is_string())
+        .unwrap();
+    let (a, b) = (&branch["from"]["junction"], &branch["to"]["junction"]);
+    let mut anchored = json!({
+        "target":"A", "groups":[[branch["uuid"]]],
+        "neighbor_anchors":[{"group":0,"from":{"junction":a},"to":{"junction":b}}],
+        "region":{"min":{"x":3,"y":7},"max":{"x":17,"y":13}},
+        "rip_up_region":{"min":{"x":5,"y":10.5},"max":{"x":15,"y":12}},
+        "route":{"layers":["top"]},"neighbor_route":{"layers":["top"]},
+        "joint_route":{"layers":["top"]},
+    });
+    anchored["neighbor_anchors"][0]["to"] = json!({"pad":"R2.2"});
+    let invalid = call(&client, "routing_repair_start", anchored.clone()).await;
+    assert_eq!(invalid.is_error, Some(true));
+    assert!(
+        invalid.structured_content.unwrap()["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("single branch")
+    );
+    anchored["neighbor_anchors"][0]["to"] = json!({"junction":b});
+    let started = call_ok(&client, "routing_repair_start", anchored).await;
+    let status = poll(started["search"].clone()).await;
+    let selected = status["candidates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|choice| choice["strategy"] == "joint")
+        .unwrap_or_else(|| panic!("{status:#}"));
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, source);
+    let preview = call_ok(
+        &client,
+        "routing_preview",
+        json!({"candidate":selected["candidate"]}),
+    )
+    .await;
+    let wire = &preview["repair"]["neighbor_branches"][0];
+    assert_eq!(wire["p1"]["Junction"], *a);
+    assert_eq!(wire["p2"]["Junction"], *b);
+    call_ok(
+        &client,
+        "routing_apply",
+        json!({"candidate":selected["candidate"]}),
+    )
+    .await;
+    let after = call_ok(&client, "board_get", json!({})).await;
+    let after_traces = after["traces"].as_array().unwrap();
+    assert_eq!(after["air_wires"], json!([]));
+    assert!(
+        !after_traces
+            .iter()
+            .any(|trace| trace["uuid"] == branch["uuid"])
+    );
+    for anchor in [a, b] {
+        assert!(after_traces.iter().any(|trace| {
+            !traces.iter().any(|old| old["uuid"] == trace["uuid"])
+                && (trace["from"]["junction"] == *anchor || trace["to"]["junction"] == *anchor)
+        }));
+    }
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, source);
     client.cancel().await.unwrap();
 }
 
@@ -178,7 +253,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 23);
+    assert_eq!(info["api_capability_version"], 24);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(

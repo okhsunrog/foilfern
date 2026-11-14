@@ -13,8 +13,8 @@ use crate::geometry::{Core, P, bounds_of};
 use crate::grid::{Grid, Layered, owner_of, rasterize_trace_item, rasterize_via_item, usable};
 use crate::items::{Item, Items, NO_NET, RouteId, Violation};
 use crate::problem::{
-    Connection, LayerScope, NetId, PreferredDirection, RoutingOrder, RoutingProblem, Shape,
-    TerminalId,
+    Connection, LayerScope, NetId, PreferredDirection, RoutingOrder, RoutingProblem, RoutingRegion,
+    Shape, TerminalId,
 };
 use crate::result::{
     Endpoint, FrontierBlocker, FrontierSample, Progress, Route, RoutingResult, RoutingStats,
@@ -432,6 +432,13 @@ impl<'p> Router<'p> {
         self.problem.rules.trace_width_of(&self.nets[net as usize])
     }
 
+    fn net_region(&self, net: u32) -> Option<RoutingRegion> {
+        self.problem
+            .net_regions
+            .get(&self.nets[net as usize])
+            .copied()
+    }
+
     /// Makes sure the trace map for half width `h` exists.
     fn ensure_trace_map(&mut self, h: i64) {
         if self.trace_maps.contains_key(&h) {
@@ -603,10 +610,12 @@ impl<'p> Router<'p> {
         let terminal = &self.problem.terminals[t];
         let pos = P::from(terminal.position);
         let is_pad = self.problem.pad_terminals.contains(&TerminalId(t));
+        let net_region = self.net_region(net);
         let within_region = |p: P, half_width| {
-            self.problem
-                .region
-                .is_none_or(|region| region.contains(p.to_point(), Length::new(half_width + 1)))
+            [self.problem.region, net_region]
+                .into_iter()
+                .flatten()
+                .all(|region| region.contains(p.to_point(), Length::new(half_width + 1)))
         };
         let wide_inside = within_region(pos, h);
         let neck = self
@@ -664,6 +673,9 @@ impl<'p> Router<'p> {
                                 continue;
                             }
                             let p = g.point(c);
+                            if !within_region(p, h) {
+                                continue;
+                            }
                             if let Some(elbow) = stub(p, cu) {
                                 let cost = elbow.map_or_else(
                                     || cost_of(pos, p),
@@ -936,6 +948,13 @@ impl<'p> Router<'p> {
             trace_routes: &map.routes,
             via_fixed: &self.via_map.fixed,
             via_routes: &self.via_map.routes,
+            region: self.net_region(wire.net).map(|region| {
+                (
+                    region,
+                    Length::new(h + 1),
+                    Length::new(self.rules.via_radius.ceil() as i64),
+                )
+            }),
             owner: owner_of(wire.net),
             via_cost: self.via_cost,
             factors: &self.factors,
@@ -1177,10 +1196,10 @@ impl<'p> Router<'p> {
             } else {
                 half_width + 1
             };
-            let blocker = if self
-                .problem
-                .region
-                .is_some_and(|r| !r.contains(to.to_point(), Length::new(radius)))
+            let blocker = if [self.problem.region, self.net_region(net)]
+                .into_iter()
+                .flatten()
+                .any(|r| !r.contains(to.to_point(), Length::new(radius)))
             {
                 Some(FrontierBlocker::RegionBoundary)
             } else {

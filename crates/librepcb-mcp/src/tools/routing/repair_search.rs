@@ -1,7 +1,11 @@
 //! The MCP adapter for detached, pollable local repair searches.
 
+use std::collections::BTreeMap;
 use std::time::Duration;
 
+use librepcb_core::geometry::TraceAnchor;
+use librepcb_core::project::Project;
+use librepcb_core::project::board::Board;
 use librepcb_core::types::Uuid;
 use librepcb_editor::routing_service::{
     RepairLaunch, RepairSearchJob, RepairSearchRequest, RepairSearchResults, RoutingError,
@@ -29,6 +33,9 @@ pub struct RepairSearchArgs {
     pub neighbor_region: Option<RoutingRegionArgs>,
     /// One to eight groups of exact trace and via UUIDs, explicitly authorized for removal.
     pub groups: Vec<Vec<String>>,
+    /// Optional exact replacements with two retained endpoints for each named group index.
+    #[serde(default)]
+    pub neighbor_anchors: Vec<NeighborAnchorsArgs>,
     /// Target routing options. The net comes from target.
     #[serde(default)]
     pub route: RoutingEditRouteArgs,
@@ -51,6 +58,47 @@ pub struct RepairSearchArgs {
     /// Add one explicit straight target pad-to-through-via lead before routing the target.
     pub target_launch: Option<RepairLaunchArgs>,
     pub expected_revision: Option<u64>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct NeighborAnchorsArgs {
+    /// Zero-based index in groups.
+    pub group: usize,
+    pub from: NeighborAnchorArg,
+    pub to: NeighborAnchorArg,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum NeighborAnchorArg {
+    /// A retained junction UUID.
+    Junction(String),
+    /// A retained via UUID.
+    Via(String),
+    /// A standalone board pad UUID.
+    BoardPad(String),
+    /// A footprint pad, e.g. R1.2.
+    Pad(crate::tools::trace_path::PadAddress),
+}
+
+impl NeighborAnchorArg {
+    fn resolve(&self, project: &Project, board: &Board) -> ToolResult<TraceAnchor> {
+        use crate::resolve::required_uuid;
+        Ok(match self {
+            Self::Junction(id) => TraceAnchor::Junction(required_uuid(id, "junction")?),
+            Self::Via(id) => TraceAnchor::Via(required_uuid(id, "via")?),
+            Self::BoardPad(id) => TraceAnchor::Pad(required_uuid(id, "board pad")?),
+            Self::Pad(pad) => {
+                let (device, pad) =
+                    crate::tools::trace_path::footprint_pad_id(project, board, pad)?;
+                TraceAnchor::FootprintPad {
+                    device: device.0,
+                    pad,
+                }
+            }
+        })
+    }
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -116,7 +164,7 @@ pub fn start(
             "Supply 1–8 groups, each with 1–16 copper UUIDs.",
         ));
     }
-    let groups = args
+    let groups: Vec<_> = args
         .groups
         .into_iter()
         .map(|group| {
@@ -132,6 +180,23 @@ pub fn start(
     let native_board = project
         .board(board)
         .ok_or_else(|| ToolError::not_found("Candidate board is missing."))?;
+    let mut neighbor_anchors = BTreeMap::new();
+    if args.neighbor_anchors.len() > groups.len() {
+        return Err(ToolError::invalid(
+            "Supply at most one anchor pair per group.",
+        ));
+    }
+    for pair in args.neighbor_anchors {
+        let ends = [
+            pair.from.resolve(project, native_board)?,
+            pair.to.resolve(project, native_board)?,
+        ];
+        if neighbor_anchors.insert(pair.group, ends).is_some() {
+            return Err(ToolError::invalid(
+                "Supply at most one anchor pair per group.",
+            ));
+        }
+    }
     let trace_requirements = args
         .trace_requirements
         .iter()
@@ -171,6 +236,7 @@ pub fn start(
                 joint_route,
                 rip_up_region: args.rip_up_region.bounds()?,
                 groups,
+                neighbor_anchors,
                 trace_requirements,
                 target_launch,
                 max_objects: args.max_objects.unwrap_or(12),

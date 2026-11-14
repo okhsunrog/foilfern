@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use librepcb_autoroute::RoutingRegion;
 use librepcb_core::geometry::{Trace, TraceAnchor, Via};
-use librepcb_core::project::board::{Board, ViaView};
+use librepcb_core::project::board::{AirWire, Board, ViaView};
 use librepcb_core::project::{BoardId, NetSegmentId, NetSignalId, Project};
 use librepcb_core::types::{Length, Point, PositiveLength, Uuid};
 use serde::Serialize;
@@ -223,6 +223,68 @@ impl Copper {
     }
 }
 
+/// Check that the removal set is a simple branch between two retained anchors.
+pub(super) fn retained_branch(
+    items: &BTreeMap<Uuid, Copper>,
+    board: &Board,
+    selected: &BTreeSet<Uuid>,
+    ends: [TraceAnchor; 2],
+) -> Option<AirWire> {
+    let mut edges = BTreeMap::<TraceAnchor, Vec<TraceAnchor>>::new();
+    let mut positions = BTreeMap::new();
+    let mut removed_vias = BTreeSet::new();
+    let first = items.get(selected.first()?)?;
+    let segment = board.net_segment(first.segment)?;
+    let net = first.net?;
+    for id in selected {
+        let item = items.get(id)?;
+        if item.segment != first.segment {
+            return None;
+        }
+        match &item.geometry {
+            Geometry::Trace { trace, endpoints } => {
+                let (a, b) = (trace.p1(), trace.p2());
+                edges.entry(a).or_default().push(b);
+                edges.entry(b).or_default().push(a);
+                positions.extend([(a, endpoints[0]), (b, endpoints[1])]);
+            }
+            Geometry::Via { .. } => {
+                removed_vias.insert(TraceAnchor::Via(*id));
+            }
+        }
+    }
+    let [from, to] = ends;
+    let (a, b) = (*positions.get(&from)?, *positions.get(&to)?);
+    if a == b || removed_vias.iter().any(|id| !edges.contains_key(id)) {
+        return None;
+    }
+    for (&anchor, adjacent) in &edges {
+        let retained_trace = || {
+            segment
+                .traces_at(anchor)
+                .any(|trace| !selected.contains(&trace.uuid()))
+        };
+        let valid = if ends.contains(&anchor) {
+            adjacent.len() == 1
+                && !removed_vias.contains(&anchor)
+                && (!matches!(anchor, TraceAnchor::Junction(_)) || retained_trace())
+        } else {
+            adjacent.len() == 2
+                && (removed_vias.contains(&anchor)
+                    || (matches!(anchor, TraceAnchor::Junction(_)) && !retained_trace()))
+        };
+        if !valid {
+            return None;
+        }
+    }
+    let mut seen = BTreeSet::from([from]);
+    let mut pending = vec![from];
+    while let Some(anchor) = pending.pop() {
+        pending.extend(edges[&anchor].iter().copied().filter(|id| seen.insert(*id)));
+    }
+    (seen.len() == edges.len()).then(|| AirWire::new(net, (from, a), (to, b)))
+}
+
 pub(super) fn copper(project: &Project, board: &Board) -> Result<BTreeMap<Uuid, Copper>> {
     let mut items = BTreeMap::new();
     for (id, segment) in board.net_segments() {
@@ -325,15 +387,16 @@ impl RegionalRoutingRequest {
         board_id: BoardId,
         cancelled: impl Fn() -> bool,
     ) -> std::result::Result<AutorouteResult, RoutingError> {
-        self.run_with_staging(editor, board_id, None, cancelled, |_| Ok(()))
+        self.run_with_staging(editor, board_id, None, &[], cancelled, |_| Ok(()))
     }
 
-    /// Stage optional target copper after removals and check it within the same bounds.
+    /// Route explicit branches and optionally stage target copper after removals.
     pub(super) fn run_with_staging(
         &self,
         editor: &mut ProjectEditor,
         board_id: BoardId,
         neighbor_bounds: Option<(NetSignalId, RoutingRegion)>,
+        branches: &[AirWire],
         cancelled: impl Fn() -> bool,
         stage: impl FnOnce(&mut ProjectEditor) -> std::result::Result<(), RoutingError>,
     ) -> std::result::Result<AutorouteResult, RoutingError> {
@@ -410,7 +473,12 @@ impl RegionalRoutingRequest {
         let mut request = self.request.clone();
         request.board = Some(board_id);
         let result = editor.execute_atomic(request.text(), |tx| {
-            request.execute_with_cancel(tx, cancelled)
+            request.execute_with_branches(
+                tx,
+                branches,
+                neighbor_bounds.map(|(_, bounds)| bounds),
+                cancelled,
+            )
         })?;
         let project = editor.project();
         let board = crate::commands::resolve_board(project, Some(board_id))?;

@@ -31,7 +31,7 @@ pub use librepcb_autoroute::{
     TerminalId as RoutingTerminalId, diagnose_access,
 };
 use librepcb_autoroute::{
-    FrontierBlocker, FrontierSample, Hole, LayerScope, NetId, Obstacle, RoutingProblem,
+    Endpoint, FrontierBlocker, FrontierSample, Hole, LayerScope, NetId, Obstacle, RoutingProblem,
     RoutingRegion, RoutingResult, Shape, Terminal, TerminalId, UnroutedReason,
 };
 use librepcb_core::geometry::{
@@ -337,6 +337,16 @@ impl Autoroute {
         tx: &mut Transaction<'_>,
         cancelled: impl Fn() -> bool,
     ) -> Result<AutorouteResult> {
+        self.execute_with_branches(tx, &[], None, cancelled)
+    }
+
+    pub(crate) fn execute_with_branches(
+        self,
+        tx: &mut Transaction<'_>,
+        branches: &[AirWire],
+        branch_region: Option<RoutingRegion>,
+        cancelled: impl Fn() -> bool,
+    ) -> Result<AutorouteResult> {
         let board = resolve::board(tx.project(), self.board)?.id();
         let nets = match &self.nets {
             Some(refs) => Some(
@@ -347,7 +357,14 @@ impl Autoroute {
             None => None,
         };
         let started = std::time::Instant::now();
-        let extracted = extract_problem(tx.project(), board, &self, nets.as_ref())?;
+        let mut extracted =
+            extract_with_branches(tx.project(), board, &self, nets.as_ref(), branches)?;
+        if let Some(region) = branch_region {
+            extracted
+                .problem
+                .net_regions
+                .extend(branches.iter().map(|wire| (wire.net().0, region)));
+        }
         log::debug!(
             "routing_stage extraction {} us",
             started.elapsed().as_micros()
@@ -550,6 +567,8 @@ pub struct ExtractedProblem {
     pub nets: BTreeSet<NetSignalId>,
     /// Original board air wires, indexed by routing connection request.
     request_wires: Vec<AirWire>,
+    /// Explicit branch requests follow the ordinary air-wire requests.
+    first_branch: usize,
     outside_region: Vec<AirWire>,
     /// Air wires which could not be given to the router (anchors which are
     /// not supported, e.g. standalone board pads).
@@ -901,6 +920,16 @@ pub fn extract_problem(
     options: &Autoroute,
     nets: Option<&BTreeSet<NetSignalId>>,
 ) -> Result<ExtractedProblem> {
+    extract_with_branches(p, board, options, nets, &[])
+}
+
+fn extract_with_branches(
+    p: &Project,
+    board: BoardId,
+    options: &Autoroute,
+    nets: Option<&BTreeSet<NetSignalId>>,
+    branches: &[AirWire],
+) -> Result<ExtractedProblem> {
     use RoutingObjectKind as Kind;
 
     let b = resolve::board(p, Some(board))?;
@@ -1054,7 +1083,17 @@ pub fn extract_problem(
         .collect();
     let mut air_wires = Vec::new();
     let mut outside_region_wires = Vec::new();
-    for net in &routed_nets {
+    let branch_nets = branches.iter().map(AirWire::net).collect::<BTreeSet<_>>();
+    junction_terminals.extend(
+        branches
+            .iter()
+            .flat_map(|wire| [wire.p1(), wire.p2()])
+            .filter_map(|anchor| match anchor {
+                TraceAnchor::Junction(id) => Some(id),
+                _ => None,
+            }),
+    );
+    for net in routed_nets.difference(&branch_nets) {
         for wire in air_wire_builder.build_air_wires(*net) {
             if outside_region(region, &wire) {
                 outside_region_wires.push(wire);
@@ -1175,6 +1214,28 @@ pub fn extract_problem(
             _ => unsupported.push(wire),
         }
     }
+    let first_branch = request_wires.len();
+    for wire in branches {
+        let terminal = |anchor: TraceAnchor, position: Point| {
+            builder
+                .terminals_by_anchor
+                .get(&anchor)
+                .copied()
+                .filter(|id| {
+                    let terminal = &builder.problem.terminals[id.0];
+                    terminal.net == wire.net().0 && terminal.position == position
+                })
+                .ok_or_else(|| {
+                    Error::InvalidArgument(format!(
+                        "Repair anchor {anchor:?} did not survive rip-up."
+                    ))
+                })
+        };
+        let a = terminal(wire.p1(), wire.p1_position())?;
+        let b = terminal(wire.p2(), wire.p2_position())?;
+        builder.problem.connect(a, b);
+        request_wires.push(wire.clone());
+    }
     Ok(ExtractedProblem {
         problem: builder.problem,
         terminal_anchors: builder.terminal_anchors,
@@ -1182,6 +1243,7 @@ pub fn extract_problem(
         hole_objects: builder.hole_objects,
         nets: routed_nets,
         request_wires,
+        first_branch,
         outside_region: outside_region_wires,
         unsupported,
         via_sizes,
@@ -1262,6 +1324,31 @@ pub fn apply_result(
     let mut vias = 0;
     for route in &result.routes {
         let net = NetSignalId(route.net);
+        let branch_ends = (route.request >= extracted.first_branch)
+            .then(|| {
+                let (Endpoint::Terminal(a), Endpoint::Terminal(b)) = (route.start, route.end)
+                else {
+                    // Pair validation admits only one branch request per net.
+                    return Err(Error::InvalidArgument(
+                        "A repaired branch must reach its exact two terminals.".into(),
+                    ));
+                };
+                let [first, last] = [a, b].map(|id| {
+                    let terminal = &extracted.problem.terminals[id.0];
+                    let endpoint = match extracted.terminal_anchors[id.0] {
+                        TraceAnchor::FootprintPad { device, pad } => TraceEndpoint::FootprintPad {
+                            component: ComponentInstanceId(device),
+                            pad,
+                        },
+                        TraceAnchor::Pad(id) => TraceEndpoint::BoardPad(id),
+                        TraceAnchor::Via(id) => TraceEndpoint::Via(id),
+                        TraceAnchor::Junction(id) => TraceEndpoint::Junction(id),
+                    };
+                    (terminal, endpoint)
+                });
+                Ok([first, last])
+            })
+            .transpose()?;
         let (drill, size) = extracted.via_sizes.get(&net).copied().unwrap_or_default();
         for via in &route.vias {
             let via = Via::new(
@@ -1281,22 +1368,26 @@ pub fn apply_result(
             if segment.start == segment.end {
                 continue;
             }
-            let start = endpoint_at(
-                tx.project(),
-                board,
-                extracted,
-                route.net,
-                segment.start,
-                segment.layer,
-            )?;
-            let end = endpoint_at(
-                tx.project(),
-                board,
-                extracted,
-                route.net,
-                segment.end,
-                segment.layer,
-            )?;
+            let endpoint = |position| {
+                if let Some((_, anchor)) = branch_ends.iter().flatten().find(|(terminal, _)| {
+                    terminal.position == position
+                        && match &terminal.layers {
+                            LayerScope::All => true,
+                            LayerScope::Only(layers) => layers.contains(&segment.layer),
+                        }
+                }) {
+                    return Ok(anchor.clone());
+                }
+                endpoint_at(
+                    tx.project(),
+                    board,
+                    extracted,
+                    route.net,
+                    position,
+                    segment.layer,
+                )
+            };
+            let (start, end) = (endpoint(segment.start)?, endpoint(segment.end)?);
             if start == end {
                 continue;
             }

@@ -577,6 +577,34 @@ fn regional_search_cannot_escape_around_a_wall() {
 }
 
 #[test]
+fn per_net_region_limits_only_the_selected_connection() {
+    let mut p = RoutingProblem::new(
+        rect_outline(20.0, 10.0),
+        two_layers(),
+        RoutingRules::default(),
+    );
+    for (id, y) in [(net(1), 5.0), (net(2), 1.5)] {
+        let a = smd(&mut p, id, 3.0, y, 1.0, 1.0);
+        let b = smd(&mut p, id, 17.0, y, 1.0, 1.0);
+        p.connect(a, b);
+    }
+    p.add_obstacle(Obstacle::keepout(
+        Shape::rect(pt(10.0, 5.0), mm(1.0), mm(4.0)),
+        LayerScope::All,
+    ));
+    assert!(route(&p).unwrap().is_complete());
+    let bounds = librepcb_autoroute::RoutingRegion::new(pt(2.0, 4.0), pt(18.0, 6.0)).unwrap();
+    p.net_regions.insert(net(1), bounds);
+    let result = route(&p).unwrap();
+    assert_eq!(result.unrouted.len(), 1);
+    assert_eq!(result.unrouted[0].request, 0);
+    assert_eq!(result.unrouted[0].reason, UnroutedReason::NoPath);
+    assert_eq!(result.routes.len(), 1);
+    assert_eq!(result.routes[0].net, net(2));
+    assert_clean(&p, &result);
+}
+
+#[test]
 fn checked_pad_escape_crosses_a_gap_hidden_by_the_coarse_grid() {
     let mut p = RoutingProblem::new(
         rect_outline(12.0, 10.0),

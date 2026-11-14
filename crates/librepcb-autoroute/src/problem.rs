@@ -324,6 +324,8 @@ pub struct RoutingProblem {
     pub rules: RoutingRules,
     /// Optional bounds for new copper. Existing geometry still affects clearance.
     pub region: Option<RoutingRegion>,
+    /// Tighter search bounds for selected nets, within the overall region.
+    pub net_regions: BTreeMap<NetId, RoutingRegion>,
 }
 
 impl RoutingProblem {
