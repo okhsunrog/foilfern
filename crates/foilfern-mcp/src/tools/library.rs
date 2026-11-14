@@ -177,6 +177,17 @@ pub struct InstallTarget {
     pub existing: HashMap<Uuid, HashSet<FilePath>>,
 }
 
+/// Settled requests, including installations that succeeded independently.
+#[derive(Debug)]
+pub struct InstallBatch {
+    remote_dir: FilePath,
+    available: Vec<Value>,
+    installed: Vec<foilfern_network::InstalledLibrary>,
+    requests: Vec<Value>,
+    failures: Vec<Value>,
+    dependency_failures: Vec<Value>,
+}
+
 /// Prepares `library_install`.
 pub fn install_target(session: &Session) -> ToolResult<InstallTarget> {
     let ws = session.workspace()?;
@@ -200,7 +211,7 @@ pub fn install_target(session: &Session) -> ToolResult<InstallTarget> {
 pub async fn install_download(
     target: &InstallTarget,
     queries: &[String],
-) -> ToolResult<(Vec<Value>, Vec<foilfern_network::InstalledLibrary>)> {
+) -> ToolResult<InstallBatch> {
     use foilfern_network::{ApiEndpoint, ClientInfo, NetworkAccessManager, Url};
     let url = Url::parse(&target.api_url)
         .map_err(|e| ToolError::invalid(format!("invalid API URL {}: {e}", target.api_url)))?;
@@ -224,34 +235,116 @@ pub async fn install_download(
             })
         })
         .collect();
-    if queries.is_empty() {
-        return Ok((list, Vec::new()));
+    let mut batch = InstallBatch {
+        remote_dir: target.remote_dir.clone(),
+        available: list,
+        installed: Vec::new(),
+        requests: Vec::new(),
+        failures: Vec::new(),
+        dependency_failures: Vec::new(),
+    };
+    let mut wanted = HashSet::new();
+    let mut resolved = Vec::new();
+    for (index, query) in queries.iter().enumerate() {
+        match foilfern_network::select_libraries(&available, &[query], true) {
+            Ok(libraries) => {
+                let mut required = HashSet::new();
+                for library in libraries {
+                    wanted.insert(library.uuid);
+                    required.insert(library.uuid);
+                    required.extend(library.dependencies.iter().copied());
+                }
+                batch.requests.push(json!({"query":query}));
+                resolved.push((index, required));
+            }
+            Err(error) => {
+                let failure = json!({"query":query,"kind":"not_found","message":error.to_string()});
+                batch
+                    .requests
+                    .push(json!({"query":query,"outcome":"failed","error":failure}));
+                batch.failures.push(failure);
+            }
+        }
     }
-    let selected = foilfern_network::select_libraries(&available, queries, true)?;
-    let installed =
-        foilfern_network::install_libraries(&nam, &selected, &target.remote_dir, &target.existing)
-            .await?;
-    Ok((list, installed))
+    let selected = available
+        .iter()
+        .filter(|library| wanted.contains(&library.uuid))
+        .collect::<Vec<_>>();
+    let results = foilfern_network::install_libraries_report(
+        &nam,
+        &selected,
+        &target.remote_dir,
+        &target.existing,
+    )
+    .await;
+    let mut failed = HashSet::new();
+    for (library, result) in selected.iter().zip(results) {
+        match result {
+            Ok(installed) => batch.installed.push(installed),
+            Err(error) => {
+                failed.insert(library.uuid);
+                batch.failures.push(json!({"uuid":library.uuid,"name":library.name,"kind":"network","message":error.to_string()}));
+            }
+        }
+    }
+    for library in selected {
+        for dependency in &library.dependencies {
+            let missing = !available.iter().any(|l| l.uuid == *dependency)
+                && !target.existing.contains_key(dependency);
+            if failed.contains(dependency) || missing {
+                batch.dependency_failures.push(json!({"library":library.uuid,"dependency":dependency,"reason":if missing {"unavailable"} else {"install_failed"}}));
+            }
+        }
+    }
+    for (index, required) in resolved {
+        let mut unsuccessful = required
+            .iter()
+            .filter(|uuid| {
+                failed.contains(uuid)
+                    || (!wanted.contains(uuid) && !target.existing.contains_key(uuid))
+            })
+            .copied()
+            .collect::<Vec<_>>();
+        unsuccessful.sort();
+        let mut libraries = required.into_iter().collect::<Vec<_>>();
+        libraries.sort();
+        let outcome = if unsuccessful.is_empty() {
+            "complete"
+        } else if unsuccessful.len() == libraries.len() {
+            "failed"
+        } else {
+            "partial"
+        };
+        let request = batch
+            .requests
+            .get_mut(index)
+            .ok_or_else(|| ToolError::internal("Library request report index disappeared."))?;
+        *request = json!({"query":queries[index],"outcome":outcome,"libraries":libraries,"failed_libraries":unsuccessful});
+    }
+    Ok(batch)
 }
 
 /// Finishes `library_install` (rescan, blocking).
-pub fn install_finish(
-    session: &Session,
-    available: Vec<Value>,
-    installed: Vec<foilfern_network::InstalledLibrary>,
-) -> ToolResult<ToolOutput> {
-    if installed.is_empty() {
+pub fn install_finish(session: &Session, batch: InstallBatch) -> ToolResult<ToolOutput> {
+    let ws = session.workspace()?;
+    if ws.remote_libraries_path() != batch.remote_dir {
+        return Err(ToolError::new(
+            ErrorKind::Conflict,
+            "Workspace changed during library installation; downloads remain in the original workspace.",
+        ));
+    }
+    if batch.requests.is_empty() {
         return ToolOutput::new(
-            format!("{} libraries available for installation.", available.len()),
-            json!({ "available": available, "installed": [] }),
+            format!(
+                "{} libraries available for installation.",
+                batch.available.len()
+            ),
+            json!({ "available": batch.available, "installed": [] }),
         );
     }
-    let count = rescan(session.workspace()?)?;
-    let names: Vec<String> = installed
-        .iter()
-        .map(|l| format!("{} v{} ({})", l.name, l.version, l.method.as_str()))
-        .collect();
-    let installed: Vec<Value> = installed
+    let count = rescan(ws)?;
+    let installed: Vec<Value> = batch
+        .installed
         .iter()
         .map(|l| {
             json!({
@@ -265,13 +358,17 @@ pub fn install_finish(
             })
         })
         .collect();
-    ToolOutput::new(
+    let partial = !batch.failures.is_empty() || !batch.dependency_failures.is_empty();
+    let output = ToolOutput::new(
         format!(
-            "Installed {}; the index now has {count} elements.",
-            names.join(", ")
+            "{} libraries installed; {} failures; {} dependency failures; the index has {count} elements.",
+            installed.len(),
+            batch.failures.len(),
+            batch.dependency_failures.len()
         ),
-        json!({ "installed": installed, "element_count": count }),
-    )
+        json!({"installed":installed,"requests":batch.requests,"failures":batch.failures,"dependency_failures":batch.dependency_failures,"element_count":count}),
+    )?;
+    Ok(if partial { output.partial() } else { output })
 }
 
 /// `library_search`.

@@ -168,7 +168,8 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `44`, including supplier part acquisition).
+`api_capability_version` (currently `45`, including supplier part acquisition
+and per-request library installation reports).
 Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
@@ -607,7 +608,14 @@ libraries by name/uuid, downloads + rescans; if a ZIP download fails, e.g.
 blocked by a proxy, and the library list entry has a repository URL and
 `git` is available, the repository is cloned shallowly at the commit of
 the ZIP URL into a temporary directory, `.git` is removed and the result
-renamed into place; the result reports `method: zip|git`),
+renamed into place; the result reports `method: zip|git`). Named requests are
+settled independently: unknown names do not prevent valid requests from
+installing, and failed downloads do not hide successful installations. Results
+include ordered `requests`, `failures` and `dependency_failures`; any failure
+produces `outcome:partial`, including an all-failed batch. Successful native files
+are retained and rescanned. A downloaded library can be listed under `installed`
+while its request is partial because a dependency failed; the dependency report
+must be checked before using it. A failed list fetch remains a tool error.
 `part_import` (exactly one of `lcsc` or `mpn`,
 `cache: prefer_cache|offline|refresh`, `require_model`)
 acquires an exact supplier part into `SupplierParts.lplib` in the workspace's

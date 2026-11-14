@@ -508,7 +508,9 @@ impl FoilfernMcp {
     #[tool(
         description = "Install official libraries from api.librepcb.org into the workspace \
                        (with dependencies) and rescan; without names, list the available \
-                       libraries. Falls back to a git clone of the library repository if the \
+                       libraries. Named requests settle independently; partial results retain \
+                       successful installations and report per-request and dependency failures. \
+                       Falls back to a git clone of the library repository if the \
                        ZIP download fails (result: method zip|git)."
     )]
     async fn library_install(
@@ -520,10 +522,7 @@ impl FoilfernMcp {
             Err(e) => return self.run(move |_| Err(e)).await,
         };
         match library::install_download(&target, &args.libraries).await {
-            Ok((available, installed)) => {
-                self.run(move |s| library::install_finish(s, available, installed))
-                    .await
-            }
+            Ok(batch) => self.run(move |s| library::install_finish(s, batch)).await,
             Err(e) => self.run(move |_| Err(e)).await,
         }
     }

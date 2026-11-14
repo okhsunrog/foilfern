@@ -40,7 +40,7 @@ pub use file_download::{
 pub use library_download::{LibraryDownload, find_library_in_zip};
 pub use library_installer::{
     InstallMethod, InstalledLibrary, fetch_library_list, install_libraries,
-    install_official_libraries, installed_library_dirs, select_libraries,
+    install_libraries_report, install_official_libraries, installed_library_dirs, select_libraries,
 };
 pub use network_access_manager::{ClientInfo, NetworkAccessManager};
 pub use network_request::{NetworkRequest, Progress, Reply};

@@ -291,3 +291,21 @@ oscillator/RTC/WKUP aliases and supply instance suffixes. Other datasheet audits
 and rendered model/footprint alignment remain pending; model acceptance stays
 explicitly `alignment_verified:false`. Experimental logs and images remain under
 the task's `foilfern-parts/corpus` and `foilfern-parts/previews` directories.
+
+### Delivered partial library installation (A5)
+
+`library_install` resolves named requests independently and retains every settled
+download result. Unknown names do not block valid requests; failed downloads do
+not hide successful installations. Results include ordered per-query outcomes,
+failures and missing/failed dependencies, with an explicit partial outcome.
+Successful native files are retained and rescanned even when another request
+fails. A library downloaded without a successfully updated dependency is reported
+as installed but its request remains partial; no complete dependency state is
+claimed. A switched workspace is refused at report publication. The old network
+installer API retains its behavior for other callers; the MCP uses the new
+per-library report API. Capability version is 45.
+
+92 ordinary MCP tests and 40 network tests passed, plus all-target Clippy for
+both crates. A local HTTP regression covers a valid name beside a missing name,
+and a successful dependent-library download beside a failed dependency update,
+including fresh index visibility. Official KiCad source discovery remains next.

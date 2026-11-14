@@ -50,6 +50,91 @@ fn workspace(dir: &Path) -> Session {
     session
 }
 
+#[tokio::test]
+async fn library_install_retains_independent_successes_and_reports_dependency_failures() {
+    use serde_json::{Value, json};
+    use wiremock::matchers::path;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+    let temporary = tempfile::tempdir().unwrap();
+    let mut session = Session::new();
+    project::workspace_open(
+        &mut session,
+        WorkspacePathArgs {
+            path: temporary
+                .path()
+                .join("workspace")
+                .to_string_lossy()
+                .into_owned(),
+        },
+        true,
+    )
+    .unwrap();
+    let server = MockServer::start().await;
+    let raw = std::fs::read_to_string(test_data_dir().join("server/api/v1/libraries/v2"))
+        .unwrap()
+        .replace("http://localhost:50080", &server.uri());
+    let mut list: Value = serde_json::from_str(&raw).unwrap();
+    // No test failure can fall back to a live repository clone.
+    for library in list["results"].as_array_mut().unwrap() {
+        library["url"] = Value::Null;
+    }
+    let mount_list = || {
+        Mock::given(path("/api/v1/libraries/v2"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(list.clone()))
+    };
+    mount_list().mount(&server).await;
+    Mock::given(path("/blobs/LibrePCB_Base.zip"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(
+            std::fs::read(test_data_dir().join("server/blobs/LibrePCB_Base.zip")).unwrap(),
+        ))
+        .mount(&server)
+        .await;
+    let mut target = library::install_target(&session).unwrap();
+    target.api_url = server.uri();
+    let batch =
+        library::install_download(&target, &["LibrePCB Base".into(), "missing library".into()])
+            .await
+            .unwrap();
+    let output = library::install_finish(&session, batch).unwrap();
+    assert_eq!(output.outcome, foilfern_mcp::outcome::Outcome::Partial);
+    assert_eq!(output.result["installed"].as_array().unwrap().len(), 1);
+    assert_eq!(output.result["requests"][0]["outcome"], "complete");
+    assert_eq!(output.result["requests"][1]["outcome"], "failed");
+    assert_eq!(output.result["failures"][0]["kind"], "not_found");
+    assert!(output.result["element_count"].as_u64().unwrap() > 0);
+
+    server.reset().await;
+    mount_list().mount(&server).await;
+    Mock::given(path("/blobs/LibrePCB_Connectors.zip"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(
+            std::fs::read(test_data_dir().join("server/blobs/LibrePCB_Connectors.zip")).unwrap(),
+        ))
+        .mount(&server)
+        .await;
+    let mut target = library::install_target(&session).unwrap();
+    target.api_url = server.uri();
+    let batch = library::install_download(&target, &["LibrePCB Connectors".into()])
+        .await
+        .unwrap();
+    let output = library::install_finish(&session, batch).unwrap();
+    assert_eq!(output.outcome, foilfern_mcp::outcome::Outcome::Partial);
+    assert_eq!(output.result["installed"][0]["name"], "LibrePCB Connectors");
+    assert_eq!(output.result["failures"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        output.result["dependency_failures"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        output.result["dependency_failures"][0]["reason"],
+        "install_failed"
+    );
+    assert_eq!(output.result["requests"][0]["outcome"], "partial");
+    assert_ne!(output.result["element_count"], json!(0));
+}
+
 #[test]
 fn eagle_library_import() {
     let tmp = tempfile::tempdir().unwrap();

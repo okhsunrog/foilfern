@@ -143,6 +143,21 @@ pub async fn install_libraries(
     remote_libraries_dir: &FilePath,
     existing_dirs: &HashMap<Uuid, HashSet<FilePath>>,
 ) -> Result<Vec<InstalledLibrary>> {
+    install_libraries_report(nam, libraries, remote_libraries_dir, existing_dirs)
+        .await
+        .into_iter()
+        .collect()
+}
+
+/// Settles every independent library installation, returning one result per
+/// input in the same order. Successful installations are retained when others
+/// fail; callers can report them and rescan instead of losing the whole report.
+pub async fn install_libraries_report(
+    nam: &NetworkAccessManager,
+    libraries: &[&Library],
+    remote_libraries_dir: &FilePath,
+    existing_dirs: &HashMap<Uuid, HashSet<FilePath>>,
+) -> Vec<Result<InstalledLibrary>> {
     // Limit number of parallel file access threads (like upstream).
     let semaphore = Arc::new(Semaphore::new(4));
     let git_available = tokio::sync::OnceCell::new();
@@ -216,7 +231,7 @@ pub async fn install_libraries(
                 })
         }
     });
-    join_all(downloads).await.into_iter().collect()
+    join_all(downloads).await
 }
 
 /// Installs libraries of the API server `endpoint` selected by UUID or
