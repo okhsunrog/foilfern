@@ -3950,10 +3950,26 @@ async fn stdio_declarative_board_placement_reviews_and_replays_one_patch() {
         0
     );
     assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    let via = call_ok(
+        &client,
+        "via_add",
+        json!({"net":"LINK","position":{"x":18,"y":12.4},"drill":0.3,"size":0.7}),
+    )
+    .await;
     call_ok(
         &client,
-        "autoroute",
-        json!({"backend":"builtin","nets":["LINK"]}),
+        "trace_add",
+        json!({
+            "from":"R1.1","to":via["uuid"],"layer":"top_cu","width":0.2
+        }),
+    )
+    .await;
+    call_ok(
+        &client,
+        "trace_add",
+        json!({
+            "from":"R2.1","to":via["uuid"],"layer":"bot_cu","width":0.2
+        }),
     )
     .await;
     let routed = call_ok(&client, "board_get", json!({})).await;
