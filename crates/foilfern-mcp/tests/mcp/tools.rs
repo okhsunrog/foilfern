@@ -39,6 +39,67 @@ fn names(list: &Value, key: &str) -> Vec<String> {
 }
 
 #[test]
+fn exact_library_resolution_checks_all_candidates_and_returns_details() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut session = Session::new();
+    let ws = project::workspace_open(
+        &mut session,
+        WorkspacePathArgs {
+            path: tmp.path().join("workspace").to_string_lossy().into_owned(),
+        },
+        true,
+    )
+    .unwrap();
+    let libraries = Path::new(ws.result["libraries_path"].as_str().unwrap());
+    crate::common::install_populated_library(libraries);
+    library::library_rescan(&session).unwrap();
+    let query = |name: &str| LibrarySearchArgs {
+        query: name.into(),
+        exact: true,
+        kind: Some(LibKind::Device),
+        limit: Some(1),
+    };
+    let result = library::library_search(&session, query("R-0805")).unwrap();
+    assert_eq!(
+        result.result["elements"][0]["pads"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert!(result.result["elements"][0]["footprints"].is_array());
+    let result = library::library_search(&session, query("demo1")).unwrap();
+    let device = &result.result["elements"][0];
+    assert_eq!(device["matched_parts"][0]["mpn"], "DEMO1");
+    assert_eq!(device["matched_parts"][0]["manufacturer"], "MANU1");
+    assert!(device["models"].is_array());
+    assert_eq!(
+        library::library_search(&session, query("R-080"))
+            .unwrap_err()
+            .kind,
+        ErrorKind::NotFound
+    );
+
+    // Give another real device the same exact name. limit=1 must not hide it.
+    let file = libraries
+        .join("local/Populated Library.lplib/dev/4f5ee784-4b1b-407c-802b-44625163d90f/device.lp");
+    let text = std::fs::read_to_string(&file).unwrap();
+    assert!(text.contains("(name \"Demo Device\")"));
+    std::fs::write(
+        &file,
+        text.replace("(name \"Demo Device\")", "(name \"R-0805\")"),
+    )
+    .unwrap();
+    library::library_rescan(&session).unwrap();
+    let error = library::library_search(&session, query("R-0805")).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Conflict);
+    assert!(error.message.contains("2 exact library matches"), "{error}");
+    let result =
+        library::library_search(&session, query("4f5ee784-4b1b-407c-802b-44625163d90f")).unwrap();
+    assert_eq!(result.result["elements"][0]["name"], "R-0805");
+}
+
+#[test]
 fn workspace_library_tools() {
     let tmp = tempfile::tempdir().unwrap();
     let ws_dir = tmp.path().join("workspace");
@@ -74,6 +135,7 @@ fn workspace_library_tools() {
     let out = library::library_search(
         &session,
         LibrarySearchArgs {
+            exact: false,
             query: "R-0805".into(),
             kind: Some(LibKind::Device),
             limit: None,
@@ -92,6 +154,7 @@ fn workspace_library_tools() {
     let out = library::library_search(
         &session,
         LibrarySearchArgs {
+            exact: false,
             query: "resistor 0805".into(),
             kind: Some(LibKind::Device),
             limit: None,
@@ -107,6 +170,7 @@ fn workspace_library_tools() {
     let ambiguous = library::library_search(
         &session,
         LibrarySearchArgs {
+            exact: false,
             query: "resistor 0603".into(),
             kind: Some(LibKind::Device),
             limit: Some(1),

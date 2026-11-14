@@ -1385,3 +1385,17 @@ is supplied. The device's native component reference is resolved while preparing
 the transaction. An explicitly supplied component must still agree with the
 device. Omit `device` only for schematic-only components, which must name their
 `library_component`.
+
+`library_search` with `exact: true` resolves a unique exact name, device MPN or
+UUID (case-insensitive names/MPNs). It returns full element detail in the single
+`elements` entry, including matching library parts under `matched_parts` for an
+MPN query. An empty query fails; zero matches are `not_found`, multiple matches
+are `conflict` with candidate UUIDs. `limit` does not truncate exact resolution
+or hide ambiguity. Specify `kind: "device"` when resolving physical parts. Normal
+keyword search remains the default. Project library objects take precedence over
+workspace objects with the same UUID.
+
+Device detail includes package `models` with UUID, name, STEP filename and an
+`available` flag indicating file existence, not model validity. Footprints expose
+model IDs plus their native model_position in mm and model_rotation in degrees.
+Pad/signal mappings and footprint pad geometry are returned in the same response.

@@ -545,7 +545,8 @@ impl FoilfernMcp {
                        keyword or part number in the workspace libraries and the project \
                        library: whole-string matches first, then elements containing all words \
                        (e.g. \"resistor 0805\"). Devices are components with a footprint (what \
-                       component_add needs for the board)."
+                       component_add needs for the board). exact:true resolves a unique name, \
+                       MPN or UUID with full details; ambiguous matches fail."
     )]
     async fn library_search(
         &self,

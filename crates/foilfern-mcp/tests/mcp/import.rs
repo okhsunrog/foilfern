@@ -111,6 +111,7 @@ fn eagle_library_import() {
     let out = library::library_search(
         &session,
         LibrarySearchArgs {
+            exact: false,
             query: "EAGLE".into(),
             kind: Some(LibKind::Device),
             limit: None,

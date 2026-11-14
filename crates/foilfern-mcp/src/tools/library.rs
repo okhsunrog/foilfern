@@ -6,11 +6,13 @@
 //! is searched as well. Without a workspace, only the project library is
 //! available.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
-use foilfern_core::fileio::{FilePath, TransactionalDirectory, TransactionalFileSystem};
+use foilfern_core::fileio::{
+    FilePath, FileSystem, TransactionalDirectory, TransactionalFileSystem,
+};
 use foilfern_core::library::LibraryBaseElement;
 use foilfern_core::library::cmp::Component;
 use foilfern_core::library::dev::Device;
@@ -68,6 +70,10 @@ pub struct LibrarySearchArgs {
     /// (`match: "all_words"`), e.g. "resistor 0805". These labels describe
     /// text matching, not package dimensions. Ambiguous size codes produce warnings.
     pub query: String,
+    /// Resolve an exact name, device MPN or UUID and return full element details.
+    /// Fails if zero or multiple elements match; limit never hides ambiguity.
+    #[serde(default)]
+    pub exact: bool,
     /// Restrict to one kind (default: components, devices, packages and
     /// symbols).
     #[serde(default)]
@@ -270,6 +276,9 @@ pub fn install_finish(
 
 /// `library_search`.
 pub fn library_search(session: &Session, args: LibrarySearchArgs) -> ToolResult<ToolOutput> {
+    if args.exact {
+        return library_search_exact(session, args);
+    }
     let limit = args.limit.unwrap_or(25).clamp(1, 500);
     let kinds: Vec<ElementKind> = match args.kind {
         Some(k) => vec![k.into()],
@@ -416,6 +425,134 @@ pub fn library_search(session: &Session, args: LibrarySearchArgs) -> ToolResult<
     } else {
         out
     })
+}
+
+fn library_search_exact(session: &Session, args: LibrarySearchArgs) -> ToolResult<ToolOutput> {
+    let needle = args.query.trim().to_lowercase();
+    if needle.is_empty() {
+        return Err(ToolError::invalid("Exact library query must not be empty."));
+    }
+    let kinds: Vec<ElementKind> = args.kind.map(|kind| vec![kind.into()]).unwrap_or_else(|| {
+        vec![
+            ElementKind::Component,
+            ElementKind::Device,
+            ElementKind::Package,
+            ElementKind::Symbol,
+        ]
+    });
+    let mut candidates = BTreeMap::new();
+    if let Some(ws) = &session.workspace {
+        for item in ws.library_db().search(&SearchQuery {
+            keyword: args.query.trim().to_owned(),
+            kinds: kinds.clone(),
+            include_parts: true,
+            locale_order: locale_order(ws),
+            limit: None,
+        })? {
+            candidates.insert((item.kind, item.uuid), item.name.to_lowercase() == needle);
+        }
+    }
+    if let Some(open) = &session.project {
+        let library = open.project().library();
+        let mut insert = |kind, uuid, name: &str| {
+            if kinds.contains(&kind) {
+                candidates.insert((kind, uuid), name.to_lowercase() == needle);
+            }
+        };
+        for item in library.components().values() {
+            insert(
+                ElementKind::Component,
+                item.metadata().uuid(),
+                item.metadata().name().as_str(),
+            );
+        }
+        for item in library.devices().values() {
+            insert(
+                ElementKind::Device,
+                item.metadata().uuid(),
+                item.metadata().name().as_str(),
+            );
+        }
+        for item in library.packages().values() {
+            insert(
+                ElementKind::Package,
+                item.metadata().uuid(),
+                item.metadata().name().as_str(),
+            );
+        }
+        for item in library.symbols().values() {
+            insert(
+                ElementKind::Symbol,
+                item.metadata().uuid(),
+                item.metadata().name().as_str(),
+            );
+        }
+    }
+    let mut matches = Vec::new();
+    for ((kind, uuid), name_matches) in candidates {
+        let kind = match kind {
+            ElementKind::Component => LibKind::Component,
+            ElementKind::Device => LibKind::Device,
+            ElementKind::Package => LibKind::Package,
+            ElementKind::Symbol => LibKind::Symbol,
+            _ => continue,
+        };
+        let mut detail = library_element(
+            session,
+            LibraryElementArgs {
+                uuid: uuid.to_string(),
+                kind: Some(kind),
+            },
+        )?
+        .result;
+        let parts: Vec<_> = detail["parts"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|part| {
+                part["mpn"]
+                    .as_str()
+                    .is_some_and(|mpn| mpn.to_lowercase() == needle)
+            })
+            .cloned()
+            .collect();
+        if name_matches || uuid.to_string() == needle || !parts.is_empty() {
+            detail["match"] = json!("exact");
+            if !parts.is_empty() {
+                detail["matched_parts"] = json!(parts);
+            }
+            matches.push(detail);
+        }
+    }
+    match matches.len() {
+        0 => {
+            return Err(ToolError::not_found(format!(
+                "No exact library name, MPN or UUID matches {:?}.",
+                args.query
+            )));
+        }
+        1 => {}
+        count => {
+            let choices: Vec<_> = matches
+                .iter()
+                .take(12)
+                .map(|m| json!({"kind":m["kind"],"uuid":m["uuid"],"name":m["name"]}))
+                .collect();
+            return Err(ToolError::new(
+                ErrorKind::Conflict,
+                format!(
+                    "{count} exact library matches for {:?}; select a kind or UUID. Candidates: {}",
+                    args.query,
+                    json!(choices)
+                ),
+            ));
+        }
+    }
+    ToolOutput::new(
+        format!("Resolved one exact library element for {:?}.", args.query),
+        json!({"elements":matches}),
+    )
+    .map(|out| out.warnings(package_size_warnings(&args.query)))
 }
 
 // These codes are used in both imperial and metric chip-size conventions.
@@ -721,6 +858,9 @@ fn footprints(pkg: &Package) -> Value {
                 json!({
                     "uuid": fp.uuid(),
                     "name": fp.names().default_value().as_str(),
+                    "models": fp.models(),
+                    "model_position": {"x":mm(fp.model_position().0),"y":mm(fp.model_position().1),"z":mm(fp.model_position().2)},
+                    "model_rotation": {"x":deg(fp.model_rotation().0),"y":deg(fp.model_rotation().1),"z":deg(fp.model_rotation().2)},
                     "pads": pads,
                 })
             })
@@ -881,6 +1021,15 @@ fn device_detail(src: &ElementSource<'_>, d: &Device, source: &str) -> ToolResul
     );
     if let Some((p, _)) = &package {
         v["footprints"] = footprints(p);
+        v["models"] = json!(
+            p.models()
+                .iter()
+                .map(|model| json!({
+                    "uuid":model.uuid(), "name":model.name().as_str(), "file":model.file_name(),
+                    "available":p.directory().file_exists(&model.file_name()),
+                }))
+                .collect::<Vec<_>>()
+        );
     }
     Ok(v)
 }

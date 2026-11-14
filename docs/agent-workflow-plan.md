@@ -118,3 +118,22 @@ library component is inferred and imported through the same transaction; an
 explicit incompatible library_component is rejected. The existing stdio creation
 acceptance now exercises device-only creation, rollback, undo/redo, persisted
 reopen and no-op replay, and rejects conflicting explicit component references.
+
+### Delivered exact resolution and model metadata (A3)
+
+`library_search exact:true` returns full details for a unique exact name/MPN/UUID,
+rejects ambiguity even at limit 1, and includes matching parts. Device details now
+report model file existence and footprint model transforms. A fixture-based test
+covers MPN resolution, no fuzzy fallback, duplicate names and UUID disambiguation.
+All 90 MCP integration tests and all-target MCP Clippy passed.
+
+### Import feasibility evidence (A4)
+
+The EasyEDA product endpoint returned C8734 successfully on 2026-11-14, including
+STM32F103C8T6, supplier/manufacturer fields, symbol and package source data. This
+is fetched-source evidence only, not a converted native library or pin audit.
+Crates evaluated: easyeda2kicad-rs 1.1.2 (MIT, library API), npnp 3.1.0
+(non-commercial restriction; not selected), pcb-jlcpcb 0.1.3 (MIT, binary-only).
+The MIT converter silently defaults several malformed numeric fields and drops
+some primitives, so its output needs strict source/mapping/geometry validation
+before any import path is accepted. No converter dependency has been added yet.
