@@ -1257,6 +1257,16 @@ review. Use the conflict details to choose another exit if the conflicting
 geometry was generated during the failed trial, or authorize an additional
 branch if a fixed trace or via is eligible for replacement.
 
+Finished repair evidence also includes `screening_failures` when the local
+escape screening found no sites, including a neighbor screened against an
+already staged target launch. These entries identify the pad, removal scope,
+and bounded probe blockers that still belong to the source board. Local
+probes suggest scope to inspect; they do not prove that removing it will
+make a via or a continuation legal. In search status the same failures are
+available even if no routing trial ran. `routing_failures` retains the
+failed endpoints and bounded frontier evidence from target and neighbor
+continuations, rather than only their net names and reason strings.
+
 Search evidence includes bounded samples at multiple locations and layers
 along a failed frontier. Proposals supported by continuation samples appear
 before those based only on the original pad probes. The planner follows

@@ -208,9 +208,11 @@ pub(super) fn suggest(
     let mut escape_blockers = Vec::new();
     let mut validation_failures = Vec::new();
     let mut validation_blockers = Vec::new();
+    let mut screening_failures = Vec::new();
+    let mut routing_failures = Vec::new();
     if let Some(id) = &args.evidence_search {
         let id = crate::resolve::required_uuid(id, "repair search")?;
-        let (failures, trials) = service
+        let (failures, trials, screenings) = service
             .repair_search_evidence(project, board.id(), net, id)
             .map_err(super::routing_error)?;
         let segments = copper_segments(board, net);
@@ -272,7 +274,56 @@ pub(super) fn suggest(
             .flat_map(|segment| segment.traces().keys().chain(segment.vias().keys()))
             .copied()
             .collect();
+        for failure in screenings {
+            let blockers: Vec<_> = failure
+                .blockers
+                .iter()
+                .filter(|object| {
+                    source_copper.contains(&object.uuid) && !failure.rip_up.contains(&object.uuid)
+                })
+                .copied()
+                .collect();
+            for object in &blockers {
+                if !search_blockers.contains(object) {
+                    search_blockers.push(*object);
+                }
+            }
+            screening_failures.push(json!({
+                "groups":failure.groups, "rip_up":failure.rip_up,
+                "net":crate::resolve::net_name(project, failure.net),
+                "anchor":layout::trace_anchor(project, board, Some(failure.position), TraceAnchor::FootprintPad {
+                    device:failure.from.0.0, pad:failure.from.1,
+                }),
+                "layer":failure.layer, "reason":"no_clear_escape_sites",
+                "target_launch":failure.target_launch.as_ref().map(launch_request),
+                "source_blockers":blockers,
+            }));
+        }
         for (index, trial) in trials.iter().enumerate() {
+            for failure in trial.target_failures.iter().chain(&trial.neighbor_failures) {
+                let blockers: Vec<_> = failure
+                    .search_evidence
+                    .iter()
+                    .filter_map(|sample| match sample.blocker {
+                        Some(RoutingSearchBlocker::Existing { object })
+                            if source_copper.contains(&object.uuid)
+                                && !trial.rip_up.contains(&object.uuid) =>
+                        {
+                            Some(object)
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                for object in &blockers {
+                    if !search_blockers.contains(object) {
+                        search_blockers.push(*object);
+                    }
+                }
+                if routing_failures.len() < MAX_PROPOSALS {
+                    routing_failures
+                        .push(json!({"trial":index,"failure":failure,"source_blockers":blockers}));
+                }
+            }
             if validation_failures.len() == MAX_PROPOSALS {
                 break;
             }
@@ -537,6 +588,8 @@ pub(super) fn suggest(
     }
     if args.evidence_search.is_some() {
         out["escape_sites"] = json!(escape_sites);
+        out["screening_failures"] = json!(screening_failures);
+        out["routing_failures"] = json!(routing_failures);
         out["validation_failures"] = json!(
             validation_failures
                 .into_iter()

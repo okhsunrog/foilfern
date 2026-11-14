@@ -18,6 +18,9 @@ use super::{
     comparison::{TracePreferenceResult, copper_cost},
     rebuild_connectivity,
 };
+use crate::commands::autoroute::{
+    AccessBlocker, RoutingObject, RoutingSearchSample, diagnose_access, extract_problem,
+};
 use crate::commands::{
     AddVia, Autoroute, AutorouteResult, BoardSelection, NetRef, RoutingBounds, TraceEndpoint,
     UnroutedAirWire, net_name, resolve_board,
@@ -156,6 +159,8 @@ pub struct RepairSearchStatus {
     pub current_strategy: Option<RepairStrategy>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub launch_sites: Option<Vec<RepairLaunch>>,
+    /// Bounded local probes when a pad has no clear escape, before routing trials exist.
+    pub screening_failures: Vec<RepairScreeningFailure>,
     pub cancel_requested: bool,
     stop_reason: Option<StopReason>,
     pub trials: Vec<RepairTrial>,
@@ -190,6 +195,26 @@ pub struct RepairFailure {
     pub net: NetSignalId,
     pub name: String,
     pub reason: String,
+    pub anchors: [TraceAnchor; 2],
+    pub positions: [Point; 2],
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub soft_reason: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub search_evidence: Vec<RoutingSearchSample>,
+}
+
+/// A failed local escape screening on a detached, partially ripped-up board.
+/// Probes identify possible blockers; they do not prove that removing them suffices.
+#[derive(Debug, Clone, Serialize)]
+pub struct RepairScreeningFailure {
+    pub groups: Vec<usize>,
+    pub rip_up: BTreeSet<Uuid>,
+    pub from: (ComponentInstanceId, Uuid),
+    pub net: NetSignalId,
+    pub layer: Layer,
+    pub position: Point,
+    pub target_launch: Option<RepairLaunch>,
+    pub blockers: Vec<RoutingObject>,
 }
 
 /// Failed continuation from a checked additive escape trial.
@@ -208,6 +233,10 @@ fn summarize_failures(
         net: failure.net,
         name: failure.net_name.clone(),
         reason: failure.reason.clone(),
+        anchors: [failure.p1, failure.p2],
+        positions: [failure.p1_position, failure.p2_position],
+        soft_reason: failure.soft_reason.clone(),
+        search_evidence: failure.search_evidence.clone(),
     };
     result
         .failed_requests
@@ -271,6 +300,7 @@ struct Progress {
     planned: usize,
     launch_sites: Option<Vec<RepairLaunch>>,
     launch_failures: Vec<RepairLaunchFailure>,
+    screening_failures: Vec<RepairScreeningFailure>,
     trials: Vec<RepairTrial>,
     stop: Option<StopReason>,
     candidates: Vec<RepairChoice>,
@@ -327,6 +357,7 @@ impl ActiveRepairSearch {
             current_groups: progress.groups.clone(),
             current_strategy: progress.strategy,
             launch_sites: progress.launch_sites.clone(),
+            screening_failures: progress.screening_failures.clone(),
             cancel_requested: self.cancel.load(Ordering::Relaxed),
             stop_reason: progress.stop,
             trials: progress.trials.clone(),
@@ -419,6 +450,7 @@ impl RoutingService {
                 .min(request.max_trials),
                 launch_sites: None,
                 launch_failures: Vec::new(),
+                screening_failures: Vec::new(),
                 trials: Vec::new(),
                 stop: None,
                 candidates: Vec::new(),
@@ -461,7 +493,14 @@ impl RoutingService {
         board: BoardId,
         target: NetSignalId,
         id: Uuid,
-    ) -> Result<(Vec<RepairLaunchFailure>, Vec<RepairTrial>), RoutingError> {
+    ) -> Result<
+        (
+            Vec<RepairLaunchFailure>,
+            Vec<RepairTrial>,
+            Vec<RepairScreeningFailure>,
+        ),
+        RoutingError,
+    > {
         let search = self
             .repair_search
             .as_ref()
@@ -488,7 +527,11 @@ impl RoutingService {
                 "Use a finished repair search with checked trials.".into(),
             ));
         }
-        Ok((progress.launch_failures.clone(), progress.trials.clone()))
+        Ok((
+            progress.launch_failures.clone(),
+            progress.trials.clone(),
+            progress.screening_failures.clone(),
+        ))
     }
 
     pub fn cancel_repair_search(&self) {
@@ -1012,6 +1055,72 @@ impl RepairSearchJob {
             .collect())
     }
 
+    fn record_screening_failure(
+        &self,
+        project: &Project,
+        search: &RepairLaunchSearch,
+        trial: &Trial,
+        target_launch: Option<RepairLaunch>,
+        route: &Autoroute,
+    ) -> Result<(), RoutingError> {
+        // Sampling is diagnostic only and bounded independently of the trial budget.
+        if self.state.progress.lock().screening_failures.len() >= 16 || self.state.stop().is_some()
+        {
+            return Ok(());
+        }
+        let board = resolve_board(project, Some(self.state.board))?;
+        let pad = RepairSearchRequest::launch_pad(project, board, search.from, search.layer, None)?;
+        let Some(net) = pad.net() else { return Ok(()) };
+        let options = Autoroute {
+            layers: Some(vec![search.layer]),
+            ..route.clone()
+        };
+        let extracted =
+            extract_problem(project, board.id(), &options, Some(&BTreeSet::from([net])))?;
+        let anchor = TraceAnchor::FootprintPad {
+            device: search.from.0.0,
+            pad: search.from.1,
+        };
+        let terminals: Vec<_> = extracted
+            .terminal_anchors
+            .iter()
+            .enumerate()
+            .filter(|(_, a)| **a == anchor)
+            .map(|(i, _)| foilfern_autoroute::TerminalId(i))
+            .collect();
+        let reports =
+            diagnose_access(&extracted.problem, &terminals, search.radius).map_err(Error::from)?;
+        let mut blockers = Vec::new();
+        for probe in reports.iter().flat_map(|report| &report.probes) {
+            let object = match probe.blocker {
+                Some(AccessBlocker::Obstacle(i)) => extracted.obstacle_objects[i],
+                Some(AccessBlocker::Hole(i)) => extracted.hole_objects[i],
+                Some(AccessBlocker::Terminal(id)) => {
+                    RoutingObject::from_anchor(extracted.terminal_anchors[id.0])
+                }
+                Some(AccessBlocker::BoardEdge) | None => continue,
+            };
+            if !blockers.contains(&object) {
+                blockers.push(object);
+            }
+        }
+        self.state
+            .progress
+            .lock()
+            .screening_failures
+            .push(RepairScreeningFailure {
+                groups: trial.groups.clone(),
+                rip_up: trial.rip_up.clone(),
+                from: search.from,
+                net,
+                layer: search.layer,
+                position: pad.position(),
+                target_launch,
+                blockers,
+            });
+        Ok(())
+    }
+
     fn trial_launches(
         &self,
         search: &RepairLaunchSearch,
@@ -1021,6 +1130,15 @@ impl RepairSearchJob {
         let Some(neighbor) = &self.request.neighbor_launch_search else {
             let sites =
                 self.find_launch_sites(source.sandbox.project(), search, &self.request.route)?;
+            if sites.is_empty() {
+                self.record_screening_failure(
+                    source.sandbox.project(),
+                    search,
+                    trial,
+                    None,
+                    &self.request.route,
+                )?;
+            }
             let launches = sites
                 .iter()
                 .cloned()
@@ -1037,6 +1155,9 @@ impl RepairSearchJob {
             })?;
         route.region = self.request.route.region;
         let sites = self.find_launch_sites(source.sandbox.project(), search, &route)?;
+        if sites.is_empty() {
+            self.record_screening_failure(source.sandbox.project(), search, trial, None, &route)?;
+        }
         route.region = self
             .request
             .neighbor_route
@@ -1051,6 +1172,15 @@ impl RepairSearchJob {
             target.stage(&mut sandbox, self.state.board, self.state.target)?;
             // The neighbor is screened against the staged lead and via, including drills.
             let neighbor_sites = self.find_launch_sites(sandbox.project(), neighbor, &route)?;
+            if neighbor_sites.is_empty() {
+                self.record_screening_failure(
+                    sandbox.project(),
+                    neighbor,
+                    trial,
+                    Some(target.clone()),
+                    &route,
+                )?;
+            }
             for (neighbor_index, neighbor) in neighbor_sites.into_iter().enumerate() {
                 pairs.push((
                     target_index + neighbor_index,

@@ -656,6 +656,32 @@ async fn stdio_repair_search_deduplicates_groups_and_publishes_a_checked_candida
     let started = call_ok(&client, "routing_repair_start", request.clone()).await;
     let status = poll(started["search"].clone()).await;
     assert_eq!(status["launch_sites"], json!([]), "{status:#}");
+    let screening = &status["screening_failures"][0];
+    assert_eq!(screening["groups"], json!([]), "{status:#}");
+    assert!(screening["from"][1].is_string(), "{status:#}");
+    assert!(screening["target_launch"].is_null(), "{status:#}");
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, source);
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    let diagnosed = call_ok(
+        &client,
+        "routing_diagnose",
+        json!({
+            "net":"A", "repair":{
+                "region":request["region"],
+                "rip_up_region":{"min":{"x":3.5,"y":7},"max":{"x":6.5,"y":10}},
+                "editable_nets":["B"], "evidence_search":started["search"],
+            }
+        }),
+    )
+    .await;
+    assert_eq!(
+        diagnosed["repair"]["screening_failures"][0]["anchor"]["pad"],
+        "R1.1"
+    );
+    assert_eq!(
+        diagnosed["repair"]["screening_failures"][0]["reason"],
+        "no_clear_escape_sites"
+    );
     request["groups"] = json!([[blocker]]);
     request["rip_up_region"] = json!({"min":{"x":3.5,"y":7},"max":{"x":6.5,"y":10}});
     let started = call_ok(&client, "routing_repair_start", request).await;
@@ -756,6 +782,16 @@ async fn stdio_repair_search_deduplicates_groups_and_publishes_a_checked_candida
     let status = poll(started["search"].clone()).await;
     assert_eq!(status["stop_reason"], "completed", "{status:#}");
     assert_eq!(status["candidates"], json!([]), "{status:#}");
+    let failed_route = &status["trials"][0]["target_failures"][0];
+    assert_eq!(failed_route["anchors"].as_array().unwrap().len(), 2);
+    assert_eq!(failed_route["positions"].as_array().unwrap().len(), 2);
+    assert!(
+        !failed_route["search_evidence"]
+            .as_array()
+            .unwrap()
+            .is_empty(),
+        "{status:#}"
+    );
     let request = json!({
         "net":"A","layers":["bottom"],
         "repair":{
