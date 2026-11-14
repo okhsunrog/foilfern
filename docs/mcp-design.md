@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `33`). Its `build` object contains
+`api_capability_version` (currently `34`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -966,13 +966,25 @@ default 8). The two endpoints must fit inside `region`.
 
 The response identifies blockers sampled by exact endpoint clearance probes.
 An optional `evidence_candidate` adds original copper IDs from failed
-builtin or staged searches for the same connection, on the same board and
-revision. The planner follows eligible traces through two-trace junctions,
-stops at branches and fixed anchors, and only proposes removing a via when
-all its attached traces fit the permission and bounds. The output gives up
-to eight proposals in ascending order of affected copper count, with exact
-UUIDs and retained anchors. When all groups fit the same object limit, the
-response also gives their union as `combined_region_request`.
+builtin or staged searches for the same connection, board and revision.
+It also accepts an additive `routing_copper_prepare` candidate prepared
+directly from the source revision with a builtin continuation. Set
+`route.search_evidence: true` in that request. Diagnosis follows the
+candidate's copper to the failed continuation's anchors, such as a new
+escape via, and reports matching attempts in `continuation_failures`.
+Ambiguous matches are omitted.
+
+Search evidence includes bounded samples at multiple locations and layers
+along a failed frontier. Proposals supported by continuation samples appear
+before those based only on the original pad probes. The planner follows
+eligible traces through two-trace junctions, stops at branches and fixed
+anchors, and proposes removing a via only when all its attached traces fit
+the permission and bounds. It returns up to eight proposals with exact
+UUIDs and retained anchors, ordered by affected copper count within each
+group. When a proposal forms one branch between two retained anchors, it
+includes `neighbor_anchors` for a single-group `routing_repair_start`
+request. When all removals fit the same object limit, the response also
+gives their union as `combined_region_request`.
 
 Review and optionally edit a proposal's `region_request`, then send it to
 `routing_region_prepare` to authorize those exact removals and prepare a

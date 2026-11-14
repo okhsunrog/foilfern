@@ -102,7 +102,7 @@ The editor owns one `RoutingService` per open project; MCP is its transport.
   `not_measured`, not zero length or a connectivity failure.
 
 Remaining work includes end-to-end board creation from a document,
-persisted board requirements, automatic planning for blocked escapes,
+persisted board requirements, suggesting escape sites for blocked connections,
 shared worker admission limits and the desktop candidate overlay.
 `server_info` now reports
 build-time commit, tracked-source state, Cargo profile label and API capability
@@ -140,7 +140,7 @@ exercises the complete native schematic workflow and upstream ERC.
 | --- | --- | --- |
 | [STM32 local via](mcp-routing-reliability.md#local-via-search) | Automatic bounded via-site search closes the preserved U1.21 gap; undo/reopen/upstream checks recorded | Ordinary builtin routing still misses this case; use it for strategy selection |
 | [Two-layer ESP32-C3](mcp-routing-reliability.md#two-layer-esp32-c3-dev-board-completion) | Five checked patches close all six gaps; zero ERC/DRC errors and 13 inherited silkscreen warnings; RF/crystal geometry preserved | External scratch search helped choose coordinates; 79 vias and 1096.493 mm versus 71 and 852.307 mm initially; not an automatic planner result |
-| [Local routing research](benchmarks/routing-research.md) | Compared four full-board implementations on STM32G474 and tested native joint repair and bounded placement on ESP-PD-Sink | The constrained ESP32-C3 GPIO6 repair remains open |
+| [Local routing research](benchmarks/routing-research.md) | Compared four full-board implementations on STM32G474 and tested native joint repair and bounded placement on ESP-PD-Sink | The staged GPIO6 escape and joint branch repair passed the C5 and GPIO2 path limits on ESP32-C3 |
 | [ESP-PD-Sink selected layout](benchmarks/esp-pd-sink/review/gate/REPORT.md) | OLED, U5, U2, Kelvin, ADC and gate-clamp review batches; zero open connections, three inherited errors and nine warnings | Continue PCB review from the gate-clamp archive; mechanical/silkscreen and remaining engineering findings are not closed |
 | [Release baseline reuse](benchmarks/esp-pd-sink/review/performance/release/REPORT.md) | Repeated OLED prepare: 25.598 → 13.915 s; full validation and normalized geometry agree | Small samples; first preparation and apply are not accelerated |
 | [Competing builtin trial](benchmarks/esp-pd-sink/review/performance/release/BUILTIN.md) | Repeated prepare: 26.553 → 14.667 s; both versions reject a new plane-fed GND break | DRC dominates this local workload; no A* speedup established |

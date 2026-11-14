@@ -322,11 +322,13 @@ joint routing closed both ESP_EN gaps while reconnecting the authorized
 GPIO4 branch between its retained via and junction. See the
 [routing research results](benchmarks/routing-research.md).
 
-Next, expose evidence from failed continuations after a staged escape and
-use it to propose bounded repair branches. Keep ESP32-C3 GPIO6 as a
-negative control until a checked corridor preserves the short C5 branch
-and avoids a long GPIO2 detour. Board-level requirement persistence remains
-tracked in P2.
+Diagnosis can follow a failed continuation through a staged escape and
+propose local branches with retained endpoints. On ESP32-C3, this exposed
+the Bottom GPIO2 diagonal and V3V3 branch. An authorized joint repair
+closed GPIO6 while preserving the C5 lead and the original GPIO2 layer
+change count. Next, propose and compare checked escape sites so the
+operator can start from the blocked pad. Board-level requirement
+persistence remains tracked in P2.
 
 Done when:
 

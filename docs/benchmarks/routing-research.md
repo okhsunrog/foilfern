@@ -55,6 +55,7 @@ GND plane and outline. Treat shove as a candidate strategy for further study.
 | --- | --- | --- |
 | ESP32-C3 GPIO3 | Local repair followed by builtin continuation after diagnostics reduced six opens to five. The target stayed on Top and no new errors were introduced. | The result depends on the explicitly authorized EN/GND copper. |
 | ESP32-C3 GPIO6 | An explicit escape and joint search closed GPIO6 on a copy with C5 at 1.550 mm. The matched exploratory route took 42.593 mm with three transitions. | GPIO2 grew from 46.884 mm and one transition to 70.902 mm and three. With the experimental GPIO2 limit of 50 mm and one transition, 58 trials with exact branch endpoints yielded no candidate. |
+| ESP32-C3 GPIO6 with continuation evidence | An explicit escape exposed the Bottom GPIO2 diagonal and V3V3 branch. Joint repair of the two proposed branches replaced seven traces and closed GPIO6 at 37.147 mm with four transitions. C5 stayed at 1.550 mm and GPIO2 measured 47.030 mm with its original one transition. | The launch and edit permissions were supplied by the operator. Four other opens remain on this snapshot. |
 | ESP-PD-Sink, staged 146-open board | Joint repair replaced three GPIO4 traces between the retained via and junction. Both ESP_EN opens closed, for 146 → 144. Apply, undo/redo, save/reopen and LibrePCB 2.1.1 agreed. | One new useless-via warning in GPIO4. Sequential repair left both ESP_EN connections open. |
 | ESP-PD-Sink, separate fully connected review snapshot | Region-based placement tried 16 of 81 possible C29/C30 poses. The selected candidate changed the sum of four measured supply paths from 7.971 to 7.736 mm, preserved both In1 contacts and added no findings. | The comparison measures centerline geometry and connectivity. The two PD snapshots serve different tests. |
 
@@ -65,7 +66,7 @@ bounded placement and rotation search. The joint-repair experiment informs
 the existing A* workflow. External engines remain comparison tools, apart
 from the existing Freerouting integration.
 
-Keep GPIO6 as a negative-control fixture. The next repair step is to expose
-what blocked the continuation beyond a staged escape and turn that evidence
-into a short list of editable branches. Board-level persistence of pad-pair
-and placement requirements is tracked separately in [P2](../roadmap.md#p2--persisted-requirements-and-evidence).
+GPIO6 is a regression case for diagnosis through a staged escape and joint
+branch repair. The next repair step is to propose and compare checked escape
+sites before the operator picks one. Board-level persistence of pad-pair and
+placement requirements is tracked in [P2](../roadmap.md#p2--persisted-requirements-and-evidence).

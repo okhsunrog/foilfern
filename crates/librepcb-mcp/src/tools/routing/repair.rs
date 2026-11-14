@@ -1,9 +1,10 @@
 //! Read-only regional repair suggestions from exact endpoint clearance probes.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
+use librepcb_core::geometry::TraceAnchor;
 use librepcb_core::project::board::Board;
-use librepcb_core::project::{BoardId, NetSignalId, Project};
+use librepcb_core::project::{BoardId, NetSegmentId, NetSignalId, Project};
 use librepcb_core::types::{Length, PositiveLength, Uuid};
 use librepcb_editor::commands::autoroute::{
     AccessBlocker, Autoroute, ExtractedProblem, RoutingConnection, RoutingObject,
@@ -34,10 +35,16 @@ pub struct RepairArgs {
     pub rip_up_region: RoutingRegionArgs,
     /// Only consider altering copper on these neighboring nets.
     pub editable_nets: Vec<String>,
-    /// Optional builtin or staged candidate from this revision with search_evidence enabled.
+    /// Optional builtin, staged or additive copper continuation candidate with search_evidence.
     pub evidence_candidate: Option<String>,
     /// Max number of existing traces and vias in one suggestion, 1–16 (default 8).
     pub max_objects: Option<usize>,
+}
+
+struct CandidateEvidence<'a> {
+    failed: Vec<&'a UnroutedAirWire>,
+    /// For additive copper continuations, match by the staged copper connections.
+    staged: Option<librepcb_editor::ProjectEditor>,
 }
 
 fn candidate_evidence<'a>(
@@ -45,7 +52,7 @@ fn candidate_evidence<'a>(
     project: &Project,
     board: BoardId,
     candidate: &str,
-) -> ToolResult<Vec<&'a UnroutedAirWire>> {
+) -> ToolResult<CandidateEvidence<'a>> {
     let id = super::candidate_id(candidate)?;
     let info = service.candidate(id).map_err(super::routing_error)?.info();
     if info.board != board {
@@ -62,19 +69,53 @@ fn candidate_evidence<'a>(
             "The evidence candidate is stale.",
         ));
     }
-    match &info.details {
+    let mut staged = None;
+    let failed = match &info.details {
         RoutingCandidateDetails::Builtin { routing, .. } => {
-            Ok(routing.failed_requests.iter().collect())
+            routing.failed_requests.iter().collect()
         }
-        RoutingCandidateDetails::Staged { staged } => Ok(staged
+        RoutingCandidateDetails::Staged { staged } => staged
             .trials
             .iter()
             .flat_map(|trial| &trial.failed_requests)
-            .collect()),
-        _ => Err(ToolError::invalid(
-            "Use a builtin or staged routing candidate for search evidence.",
-        )),
+            .collect(),
+        RoutingCandidateDetails::Copper {
+            copper,
+            route: Some(route),
+        } if copper.base_candidate.is_none()
+            && copper.removed_traces == 0
+            && copper.removed_vias.is_none()
+            && copper.placements.is_none() =>
+        {
+            let (mut sandbox, mutations) = service
+                .preview_snapshot(project, id)
+                .map_err(super::routing_error)?;
+            sandbox.apply_mutations("Inspect routing continuation", mutations)?;
+            staged = Some(sandbox);
+            route.routing.failed_requests.iter().collect()
+        }
+        _ => {
+            return Err(ToolError::invalid(
+                "Use a builtin, staged, or additive copper continuation candidate for search evidence.",
+            ));
+        }
+    };
+    Ok(CandidateEvidence { failed, staged })
+}
+
+fn copper_segments(board: &Board, net: NetSignalId) -> BTreeMap<TraceAnchor, NetSegmentId> {
+    let mut segments = BTreeMap::new();
+    for segment in board
+        .net_segments()
+        .values()
+        .filter(|s| s.net() == Some(net))
+    {
+        for trace in segment.traces().values() {
+            segments.insert(trace.p1(), segment.id());
+            segments.insert(trace.p2(), segment.id());
+        }
     }
+    segments
 }
 
 pub(super) fn suggest(
@@ -100,15 +141,16 @@ pub(super) fn suggest(
         .iter()
         .map(|name| crate::resolve::net(project, name).map(|(id, _)| id))
         .collect::<ToolResult<_>>()?;
-    let mut connections = extracted
+    let connections: Vec<_> = extracted
         .problem
         .connections
         .iter()
         .filter_map(|c| match c {
             RoutingConnection::Terminals(a, b) => Some([*a, *b]),
             RoutingConnection::Net(_) => None,
-        });
-    let endpoints = connections.nth(args.air_wire).ok_or_else(|| {
+        })
+        .collect();
+    let endpoints = *connections.get(args.air_wire).ok_or_else(|| {
         ToolError::invalid("air_wire must select a supported unrouted connection.")
     })?;
     let positions = endpoints.map(|id| extracted.problem.terminals[id.0].position);
@@ -126,8 +168,7 @@ pub(super) fn suggest(
         .evidence_candidate
         .as_deref()
         .map(|id| candidate_evidence(service, project, board.id(), id))
-        .transpose()?
-        .unwrap_or_default();
+        .transpose()?;
     let mut probe_blockers = Vec::new();
     for probe in reports.iter().flat_map(|report| &report.probes) {
         let object = match probe.blocker {
@@ -143,12 +184,58 @@ pub(super) fn suggest(
         }
     }
     let mut search_blockers = Vec::new();
-    for failed in evidence {
-        if failed.net != net
-            || ([failed.p1, failed.p2] != native_anchors
-                && [failed.p2, failed.p1] != native_anchors)
-        {
+    let mut continuation_failures = Vec::new();
+    let staged_project = evidence
+        .as_ref()
+        .and_then(|evidence| evidence.staged.as_ref())
+        .map(librepcb_editor::ProjectEditor::project);
+    let evidence_board = staged_project.and_then(|project| project.board(board.id()));
+    let staged_segments = evidence_board.map(|board| copper_segments(board, net));
+    for failed in evidence.iter().flat_map(|evidence| &evidence.failed) {
+        if failed.net != net {
             continue;
+        }
+        let exact =
+            [failed.p1, failed.p2] == native_anchors || [failed.p2, failed.p1] == native_anchors;
+        if !exact {
+            let Some(segments) = &staged_segments else {
+                continue;
+            };
+            let same_branch = |a, b| {
+                a == b
+                    || segments
+                        .get(&a)
+                        .is_some_and(|id| segments.get(&b) == Some(id))
+            };
+            let matches = |[a, b]: [TraceAnchor; 2]| {
+                let pair = |a, b| {
+                    !same_branch(a, b) && same_branch(a, failed.p1) && same_branch(b, failed.p2)
+                };
+                pair(a, b) || pair(b, a)
+            };
+            // Do not attribute evidence to an arbitrary original air wire if
+            // the additions connect both ends of multiple original requests.
+            if !matches(native_anchors)
+                || connections
+                    .iter()
+                    .filter(|ids| matches(ids.map(|id| extracted.terminal_anchors[id.0])))
+                    .take(2)
+                    .count()
+                    != 1
+            {
+                continue;
+            }
+        }
+        if let Some((staged_project, staged)) = staged_project.zip(evidence_board) {
+            continuation_failures.push(json!({
+                "anchors": [
+                    layout::trace_anchor(staged_project, staged, Some(failed.p1_position), failed.p1),
+                    layout::trace_anchor(staged_project, staged, Some(failed.p2_position), failed.p2),
+                ],
+                "reason": failed.reason,
+                "soft_reason": failed.soft_reason,
+                "search_evidence": failed.search_evidence,
+            }));
         }
         for sample in &failed.search_evidence {
             if let Some(RoutingSearchBlocker::Existing { object }) = sample.blocker
@@ -163,7 +250,7 @@ pub(super) fn suggest(
         .chain(&search_blockers)
         .copied()
         .collect();
-    let proposals = RegionalRepairProposal::suggest(
+    let mut proposals = RegionalRepairProposal::suggest(
         project,
         board,
         net,
@@ -172,6 +259,14 @@ pub(super) fn suggest(
         &allowed,
         max_objects,
     )?;
+    if evidence_board.is_some() {
+        proposals.sort_by_key(|proposal| {
+            !proposal
+                .blockers
+                .iter()
+                .any(|id| search_blockers.iter().any(|object| object.uuid == *id))
+        });
+    }
     let proposal_count = proposals.len();
     let regional_request = |rip_up: &BTreeSet<Uuid>, nets: Vec<NetSignalId>| {
         json!({
@@ -222,7 +317,7 @@ pub(super) fn suggest(
                     layout::trace_anchor(project, board, Some(position), anchor)
                 })
                 .collect();
-            json!({
+            let mut result = json!({
                 "strategy":"regional_rip_up",
                 "neighbor_net":crate::resolve::net_name(project, proposal.net),
                 "blockers":proposal.blockers,
@@ -230,10 +325,24 @@ pub(super) fn suggest(
                 "remove_vias":proposal.vias,
                 "retained_anchors":anchors,
                 "region_request":regional_request(&rip_up, vec![net,proposal.net]),
-            })
+            });
+            if let Some(pair) = proposal.branch {
+                let anchor = |anchor| match anchor {
+                    TraceAnchor::Junction(id) => json!({"junction":id}),
+                    TraceAnchor::Via(id) => json!({"via":id}),
+                    TraceAnchor::Pad(id) => json!({"board_pad":id}),
+                    TraceAnchor::FootprintPad { device, pad } => {
+                        json!({"pad":{"component":device,"pad":pad}})
+                    }
+                };
+                result["neighbor_anchors"] = json!([{
+                    "group":0, "from":anchor(pair[0]), "to":anchor(pair[1]),
+                }]);
+            }
+            result
         })
         .collect();
-    Ok(json!({
+    let mut out = json!({
         "air_wire":args.air_wire,
         "anchors":anchors,
         "probe_blockers":probe_blockers,
@@ -242,5 +351,9 @@ pub(super) fn suggest(
         "proposal_count":proposal_count,
         "proposals":proposals,
         "combined_region_request":combined,
-    }))
+    });
+    if evidence_board.is_some() {
+        out["continuation_failures"] = json!(continuation_failures);
+    }
+    Ok(out)
 }

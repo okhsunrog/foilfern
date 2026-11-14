@@ -1584,6 +1584,9 @@ fn diagnostics_suggest_bounded_chain_and_prepare_it_for_review() {
     expected.sort_by_key(Value::to_string);
     assert_eq!(requested, expected);
     assert_eq!(proposal["retained_anchors"].as_array().unwrap().len(), 2);
+    assert_eq!(proposal["neighbor_anchors"][0]["group"], 0);
+    assert!(proposal["neighbor_anchors"][0]["from"]["pad"].is_object());
+    assert!(proposal["neighbor_anchors"][0]["to"]["pad"].is_object());
     assert_eq!(proposal["region_request"]["expected_revision"], revision);
     let mut protected = original.clone();
     protected["repair"]["editable_nets"] = json!([]);
@@ -1645,6 +1648,71 @@ fn diagnostics_suggest_bounded_chain_and_prepare_it_for_review() {
     assert!(routing::routing_diagnose(&session, args(with_evidence.clone())).is_ok());
     edit_author(&mut session);
     let error = routing::routing_diagnose(&session, args(with_evidence)).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::StaleRevision);
+}
+
+#[test]
+fn diagnostics_follow_additive_escape_to_its_failed_continuation() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut session = board_session(temp.path());
+    board_edit::trace_add(
+        &mut session,
+        args(json!({
+            "from":{"x":10,"y":-2},"to":{"x":10,"y":22},"layer":"bottom",
+            "net":"B","width":0.2,
+        })),
+    )
+    .unwrap();
+    let before = board_value(&session);
+    let index = session.project().unwrap().editor.undo_stack().index();
+    let staged = routing::prepare_copper_job(
+        &session,
+        args(json!({
+            "vias":[
+                {"label":"escape","net":"A","position":{"x":6,"y":9.025}},
+                {"label":"arrival","net":"A","position":{"x":14,"y":9.025}}
+            ],
+            "traces":[
+                {"from":"R1.1","to":{"via":"escape"},"layer":"top","width":0.2},
+                {"from":"R2.1","to":{"via":"arrival"},"layer":"top","width":0.2}
+            ],
+            "route":{"nets":["A"],"layers":["bottom"],"search_evidence":true}
+        })),
+    )
+    .unwrap();
+    let result = routing::finish_prepare(&mut session, routing::run_job(staged).unwrap())
+        .unwrap()
+        .result;
+    assert_eq!(
+        result["route"]["routing"]["failed_requests"][0]["reason"],
+        "no_path"
+    );
+    let request = json!({
+        "net":"A","layers":["bottom"],
+        "repair":{
+            "region":{"min":{"x":0,"y":-3},"max":{"x":23,"y":23}},
+            "rip_up_region":{"min":{"x":9,"y":-3},"max":{"x":11,"y":23}},
+            "editable_nets":["B"],
+            "evidence_candidate":result["candidate"]
+        }
+    });
+    let response = routing::routing_diagnose(&session, args(request.clone()))
+        .unwrap()
+        .result;
+    let repair = &response["repair"];
+    let failed = &repair["continuation_failures"][0];
+    assert!(failed["anchors"][0]["via"].is_string(), "{response:#}");
+    assert!(failed["anchors"][1]["via"].is_string(), "{response:#}");
+    assert_eq!(failed["reason"], "no_path");
+    assert_eq!(repair["proposal_count"], 1);
+    assert!(!repair["search_blockers"].as_array().unwrap().is_empty());
+    assert_eq!(board_value(&session), before);
+    assert_eq!(
+        session.project().unwrap().editor.undo_stack().index(),
+        index
+    );
+    edit_author(&mut session);
+    let error = routing::routing_diagnose(&session, args(request)).unwrap_err();
     assert_eq!(error.kind, ErrorKind::StaleRevision);
 }
 

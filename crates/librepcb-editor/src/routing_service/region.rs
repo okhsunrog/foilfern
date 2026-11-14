@@ -40,6 +40,8 @@ pub struct RegionalRepairProposal {
     pub vias: BTreeSet<Uuid>,
     #[serde(skip)]
     pub anchors: Vec<(TraceAnchor, Point)>,
+    #[serde(skip)]
+    pub branch: Option<[TraceAnchor; 2]>,
 }
 
 impl RegionalRepairProposal {
@@ -134,7 +136,7 @@ impl RegionalRepairProposal {
                         *count += 1;
                     }
                 }
-                let anchors = ends
+                let anchors: Vec<_> = ends
                     .into_iter()
                     .filter_map(|(anchor, (count, position))| match anchor {
                         TraceAnchor::Via(via) if vias.contains(&via) => None,
@@ -144,12 +146,20 @@ impl RegionalRepairProposal {
                         _ => Some((anchor, position)),
                     })
                     .collect();
+                let branch = if let [(a, _), (b, _)] = anchors.as_slice() {
+                    let pair = [*a, *b];
+                    let selected = traces.union(&vias).copied().collect();
+                    retained_branch(&items, board, &selected, pair).map(|_| pair)
+                } else {
+                    None
+                };
                 proposals.push(Self {
                     net,
                     blockers: vec![object.uuid],
                     traces,
                     vias,
                     anchors,
+                    branch,
                 });
             }
         }

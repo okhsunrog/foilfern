@@ -172,7 +172,8 @@ fn detour_distances(
             let generated = usable(q.trace_fixed[target], q.owner);
             if !clear(target) {
                 if let Some(frontier) = evidence.as_deref_mut() {
-                    frontier.record(
+                    frontier.record_spread(
+                        q.grid,
                         toward_sources(target),
                         BlockedStep {
                             from: node,
@@ -211,7 +212,8 @@ fn detour_distances(
         } else if q.layers > 1
             && let Some(frontier) = evidence.as_deref_mut()
         {
-            frontier.record(
+            frontier.record_spread(
+                q.grid,
                 toward_sources(node),
                 BlockedStep {
                     from: node,
@@ -250,15 +252,28 @@ pub(crate) struct BlockedStep {
 }
 
 const FRONTIER_SAMPLES_PER_KIND: usize = 8;
+const FRONTIER_TILES_PER_KIND: usize = 16;
+const FRONTIER_TILE_NM: i64 = 750_000;
+
+#[derive(Debug)]
+struct FrontierTile {
+    score: u32,
+    key: (usize, i64, i64),
+    step: BlockedStep,
+}
 
 #[derive(Debug, Default)]
 struct Frontier {
     samples: [Vec<(u32, BlockedStep)>; 4],
+    spread: [Vec<FrontierTile>; 2],
 }
 
 impl Frontier {
     fn clear(&mut self) {
         for samples in &mut self.samples {
+            samples.clear();
+        }
+        for samples in &mut self.spread {
             samples.clear();
         }
     }
@@ -275,6 +290,43 @@ impl Frontier {
         let index = samples.partition_point(|(value, _)| *value <= score);
         samples.insert(index, (score, step));
         samples.truncate(FRONTIER_SAMPLES_PER_KIND);
+    }
+
+    fn record_spread(&mut self, grid: &Grid, score: u32, step: BlockedStep) {
+        self.record(score, step);
+        if step.generated {
+            return;
+        }
+        // Nearby rejected steps often name the same object. Retain one per
+        // location and layer alongside the closest steps.
+        let samples = &mut self.spread[usize::from(step.via)];
+        let cells = grid.cells();
+        let p = grid.point(step.to % cells);
+        let tile = (
+            step.to / cells,
+            p.x.div_euclid(FRONTIER_TILE_NM),
+            p.y.div_euclid(FRONTIER_TILE_NM),
+        );
+        if let Some(existing) = samples.iter().position(|sample| sample.key == tile) {
+            if samples[existing].score <= score {
+                return;
+            }
+            samples.remove(existing);
+        } else if samples.len() == FRONTIER_TILES_PER_KIND
+            && samples.last().is_some_and(|sample| score >= sample.score)
+        {
+            return;
+        }
+        let index = samples.partition_point(|sample| sample.score <= score);
+        samples.insert(
+            index,
+            FrontierTile {
+                score,
+                key: tile,
+                step,
+            },
+        );
+        samples.truncate(FRONTIER_TILES_PER_KIND);
     }
 }
 
@@ -333,6 +385,21 @@ impl Search {
             .iter()
             .flatten()
             .map(|(_, step)| *step)
+            .chain(
+                self.frontier
+                    .spread
+                    .iter()
+                    .enumerate()
+                    .flat_map(move |(kind, samples)| {
+                        samples.iter().filter_map(move |sample| {
+                            let step = sample.step;
+                            (!self.frontier.samples[2 * kind]
+                                .iter()
+                                .any(|&(_, local)| local.to == step.to))
+                            .then_some(step)
+                        })
+                    }),
+            )
     }
 
     fn run_with_limit(
@@ -436,7 +503,8 @@ impl Search {
             let (x, y) = ((c % nx) as i64, (c / nx) as i64);
             let mut record_block = |to, via, generated| {
                 if collect_evidence {
-                    self.frontier.record(
+                    self.frontier.record_spread(
+                        q.grid,
                         heuristic(to),
                         BlockedStep {
                             from: node,
@@ -576,6 +644,35 @@ mod tests {
     use super::*;
     use crate::geometry::P;
     use crate::grid::{BLOCKED, FREE};
+
+    #[test]
+    fn failed_frontier_preserves_samples_away_from_the_closest_cluster() {
+        let pitch = 50_000;
+        let grid = Grid::new(P::new(0, 0), P::new(4_000_000, 0), pitch);
+        let mut search = Search::default();
+        for to in 1..12 {
+            search.frontier.record_spread(
+                &grid,
+                to as u32,
+                BlockedStep {
+                    from: to - 1,
+                    to,
+                    via: false,
+                    generated: false,
+                },
+            );
+        }
+        let far = BlockedStep {
+            from: 59,
+            to: 60,
+            via: false,
+            generated: false,
+        };
+        search.frontier.record_spread(&grid, 60, far);
+        let samples: Vec<_> = search.frontier().collect();
+        assert_eq!(samples.len(), FRONTIER_SAMPLES_PER_KIND + 1);
+        assert!(samples.contains(&far));
+    }
 
     #[test]
     fn distinguishes_search_budget_from_exhausted_frontier() {
