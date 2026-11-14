@@ -5,6 +5,7 @@ use kurbo::{Affine, Rect};
 use librepcb_core::{
     export::PageOrientation,
     fileio::{FilePath, file_utils},
+    types::Point,
 };
 use std::path::Path;
 struct PageLayout {
@@ -44,10 +45,80 @@ impl Default for GraphicsExport {
 impl GraphicsExport {
     /// Renders a drawing to a fixed-size PNG, fitting it without stretching.
     pub fn render_png(&self, page: &GraphicsPage, width: u32, height: u32) -> Result<Vec<u8>> {
+        self.render_png_with_bounds(&page.drawing, &page.settings, width, height, None)
+    }
+
+    /// Renders every page at the same scale and origin using their union bounds.
+    pub fn render_matched_pngs(
+        &self,
+        drawings: &[Drawing],
+        settings: &GraphicsSettings,
+        width: u32,
+        height: u32,
+    ) -> Result<Vec<Vec<u8>>> {
+        self.matched_pngs(drawings, settings, width, height)?
+            .collect()
+    }
+
+    /// Frames all drawings together, then encodes each page as the caller requests it.
+    pub fn matched_pngs<'a>(
+        &'a self,
+        drawings: &'a [Drawing],
+        settings: &'a GraphicsSettings,
+        width: u32,
+        height: u32,
+    ) -> Result<impl Iterator<Item = Result<Vec<u8>>> + 'a> {
+        let bounds = drawings
+            .iter()
+            .try_fold(None, |union: Option<Rect>, drawing| {
+                Ok::<_, Error>(match Self::drawing_bounds(&drawing.body())? {
+                    Some(bounds) => Some(union.map_or(bounds, |old| old.union(bounds))),
+                    None => union,
+                })
+            })?;
+        Ok(drawings.iter().map(move |drawing| {
+            self.render_png_with_bounds(drawing, settings, width, height, bounds)
+        }))
+    }
+
+    /// Renders a model-coordinate region. The output is letterboxed as needed.
+    pub fn render_region_png(
+        &self,
+        drawing: &Drawing,
+        settings: &GraphicsSettings,
+        min: Point,
+        max: Point,
+        width: u32,
+        height: u32,
+    ) -> Result<Vec<u8>> {
+        let bounds = Rect::new(min.x.to_mm(), -max.y.to_mm(), max.x.to_mm(), -min.y.to_mm());
+        if bounds.width() <= 0. || bounds.height() <= 0. {
+            return Err(Error::Dimensions);
+        }
+        let settings = GraphicsSettings {
+            margins: [0.; 4],
+            paper: None,
+            orientation: PageOrientation::Auto,
+            scale: None,
+            rotate: false,
+            mirror: false,
+            ..settings.clone()
+        };
+        self.render_png_with_bounds(drawing, &settings, width, height, Some(bounds))
+    }
+
+    fn render_png_with_bounds(
+        &self,
+        drawing: &Drawing,
+        settings: &GraphicsSettings,
+        width: u32,
+        height: u32,
+        bounds: Option<Rect>,
+    ) -> Result<Vec<u8>> {
         if width == 0 || height == 0 || u64::from(width) * u64::from(height) > self.max_pixels {
             return Err(Error::Dimensions);
         }
-        let layout = self.page_layout(page)?;
+        let layout = self.page_layout(drawing, settings, bounds)?;
         let tree = resvg::usvg::Tree::from_str(&layout.svg, &svg_options())
             .map_err(|error| Error::Svg(error.to_string()))?;
         let width = width as f32;
@@ -59,7 +130,7 @@ impl GraphicsExport {
         );
         let mut pixmap =
             resvg::tiny_skia::Pixmap::new(width as u32, height as u32).ok_or(Error::Dimensions)?;
-        let c = page.settings.background;
+        let c = settings.background;
         pixmap.fill(resvg::tiny_skia::Color::from_rgba8(c.r, c.g, c.b, c.a));
         resvg::render(&tree, transform, &mut pixmap.as_mut());
         pixmap
@@ -87,7 +158,7 @@ impl GraphicsExport {
                 width,
                 height,
                 transform: page_transform,
-            } = self.page_layout(page)?;
+            } = self.page_layout(&page.drawing, &page.settings, None)?;
             let out = if ext != "pdf" && pages.len() > 1 {
                 let path = Path::new(name);
                 let stem = path
@@ -225,21 +296,16 @@ impl GraphicsExport {
     /// Computes a tight visible-content crop, then applies page transform,
     /// orientation, margins and either explicit scale or fit-to-page.
     pub fn page_svg(&self, page: &GraphicsPage) -> Result<(String, f64, f64)> {
-        let layout = self.page_layout(page)?;
+        let layout = self.page_layout(&page.drawing, &page.settings, None)?;
         Ok((layout.svg, layout.width, layout.height))
     }
-    fn page_layout(&self, page: &GraphicsPage) -> Result<PageLayout> {
-        let settings = &page.settings;
-        if settings.dpi == 0 || settings.margins.iter().any(|m| !m.is_finite() || *m < 0.) {
-            return Err(Error::Dimensions);
-        }
-        let body = page.drawing.body();
+    fn drawing_bounds(body: &str) -> Result<Option<Rect>> {
         let source = format!(
             "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"1000\" height=\"1000\"><g id=\"content\">{body}</g></svg>"
         );
         let tree = resvg::usvg::Tree::from_str(&source, &svg_options())
             .map_err(|e| Error::Svg(e.to_string()))?;
-        let bbox = tree
+        Ok(tree
             .node_by_id("content")
             .map(|g| g.abs_stroke_bounding_box())
             .map(|r| {
@@ -249,8 +315,23 @@ impl GraphicsExport {
                     f64::from(r.right()),
                     f64::from(r.bottom()),
                 )
-            })
-            .unwrap_or(Rect::new(0., 0., 1., 1.));
+            }))
+    }
+
+    fn page_layout(
+        &self,
+        drawing: &Drawing,
+        settings: &GraphicsSettings,
+        bounds: Option<Rect>,
+    ) -> Result<PageLayout> {
+        if settings.dpi == 0 || settings.margins.iter().any(|m| !m.is_finite() || *m < 0.) {
+            return Err(Error::Dimensions);
+        }
+        let body = drawing.body();
+        let bbox = match bounds {
+            Some(bounds) => bounds,
+            None => Self::drawing_bounds(&body)?.unwrap_or(Rect::new(0., 0., 1., 1.)),
+        };
         // Ensure even a page containing only a point/line has a positive extent.
         let bbox = if bbox.width() <= 0. || bbox.height() <= 0. {
             bbox.inflate(0.5, 0.5)
@@ -314,9 +395,19 @@ impl GraphicsExport {
             String::new()
         };
         let title = svg::node::element::Title::new(self.title.clone());
-        let svg = format!(
-            "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"{w}mm\" height=\"{h}mm\" viewBox=\"0 0 {w} {h}\">{title}{background}<g transform=\"matrix({} {} {} {} {} {})\">{body}</g></svg>",
+        let content = format!(
+            "<g transform=\"matrix({} {} {} {} {} {})\">{body}</g>",
             c[0], c[1], c[2], c[3], c[4], c[5]
+        );
+        let content = if bounds.is_some() {
+            format!(
+                "<defs><clipPath id=\"page_crop\"><rect width=\"{w}\" height=\"{h}\"/></clipPath></defs><g clip-path=\"url(#page_crop)\">{content}</g>"
+            )
+        } else {
+            content
+        };
+        let svg = format!(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"{w}mm\" height=\"{h}mm\" viewBox=\"0 0 {w} {h}\">{title}{background}{content}</svg>"
         );
         Ok(PageLayout {
             svg,

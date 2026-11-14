@@ -452,8 +452,9 @@ differ between platforms/implementations:
 
 ## project/schematic
 
-- KiCad project import stores source-specific pin legends, global label
-  outlines and DNP/NC markers in `schematics/<sheet>/import-appearance.json`.
+- KiCad project import stores source-specific pin legends, sizes and placement,
+  global label outlines and DNP/NC markers in
+  `schematics/<sheet>/import-appearance.json`.
   Foilfern uses it for rendering. Upstream LibrePCB opens the native schematic
   with its own label and pin rendering. The sidecar does not change the
   circuit or the native schematic S-expression format.
@@ -470,6 +471,16 @@ differ between platforms/implementations:
 - A declarative preview can create named nets and library-backed components,
   then wire them on an existing sheet. Replay binds added instances through
   a native component attribute and keeps their existing identities.
+- Declarative component removal and pin reassignment reuse the native editor
+  cascade, report its board impact and refuse to change a surviving pin
+  outside the requested edit. The native file format is unchanged.
+- Schematic requirements use the optional project asset
+  `project/foilfern-schematic-requirements.json`. The asset uses native UUIDs
+  and integer nanometers. Foilfern evaluates it for declarative schematic
+  updates. Upstream uses the existing native schematic and circuit files.
+- Intentional no-connect marks use the existing Foilfern sheet appearance
+  asset. Foilfern renders crosses for marked open pins in previews and exports.
+  The native circuit and its ERC behavior are unchanged.
 
 - Loading validates each schematic page as a whole after deserializing it
   (upstream adds the empty page and then item by item); for a file with

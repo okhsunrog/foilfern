@@ -257,12 +257,19 @@ and MCP. Pull-based changes avoid callbacks/re-entrancy inside core. Explicit
 editor composition keeps destructive cascades visible. Native snapshots preserve
 unsaved state and assets while isolating long experiments from the live editor.
 
-Roadmap P1/P2 will add reconciliation and requirements. Their implementation must
-resolve human labels to stable identities, preserve native interoperability, cover
-file/library changes in transactions, and invalidate candidate/cache evidence when
-requirements change. There is no implemented persistent intent schema today.
-A future sidecar needs explicit save/archive/undo and upstream-preservation tests;
-its survival cannot be assumed from this architecture alone.
+Declarative schematic reconciliation resolves human labels to stable identities,
+then captures model, library and file operations from a detached snapshot.
+Apply replays those operations inside one transaction against the same project
+revision and save context.
+
+Schematic requirements use the versioned `project/foilfern-schematic-requirements.json`
+asset with native UUID references and integer nanometres. The editor stages its
+changes through undoable file operations, which publish a project asset change
+and invalidate older schematic previews. Preview measures the proposed model.
+Apply checks the requirements document and re-evaluates hard rules before
+committing the patch. Tests cover save/reopen, undo, native archive export and
+preservation through upstream LibrePCB open/save. Board requirements remain a
+separate roadmap milestone.
 
 ## Verification entry points
 

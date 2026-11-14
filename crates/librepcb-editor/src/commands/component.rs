@@ -628,7 +628,7 @@ impl Command for RemoveComponent {
                 symbols: symbols.iter().map(|(_, s)| *s).collect(),
                 ..SchematicSelection::default()
             };
-            remove_schematic_items(tx, *schematic, &selection)?;
+            remove_schematic_items(tx, *schematic, &selection, true)?;
         } else {
             remove_component_devices(tx, id)?;
             tx.apply(Mutation::RemoveComponentInstance(id))?;
@@ -637,6 +637,27 @@ impl Command for RemoveComponent {
         }
         Ok(())
     }
+}
+
+/// Removes an already disconnected component, preserving the embedded library
+/// and any unrelated unused nets. Handles symbols distributed across sheets.
+pub fn remove_disconnected_component(
+    tx: &mut Transaction<'_>,
+    component: ComponentInstanceId,
+) -> Result<()> {
+    let symbols: Vec<_> = tx
+        .project()
+        .component_uses(component)
+        .into_iter()
+        .flat_map(|uses| uses.symbols.values().copied())
+        .collect();
+    for (schematic, symbol) in symbols {
+        tx.apply(Mutation::Schematic(SchematicMutation::RemoveSymbol(
+            SymbolRef { schematic, symbol },
+        )))?;
+    }
+    remove_component_devices(tx, component)?;
+    tx.apply(Mutation::RemoveComponentInstance(component))
 }
 
 /// Adds a device (upstream `CmdAddDeviceToBoard`).

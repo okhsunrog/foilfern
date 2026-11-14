@@ -206,9 +206,9 @@ fn kicad_project_import_preserves_numbered_unnamed_pins_and_direct_labels() {
       (property "Reference" "U" (at 0 0 0) (effects (font (size 1 1))))
       (symbol "Part_1_1"
         (pin passive line (at 0 2 270) (length 1)
-          (name "" (effects (font (size 1 1)))) (number "1" (effects (font (size 1 1)))))
+          (name "" (effects (font (size 1 0)))) (number "1" (effects (font (size 1 0.8)))))
         (pin passive line (at 0 -2 90) (length 1)
-          (name "" (effects (font (size 1 1)))) (number "2" (effects (font (size 1 1))))))))
+          (name "~" (effects (font (size 1 1)))) (number "2" (effects (font (size 1 1))))))))
   (symbol (lib_id "Fixture:Part") (at 20 20 270) (mirror x) (unit 1)
     (property "Reference" "U1" (at 20 20 90) (effects (font (size 1 1)))))
   (symbol (lib_id "Fixture:Part") (at 40 20 0) (unit 1) (dnp yes)
@@ -254,11 +254,34 @@ fn kicad_project_import_preserves_numbered_unnamed_pins_and_direct_labels() {
             .sum::<usize>(),
         4
     );
+    for (symbol, pins) in &appearance.pin_numbers {
+        for (pin, number) in pins {
+            assert!(appearance.pin_names[symbol][pin].is_empty());
+            let heights = appearance.pin_text_heights(*symbol, *pin);
+            let (name_height, number_height) = match number.as_str() {
+                "1" => (0, 1_200_000),
+                "2" => (1_500_000, 1_500_000),
+                other => panic!("unexpected pin number {other}"),
+            };
+            assert_eq!(heights.name.unwrap().to_nm(), name_height);
+            assert_eq!(heights.number.unwrap().to_nm(), number_height);
+        }
+    }
     let rotated = sheet
         .symbols()
         .values()
         .find(|symbol| symbol.name(native.view()).unwrap() == "U1")
         .unwrap();
+    let transform = rotated.transform();
+    for pin in rotated.pins(native.view()).unwrap() {
+        let legend = appearance.pin_number_position(&pin, &transform);
+        let midpoint = pin.position()
+            + librepcb_core::types::Point::from_nm(500_000, 0)
+                .rotated(pin.rotation(), librepcb_core::types::Point::ORIGIN);
+        assert_eq!(legend.position.x, midpoint.x);
+        assert_eq!((legend.position.y - midpoint.y).to_nm(), 355_600);
+        assert_eq!(legend.alignment.h, librepcb_core::types::HAlign::Center);
+    }
     assert_eq!(
         rotated.texts().values().next().unwrap().rotation(),
         librepcb_core::types::Angle::DEG0
@@ -332,4 +355,61 @@ fn kicad_project_import_preserves_numbered_unnamed_pins_and_direct_labels() {
     let class = p.circuit().net_class_by_name("Power").unwrap().1;
     assert_eq!(class.default_trace_width().unwrap().to_nm(), 500_000);
     assert_eq!(p.boards()[0].copper_layers().len(), 4);
+}
+
+#[test]
+fn schematic_review_identifies_overlapping_imported_pin_names() {
+    use librepcb_mcp::tools::layout;
+    use serde_json::json;
+
+    let temp = tempfile::tempdir().unwrap();
+    let schematic = temp.path().join("overlap.kicad_sch");
+    std::fs::write(
+        &schematic,
+        r#"
+(kicad_sch (version 20260306) (generator "eeschema")
+  (lib_symbols
+    (symbol "Fixture:Part" (pin_names (offset 0)) (pin_numbers hide)
+      (property "Reference" "U" (at 0 0 0) (effects (font (size 1 1))))
+      (symbol "Part_1_1"
+        (pin passive line (at -2 0 0) (length 1)
+          (name "SAME1" (effects (font (size 2 2)))) (number "1" (effects (font (size 1 1)))))
+        (pin passive line (at -2 0.3 0) (length 1)
+          (name "SAME2" (effects (font (size 2 2)))) (number "2" (effects (font (size 1 1))))))))
+  (symbol (lib_id "Fixture:Part") (at 20 20 0) (unit 1)
+    (property "Reference" "U1" (at 20 15 0) (effects (font (size 1 1))))))
+"#,
+    )
+    .unwrap();
+    let mut session = Session::new();
+    let request = serde_json::from_value(json!({
+        "name":"Overlapping legends", "directory":temp.path().join("native"),
+        "kicad_schematic":schematic, "create_board":false
+    }))
+    .unwrap();
+    project::project_create(&mut session, request).unwrap();
+    let native = session.project().unwrap().project();
+    let sheet = &native.schematics()[0];
+    let appearance =
+        librepcb_core::project::schematic::import_appearance::ImportAppearance::load(native, sheet);
+    let symbol = sheet.symbols().values().next().unwrap();
+    assert!(appearance.outside_pin_names.contains(&symbol.uuid()));
+    for pin in symbol.pins(native.view()).unwrap() {
+        let transform = symbol.transform();
+        let name = appearance.pin_name_position(&pin, &transform);
+        let number = appearance.pin_number_position(&pin, &transform);
+        assert_eq!(name.position.x, number.position.x);
+        assert_eq!((name.position.y - number.position.y).to_nm(), 711_200);
+    }
+    let review = layout::schematic_review(&session, Default::default()).unwrap();
+    let overlaps = review.result["annotation_overlaps"].as_array().unwrap();
+    assert_eq!(overlaps.len(), 1, "{overlaps:?}");
+    let finding = &overlaps[0];
+    assert_eq!(finding["first"]["kind"], "pin_name");
+    assert_eq!(finding["second"]["kind"], "pin_name");
+    assert_eq!(finding["first"]["component"], "U1");
+    assert_eq!(finding["first"]["symbol"], finding["second"]["symbol"]);
+    assert_ne!(finding["first"]["pin_uuid"], finding["second"]["pin_uuid"]);
+    assert_eq!(finding["bounds_mm"].as_array().unwrap().len(), 4);
+    assert!(!session.project().unwrap().has_unsaved_changes());
 }

@@ -264,11 +264,39 @@ pub(crate) fn change_net_of_schematic_segment(
 /// their board segments and planes) and unused buses (upstream
 /// `CmdRemoveUnusedNetSignalsAndBuses`). Returns the removed nets.
 pub(crate) fn remove_unused_nets(tx: &mut Transaction<'_>) -> Result<Vec<NetSignalId>> {
+    let nets: Vec<_> = tx
+        .project()
+        .circuit()
+        .net_signals()
+        .keys()
+        .copied()
+        .collect();
+    let removed = remove_unused_net_signals(tx, nets)?;
+    let unused_buses: Vec<_> = tx
+        .project()
+        .circuit()
+        .buses()
+        .keys()
+        .filter(|id| tx.project().bus_uses(**id).next().is_none())
+        .map(|id| Mutation::RemoveBus(*id))
+        .collect();
+    tx.apply_all(unused_buses)?;
+    Ok(removed)
+}
+
+/// Removes unused nets and their board objects, restricted to the supplied IDs.
+pub fn remove_unused_net_signals(
+    tx: &mut Transaction<'_>,
+    nets: impl IntoIterator<Item = NetSignalId>,
+) -> Result<Vec<NetSignalId>> {
     let p = tx.project();
     let mut removed = Vec::new();
     let mut steps = Vec::new();
-    for id in p.circuit().net_signals().keys() {
-        let uses: Vec<NetUse> = p.net_signal_uses(*id).copied().collect();
+    for id in nets {
+        if p.circuit().net_signal(id).is_none() {
+            continue;
+        }
+        let uses: Vec<NetUse> = p.net_signal_uses(id).copied().collect();
         let used = uses
             .iter()
             .any(|u| matches!(u, NetUse::ComponentSignal(_) | NetUse::SchematicSegment(..)));
@@ -289,13 +317,8 @@ pub(crate) fn remove_unused_nets(tx: &mut Transaction<'_>) -> Result<Vec<NetSign
                 _ => {}
             }
         }
-        steps.push(Mutation::RemoveNetSignal(*id));
-        removed.push(*id);
-    }
-    for id in p.circuit().buses().keys() {
-        if p.bus_uses(*id).next().is_none() {
-            steps.push(Mutation::RemoveBus(*id));
-        }
+        steps.push(Mutation::RemoveNetSignal(id));
+        removed.push(id);
     }
     tx.apply_all(steps)?;
     Ok(removed)

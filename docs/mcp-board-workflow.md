@@ -76,7 +76,10 @@ against the schematic and reports conversions that need review.
    `{"pin":"r.1","offset":2.54}` to place it relative to that pin after
    placement. Add `notes` with `text`, `position` and
    `height` in mm for page annotations. Inspect the render, then use
-   `design_apply`. Use `block` for local placement and
+   `design_apply`. Check `erc.introduced` for new electrical findings and
+   `board_impact` after removing parts or changing a pin's net. Review
+   `requirements.blocking_requirements` if the project has saved requirements.
+   Use `block` for local placement and
    `schematic_tidy` when you intend to replace the layout and wiring of an
    entire sheet. Inspect each sheet for label collisions and circuit grouping.
    Use `symbol_text_move` with `text: "name"`, `text: "value"`, or a text
@@ -88,6 +91,10 @@ against the schematic and reports conversions that need review.
 
 ## Schematic readability
 
+Read `librepcb://examples/esp32-c3-devboard` for a complete `design_preview`
+request. It demonstrates sheet creation, exact library parts, visible local
+wires, net-label branches, notes and intentional no-connect marks.
+
 Draw each local circuit with continuous wires so its function is visible on
 the page. Use labels for signals that continue in another block or sheet. At
 a local junction, put that label on a short side branch in a clear direction.
@@ -96,11 +103,10 @@ take a short horizontal branch from their shared node to the `EN` label. Use
 an explicit `wire_groups.paths` endpoint at the junction and place `label` on
 the branch. The same convention applies to a BOOT pull-up and switch.
 
-Leave intentionally unused optional pins open in a native Foilfern schematic.
-Check them against the circuit requirements and use ERC to catch missing
-required connections. Foilfern displays no-connect flags from imported KiCad
-schematics. In KiCad, place those flags on pins confirmed to be intentionally
-unused so the reader and ERC can distinguish them from missed connections.
+Mark pins confirmed to be intentionally unused with `no_connects` in a
+design document, for example `{"U1.IO18/USB_D-":true}` when `U1` is a
+document key. Foilfern draws a cross at each marked open pin and also displays
+no-connect flags imported from KiCad. ERC still checks required connections.
 
 ## Lay out the board
 

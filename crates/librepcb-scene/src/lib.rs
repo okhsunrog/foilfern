@@ -56,10 +56,13 @@ pub use error::{Error, Result};
 pub use footprint::{FootprintScene, FootprintSceneObject};
 pub use render::{
     MAX_IMAGE_SIZE, RenderOptions, RenderSize, RgbaImage, render_board_png, render_board_scene,
-    render_scene, render_schematic_png, render_schematic_scene, visible_bounds,
+    render_scene, render_schematic_png, render_schematic_region, render_schematic_scene,
+    visible_bounds,
 };
 pub use schematic::{SchematicObject, SchematicScene};
-pub use schematic_readability::{AnnotationOverlap, annotation_overlaps};
+pub use schematic_readability::{
+    Annotation, AnnotationOverlap, SymbolTextPlacement, annotation_overlaps,
+};
 pub use symbol::{SymbolScene, SymbolSceneObject};
 pub use sync::{IncrementalScene, SceneSync};
 

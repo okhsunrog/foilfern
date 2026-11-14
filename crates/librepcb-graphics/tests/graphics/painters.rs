@@ -2,11 +2,12 @@
 use librepcb_core::{
     fileio::{FilePath, TransactionalDirectory, TransactionalFileSystem, ZipArchive},
     library::{LibraryBaseElement, pkg::Package, sym::Symbol},
-    project::ProjectLoader,
+    project::{Mutation, ProjectLoader, SchematicMutation, SymbolRef},
+    types::{Layer, Point},
 };
 use librepcb_graphics::{
     GraphicsExport, GraphicsPage, GraphicsSettings, footprint_drawing, schematic_drawing,
-    symbol_drawing,
+    schematic_field_geometry, symbol_drawing,
 };
 use std::{path::Path, sync::Arc};
 
@@ -22,6 +23,83 @@ fn contents(bytes: Vec<u8>) -> std::collections::BTreeMap<String, Vec<u8>> {
     (0..zip.len())
         .map(|i| (zip.file_name(i).unwrap(), zip.read_file(i).unwrap()))
         .collect()
+}
+
+#[test]
+fn field_placement_accounts_for_export_text_inside_an_outline() {
+    use librepcb_core::geometry::{Path, Polygon};
+    use librepcb_core::types::{Length, Uuid};
+
+    let directory = directory("projects/Gerber Test");
+    let project_file = directory
+        .file_system()
+        .files("")
+        .into_iter()
+        .find(|n| n.ends_with(".lpp"))
+        .unwrap();
+    let mut project = ProjectLoader::new().open(directory, &project_file).unwrap();
+    let sheet = &project.schematics()[0];
+    let (symbol, text) = sheet
+        .symbols()
+        .values()
+        .find_map(|symbol| {
+            symbol
+                .texts()
+                .values()
+                .find(|text| text.layer() == Layer::SYMBOL_NAMES)
+                .map(|text| (symbol.id(), text.clone()))
+        })
+        .unwrap();
+    let reference = SymbolRef {
+        schematic: sheet.id(),
+        symbol,
+    };
+    let p = |x: i64, y: i64| Point::from_nm(x * 1_000_000, y * 1_000_000);
+    let outline = Polygon::new(
+        Uuid::new_random(),
+        Layer::SCHEMATIC_DOCUMENTATION,
+        Length::new(200_000).try_into().unwrap(),
+        false,
+        false,
+        Path::new(
+            [(400, 400), (450, 400), (450, 450), (400, 450), (400, 400)]
+                .map(|(x, y)| p(x, y).into())
+                .to_vec(),
+        ),
+    );
+    project
+        .apply(Mutation::Schematic(SchematicMutation::AddPolygon {
+            schematic: reference.schematic,
+            polygon: outline,
+        }))
+        .unwrap();
+    project
+        .apply(Mutation::Schematic(SchematicMutation::AddText {
+            schematic: reference.schematic,
+            text: librepcb_core::geometry::Text::new(
+                Uuid::new_random(),
+                Layer::SCHEMATIC_DOCUMENTATION,
+                "Exported obstacle",
+                p(425, 425),
+                text.rotation(),
+                text.height(),
+                text.align(),
+                false,
+            ),
+        }))
+        .unwrap();
+    let sheet = project.schematic(reference.schematic).unwrap();
+    let geometry = schematic_field_geometry(
+        &project,
+        sheet,
+        reference,
+        text.uuid(),
+        &GraphicsSettings::default(),
+    )
+    .unwrap()
+    .unwrap();
+    assert!(!geometry.fits(text.position(), p(425, 425), p(401, 401), p(449, 449), 1.));
+    assert!(geometry.fits(text.position(), p(420, 415), p(401, 401), p(449, 449), 1.));
 }
 
 #[test]

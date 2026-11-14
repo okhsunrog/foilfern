@@ -332,8 +332,10 @@ on selected nets to retain the safe parts of groups whose joint routes
 fail board checks. Compare candidates on the same source revision and
 choose using connectivity and board rules. A single checked order can
 complete more connections than staged routing with the same selection.
-This is a data preview. GUI overlays, job IDs and cancellation are later
-work. Existing immediate `autoroute` retains its compatibility behavior.
+Preview returns the candidate data through MCP. Local repair and placement
+searches have job IDs and cooperative cancellation. Visual board candidate
+review in the desktop editor remains planned. Immediate `autoroute` retains
+its compatibility behavior.
 Candidate lifecycle tests and a real stdio MCP prepare/preview/apply/undo/redo/
 save/reopen test cover this stage. On a copy of the STM32 experiment with copper
 removed through mutations, builtin at 0.1 mm prepared 559 mutations: 57 to four
@@ -356,9 +358,9 @@ After R1:
    routing rules and their sources.
 3. Improve LQFP pad access, local grid refinement, route ordering and regional
    rip-up/reroute against fixed examples without losing DRC correctness.
-4. Evaluate a local `pnsrouter` adapter through the common candidate path, then
-   add bounded agent-directed placement/strategy experiments. Full-board engine
-   comparisons remain benchmarks until their benefit is demonstrated.
+4. Use the bounded placement and branch replacement tools on dense boards.
+   Extend diagnosis for blocked escapes using the
+   [engine comparison and native replays](benchmarks/routing-research.md).
 
 PCBCraft's [track/via editing contract](https://github.com/tangency-labs/pcbcraft/blob/9a74b2fbd69c667c4de5bd546cfb8a58edec846e/docs/mcp.md)
 and [session-owned update plans](https://github.com/tangency-labs/pcbcraft/blob/9a74b2fbd69c667c4de5bd546cfb8a58edec846e/crates/engine/src/board/update/commands.rs)

@@ -34,7 +34,7 @@ use crate::tools::board_edit::{
 };
 use crate::tools::circuit::{ComponentGetArgs, NetListArgs};
 use crate::tools::import::LibraryImportArgs;
-use crate::tools::layout::{BoardGetArgs, SchematicGetArgs};
+use crate::tools::layout::{BoardGetArgs, SchematicGetArgs, SchematicReviewArgs};
 use crate::tools::library::{LibraryElementArgs, LibraryInstallArgs, LibrarySearchArgs};
 use crate::tools::mutation::{MutationApplyArgs, MutationSchemaArgs};
 use crate::tools::output::{
@@ -61,6 +61,7 @@ time.\n\
 Check server_info for an open workspace and project before opening either. \
 Read the MCP resource librepcb://guides/board-design for the full design workflow, \
 multi-gate components, multi-page schematics, layer settings and recovery.\n\
+Read librepcb://examples/esp32-c3-devboard for a complete schematic document.\n\
 Workflow: workspace_open/workspace_create -> library_install (e.g. [\"LibrePCB Base\"]) or \
 library_rescan -> library_search (find parts; multi-word queries like \"resistor 0805\" work) -> \
 project_create -> component_add (part = name or device/component UUID; placed automatically) -> \
@@ -78,6 +79,12 @@ then read pin coordinates with schematic_get. In design_preview use wire_groups 
 (pin names and {x,y} vertices in mm), label positions and notes. Branch endpoints on another \
 path become junctions. Omit paths to request automatic local wiring. Use schematic_tidy \
 when regenerating the whole page is intended.\n\
+Use no_connects in a design document to mark explicitly unused pins. \
+Use image_region on render or design_preview to inspect a schematic block at a larger scale. \
+Use schematic_review to find overlapping annotations on the live sheet. \
+Use design_preview with place_text to find a clear position for one symbol field in a selected area. \
+Before design_apply, review the preview's diff, ERC changes, board impact and schematic \
+requirements when present. Use requirements_get and requirements_check to read saved rules.\n\
 Addressing: designators (\"R1\"), pins \"R1.1\" (pad name) or \"U1.VCC\" (signal name) or a \
 designator alone for single-pin parts (\"GND1\"), net names, schematic/board names or indices; \
 UUIDs work everywhere. Unknown arguments are rejected (invalid_argument). Units: millimeters and degrees \
@@ -87,12 +94,15 @@ Each committed model edit is one undo step (undo/redo/history) and returns the r
 entities, the change events and the new revision; pass expected_revision to avoid lost \
 updates. Results: {outcome: complete|partial|failed, revision, result, warnings}; errors have a \
 stable kind (not_found, invalid_argument, conflict, stale_revision, no_project, no_workspace, \
-io, network, not_available, refused, internal). Nothing is written to disk before project_save. \
+io, network, not_available, refused, cancelled, budget_exhausted, internal). \
+Nothing is written to disk before project_save. \
 When the server runs inside the LibrePCB app, the user sees your edits live and shares the undo \
 history; the app may refuse opening or closing projects (kind refused).";
 
 const BOARD_DESIGN_URI: &str = "librepcb://guides/board-design";
 const BOARD_DESIGN_GUIDE: &str = include_str!("../../../docs/mcp-board-workflow.md");
+const DEVBOARD_URI: &str = "librepcb://examples/esp32-c3-devboard";
+const DEVBOARD_DOCUMENT: &str = include_str!("../../../docs/examples/esp32-c3-devboard.json");
 
 /// Message prefix of rmcp's argument deserialization errors.
 const DESERIALIZE_ERROR_PREFIX: &str = "failed to deserialize parameters:";
@@ -707,6 +717,16 @@ impl LibrePcbMcp {
         Parameters(args): Parameters<SchematicGetArgs>,
     ) -> Result<CallToolResult, McpError> {
         self.run(move |s| layout::schematic_get(s, args)).await
+    }
+
+    #[tool(
+        description = "Find overlaps between annotations or with schematic wires. Optionally focus on a list of components. Read-only."
+    )]
+    async fn schematic_review(
+        &self,
+        Parameters(args): Parameters<SchematicReviewArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| layout::schematic_review(s, args)).await
     }
 
     #[tool(description = "Add a schematic page.")]
@@ -1351,8 +1371,8 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Render a schematic page or a board side as PNG image, to look at the \
-                       design (target defaults to board if board or side is given)."
+        description = "Render a schematic page or a board side as PNG. Set image_region for a \
+                       schematic close-up in sheet millimeters. Target defaults to board if board or side is given."
     )]
     async fn render(
         &self,
@@ -1364,18 +1384,70 @@ impl LibrePcbMcp {
     // --- Declarative schematic updates -------------------------------------------
 
     #[tool(
-        description = "Preview a version 1 schematic document and render the resulting page. Create nets and parts on an empty sheet, verify pin memberships, manage existing fields, add page notes, place selected blocks, draw automatic or explicit local wire paths, and review annotation overlaps."
+        description = "Preview a version 1 schematic document and render the resulting page. Create a sheet, nets and parts, manage fields, find a clear field position with place_text, place selected blocks and draw local wire paths. Reports ERC changes, affected board objects, schematic requirements and reviewed annotation overlaps."
     )]
     async fn design_preview(
         &self,
         Parameters(args): Parameters<crate::tools::design::DesignDocument>,
     ) -> Result<CallToolResult, McpError> {
-        self.run(move |s| crate::tools::design::preview(s, args))
-            .await
+        use crate::tools::design::{self, Stage};
+        let guard = match self.state.schematic_previews().try_start(args.budget_ms) {
+            Ok(guard) => guard,
+            Err(error) => return self.fail(error).await,
+        };
+        self.run_detached(
+            move |s| {
+                let mut guard = guard;
+                let job = guard
+                    .work
+                    .checkpoint(Stage::Capture)
+                    .and_then(|()| design::capture(s, args));
+                guard.record_failure(&job);
+                Ok((job?, guard))
+            },
+            |(job, mut guard)| {
+                let prepared = design::prepare(job, |stage| guard.work.checkpoint(stage));
+                let prepared = guard.work.checkpoint(Stage::Render).and(prepared);
+                guard.record_failure(&prepared);
+                Ok((prepared?, guard))
+            },
+            |s, (prepared, mut guard)| {
+                let output = guard
+                    .work
+                    .checkpoint(Stage::Publish)
+                    .and_then(|()| design::publish(s, prepared));
+                guard.record(&output);
+                output
+            },
+        )
+        .await
     }
 
     #[tool(
-        description = "Apply the exact patch from design_preview as one undo step. A stale preview is refused and an empty patch adds no undo step."
+        description = "Read the active schematic preview job, current stage and latest terminal outcome. Poll while design_preview is running."
+    )]
+    async fn design_preview_status(&self) -> Result<CallToolResult, McpError> {
+        Ok(match self.state.schematic_previews().status() {
+            Ok(output) => output.into_call_tool_result(),
+            Err(error) => error_result(&error, None),
+        })
+    }
+
+    #[tool(
+        description = "Request cooperative cancellation of the active schematic preview by its job UUID. Use design_preview_status to observe when it stops."
+    )]
+    async fn design_preview_cancel(
+        &self,
+        Parameters(args): Parameters<crate::tools::design::CancelArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        Ok(match self.state.schematic_previews().cancel(args) {
+            Ok(output) => output.into_call_tool_result(),
+            Err(error) => error_result(&error, None),
+        })
+    }
+
+    #[tool(
+        description = "Apply the exact patch from design_preview as one undo step. Stale previews and hard schematic requirement failures are refused. An empty patch adds no undo step."
     )]
     async fn design_apply(
         &self,
@@ -1383,6 +1455,42 @@ impl LibrePcbMcp {
     ) -> Result<CallToolResult, McpError> {
         self.run(move |s| crate::tools::design::apply(s, args))
             .await
+    }
+
+    #[tool(
+        description = "Discard a completed schematic preview by its UUID without editing the project. Use design_preview_cancel for a running preview job."
+    )]
+    async fn design_discard(
+        &self,
+        Parameters(args): Parameters<crate::tools::design::DesignPreviewArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| crate::tools::design::discard(s, args))
+            .await
+    }
+
+    #[tool(
+        description = "Read the saved or staged schematic requirements document and its current project revision. Use this revision when replacing the document."
+    )]
+    async fn requirements_get(&self) -> Result<CallToolResult, McpError> {
+        self.run(|s| crate::tools::requirements::get(s)).await
+    }
+
+    #[tool(
+        description = "Replace the version 1 schematic requirements document in one undo step. Supports fixed symbol origins, allowed rectangles and required pin-net memberships. Supply expected_revision from requirements_get."
+    )]
+    async fn requirements_set(
+        &self,
+        Parameters(args): Parameters<crate::tools::requirements::SetArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.run(move |s| crate::tools::requirements::set(s, args))
+            .await
+    }
+
+    #[tool(
+        description = "Check all stored schematic requirements against the current project and report findings, missing references and the checked revision."
+    )]
+    async fn requirements_check(&self) -> Result<CallToolResult, McpError> {
+        self.run(|s| crate::tools::requirements::check(s)).await
     }
 
     // --- Escape hatch -------------------------------------------------------------
@@ -1461,6 +1569,11 @@ impl ServerHandler for LibrePcbMcp {
                 )
                 .with_mime_type("text/markdown")
                 .with_size(BOARD_DESIGN_GUIDE.len() as u64),
+            Resource::new(DEVBOARD_URI, "esp32-c3-devboard")
+                .with_title("ESP32-C3 schematic design document")
+                .with_description("Example design_preview input with exact library identities, local wiring, page notes and no-connect markers.")
+                .with_mime_type("application/json")
+                .with_size(DEVBOARD_DOCUMENT.len() as u64),
         ]))
     }
 
@@ -1469,15 +1582,18 @@ impl ServerHandler for LibrePcbMcp {
         request: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, McpError> {
-        if request.uri != BOARD_DESIGN_URI {
-            return Err(McpError::resource_not_found(
-                "Unknown LibrePCB resource; use resources/list to discover available guides.",
-                Some(serde_json::json!({ "uri": request.uri })),
-            ));
-        }
+        let (contents, mime) = match request.uri.as_str() {
+            BOARD_DESIGN_URI => (BOARD_DESIGN_GUIDE, "text/markdown"),
+            DEVBOARD_URI => (DEVBOARD_DOCUMENT, "application/json"),
+            _ => {
+                return Err(McpError::resource_not_found(
+                    "Unknown LibrePCB resource; use resources/list to discover available guides.",
+                    Some(serde_json::json!({ "uri": request.uri })),
+                ));
+            }
+        };
         Ok(ReadResourceResult::new(vec![
-            ResourceContents::text(BOARD_DESIGN_GUIDE, BOARD_DESIGN_URI)
-                .with_mime_type("text/markdown"),
+            ResourceContents::text(contents, &request.uri).with_mime_type(mime),
         ])
         .into())
     }

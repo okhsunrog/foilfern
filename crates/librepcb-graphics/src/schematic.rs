@@ -1,12 +1,14 @@
 //! Port of libs/librepcb/core/project/schematic/schematicpainter.{h,cpp}.
 //! A detached display list retains no model references or cached live state.
-use crate::{Drawing, Error, GraphicsSettings, Result, library::shapes};
+use crate::{Drawing, Error, GraphicsSettings, Result, drawing::svg_options, library::shapes};
+use kurbo::{Point as GraphicsPoint, Rect};
+use librepcb_canvas::{Item, Style};
 use librepcb_core::{
     fileio::FileSystem,
     geometry::{Image, NetLineAnchor},
     library::{LibraryBaseElement, sym::SymbolPin},
     project::{
-        Project, ProjectAttributeLookup,
+        Project, ProjectAttributeLookup, SymbolRef,
         schematic::{
             Schematic,
             import_appearance::{ImportAppearance, cross, symbol_cross},
@@ -39,6 +41,130 @@ pub fn schematic_drawing(
     project: &Project,
     schematic: &Schematic,
     settings: &GraphicsSettings,
+) -> Result<Drawing> {
+    build_schematic_drawing(project, schematic, settings, None)
+}
+
+/// One placed field and the other visible elements of the exported schematic.
+pub struct SchematicFieldGeometry {
+    field: Rect,
+    text_and_images: Vec<Rect>,
+    shapes: Vec<Item>,
+}
+
+impl SchematicFieldGeometry {
+    /// Tests a translation in sheet millimeters using the export font and geometry.
+    pub fn fits(&self, from: Point, to: Point, min: Point, max: Point, clearance_mm: f64) -> bool {
+        let (x, y) = from.to_mm();
+        let (tx, ty) = to.to_mm();
+        let bounds = self.field + kurbo::Vec2::new(tx - x, ty - y);
+        let region = Rect::from_points(min.to_mm(), max.to_mm());
+        let clearance = bounds.inflate(clearance_mm, clearance_mm);
+        region.contains_rect(bounds)
+            && !self
+                .text_and_images
+                .iter()
+                .any(|other| other.overlaps(clearance))
+            && !self
+                .shapes
+                .iter()
+                .any(|item| item.intersects_rect(clearance))
+    }
+}
+
+/// Resolves the same visible geometry and font as the schematic PNG exporter.
+pub fn schematic_field_geometry(
+    project: &Project,
+    schematic: &Schematic,
+    symbol: SymbolRef,
+    text: librepcb_core::types::Uuid,
+    settings: &GraphicsSettings,
+) -> Result<Option<SchematicFieldGeometry>> {
+    let drawing = build_schematic_drawing(project, schematic, settings, Some((symbol, text)))?;
+    let source = format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"1000\" height=\"1000\">{}</svg>",
+        drawing.body()
+    );
+    let tree = resvg::usvg::Tree::from_str(&source, &svg_options())
+        .map_err(|error| Error::Svg(error.to_string()))?;
+    let bounds = |node: &resvg::usvg::Node| {
+        let r = node.abs_stroke_bounding_box();
+        Rect::new(
+            f64::from(r.left()),
+            -f64::from(r.bottom()),
+            f64::from(r.right()),
+            -f64::from(r.top()),
+        )
+    };
+    let Some(field) = tree.node_by_id("placement_field").map(bounds) else {
+        return Ok(None);
+    };
+    let mut text_and_images = Vec::new();
+    let mut shapes = Vec::new();
+    fn add_obstacle(
+        node: &resvg::usvg::Node,
+        bounds: &impl Fn(&resvg::usvg::Node) -> Rect,
+        text_and_images: &mut Vec<Rect>,
+        shapes: &mut Vec<Item>,
+    ) {
+        if node.id() == "placement_field" {
+            return;
+        }
+        use resvg::{tiny_skia::PathSegment, usvg::Node};
+        match node {
+            Node::Group(group) => {
+                for child in group.children() {
+                    add_obstacle(child, bounds, text_and_images, shapes);
+                }
+            }
+            Node::Path(path) => {
+                if !path.is_visible() || (path.fill().is_none() && path.stroke().is_none()) {
+                    return;
+                }
+                let xf = path.abs_transform();
+                let map = |mut point: resvg::tiny_skia::Point| {
+                    xf.map_point(&mut point);
+                    GraphicsPoint::new(f64::from(point.x), -f64::from(point.y))
+                };
+                let mut geometry = kurbo::BezPath::new();
+                for segment in path.data().segments() {
+                    match segment {
+                        PathSegment::MoveTo(p) => geometry.move_to(map(p)),
+                        PathSegment::LineTo(p) => geometry.line_to(map(p)),
+                        PathSegment::QuadTo(p, q) => geometry.quad_to(map(p), map(q)),
+                        PathSegment::CubicTo(p, q, r) => geometry.curve_to(map(p), map(q), map(r)),
+                        PathSegment::Close => geometry.close_path(),
+                    }
+                }
+                let mut style = path.stroke().map_or_else(Style::default, |stroke| {
+                    let (sx, sy) = xf.get_scale();
+                    Style::stroke(f64::from(stroke.width().get() * sx.max(sy)))
+                });
+                if path.fill().is_some() {
+                    style.fill = Style::fill().fill;
+                }
+                shapes.push(Item::new(Default::default(), geometry, style));
+            }
+            Node::Image(image) if image.is_visible() => text_and_images.push(bounds(node)),
+            Node::Text(_) => text_and_images.push(bounds(node)),
+            Node::Image(_) => {}
+        }
+    }
+    for node in tree.root().children() {
+        add_obstacle(node, &bounds, &mut text_and_images, &mut shapes);
+    }
+    Ok(Some(SchematicFieldGeometry {
+        field,
+        text_and_images,
+        shapes,
+    }))
+}
+
+fn build_schematic_drawing(
+    project: &Project,
+    schematic: &Schematic,
+    settings: &GraphicsSettings,
+    placement: Option<(SymbolRef, librepcb_core::types::Uuid)>,
 ) -> Result<Drawing> {
     let mut drawing = Drawing::new();
     let ctx = project.view();
@@ -93,18 +219,16 @@ pub fn schematic_drawing(
                 settings.color("schematic_pin_lines"),
                 settings,
             );
-            let name_align = if transform.mirrored {
-                lib.name_alignment().mirrored_v()
-            } else {
-                lib.name_alignment()
-            };
+            let heights = appearance.pin_text_heights(symbol.uuid(), pin.uuid());
+            let name_position = appearance.pin_name_position(&pin, &transform);
             drawing.markup_label(
-                transform.map(
-                    &(lib.position() + lib.name_position().rotated(lib.rotation(), Point::ORIGIN)),
-                ),
-                transform.map_non_mirrorable(lib.rotation() + lib.name_rotation()),
-                lib.name_height().to_mm(),
-                name_align,
+                name_position.position,
+                name_position.rotation,
+                heights
+                    .name
+                    .map_or(*lib.name_height(), |height| *height)
+                    .to_mm(),
+                name_position.alignment,
                 appearance
                     .pin_names
                     .get(&symbol.uuid())
@@ -132,16 +256,15 @@ pub fn schematic_drawing(
                 .and_then(|pins| pins.get(&pin.uuid()))
                 .cloned()
                 .unwrap_or_else(|| pin.numbers_text(&numbers));
+            let number_position = appearance.pin_number_position(&pin, &transform);
             drawing.markup_label(
-                transform.map(
-                    &(lib.position()
-                        + pin
-                            .numbers_position()
-                            .rotated(lib.rotation(), Point::ORIGIN)),
-                ),
-                rotation,
-                SymbolPin::numbers_height().to_mm(),
-                pin.numbers_alignment(),
+                number_position.position,
+                number_position.rotation,
+                heights
+                    .number
+                    .map_or(*SymbolPin::numbers_height(), |height| *height)
+                    .to_mm(),
+                number_position.alignment,
                 &numbers,
                 settings.color("schematic_pin_numbers"),
                 true,
@@ -155,12 +278,7 @@ pub fn schematic_drawing(
             {
                 pin_junctions.push(pin.position());
             }
-            if pin.net().is_none()
-                && appearance
-                    .no_connects
-                    .get(&symbol.uuid())
-                    .is_some_and(|pins| pins.contains(&pin.uuid()))
-            {
+            if pin.net().is_none() && appearance.is_no_connect(symbol.uuid(), pin.uuid()) {
                 let delta = Point::from_nm(635_000, 635_000);
                 for (start, end) in cross(pin.position() - delta, pin.position() + delta) {
                     drawing.line(
@@ -205,7 +323,17 @@ pub fn schematic_drawing(
         let lookup =
             ProjectAttributeLookup::for_symbol(project, schematic, symbol, device, None, None);
         for text in symbol.texts().values() {
+            let start = drawing.elements.len();
             drawing.text(text, &lookup.substitute(text.text()), settings);
+            if placement
+                .is_some_and(|(target, uuid)| target.symbol == symbol.id() && uuid == text.uuid())
+                && drawing.elements.len() > start
+            {
+                let elements = drawing.elements.split_off(start).join("\n");
+                drawing
+                    .elements
+                    .push(format!("<g id=\"placement_field\">{elements}</g>"));
+            }
         }
     }
     for text in schematic.texts().values() {

@@ -1,24 +1,32 @@
-//! Presentation details of imported sheets which have no native LibrePCB field.
+//! Presentation details which have no native LibrePCB field.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::Schematic;
+use super::{Schematic, SymbolPinView};
 use crate::fileio::FileSystem;
 use crate::geometry::{NetLabel, Path};
 use crate::project::Project;
-use crate::types::{Alignment, Angle, HAlign, Length, Point, Uuid, VAlign};
+use crate::types::{Alignment, Angle, HAlign, Length, Point, UnsignedLength, Uuid, VAlign};
 use crate::utils::overline_markup_parser::extract_overlines;
+use crate::utils::toolbox::is_text_upside_down;
+use crate::utils::transform::Transform;
 
 /// Optional appearance, keyed by native object IDs so electrical data stays in
 /// the native project. Stored beside the sheet without extending its format.
-#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ImportAppearance {
     pub global_labels: BTreeMap<Uuid, GlobalLabel>,
     pub pin_numbers: BTreeMap<Uuid, BTreeMap<Uuid, String>>,
     #[serde(default)]
     pub pin_names: BTreeMap<Uuid, BTreeMap<Uuid, String>>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub pin_text_heights: BTreeMap<Uuid, BTreeMap<Uuid, PinTextHeights>>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub outside_pin_names: BTreeSet<Uuid>,
     pub no_connects: BTreeMap<Uuid, BTreeSet<Uuid>>,
     pub unpopulated: BTreeSet<Uuid>,
+    #[serde(flatten)]
+    extra: BTreeMap<String, serde_json::Value>,
 }
 
 impl ImportAppearance {
@@ -30,18 +38,153 @@ impl ImportAppearance {
     }
 
     pub fn load(project: &Project, schematic: &Schematic) -> Self {
-        project
+        Self::read(project, schematic).unwrap_or_default()
+    }
+
+    /// Reads the existing asset without discarding malformed data on an edit.
+    pub fn read(project: &Project, schematic: &Schematic) -> crate::project::Result<Self> {
+        let Some(data) = project
             .directory()
-            .read_if_exists(&Self::asset_path(schematic))
-            .ok()
-            .flatten()
-            .and_then(|data| serde_json::from_slice(&data).ok())
+            .read_if_exists(&Self::asset_path(schematic))?
+        else {
+            return Ok(Self::default());
+        };
+        Ok(serde_json::from_slice(&data)?)
+    }
+
+    /// Line heights for this placed pin's legends, when the import supplies them.
+    pub fn pin_text_heights(&self, symbol: Uuid, pin: Uuid) -> PinTextHeights {
+        self.pin_text_heights
+            .get(&symbol)
+            .and_then(|pins| pins.get(&pin))
+            .copied()
             .unwrap_or_default()
+    }
+
+    /// Resolves the pin name's position, including KiCad's zero-offset layout.
+    pub fn pin_name_position(
+        &self,
+        pin: &SymbolPinView<'_>,
+        transform: &Transform,
+    ) -> PinLegendPosition {
+        if self.outside_pin_names.contains(&pin.symbol().0) {
+            return centered_legend(pin, true);
+        }
+        let lib = pin.lib_pin();
+        let alignment = lib.name_alignment();
+        PinLegendPosition {
+            position: transform.map(
+                &(lib.position() + lib.name_position().rotated(lib.rotation(), Point::ORIGIN)),
+            ),
+            rotation: transform.map_non_mirrorable(lib.rotation() + lib.name_rotation()),
+            alignment: if transform.mirrored {
+                alignment.mirrored_v()
+            } else {
+                alignment
+            },
+        }
+    }
+
+    /// Resolves the pin number's position, including KiCad's centered layout.
+    pub fn pin_number_position(
+        &self,
+        pin: &SymbolPinView<'_>,
+        transform: &Transform,
+    ) -> PinLegendPosition {
+        let symbol = pin.symbol().0;
+        let uuid = pin.uuid();
+        if !self
+            .pin_numbers
+            .get(&symbol)
+            .is_some_and(|pins| pins.contains_key(&uuid))
+        {
+            let lib = pin.lib_pin();
+            return PinLegendPosition {
+                position: transform.map(
+                    &(lib.position()
+                        + pin
+                            .numbers_position()
+                            .rotated(lib.rotation(), Point::ORIGIN)),
+                ),
+                rotation: pin.rotation(),
+                alignment: pin.numbers_alignment(),
+            };
+        }
+        let outside_name_visible = self.outside_pin_names.contains(&symbol)
+            && self
+                .pin_names
+                .get(&symbol)
+                .and_then(|pins| pins.get(&uuid))
+                .is_some_and(|name| !name.is_empty())
+            && self.pin_text_heights(symbol, uuid).name != Some(UnsignedLength::ZERO);
+        centered_legend(pin, !outside_name_visible)
+    }
+
+    /// Returns whether this placed pin is marked as intentionally unconnected.
+    pub fn is_no_connect(&self, symbol: Uuid, pin: Uuid) -> bool {
+        self.no_connects
+            .get(&symbol)
+            .is_some_and(|pins| pins.contains(&pin))
+    }
+
+    /// Sets or clears a placed pin's marker. Returns whether it changed.
+    pub fn set_no_connect(&mut self, symbol: Uuid, pin: Uuid, marked: bool) -> bool {
+        if marked {
+            return self.no_connects.entry(symbol).or_default().insert(pin);
+        }
+        let Some(pins) = self.no_connects.get_mut(&symbol) else {
+            return false;
+        };
+        let changed = pins.remove(&pin);
+        if pins.is_empty() {
+            self.no_connects.remove(&symbol);
+        }
+        changed
     }
 }
 
+/// Readable text orientation and anchor in schematic coordinates.
+pub struct PinLegendPosition {
+    pub position: Point,
+    pub rotation: Angle,
+    pub alignment: Alignment,
+}
+
+fn centered_legend(pin: &SymbolPinView<'_>, above: bool) -> PinLegendPosition {
+    // KiCad centers these legends along the pin. Use the default plotted
+    // gap (4 mil text offset + 4 mil margin + 6 mil default pen).
+    let gap = Length::new(if above { 355_600 } else { -355_600 });
+    let pin_rotation = pin.rotation();
+    let rotation = if is_text_upside_down(pin_rotation) {
+        pin_rotation + Angle::DEG180
+    } else {
+        pin_rotation
+    };
+    let midpoint = Point::new(*pin.lib_pin().length() / 2, Length::ZERO);
+    PinLegendPosition {
+        position: pin.position()
+            + midpoint.rotated(pin_rotation, Point::ORIGIN)
+            + Point::new(Length::ZERO, gap).rotated(rotation, Point::ORIGIN),
+        rotation,
+        alignment: Alignment::new(
+            HAlign::Center,
+            if above { VAlign::Bottom } else { VAlign::Top },
+        ),
+    }
+}
+
+/// Native line-height equivalents of the two KiCad pin font sizes.
+/// A zero height suppresses that legend.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct PinTextHeights {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<UnsignedLength>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub number: Option<UnsignedLength>,
+}
+
 /// Shape and size of a KiCad global label.
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct GlobalLabel {
     pub input: bool,
     pub output: bool,

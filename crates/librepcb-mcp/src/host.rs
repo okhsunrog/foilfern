@@ -16,7 +16,7 @@
 //!   value increases with every notice, for hosts which prefer polling
 //!   (the UI pulls `Project::changes_since()` and repaints).
 //!
-//! Locking: tool calls are serialized; one call locks the workspace, then
+//! Locking: session access is serialized; one call locks the workspace, then
 //! the project (hosts must use the same order and never lock the workspace
 //! while holding a project lock), and releases both before the host is
 //! notified. Host callbacks run on a blocking thread without any lock held
@@ -220,6 +220,7 @@ struct Inner {
     calls: Mutex<()>,
     host: Arc<dyn McpHost>,
     sequence: watch::Sender<u64>,
+    schematic_previews: Arc<crate::tools::design::WorkQueue>,
 }
 
 /// The state of an MCP server shared by all its client sessions and the
@@ -259,6 +260,7 @@ impl McpState {
                 calls: Mutex::new(()),
                 host,
                 sequence: watch::Sender::new(0),
+                schematic_previews: Arc::default(),
             }),
         }
     }
@@ -266,6 +268,10 @@ impl McpState {
     /// The host.
     pub fn host(&self) -> &Arc<dyn McpHost> {
         &self.inner.host
+    }
+
+    pub(crate) fn schematic_previews(&self) -> &Arc<crate::tools::design::WorkQueue> {
+        &self.inner.schematic_previews
     }
 
     /// The session's workspace.

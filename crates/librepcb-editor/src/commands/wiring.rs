@@ -1167,96 +1167,115 @@ impl Command for DisconnectSignals {
     }
 
     fn execute(self, tx: &mut Transaction<'_>) -> Result<usize> {
-        let mut count = 0;
-        let mut selections: BTreeMap<SchematicId, SchematicSelection> = BTreeMap::new();
-        for signal in &self.signals {
-            let p = tx.project();
-            let instance = p
-                .circuit()
-                .component_instance(signal.component)
-                .and_then(|c| c.signal(&signal.signal))
-                .ok_or_else(|| Error::not_found("Component signal", signal.signal))?;
-            if instance.net().is_some() {
-                count += 1;
-            }
-            for pin in placed_pins(p, *signal)? {
-                let Some(s) = p.schematic(pin.schematic) else {
-                    continue;
-                };
-                let Some(segment) = s.pin_net_segment(pin.symbol, pin.pin) else {
-                    continue;
-                };
-                let Some(seg) = s.net_segments().get(&segment) else {
-                    continue;
-                };
-                let selection = selections.entry(pin.schematic).or_default();
-                for line in seg.lines_at(NetLineAnchor::Pin {
-                    symbol: pin.symbol.0,
-                    pin: pin.pin,
-                }) {
-                    selection.net_lines.push((segment, line.uuid()));
-                }
-            }
-        }
-        // Other pins which would lose all their lines (e.g. the other end
-        // of a direct wire) stay on the net: they get a stub with a label
-        // first, so the removal keeps them connected.
-        let requested: BTreeSet<ComponentSignalRef> = self.signals.iter().copied().collect();
-        let mut keep = Vec::new();
-        for (schematic, selection) in &selections {
-            let p = tx.project();
-            let Some(s) = p.schematic(*schematic) else {
-                continue;
-            };
-            let removed: BTreeSet<Uuid> = selection.net_lines.iter().map(|(_, l)| *l).collect();
-            let segments: BTreeSet<NetSegmentId> =
-                selection.net_lines.iter().map(|(s, _)| *s).collect();
-            for segment in segments {
-                let Some(seg) = s.net_segments().get(&segment) else {
-                    continue;
-                };
-                let Some(net) = p.circuit().net_signal(seg.net()) else {
-                    continue;
-                };
-                for (symbol, pin) in seg.connected_pins() {
-                    let Some(view) = s
-                        .symbols()
-                        .get(&symbol)
-                        .and_then(|sym| sym.pin(p.view(), pin).ok().flatten())
-                    else {
-                        continue;
-                    };
-                    let all_removed = seg
-                        .lines_at(NetLineAnchor::Pin {
-                            symbol: symbol.0,
-                            pin,
-                        })
-                        .all(|l| removed.contains(&l.uuid()));
-                    if all_removed && !requested.contains(&view.signal()) {
-                        keep.push((
-                            PlacedPin {
-                                schematic: *schematic,
-                                symbol,
-                                pin,
-                                position: view.position(),
-                                rotation: view.rotation(),
-                            },
-                            net.name().clone(),
-                        ));
-                    }
-                }
-            }
-        }
-        for (pin, net) in &keep {
-            stub_with_label(tx, pin, net)?;
-        }
-        for (schematic, selection) in selections {
-            remove_schematic_items(tx, schematic, &selection)?;
-        }
-        for signal in &self.signals {
-            set_component_signal_net(tx, *signal, None)?;
-        }
+        let count = disconnect_signals(tx, &self.signals, true)?;
         remove_unused_nets(tx)?;
         Ok(count)
     }
+}
+
+/// Disconnects just the requested signals, with unused-object cleanup left to
+/// the declarative edit after its new connections are in place.
+pub fn disconnect_design_signals(
+    tx: &mut Transaction<'_>,
+    signals: &[ComponentSignalRef],
+) -> Result<()> {
+    disconnect_signals(tx, signals, false)?;
+    Ok(())
+}
+
+fn disconnect_signals(
+    tx: &mut Transaction<'_>,
+    signals: &[ComponentSignalRef],
+    clean_unused: bool,
+) -> Result<usize> {
+    let mut count = 0;
+    let mut selections: BTreeMap<SchematicId, SchematicSelection> = BTreeMap::new();
+    for signal in signals {
+        let p = tx.project();
+        let instance = p
+            .circuit()
+            .component_instance(signal.component)
+            .and_then(|c| c.signal(&signal.signal))
+            .ok_or_else(|| Error::not_found("Component signal", signal.signal))?;
+        if instance.net().is_some() {
+            count += 1;
+        }
+        for pin in placed_pins(p, *signal)? {
+            let Some(s) = p.schematic(pin.schematic) else {
+                continue;
+            };
+            let Some(segment) = s.pin_net_segment(pin.symbol, pin.pin) else {
+                continue;
+            };
+            let Some(seg) = s.net_segments().get(&segment) else {
+                continue;
+            };
+            let selection = selections.entry(pin.schematic).or_default();
+            for line in seg.lines_at(NetLineAnchor::Pin {
+                symbol: pin.symbol.0,
+                pin: pin.pin,
+            }) {
+                selection.net_lines.push((segment, line.uuid()));
+            }
+        }
+    }
+    // Other pins which would lose all their lines (e.g. the other end
+    // of a direct wire) stay on the net: they get a stub with a label
+    // first, so the removal keeps them connected.
+    let requested: BTreeSet<ComponentSignalRef> = signals.iter().copied().collect();
+    let mut keep = Vec::new();
+    for (schematic, selection) in &selections {
+        let p = tx.project();
+        let Some(s) = p.schematic(*schematic) else {
+            continue;
+        };
+        let removed: BTreeSet<Uuid> = selection.net_lines.iter().map(|(_, l)| *l).collect();
+        let segments: BTreeSet<NetSegmentId> =
+            selection.net_lines.iter().map(|(s, _)| *s).collect();
+        for segment in segments {
+            let Some(seg) = s.net_segments().get(&segment) else {
+                continue;
+            };
+            let Some(net) = p.circuit().net_signal(seg.net()) else {
+                continue;
+            };
+            for (symbol, pin) in seg.connected_pins() {
+                let Some(view) = s
+                    .symbols()
+                    .get(&symbol)
+                    .and_then(|sym| sym.pin(p.view(), pin).ok().flatten())
+                else {
+                    continue;
+                };
+                let all_removed = seg
+                    .lines_at(NetLineAnchor::Pin {
+                        symbol: symbol.0,
+                        pin,
+                    })
+                    .all(|l| removed.contains(&l.uuid()));
+                if all_removed && !requested.contains(&view.signal()) {
+                    keep.push((
+                        PlacedPin {
+                            schematic: *schematic,
+                            symbol,
+                            pin,
+                            position: view.position(),
+                            rotation: view.rotation(),
+                        },
+                        net.name().clone(),
+                    ));
+                }
+            }
+        }
+    }
+    for (pin, net) in &keep {
+        stub_with_label(tx, pin, net)?;
+    }
+    for (schematic, selection) in selections {
+        remove_schematic_items(tx, schematic, &selection, clean_unused)?;
+    }
+    for signal in signals {
+        set_component_signal_net(tx, *signal, None)?;
+    }
+    Ok(count)
 }

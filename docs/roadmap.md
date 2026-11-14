@@ -1,7 +1,7 @@
 # Foilfern roadmap
 
-Updated 2026-11-12. Capability baseline reviewed against `f3c3fda` (including
-the merged `work` branch); the P1a transaction decision was added after that review.
+Updated 2026-11-13. The original capability baseline was reviewed against
+`f3c3fda`, including the merged `work` branch.
 This is the delivery order for new work. [Status](status.md) describes what
 exists; [routing service design](routing-service-design.md) owns the routing
 contract; [COMPAT.md](../COMPAT.md) records upstream differences and gaps.
@@ -31,12 +31,12 @@ because its tools exist or one board has zero air wires.
 | Stage | Result | Dependencies | State |
 | --- | --- | --- | --- |
 | P0 | Identifiable builds, concise responses and measured operation costs | Existing API | Complete; [release replay](benchmarks/esp-pd-sink/review/performance/p0/REPORT.md) |
-| P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; 36-component creation and local rewiring verified |
-| P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | Planned; external review prototypes only |
-| P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | In progress; local repair and placement searches can be polled and cancelled |
-| P4 | Diagnosed local repair with bounded placement alternatives | P2, P3 | In progress; authorized copper repair and region-based placement trials implemented |
+| P1 | Declarative schematic/design updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; creation, local rewiring and reviewed topology edits verified |
+| P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | In progress; schematic requirements and apply gate implemented, board requirements next |
+| P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | In progress; schematic preview, local repair and placement searches report status, budgets and cancellation |
+| P4 | Diagnosed local repair with bounded placement alternatives | P2, P3 | In progress; authorized branch repair and region-based placement trials implemented |
 | P5 | Visual candidate review in the desktop editor | Existing candidates; P2/P4 extend the displayed evidence | Planned |
-| P6 | Reproducible end-to-end acceptance across boards | P1–P5 for final acceptance | Corpus/evidence partly available |
+| P6 | Reproducible end-to-end acceptance across boards | P1–P5 for final acceptance | Schematic replay available; board corpus partly available |
 
 Start with P0, then P1. P2 and P3 can be developed independently once their
 contracts are defined. Select and freeze the P6 corpus before tuning P4.
@@ -94,6 +94,20 @@ frozen preview includes any required project library additions.
 The ESP-PD-Sink USB Power Delivery block is the readability reference.
 Preview can report annotation overlaps for a selected group of components and
 move a reference or value independently with an expected-position check.
+The same bounds check is available on the live sheet through `schematic_review`
+and includes pin names and numbers. On a fresh ESP-PD-Sink import it flagged
+overlapping pin legends at U5 and a value colliding with a pin number at U6.
+Previews identify which of the reviewed overlaps were introduced or resolved.
+The review also checks whether an annotation crosses a schematic wire. A
+trial move of the U6 value cleared the pin-number overlap and was flagged
+for crossing VCC. A second position cleared both checks.
+`place_text` finds a clear position for one selected symbol field in a
+caller-supplied area. On ESP-PD-Sink it moved the U6 value away from the pin
+number and kept it clear of VCC in the exported preview. On the separate
+CardIO Frontend sheet it moved the Q1 value clear of a GND wire. KiCad
+import omits the legacy `~` pin name marker from rendered legends on this
+sheet. Both runs preserved the full netlist and ERC findings, restored
+the original sheet on undo, and replayed with an empty diff after reopening.
 `design_preview` can place selected members in a bounded row or column with
 an optional alignment coordinate. It keeps unrelated geometry fixed and
 carries each movable symbol's independent wire stubs with it. A preview can
@@ -116,6 +130,38 @@ with an empty diff after reopening. These runs covered the schematic.
 On a routed copy of the comparison project, a value-only update preserved
 the complete schematic geometry and netlist and both board snapshots,
 including their 608 traces and 71 vias each, after save/reopen.
+
+The same routed project exercised a component removal and pin reassignment
+in one preview. Both boards lost exactly the four reported trace UUIDs and
+the removed component's device. All 71 vias per board and the other trace
+UUIDs were retained. The remaining LED pin kept its original net. Undo
+restored both board snapshots and the netlist, redo reproduced the patch,
+and the saved result reopened and replayed with an empty diff. This check
+covers patch fidelity. The edited circuit is a topology test fixture.
+Every preview now compares ERC findings before and after the proposed patch.
+The report identifies introduced, inherited and resolved findings without
+changing live approvals. A fresh replay of the dev board from a blank sheet
+reported zero introduced findings across 77 reviewed changes.
+The `stdio_esp32_c3_schematic_acceptance` replay checks 23 symbols, 27 wire
+segments, 13 notes and 14 nets, including the EN and BOOT memberships.
+It checks undo/redo, saved-project ERC with the upstream CLI, and an empty
+reapply after moving the C3 designator by hand and reopening.
+The same document marks five intentionally open module pins. The replay
+checks mark placement, refuses a mark on EN while connected and clears a
+mark without changing the netlist. The marks follow the same rendering path
+as imported KiCad no-connect flags.
+An existing multi-gate component can be edited by placed symbol UUID.
+The stdio fixture moves, rotates and mirrors one gate, verifies that the
+other gate is unchanged, and checks empty replay and undo.
+The dev-board acceptance replay now starts with a native project that has
+no sheets. The document creates `Main` inside the same preview and undo
+step as its parts and wires, and reuses that sheet after save/reopen.
+Renaming a net by UUID preserves its pin membership and stored requirements.
+The preview reports the new name on the same ERC finding and accepts an empty
+replay of the rename.
+The same document format can rename a UUID-bound component. The stdio replay
+checks the guarded change, retains the component UUID, and preserves its
+subsequent manual move and empty replay after reopening.
 
 Done when:
 
@@ -178,7 +224,19 @@ Done when:
 
 ## P2 — persisted requirements and evidence
 
-Scope: start with fixed devices, allowed placement regions, protected copper,
+The [schematic requirements API](mcp-design.md#schematic-requirements) stores
+fixed symbol origins and orientations, allowed origin rectangles and pin-to-net membership by
+UUID. It reports live and proposed results, and hard failures or missing
+references block declarative schematic apply. Rules are a transactional
+project asset with version, source and severity.
+On the ESP32-C3-WROOM-02 dev board, the module origin, reset capacitor region
+and EN membership all passed. A preview disconnecting EN reported the failed
+membership and was refused at apply. LibrePCB 2.1.1 opened, passed ERC and
+saved the project, preserving the asset byte for byte. Foilfern reopened it
+and reproduced all three findings. The stdio test also covers undo/redo,
+stale previews and native project archive export.
+
+Board scope: fixed devices, allowed placement regions, protected copper,
 allowed routing layers, via prohibition and selected reference-coverage targets.
 Reuse native DRC/keepout/lock fields where their semantics match. Additional
 requirements need a versioned project-associated representation with object UUIDs,
@@ -212,6 +270,24 @@ current net when applicable, elapsed/remaining budget, best fully checked candid
 and stop reason. Limit active workers and queued work independently of the existing
 limit of eight retained candidates.
 
+Schematic previews now use detached workers. The server admits one preview
+at a time per shared state and leaves the project available during planning,
+ERC and rendering. A changed or reopened project refuses publication.
+Clients can inspect the stage, request cancellation, or supply a budget.
+The worker stops at phase, document-item and comparison-frame checkpoints and
+records a terminal outcome. On the imported ESP-PD-Sink sheet, stdio requests
+to cancel during rendering were acknowledged while the renderer was still
+working. The worker then returned `cancelled`, kept the revision and history,
+and admitted another preview. An in-flight frame or snapshot capture can run
+past the requested budget. The board workflow and its acceptance remain below.
+
+On the clean `2aad834` debug build, a two-frame preview of the U6 region was
+cancelled 900 ms after the client observed the render stage. Three requests
+were acknowledged in 1.8–7.5 ms and returned `cancelled` in 0.12–1.16 s from
+the request. The same build returned `budget_exhausted` after 83 ms when a
+20 ms budget expired during snapshot capture in a separate run. These samples
+describe the cooperative stop behavior on one host and sheet.
+
 Done when:
 
 - A long preparation exposes progress while the project remains usable. Competing
@@ -239,9 +315,18 @@ Shipped: compare supplied or region-generated centers and angles for up to
 two devices, with protected copper, device-relative return vias, checked plane
 contacts and pad-to-pad limits. The background worker orders generated poses
 by the requested path objectives and rejects fixed copper conflicts before
-routing. Optional obstacle guidance translates the moving pad/device-relative
-via away from fixed copper in quick DRC. Using failed routing searches to
-propose repairs for unresolved escape corridors remains part of P4.
+routing. Optional obstacle guidance tries poses away from fixed copper.
+Repair trials accept exact removal UUIDs, retained branch endpoints, an
+explicit target escape and hard pad-pair path limits. On ESP-PD-Sink,
+joint routing closed both ESP_EN gaps while reconnecting the authorized
+GPIO4 branch between its retained via and junction. See the
+[routing research results](benchmarks/routing-research.md).
+
+Next, expose evidence from failed continuations after a staged escape and
+use it to propose bounded repair branches. Keep ESP32-C3 GPIO6 as a
+negative control until a checked corridor preserves the short C5 branch
+and avoids a long GPIO2 detour. Board-level requirement persistence remains
+tracked in P2.
 
 Done when:
 
@@ -274,6 +359,11 @@ Scope: display the existing frozen candidate in the desktop board view, with
 added/removed copper, moved components, remaining connections and DRC locations.
 Use the same IDs, revisions and apply/discard operations as MCP.
 
+Schematic MCP previews can return matched before/after images at a common
+scale and origin, including sheets with imported bitmap images. Callers can
+also request a sheet-coordinate rectangle for a close-up of the same change.
+The desktop board overlay has its own acceptance below.
+
 Done when:
 
 - Selecting a candidate overlays its changes without modifying the live board,
@@ -291,6 +381,11 @@ Done when:
 Scope: make the entire creation/update/review/save/export workflow reproducible.
 Use ESP32-C3 for declarative updates and last connections, ESP-PD-Sink for
 placement/requirements, and a held-out board selected before planner tuning.
+
+The [ESP32-C3 schematic replay](benchmarks/esp32-c3-schematic/README.md)
+starts from an empty native project and checks the full netlist, ERC, undo/redo,
+native reopen and replay after a manual annotation edit. It records the binary,
+document and library hashes alongside the results and the preview image.
 
 Done when:
 

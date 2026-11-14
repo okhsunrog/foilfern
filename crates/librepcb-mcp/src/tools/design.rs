@@ -1,21 +1,26 @@
-//! Declarative edits to existing schematic components with a reviewed patch.
+//! Declarative schematic creation and edits with a reviewed patch.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::{Arc, Weak};
 
 use librepcb_core::attribute::{Attribute, AttributeKey, AttributeType};
 use librepcb_core::geometry::Text;
+use librepcb_core::project::schematic::SchematicSymbol;
 use librepcb_core::project::{
     ComponentInstanceId, ComponentSignalRef, LibraryElementKind, Mutation, NetSignalId, Project,
     SchematicId, SchematicMutation, SymbolRef,
 };
-use librepcb_core::types::{Alignment, Angle, Layer, Length, Point, PositiveLength, Uuid};
-use librepcb_editor::Transaction;
+use librepcb_core::types::{
+    Alignment, Angle, ElementName, Layer, Length, Point, PositiveLength, Uuid,
+};
 use librepcb_editor::commands::{
     AddComponent, AddLibraryElement, AddNet, AutoPlaceSymbols, BlockDirection, DrawWirePaths,
     EditComponent, MoveSymbol, PlaceSchematicBlock, Rect, SymbolPlacement, SymbolStyle,
     WireCoordinate, WireGroup, WirePathPoint, WirePathSpec, WireWaypoint, connect_design_pin,
+    new_schematic,
 };
-use librepcb_editor::design_preview::{DesignEdit, DesignPreview};
+use librepcb_editor::design_preview::{DesignEdit, DesignPreview, DesignPreviewJob};
+use librepcb_editor::{LibraryElementSource, OpenProject, Transaction};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::json;
@@ -26,6 +31,14 @@ use crate::session::Session;
 use crate::tools::write::Written;
 use crate::{resolve, units, units::PointMm, views};
 
+mod erc;
+mod no_connect;
+mod text_placement;
+mod topology;
+mod work;
+pub use work::CancelArgs;
+pub(crate) use work::{Stage, WorkQueue};
+
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ManagedValue {
@@ -35,7 +48,7 @@ pub struct ManagedValue {
     set: String,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ManagedPosition {
     /// Baseline position in millimeters.
@@ -44,7 +57,7 @@ pub struct ManagedPosition {
     set: PointMm,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ManagedRotation {
     /// Baseline angle in degrees.
@@ -60,6 +73,8 @@ pub struct ExistingComponent {
     uuid: Option<String>,
     /// Designator of an existing component. Use uuid when the document must survive renames.
     designator: Option<String>,
+    /// Managed designator. Bind by UUID to replay across the rename.
+    name: Option<ManagedValue>,
     /// Managed value. Omission preserves the current value.
     value: Option<ManagedValue>,
     /// Managed position of its single symbol on this sheet.
@@ -68,9 +83,27 @@ pub struct ExistingComponent {
     /// Managed rotation of its single symbol on this sheet, in degrees.
     /// Omission preserves manual rotation.
     rotation: Option<ManagedRotation>,
+    /// Managed transforms keyed by placed symbol UUID from schematic_get.
+    #[serde(default)]
+    symbols: BTreeMap<String, ManagedSymbol>,
     /// Managed absolute positions of symbol fields keyed by text UUID from schematic_get.
     #[serde(default)]
     text_positions: BTreeMap<String, ManagedPosition>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ManagedSymbol {
+    position: Option<ManagedPosition>,
+    rotation: Option<ManagedRotation>,
+    mirrored: Option<ManagedMirror>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ManagedMirror {
+    expected: bool,
+    set: bool,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -80,6 +113,16 @@ pub struct DesignDocument {
     version: u32,
     /// Schematic name or UUID for the preview.
     schematic: String,
+    /// If true, interpret schematic as an exact page name and create it if missing.
+    #[serde(default)]
+    create_schematic: bool,
+    /// Optional time budget in milliseconds, checked between preview stages.
+    pub(crate) budget_ms: Option<u64>,
+    /// Include before and after PNGs at a shared scale and origin.
+    #[serde(default)]
+    compare_images: bool,
+    /// Optional crop for the paired preview images, in sheet millimeters.
+    image_region: Option<super::output::SchematicRegion>,
     /// Stable document keys bound to existing components by UUID or designator.
     #[serde(default)]
     components: BTreeMap<String, ExistingComponent>,
@@ -89,6 +132,19 @@ pub struct DesignDocument {
     /// Named nets to ensure before adding parts. Existing nets keep their identity and class.
     #[serde(default)]
     add_nets: Vec<String>,
+    /// Rename existing nets by UUID, preserving their connections and geometry.
+    #[serde(default)]
+    rename_nets: BTreeMap<String, ManagedValue>,
+    /// Existing component UUIDs to remove. A missing UUID is already removed.
+    #[serde(default)]
+    remove_components: Vec<String>,
+    /// Existing pins with explicit before and after net names; null means unconnected.
+    #[serde(default)]
+    pin_nets: BTreeMap<String, topology::ManagedNet>,
+    /// Explicit intentional no-connect markers by key.pin. True marks an open
+    /// pin, false clears its marker. Omitted pins keep their current markers.
+    #[serde(default)]
+    no_connects: BTreeMap<String, bool>,
     /// Required pin memberships, using `key.pin` (for example `pullup.2`).
     /// These are assertions against the existing circuit.
     #[serde(default)]
@@ -106,6 +162,8 @@ pub struct DesignDocument {
     /// Optional annotation-overlap review focused on these component keys.
     #[serde(default)]
     review_components: Vec<String>,
+    /// Find a position for one symbol field within a caller-supplied area.
+    place_text: Option<text_placement::PlaceText>,
     /// Bounded row/column placement of selected existing components.
     block: Option<SchematicBlock>,
 }
@@ -306,18 +364,86 @@ struct PageNote {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct DesignApplyArgs {
+pub struct DesignPreviewArgs {
     /// The ID returned by design_preview in this open project.
     preview: String,
 }
 
+/// Arguments accepted by `design_apply`.
+pub type DesignApplyArgs = DesignPreviewArgs;
+
+pub(crate) struct PreviewJob {
+    source_project: Weak<parking_lot::Mutex<OpenProject>>,
+    source_library: Arc<dyn LibraryElementSource>,
+    snapshot: DesignPreviewJob,
+    document: DesignDocument,
+}
+
+pub(crate) struct PreparedPreview {
+    source_project: Weak<parking_lot::Mutex<OpenProject>>,
+    source_library: Arc<dyn LibraryElementSource>,
+    preview: DesignPreview,
+    output: ToolOutput,
+}
+
+/// Synchronous entry point for clients which already own the session lock.
 pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOutput> {
+    let mut guard = Arc::new(WorkQueue::default()).try_start(doc.budget_ms)?;
+    let job = capture(session, doc)?;
+    let result = prepare(job, |stage| guard.work.checkpoint(stage)).and_then(|prepared| {
+        guard.work.checkpoint(Stage::Publish)?;
+        publish(session, prepared)
+    });
+    guard.record(&result);
+    result
+}
+
+pub(crate) fn capture(session: &mut Session, doc: DesignDocument) -> ToolResult<PreviewJob> {
     if doc.version != 1 {
         return Err(ToolError::invalid("Expected design document version 1."));
     }
-    let open = session.project_mut()?;
-    let p = open.project();
-    let (_, page, schematic) = resolve::schematic(p, Some(&doc.schematic))?;
+    let project = session.shared_project().ok_or_else(ToolError::no_project)?;
+    let editor = &session.project()?.editor;
+    Ok(PreviewJob {
+        source_project: Arc::downgrade(&project),
+        source_library: editor.source().clone(),
+        snapshot: DesignPreviewJob::capture(editor)?,
+        document: doc,
+    })
+}
+
+pub(crate) fn prepare(
+    job: PreviewJob,
+    checkpoint: impl Fn(Stage) -> ToolResult<()>,
+) -> ToolResult<PreparedPreview> {
+    checkpoint(Stage::Plan)?;
+    let PreviewJob {
+        source_project,
+        source_library,
+        snapshot,
+        document: doc,
+    } = job;
+    let region = doc
+        .image_region
+        .map(super::output::SchematicRegion::points)
+        .transpose()?;
+    let p = snapshot.project();
+    let mut new_page = None;
+    let schematic = if doc.create_schematic {
+        let name = ElementName::new(doc.schematic.trim())?;
+        match p.schematic_by_name(name.as_str()) {
+            Some(schematic) => schematic,
+            None => new_page.insert(new_schematic(p, name)?),
+        }
+    } else {
+        resolve::schematic(p, Some(&doc.schematic))?.2
+    };
+    let page = schematic.id();
+    let removals = doc
+        .remove_components
+        .iter()
+        .map(|id| resolve::required_uuid(id, "component to remove").map(ComponentInstanceId))
+        .collect::<ToolResult<BTreeSet<_>>>()?;
     let mut bindings = BTreeMap::new();
     let mut seen = BTreeSet::new();
     let mut edits = Vec::new();
@@ -330,6 +456,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
         }
     }
     let mut reviewed = BTreeSet::new();
+    let mut target_names = BTreeSet::new();
     for key in doc.add_components.keys() {
         if key.is_empty() || key.contains('.') || doc.components.contains_key(key) {
             return Err(ToolError::invalid(format!(
@@ -338,6 +465,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
         }
     }
     for (key, spec) in &doc.components {
+        checkpoint(Stage::Plan)?;
         if key.is_empty() || key.contains('.') {
             return Err(ToolError::invalid(format!(
                 "Invalid component key {key:?}."
@@ -363,9 +491,56 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
         if !seen.insert(id) {
             return Err(ToolError::invalid(format!("Duplicate binding for {id}.")));
         }
+        if removals.contains(&id) {
+            return Err(ToolError::invalid(format!(
+                "Component {key:?} is also listed for removal."
+            )));
+        }
         bindings.insert(key.as_str(), id);
         if doc.review_components.contains(key) {
             reviewed.insert(id);
+        }
+        let mut edit = EditComponent {
+            component: id.into(),
+            name: None,
+            value: None,
+            attributes: None,
+            assembly_options: None,
+            lock_assembly: None,
+        };
+        if let Some(name) = &spec.name {
+            if spec.uuid.is_none() {
+                return Err(ToolError::invalid(format!(
+                    "Component {key:?} must bind by UUID when managing its designator."
+                )));
+            }
+            let desired = super::schematic_edit::identifier(&name.set, "designator")?;
+            if !target_names.insert(desired.clone())
+                || p.circuit()
+                    .component_instance_by_name(desired.as_str())
+                    .is_some_and(|(owner, _)| owner != id)
+            {
+                return Err(ToolError::new(
+                    ErrorKind::Conflict,
+                    format!(
+                        "Designator {desired:?} is already in use or requested by more than one component."
+                    ),
+                ));
+            }
+            let current = component.name().as_str();
+            if current != desired.as_str() {
+                if current != name.expected {
+                    return Err(ToolError::new(
+                        ErrorKind::Conflict,
+                        format!(
+                            "{key}.name: expected {:?}, found {current:?}, desired {:?}.",
+                            name.expected, name.set
+                        ),
+                    ));
+                }
+                diff.push(json!({"component":key,"uuid":id,"field":"name","before":current,"after":desired.as_str()}));
+                edit.name = Some(desired);
+            }
         }
         if let Some(value) = &spec.value
             && component.value() != &value.set
@@ -382,19 +557,39 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 ));
             }
             diff.push(json!({"component":key,"uuid":id,"field":"value","before":component.value(),"after":value.set}));
-            edits.push(DesignEdit::Component(EditComponent {
-                component: id.into(),
-                name: None,
-                value: Some(value.set.clone()),
-                attributes: None,
-                assembly_options: None,
-                lock_assembly: None,
-            }));
+            edit.value = Some(value.set.clone());
         }
-        if !spec.text_positions.is_empty() && (spec.position.is_some() || spec.rotation.is_some()) {
+        if edit.name.is_some() || edit.value.is_some() {
+            edits.push(DesignEdit::Component(edit));
+        }
+        let shorthand = spec.position.is_some() || spec.rotation.is_some();
+        if shorthand && !spec.symbols.is_empty() {
+            return Err(ToolError::invalid(format!(
+                "{key}: use either per-symbol or component-level placement fields."
+            )));
+        }
+        if !spec.text_positions.is_empty() && shorthand {
             return Err(ToolError::invalid(format!(
                 "{key}: preview symbol transforms and absolute text positions in separate edits."
             )));
+        }
+        let mut selected = BTreeMap::new();
+        for (selector, managed) in &spec.symbols {
+            let uuid = resolve::required_uuid(selector, "placed symbol")?;
+            let symbol = schematic
+                .symbols()
+                .get(&uuid.into())
+                .filter(|symbol| symbol.component() == id)
+                .ok_or_else(|| {
+                    ToolError::not_found(format!(
+                        "Symbol {uuid} of {key} is not on the selected sheet."
+                    ))
+                })?;
+            if selected.insert(symbol.id(), (symbol, *managed)).is_some() {
+                return Err(ToolError::invalid(format!(
+                    "{key}: duplicate symbol UUID {uuid}."
+                )));
+            }
         }
         for (text, position) in &spec.text_positions {
             let uuid = resolve::required_uuid(text, "symbol text")?;
@@ -406,6 +601,11 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 .ok_or_else(|| {
                     ToolError::not_found(format!("Text {uuid} was not found on {key}."))
                 })?;
+            if selected.contains_key(&symbol) {
+                return Err(ToolError::invalid(format!(
+                    "{key}: preview symbol transforms and absolute text positions in separate edits for symbol {symbol}."
+                )));
+            }
             let desired = position.set.to_point()?;
             if text.position() == desired {
                 continue;
@@ -428,7 +628,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 text,
             });
         }
-        if spec.position.is_some() || spec.rotation.is_some() {
+        if shorthand {
             let mut symbols = schematic.symbols().values().filter(|s| s.component() == id);
             let symbol = symbols
                 .next()
@@ -436,51 +636,20 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 .ok_or_else(|| {
                     ToolError::invalid(format!("{key} must have exactly one symbol on this sheet."))
                 })?;
-            let mut command = MoveSymbol {
-                symbol: symbol.id(),
-                position: None,
-                rotation: None,
-                mirrored: None,
-            };
-            if let Some(position) = &spec.position {
-                let desired = position.set.to_point()?;
-                let current = symbol.position();
-                if current != desired {
-                    if current != position.expected.to_point()? {
-                        return Err(ToolError::new(
-                            ErrorKind::Conflict,
-                            format!(
-                                "{key}.position: expected {:?}, found {:?}.",
-                                position.expected,
-                                views::point(current)
-                            ),
-                        ));
-                    }
-                    diff.push(json!({"component":key,"uuid":id,"field":"position","before":views::point(current),"after":views::point(desired)}));
-                    command.position = Some(desired);
-                }
-            }
-            if let Some(rotation) = &spec.rotation {
-                let desired = units::angle(rotation.set)?.mapped_to_0_360deg();
-                let current = symbol.rotation().mapped_to_0_360deg();
-                if current != desired {
-                    if current != units::angle(rotation.expected)?.mapped_to_0_360deg() {
-                        return Err(ToolError::new(
-                            ErrorKind::Conflict,
-                            format!(
-                                "{key}.rotation: expected {}°, found {}°.",
-                                rotation.expected,
-                                units::deg(current)
-                            ),
-                        ));
-                    }
-                    diff.push(json!({"component":key,"uuid":id,"field":"rotation","before":units::deg(current),"after":units::deg(desired)}));
-                    command.rotation = Some(desired);
-                }
-            }
-            if command.position.is_some() || command.rotation.is_some() {
-                edits.push(DesignEdit::Symbol(command));
-            }
+            plan_symbol_move(
+                key,
+                symbol,
+                ManagedSymbol {
+                    position: spec.position,
+                    rotation: spec.rotation,
+                    mirrored: None,
+                },
+                &mut diff,
+                &mut edits,
+            )?;
+        }
+        for (symbol, managed) in selected.into_values() {
+            plan_symbol_move(key, symbol, managed, &mut diff, &mut edits)?;
         }
     }
     let mut block_members = BTreeSet::new();
@@ -499,7 +668,10 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 )));
             }
             let spec = &doc.components[member];
-            if spec.position.is_some() || spec.rotation.is_some() || !spec.text_positions.is_empty()
+            if spec.position.is_some()
+                || spec.rotation.is_some()
+                || !spec.text_positions.is_empty()
+                || !spec.symbols.is_empty()
             {
                 return Err(ToolError::invalid(format!(
                     "{member:?} combines block placement with explicit symbol or text placement."
@@ -539,13 +711,24 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
     } else {
         None
     };
-    let (preview, project, (added, verified)) = DesignPreview::prepare(
-        &open.editor,
+    let (preview, before, project, (added, verified, topology, text_placement)) = snapshot.prepare(
         |tx| -> ToolResult<_> {
+            let mut added = Vec::new();
+            if let Some(schematic) = new_page {
+                added.push(
+                    json!({"field":"add_schematic","name":schematic.name().as_str(),"uuid":page}),
+                );
+                tx.apply(Mutation::AddSchematic {
+                    schematic,
+                    index: None,
+                })?;
+            }
             for edit in edits {
                 edit.execute(tx)?;
             }
-            let mut added = Vec::new();
+            topology::rename_nets(tx, &doc.rename_nets, &mut added)?;
+            let mut topology = topology::TopologyEdits::default();
+            topology::remove_components(tx, &removals, &mut added, &mut topology)?;
             for name in &doc.add_nets {
                 if tx.project().circuit().net_signal_by_name(name).is_none() {
                     let id = tx.run(AddNet {
@@ -556,6 +739,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 }
             }
             for (key, spec) in &doc.add_components {
+                checkpoint(Stage::Plan)?;
                 let (id, change) = add_component(tx, page, key, spec)?;
                 bindings.insert(key.as_str(), id);
                 if doc.review_components.contains(key) {
@@ -565,6 +749,14 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                     added.push(change);
                 }
             }
+            topology::set_pin_nets(
+                tx,
+                page,
+                &bindings,
+                &doc.pin_nets,
+                &mut added,
+                &mut topology,
+            )?;
             style_symbols(tx, &doc.symbol_styles, &mut added)?;
             let p = tx.project();
             let mut verified = BTreeSet::new();
@@ -578,6 +770,7 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
             let mut explicit = Vec::new();
             let mut explicit_diffs = Vec::new();
             for group in &doc.wire_groups {
+                checkpoint(Stage::Plan)?;
                 let names = group.pin_names()?;
                 let (net, pins) =
                     resolve_memberships(p, &bindings, &group.net, names.iter().copied())?;
@@ -708,81 +901,193 @@ pub fn preview(session: &mut Session, doc: DesignDocument) -> ToolResult<ToolOut
                 json!({"field":"page_note","uuid":uuid,"text":note.text,"position":note.position,"height":note.height}),
             );
             }
-            Ok((added, verified.len()))
+            no_connect::update(tx, page, &bindings, &doc.no_connects, &mut added)?;
+            topology.remove_unused_nets(tx, &doc.add_nets)?;
+            let text_placement = doc.place_text.as_ref().map(|placement| {
+                checkpoint(Stage::Plan)?;
+                let evidence = placement.place(tx, page, &bindings, &doc.components, || checkpoint(Stage::Plan), &mut added)?;
+                if let Some(component) = bindings.get(placement.component()) {
+                    reviewed.insert(*component);
+                }
+                Ok::<_, ToolError>(evidence)
+            }).transpose()?;
+            Ok((added, verified.len(), topology, text_placement))
         },
     )?;
+    checkpoint(Stage::Check)?;
     diff.extend(added);
     let schematic = project
         .schematic(page)
         .ok_or_else(|| ToolError::not_found("Preview schematic not found."))?;
-    let image = super::output::render_schematic_preview(&project, schematic, 1600, 1200)?;
     let mut payload = json!({
         "preview": preview.id, "base_revision": preview.revision, "diff": diff,
-        "verified_pins": verified,
+        "verified_pins": verified, "erc": erc::compare(&before, &project), "schematic": page,
     });
-    if !reviewed.is_empty() {
-        payload["annotation_overlaps"] = review_annotations(&project, schematic, &reviewed)?;
+    if let Some(placement) = text_placement {
+        payload["text_placement"] = placement;
     }
-    let result =
-        ToolOutput::new(format!("{} schematic changes.", diff.len()), payload)?.image(image);
-    open.design_preview = Some(preview);
-    Ok(result)
+    let copper = topology::copper_impact(&before, &project, &topology);
+    if !copper.is_empty() {
+        payload["board_impact"] = json!(copper);
+    }
+    if !reviewed.is_empty() {
+        let after = super::layout::annotation_review(&project, schematic, &reviewed, true)?;
+        checkpoint(Stage::Check)?;
+        let baseline = before
+            .schematic(page)
+            .map(|sheet| super::layout::annotation_review(&before, sheet, &reviewed, false))
+            .transpose()?;
+        checkpoint(Stage::Check)?;
+        payload["annotation_changes"] = after.changes_since(baseline);
+        payload["annotation_overlaps"] = json!(after.overlaps().collect::<Vec<_>>());
+    }
+    let findings = preview.requirement_findings();
+    let blockers = findings
+        .iter()
+        .filter(|finding| finding.blocks_apply())
+        .count();
+    if !findings.is_empty() {
+        payload["requirements"] =
+            super::requirements::evidence(&project, findings, preview.revision, Some(preview.id));
+    }
+    let mut summary = format!("{} schematic changes.", diff.len());
+    if blockers > 0 {
+        summary.push_str(&format!(
+            " {blockers} schematic requirement(s) block apply."
+        ));
+    }
+    checkpoint(Stage::Render)?;
+    let output = if doc.compare_images || region.is_some() {
+        let images = super::output::render_schematic_comparison(
+            &before,
+            &project,
+            schematic,
+            (1600, 1200),
+            region,
+            || checkpoint(Stage::Render),
+        )?;
+        payload["images"] = json!(["after", "before"]);
+        if let Some((min, max)) = region {
+            payload["image_region"] = json!({"min":views::point(min),"max":views::point(max)});
+        }
+        let mut output = ToolOutput::new(
+            format!("{summary} PNGs are ordered after, before."),
+            payload,
+        )?;
+        output.images = images;
+        output
+    } else {
+        let image = super::output::render_schematic_preview(&project, schematic, 1600, 1200, None)?;
+        ToolOutput::new(summary, payload)?.image(image)
+    };
+    Ok(PreparedPreview {
+        source_project,
+        source_library,
+        preview,
+        output,
+    })
+}
+
+pub(crate) fn publish(session: &mut Session, prepared: PreparedPreview) -> ToolResult<ToolOutput> {
+    let stale = || {
+        ToolError::new(
+            ErrorKind::StaleRevision,
+            "The project changed while the schematic preview was prepared. Retry design_preview.",
+        )
+    };
+    let current = session.shared_project().ok_or_else(stale)?;
+    if !Weak::ptr_eq(&prepared.source_project, &Arc::downgrade(&current)) {
+        return Err(stale());
+    }
+    let open = session.project_mut()?;
+    if !prepared.preview.matches(open.project())
+        || !Arc::ptr_eq(&prepared.source_library, open.editor.source())
+        || open.editor.undo_stack().is_group_active()
+    {
+        return Err(stale());
+    }
+    open.design_preview = Some(prepared.preview);
+    Ok(prepared.output)
 }
 
 const DESIGN_KEY: &str = "FOILFERN_DESIGN_KEY";
 
-fn review_annotations(
-    project: &Project,
-    schematic: &librepcb_core::project::schematic::Schematic,
-    components: &BTreeSet<ComponentInstanceId>,
-) -> ToolResult<serde_json::Value> {
-    use librepcb_scene::{ColorScheme, SchematicObject, SchematicScene, annotation_overlaps};
-    let symbols: BTreeSet<_> = schematic
-        .symbols()
-        .iter()
-        .filter(|(_, symbol)| components.contains(&symbol.component()))
-        .map(|(id, _)| *id)
-        .collect();
-    for component in components {
-        if !schematic
-            .symbols()
-            .values()
-            .any(|symbol| symbol.component() == *component)
-        {
-            return Err(ToolError::invalid(format!(
-                "Review component {} has no symbols on the selected sheet.",
-                resolve::designator(project, *component)
-            )));
+fn plan_symbol_move(
+    key: &str,
+    symbol: &SchematicSymbol,
+    managed: ManagedSymbol,
+    diff: &mut Vec<serde_json::Value>,
+    edits: &mut Vec<DesignEdit>,
+) -> ToolResult<()> {
+    let conflict = |field: &str, expected: serde_json::Value, found: serde_json::Value| {
+        ToolError::new(
+            ErrorKind::Conflict,
+            format!(
+                "{key} symbol {} {field}: expected {expected}, found {found}.",
+                symbol.id()
+            ),
+        )
+    };
+    let mut record = |field: &str, before: serde_json::Value, after: serde_json::Value| {
+        diff.push(json!({"component":key,"uuid":symbol.component(),"symbol":symbol.id(),"field":field,"before":before,"after":after}));
+    };
+    let mut command = MoveSymbol {
+        symbol: symbol.id(),
+        position: None,
+        rotation: None,
+        mirrored: None,
+    };
+    if let Some(position) = managed.position {
+        let desired = position.set.to_point()?;
+        let current = symbol.position();
+        if current != desired {
+            if current != position.expected.to_point()? {
+                return Err(conflict(
+                    "position",
+                    json!(position.expected),
+                    views::point(current),
+                ));
+            }
+            record("position", views::point(current), views::point(desired));
+            command.position = Some(desired);
         }
     }
-    let segments = schematic
-        .net_segments()
-        .iter()
-        .filter(|(_, segment)| {
-            segment
-                .connected_pins()
-                .iter()
-                .any(|(symbol, _)| symbols.contains(symbol))
-        })
-        .map(|(id, _)| *id)
-        .collect();
-    let scene = SchematicScene::build(project, schematic.id(), &ColorScheme::SCHEMATIC_LIGHT)?;
-    let describe = |object| match object {
-        SchematicObject::SymbolText(symbol, text) => {
-            let placed = &schematic.symbols()[&symbol];
-            let layer = placed.texts().get(&text).map(|t| t.layer().id());
-            json!({"kind":"symbol_text","component":resolve::designator(project, placed.component()),"symbol":symbol,"text":text,"layer":layer})
+    if let Some(rotation) = managed.rotation {
+        let desired = units::angle(rotation.set)?.mapped_to_0_360deg();
+        let current = symbol.rotation().mapped_to_0_360deg();
+        if current != desired {
+            if current != units::angle(rotation.expected)?.mapped_to_0_360deg() {
+                return Err(conflict(
+                    "rotation",
+                    json!(rotation.expected),
+                    json!(units::deg(current)),
+                ));
+            }
+            record(
+                "rotation",
+                json!(units::deg(current)),
+                json!(units::deg(desired)),
+            );
+            command.rotation = Some(desired);
         }
-        SchematicObject::NetLabel(segment, label) => {
-            let net = schematic.net_segments()[&segment].net();
-            json!({"kind":"net_label","net":resolve::net_name(project, net),"segment":segment,"label":label})
+    }
+    if let Some(mirrored) = managed.mirrored
+        && symbol.mirrored() != mirrored.set
+    {
+        if symbol.mirrored() != mirrored.expected {
+            return Err(conflict(
+                "mirrored",
+                json!(mirrored.expected),
+                json!(symbol.mirrored()),
+            ));
         }
-        SchematicObject::Text(text) => json!({"kind":"schematic_text","text":text}),
-        _ => unreachable!("overlaps only contain annotations"),
-    };
-    Ok(json!(annotation_overlaps(&scene, Some((&symbols, &segments))).into_iter().map(|overlap|
-        json!({"first":describe(overlap.first),"second":describe(overlap.second),"bounds_mm":overlap.bounds})
-    ).collect::<Vec<_>>()))
+        record("mirrored", json!(symbol.mirrored()), json!(mirrored.set));
+        command.mirrored = Some(mirrored.set);
+    }
+    if command.position.is_some() || command.rotation.is_some() || command.mirrored.is_some() {
+        edits.push(DesignEdit::Symbol(command));
+    }
+    Ok(())
 }
 
 fn style_symbols(
@@ -894,6 +1199,15 @@ fn add_component(
         {
             return Err(conflict(format!(
                 "Component {key:?} differs in library identity or value."
+            )));
+        }
+        if !p.component_uses(instance.id()).is_some_and(|uses| {
+            uses.symbols
+                .values()
+                .any(|(schematic, _)| *schematic == page)
+        }) {
+            return Err(conflict(format!(
+                "Component {key:?} is already bound to a different sheet or has no placed symbols."
             )));
         }
         (instance.id(), false)
@@ -1202,4 +1516,96 @@ pub fn apply(session: &mut Session, args: DesignApplyArgs) -> ToolResult<ToolOut
         format!("Applied {operations} design operations."),
         json!({"mutation_count": count, "operation_count": operations}),
     )
+}
+
+pub fn discard(session: &mut Session, args: DesignPreviewArgs) -> ToolResult<ToolOutput> {
+    let id = resolve::required_uuid(&args.preview, "preview")?;
+    let open = session.project_mut()?;
+    if open
+        .design_preview
+        .take_if(|preview| preview.id == id)
+        .is_none()
+    {
+        return Err(ToolError::not_found("Unknown design preview."));
+    }
+    ToolOutput::new("Discarded the schematic preview.", json!({"preview": id}))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tools::project::{ProjectCreateArgs, project_create};
+
+    #[test]
+    fn schematic_preview_admission_is_shared_and_released() {
+        let state = crate::McpState::new(Arc::new(crate::StandaloneHost));
+        let client = state.clone();
+        let permit = state.schematic_previews().try_start(None).unwrap();
+        assert!(client.schematic_previews().try_start(None).is_err());
+        drop(permit);
+        assert!(client.schematic_previews().try_start(None).is_ok());
+    }
+
+    #[test]
+    fn detached_preview_refuses_changed_and_reopened_projects() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut session = Session::new();
+        let args: ProjectCreateArgs = serde_json::from_value(json!({
+            "name":"Preview source", "directory":tmp.path().join("project")
+        }))
+        .unwrap();
+        let created = project_create(&mut session, args).unwrap();
+        let path = created.result["path"].as_str().unwrap();
+        let doc = || {
+            serde_json::from_value(json!({"version":1,"schematic":"Main","notes":[
+                {"text":"preview note","position":{"x":0,"y":0},"height":1.5}
+            ]}))
+            .unwrap()
+        };
+
+        let prepared = prepare(capture(&mut session, doc()).unwrap(), |_| Ok(())).unwrap();
+        session
+            .project_mut()
+            .unwrap()
+            .editor
+            .execute_atomic("Edit net", |tx| {
+                tx.run(AddNet::default())?;
+                Ok::<_, librepcb_editor::Error>(())
+            })
+            .unwrap();
+        assert_eq!(
+            publish(&mut session, prepared).unwrap_err().kind,
+            ErrorKind::StaleRevision
+        );
+        assert!(session.project().unwrap().design_preview.is_none());
+        session.project_mut().unwrap().save().unwrap();
+        session.project = None;
+        session.open_project(path).unwrap();
+
+        let prepared = prepare(capture(&mut session, doc()).unwrap(), |_| Ok(())).unwrap();
+        session.project = None;
+        session.open_project(path).unwrap();
+        assert_eq!(
+            prepared.preview.revision,
+            session.project().unwrap().project().revision()
+        );
+        assert!(!Weak::ptr_eq(
+            &prepared.source_project,
+            &Arc::downgrade(&session.shared_project().unwrap())
+        ));
+        assert_eq!(
+            publish(&mut session, prepared).unwrap_err().kind,
+            ErrorKind::StaleRevision
+        );
+        assert!(session.project().unwrap().design_preview.is_none());
+
+        let prepared = prepare(capture(&mut session, doc()).unwrap(), |_| Ok(())).unwrap();
+        let output = publish(&mut session, prepared).unwrap();
+        assert_eq!(output.result["diff"].as_array().unwrap().len(), 1);
+        assert!(
+            session.project().unwrap().project().schematics()[0]
+                .texts()
+                .is_empty()
+        );
+    }
 }

@@ -23,6 +23,9 @@ pub enum Error {
         /// Height in pixels.
         height: u32,
     },
+    /// The requested model-coordinate region has zero or negative extent.
+    #[error("the render region needs positive width and height")]
+    InvalidRegion,
     /// Rendering failed.
     #[error(transparent)]
     Render(#[from] librepcb_canvas::render::Error),

@@ -999,6 +999,7 @@ pub(crate) fn remove_schematic_items(
     tx: &mut Transaction<'_>,
     schematic: SchematicId,
     selection: &SchematicSelection,
+    interactive_cleanup: bool,
 ) -> Result<bool> {
     let p = tx.project();
     let s = p
@@ -1328,7 +1329,7 @@ pub(crate) fn remove_schematic_items(
     // so that nets are not removed too early).
     // Parts with exactly one forced net name get that net (upstream
     // `SI_NetSegment::getForcedNetName()`).
-    for (segment, old_net, has_labels) in new_segments {
+    for (segment, old_net, has_labels) in new_segments.into_iter().filter(|_| interactive_cleanup) {
         let mut forced = segment_forced_net_names(tx.project(), schematic, segment);
         let forced = (forced.len() == 1).then(|| forced.pop_first()).flatten();
         if has_labels && forced.is_none() {
@@ -1411,7 +1412,7 @@ pub(crate) fn remove_schematic_items(
         changed = true;
     }
 
-    if changed {
+    if changed && interactive_cleanup {
         remove_unused_nets(tx)?;
         remove_unused_library_elements(tx)?;
     }
@@ -1491,6 +1492,6 @@ impl Command for RemoveSchematicItems {
     }
 
     fn execute(self, tx: &mut Transaction<'_>) -> Result<bool> {
-        remove_schematic_items(tx, self.schematic, &self.selection)
+        remove_schematic_items(tx, self.schematic, &self.selection, true)
     }
 }

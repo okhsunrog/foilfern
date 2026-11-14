@@ -9,7 +9,9 @@ use librepcb_core::fileio::{CleanFileNameOptions, FileNameCase, FilePath};
 use librepcb_core::geometry::Path;
 use librepcb_core::project::board::{Board, BoardItem, BoardPolygonData, BoardSettings};
 use librepcb_core::project::schematic::Schematic;
-use librepcb_core::project::{BoardId, BoardMutation, Mutation, ProjectSettings, SchematicId};
+use librepcb_core::project::{
+    BoardId, BoardMutation, Mutation, Project, ProjectSettings, SchematicId,
+};
 use librepcb_core::types::{
     ElementName, FileProofName, Layer, Length, LengthUnit, Point, PositiveLength, UnsignedLength,
     Uuid,
@@ -154,12 +156,7 @@ impl Command for AddSchematic {
     }
 
     fn execute(self, tx: &mut Transaction<'_>) -> Result<SchematicId> {
-        let base = directory_name(self.name.as_str())?;
-        let dir = unique_directory_name(
-            base,
-            tx.project().schematics().iter().map(|s| s.directory_name()),
-        );
-        let schematic = Schematic::new(Uuid::new_random(), self.name, dir);
+        let schematic = new_schematic(tx.project(), self.name)?;
         let id = schematic.id();
         tx.apply(Mutation::AddSchematic {
             schematic,
@@ -167,6 +164,16 @@ impl Command for AddSchematic {
         })?;
         Ok(id)
     }
+}
+
+/// Prepares an empty native page with a directory unique within the project.
+pub fn new_schematic(project: &Project, name: ElementName) -> Result<Schematic> {
+    let base = directory_name(name.as_str())?;
+    let dir = unique_directory_name(
+        base,
+        project.schematics().iter().map(|s| s.directory_name()),
+    );
+    Ok(Schematic::new(Uuid::new_random(), name, dir))
 }
 
 /// Modifies name and grid of a schematic page (upstream

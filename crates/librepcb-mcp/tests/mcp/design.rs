@@ -492,6 +492,7 @@ fn design_rc_circuit_with_populated_library() {
                     side: None,
                     width: Some(1200),
                     height: Some(900),
+                    image_region: None,
                 },
             )
             .unwrap();

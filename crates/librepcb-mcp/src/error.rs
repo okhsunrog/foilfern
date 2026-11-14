@@ -41,6 +41,10 @@ pub enum ErrorKind {
     /// The host application embedding the server refused the operation
     /// (e.g. closing a project the user is editing).
     Refused,
+    /// A cooperative stop was requested for an active operation.
+    Cancelled,
+    /// An operation stopped at a checkpoint after its budget elapsed.
+    BudgetExhausted,
 }
 
 impl ErrorKind {
@@ -58,6 +62,8 @@ impl ErrorKind {
             Self::Internal => "internal",
             Self::NotAvailable => "not_available",
             Self::Refused => "refused",
+            Self::Cancelled => "cancelled",
+            Self::BudgetExhausted => "budget_exhausted",
         }
     }
 }
@@ -209,6 +215,11 @@ impl From<librepcb_editor::Error> for ToolError {
         let kind = match &e {
             E::Project(p) => project_kind(p),
             E::FileIo(f) => file_io_kind(f),
+            E::SchematicRequirements(project::schematic_requirements::Error::File(f)) => {
+                file_io_kind(f)
+            }
+            E::DesignRequirementsChanged => ErrorKind::StaleRevision,
+            E::DesignRequirementsBlocked(..) => ErrorKind::Refused,
             E::NotFound { .. } | E::NotInLibrarySource { .. } | E::NotInProjectLibrary { .. } => {
                 ErrorKind::NotFound
             }
@@ -274,6 +285,7 @@ impl From<librepcb_scene::Error> for ToolError {
     fn from(e: librepcb_scene::Error) -> Self {
         let kind = match &e {
             librepcb_scene::Error::SchematicNotFound(..) => ErrorKind::NotFound,
+            librepcb_scene::Error::InvalidRegion => ErrorKind::InvalidArgument,
             _ => ErrorKind::Internal,
         };
         Self::new(kind, e.to_string())

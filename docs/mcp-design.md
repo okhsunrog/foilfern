@@ -46,7 +46,8 @@ wires, device placement, routing helpers) lives in `librepcb-editor`.
   guards, so tool code reads `session.project()` as before), the tool
   runs, replaced handles (open/create/close) are written back and the
   locks are released before the host is notified. No lock is ever held
-  across `.await`.
+  across `.await`. Detached tools lock for capture and publication and run
+  their worker on the captured project between those calls.
 - `OpenProject { editor: ProjectEditor, file_system (lock), saved_revision,
   upgraded }` lives in the editor crate (`librepcb_editor::OpenProject`,
   `OpenProject::open()` locks and loads), so the app opens projects the
@@ -154,8 +155,8 @@ backend and checks the realistic board PDF.
   `{ "outcome": "complete"|"partial"|"failed", "revision": n, "result": {...},
   "warnings": [...] }`. Errors map `project::Error` & co. to stable kinds
   (`not_found`, `invalid_argument`, `conflict`, `stale_revision`,
-  `no_project`, `no_workspace`, `io`, `network`, `not_available`, `refused`
-  (host application), `internal`) plus the upstream message.
+  `no_project`, `no_workspace`, `io`, `network`, `not_available`, `refused`,
+  `cancelled`, `budget_exhausted`, `internal`) plus the message.
 - Checks never read as passing when they did not run: `run_drc` returns
   `ran: true` and the message list, or an error.
 
@@ -167,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `24`). Its `build` object contains
+`api_capability_version` (currently `33`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -177,13 +178,15 @@ report unknown provenance. The values are captured at build time.
 custom profiles by inheritance. `cargo_opt_level` reports Cargo's optimization
 setting for the MCP crate. Record the actual build command for timing comparisons.
 
-Declarative schematic creation (P1) starts with an open native project and
-sheet. Persisted enforced requirements (P2) and visual candidate review (P5)
-are planned.
-`routing_compare` ranks builtin-order candidates. Local repair search has
-one active job per open project, progress polling and cooperative cancellation.
-Region-based placement search also exposes a worker lifecycle through
-`routing_placement_start` and `routing_placement_status`.
+Declarative schematic creation (P1) starts with an open native project.
+Persisted schematic requirements (P2) are checked during declarative apply.
+Schematic previews have worker status, cancellation and matched images.
+Board requirements and desktop candidate review remain pending.
+
+`routing_compare` ranks builtin candidates by order, via cost and path
+preferences. Local repair and region-based placement searches expose progress,
+time budgets and cooperative cancellation. The retained-candidate capacity
+does not bound the total number of active preparation workers.
 
 Session / project:
 `server_info`, `workspace_open`, `workspace_create`, `project_create`,
@@ -191,10 +194,50 @@ Session / project:
 (metadata, pages, boards, counts, revision, unsaved changes), `undo`, `redo`,
 `history`.
 
-### Declarative edits to an existing schematic
+### Declarative schematic updates
 
 `design_preview` takes a version 1 document and returns a semantic `diff`,
-the number of checked pin memberships, a preview ID and a native page render.
+the number of checked pin memberships, a preview ID, the selected schematic
+UUID and a native page render. Set `create_schematic: true` to use `schematic`
+as an exact sheet name and create the page if missing. Apply and undo include
+the page itself. Omit `create_schematic` to select an existing page.
+Set `compare_images: true` to attach two PNGs with one common extent, scale
+and origin. The `images` array names them in MCP content order, `after`
+followed by `before`. A new sheet has a blank before image.
+Set `image_region` to `{"min":{"x":20,"y":-10},"max":{"x":60,"y":10}}`
+to request the same pair cropped to a rectangle in native sheet millimeters
+with positive Y up. Both axes must have positive extent. The output fits the
+region without stretching and fills any padding with the page background.
+The read-only `render` tool accepts the same `image_region` on a schematic
+target. It returns one image of the live sheet with the requested frame.
+
+The server captures the source under the session lock, then plans, checks and
+renders on the detached model. One schematic preview may run per server state.
+A second request returns `conflict` and can be retried. Other tools can use
+the project while the preview runs. A changed revision, save context, library
+source or open project causes publication to return `stale_revision`.
+
+`design_preview_status` returns the active job UUID, stage, elapsed time,
+remaining budget and the last terminal outcome. The stages are `capture`,
+`plan`, `check`, `render` and `publish`. `budget_ms` is optional and begins
+at admission. `design_preview_cancel` takes the active job UUID and requests
+a cooperative stop. The worker checks between phases, components and wire
+groups, and between the two comparison frames. An in-flight library lookup,
+wire group, ERC check or individual frame can
+finish before the next checkpoint. Cancellation or expiry returns
+`cancelled` or `budget_exhausted` and prevents publication. The terminal
+report is available after worker capacity is released. This status and the
+cancel request use the worker state directly, without locking the project.
+The terminal `outcome` can be `complete`, `stale`, `failed`, `cancelled`,
+`budget_exhausted` or `request_ended` if the request ended before publication.
+
+The `erc` report compares the source and proposed project and lists
+`introduced`, `inherited` and `resolved` findings. Matching uses the rule and
+native object identity, so text and designator changes alone do not count as
+new findings. Each entry uses the same format as `erc_run`. An inherited
+finding includes `previously_approved` when its approval status changes.
+The preview leaves approvals and the project revision untouched. ERC findings
+are advisory here. Review them and run `erc_run` on the applied result.
 The [ESP32-C3 EN/RESET example](examples/esp32-c3-en-reset.json) targets the
 saved comparison board. Bind each document key to a component instance UUID
 from `component_get` or to an existing `designator`. Use a UUID to keep the
@@ -202,8 +245,16 @@ binding after a rename. In `nets`, address pins as `key.pin`. The existing
 circuit must match the listed memberships. Unlisted endpoints can share those
 nets elsewhere on the project.
 
-Value, position and rotation edits take `expected` and `set` values.
-Placement fields require a single symbol on the selected sheet.
+Value, designator, position and rotation edits take `expected` and `set` values.
+To edit a designator, bind by `uuid` and use `name`, for example
+`{"expected":"R1","set":"R2"}`. The target name must be free, and the
+component keeps its UUID and connectivity.
+Component-level placement fields require a single symbol on the selected
+sheet. To edit individual gates, use `components.<key>.symbols` keyed by
+placed symbol UUID from `schematic_get` or `component_get`. Each entry accepts
+`position`, `rotation` and `mirrored`, with `expected` and `set` values.
+Use one placement form per component. Apply absolute text positions for a
+transformed symbol in a separate preview.
 Omitting a field preserves its current value. When the current value equals
 `set`, it contributes an empty diff. A third value produces a conflict and
 identifies the managed field. Positions are in millimeters and rotations are in
@@ -227,6 +278,17 @@ those groups together. A bus tap or an unlisted pin on a replaced segment
 causes the preview to fail. Each member requires a single symbol on the
 selected sheet. `block_position` entries report the changed positions and
 the preview reviews annotation overlaps for the block.
+
+`schematic_review` finds overlaps involving symbol fields, pin names and numbers,
+net labels, page notes and schematic wires on the live sheet. Pass `components` with designators
+or component UUIDs to focus the review on their symbols and attached labels.
+Each finding identifies both annotations and the overlap rectangle as
+`[min_x,min_y,max_x,max_y]` in sheet millimeters. In `design_preview`,
+`review_components` takes document component keys and checks the proposed sheet.
+`annotation_changes` reports `introduced`, `inherited` and `resolved`
+overlaps. Matching uses the two annotation identities regardless of their order
+or position. `annotation_overlaps` lists all findings in the proposed sheet.
+The check uses annotation bounds from the schematic scene. Findings are advisory.
 
 Use `wire_groups` for pins that should be joined by visible wires on that
 sheet. Each entry gives an existing `net` and at least two `pins` in the same
@@ -284,9 +346,12 @@ lists every affected designator, including uses on other sheets. Pins, pin
 names, component text positions, wires and device mappings are preserved.
 The templates move pin names that sit on the lead axis away from the lead.
 
-Call `design_apply` with the latest preview ID in the same open project.
-It applies the rendered patch in one undo group. An edit or save invalidates
-the preview, and applying an empty diff leaves the revision and history intact.
+Call `design_apply` with the latest preview ID in the same open project to
+apply the rendered patch in one undo group. An edit or save invalidates the
+preview, and applying an empty diff leaves the revision and history intact.
+Use `design_discard` with that ID to release a completed preview while keeping
+the revision and undo history. A new completed preview replaces the previous
+one. `design_preview_cancel` acts on an active job UUID.
 Use `add_nets` to create any missing named nets before adding parts. Existing
 nets retain their UUIDs and classes. Use
 [`add_components`](examples/esp32-c3-add-decoupler.json) to add parts to the
@@ -310,23 +375,123 @@ the same document. Set `assign_only: true` on a new part to supply its wires
 with explicit paths. By default each assigned pin gets a labeled stub.
 PCB placement remains a separate operation.
 
+Use `remove_components` to delete component instances by UUID. Repeating an
+already applied removal is a no-op. Use `pin_nets` to change a bound pin's
+membership, for example `{"r.1":{"expected":"EN","set":"RESET"}}`.
+Both fields are required. Use `null` for an unconnected pin. The destination
+must exist or be declared in `add_nets`. A third membership is a conflict.
+The preview refuses a cascade that would also change an unlisted pin's net.
+After reconnecting a pin, `wire_groups` can replace its default labeled stub.
+Reconnecting with a stub requires one placed pin for that signal on the
+selected sheet. Component removal includes its gates on all sheets. Embedded
+library elements and previously unused nets are retained. A net that loses
+its last schematic use is removed unless the document ensures it in `add_nets`.
+
+Use `rename_nets` keyed by net UUID from `net_list` to change a name while
+preserving net identity and geometry. Each value has `expected` and `set`
+names. A name already taken by another net is a conflict. Renames run before
+`add_nets`, pin edits and wire groups, so those fields use the resulting names.
+
+`no_connects` sets visual no-connect markers on the selected sheet. Keys use
+`key.pin` and can refer to existing or newly added components. Set a key to
+`true` to mark an open pin or `false` to clear its marker. A `true` entry
+on a connected pin is a conflict. `schematic_get` reports whether each pin
+currently displays the marker. A later connection hides it and a later
+disconnect reveals it again unless it was cleared. Undo and native project
+save include the marks. The marks do not change electrical membership or
+ERC. Foilfern uses the same sheet asset as for imported KiCad marks.
+
+Review `board_impact` before applying a topology change. It lists each
+affected board and UUIDs of removed or changed traces, vias and planes,
+removed devices, and surviving planes on affected nets whose fills can change.
+This evidence describes the editor patch and the affected plane nets. Use
+board checks separately to evaluate the resulting physical connectivity.
+
 The [ESP32-C3 dev board](examples/esp32-c3-devboard.json) creates a complete
 one-page schematic with explicit wiring, notes and initial symbol fields.
 Install `LibrePCB Base`, `LibrePCB Connectors`, `Espressif Systems` and `C&K`
-in the workspace, create a project with a `Main` sheet, then send the document
-to `design_preview` and apply the reviewed patch. The document pins exact
+in the workspace, create a project, then send the document to `design_preview`
+and apply the reviewed patch. It creates `Main` if needed. The document pins exact
 library identities. If a library update changes a selected part, resolve it
 again through `library_element` and verify its pad mapping and pin positions.
 
 Set `review_components` to document keys to check annotation overlaps in the
-preview. The report gives the object IDs, designators or net names and the
-intersection in sheet coordinates. It checks rendered bounding boxes of
-symbol fields, page text and net labels touching the selected symbols or
-their connected wire segments. It is advisory and covers annotation spacing.
+preview. The report uses the same bounds check as `schematic_review` and
+includes findings involving the selected symbols or their connected segments.
 Use `text_positions` under an existing component to move its reference or
 value independently of the symbol. Each entry is keyed by the text UUID from
 `schematic_get` and uses `expected` and `set` positions in millimeters.
 Preview symbol moves and absolute text positions in separate requests.
+
+Use `place_text` to fit one symbol field inside a rectangle on the selected
+sheet. Bind the part in `components` or `add_components` and pass its document
+key, `text` (`name`, `value`, or a placed text UUID), and `min` and `max` in
+sheet millimeters. For example, to place the value of an existing U6:
+
+```json
+{
+  "version": 1,
+  "schematic": "esp-pd",
+  "components": {"monitor": {"designator": "U6"}},
+  "place_text": {
+    "component": "monitor", "text": "value",
+    "min": {"x": 208, "y": -161}, "max": {"x": 263, "y": -125},
+    "step_mm": 0.8
+  }
+}
+```
+
+The field stays where it is if its bounds already fit with the requested
+clearance. Otherwise the planner checks a grid from the lower corner,
+including the upper edges, in order of distance from the current anchor.
+Ties use X then Y. The default step is 0.635 mm and the default clearance
+from visible geometry is 0.5 mm. A grid may contain up to 4096 positions.
+The search runs after other edits in the document and checks the resulting
+schematic scene. Supply a text UUID for multi-gate components. A field can
+use either `place_text` or an explicit `text_positions` entry.
+
+`text_placement` reports the field UUID, position, trials and status (`moved`,
+`unchanged`, `no_fit`, `locked`, or `not_visible`). A move appears in `diff`
+as `text_position`, and the preview includes annotation changes for the target
+component. On sheets with embedded images the planner also checks the export
+geometry and font used by the PNG preview.
+
+### Schematic requirements
+
+`requirements_get` returns the current `document` and `revision`.
+`requirements_set` takes the full replacement document and the
+`expected_revision` from that read. An empty `requirements` array clears it.
+Repeating an equivalent document in any list order adds no undo entry. A
+change is one undo step and takes effect for previews immediately. Save the
+project to persist it. The version 1 document has a `requirements` array with
+unique `id` strings, a nonempty `source`, `severity` and `check` for each row.
+
+| `check.kind` | Fields | Measurement |
+| --- | --- | --- |
+| `symbol_position` | `symbol: {schematic, symbol}`, `position: {x, y}` | Exact symbol origin in mm on the sheet |
+| `symbol_orientation` | `symbol: {schematic, symbol}`, `rotation`, `mirrored` | Exact orientation in degrees modulo 360 and mirror state |
+| `symbol_region` | `symbol: {schematic, symbol}`, `min` and `max` points | Symbol origin inside the inclusive rectangle in mm |
+| `pin_net` | `pin: {component, signal}`, `net` | Net UUID, or explicit `null` for an unconnected signal |
+
+Use `schematic_get` for sheet and symbol instance UUIDs, `component_get` for
+component instance and library signal UUIDs, and `net_list` for net UUIDs.
+These references survive designator and net renames. `requirements_check`
+evaluates the current project. `design_preview` evaluates the proposed project
+and includes the same report under `requirements` when rules are present.
+Each report identifies its project UUID and artifact, with a project revision
+or preview ID and base revision. Findings include the target and threshold,
+source, severity, and either the measured position/net or a missing reference.
+
+Each finding has `status` of `pass`, `fail` or `unresolved`. A `hard` failure
+or unresolved reference appears in `blocking_requirements` and `design_apply`
+returns `refused`. `warning` reports the same evidence without blocking. A
+requirements edit makes older previews stale. Direct schematic editing and
+import can still change the model, with `requirements_check` available for
+review. The requirements cover symbol origins and circuit membership, with
+ERC, placement geometry and board validation handled by their own tools.
+
+Foilfern saves the document in `project/foilfern-schematic-requirements.json`
+using integer nanometers. The native project files keep their usual format.
 
 Library:
 `library_search` (query, kind: component|device|package|symbol, limit;
@@ -518,6 +683,10 @@ too:
 
 ## Resources
 
+Read `librepcb://guides/board-design` for the workflow and
+`librepcb://examples/esp32-c3-devboard` for a complete JSON input to
+`design_preview`. The acceptance test reads and applies the same resource.
+
 The stdio suite also selects single- and multi-gate symbol variants from
 the upstream populated-library fixture, moves an individual gate with undo,
 connects components across two pages, routes a four-layer board and exports
@@ -558,6 +727,12 @@ binary at build time from `$LIBREPCB_UPSTREAM_DIR/share/librepcb/fontobene`
   devices, set outline, autoroute, add a ground plane, run ERC/DRC, export,
   save, and open the result with the official `librepcb-cli` (ERC/DRC
   clean, Gerber export works).
+- The `stdio_esp32_c3_schematic_acceptance` replay uses the published
+  [dev-board document](examples/esp32-c3-devboard.json) from an empty project.
+  Set `LIBREPCB_TEST_LIBRARIES_DIR` to the directory containing the four
+  listed `.lplib` libraries and `LIBREPCB_CLI` to the official CLI for the
+  upstream ERC check, then run
+  `cargo test -p librepcb-mcp --test mcp stdio_esp32_c3_schematic_acceptance`.
 
 ### Reviewed builtin routing
 

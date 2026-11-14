@@ -12,7 +12,7 @@ retain the evidence for individual changes.
 | --- | --- | --- |
 | Candidates | Detached prepare/preview/apply/discard, exact patches, stale guards, one undo | Desktop candidate overlay (P5) |
 | Evaluation | Full DRC and rebuilt connectivity, per-net deltas, connectivity improvement status, 2–3 builtin order comparisons | Requirement-aware objectives and disturbance costs (P2/P4) |
-| Local repair | Trace replacement, junction/via moves, regional rip-up, local via search, explicit unlocked-device moves/rotations with copper | Diagnosed bounded placement search; connected side changes are unsupported |
+| Local repair | Local via search, bounded branch replacement with retained endpoints, joint and sequential repair, region-based placement trials with copper | Diagnose failed continuations from staged escapes and propose local alternatives; connected side changes are unsupported |
 | Router | Pad escape, critical-net ordering, neckdown, congestion history | Joint fanout planning and benchmark-driven refinements (P4) |
 | Planes and measurements | Split diagnostics, stitching, geometric reference coverage, trace-only path length | Electrical return-path analysis and broader measurement semantics |
 | Runtime | Detached workers, guarded baseline reuse, bounded retained candidate store, pollable local repair jobs | Shared worker admission, job progress and cancellation for other routing operations (P3) |

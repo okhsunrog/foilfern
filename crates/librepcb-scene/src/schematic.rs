@@ -760,6 +760,7 @@ impl Builder<'_> {
         let lib_pin = pin.lib_pin();
         let rotation = pin.rotation();
         let start = pin.position();
+        let heights = self.appearance.pin_text_heights(symbol.uuid(), pin.uuid());
 
         // Line.
         if let Some(layer) = SchematicScene::layer_id("schematic_pin_lines") {
@@ -771,28 +772,21 @@ impl Builder<'_> {
 
         // Name.
         if let Some(layer) = SchematicScene::layer_id("schematic_pin_names") {
-            let mut align = lib_pin.name_alignment();
-            if transform.mirrored {
-                align = align.mirrored_v();
-            }
-            let pos = transform.map(
-                &(lib_pin.position()
-                    + lib_pin
-                        .name_position()
-                        .rotated(lib_pin.rotation(), Point::ORIGIN)),
-            );
+            let legend = self.appearance.pin_name_position(pin, transform);
             let rendered = self.text.text(
                 self.appearance
                     .pin_names
                     .get(&symbol.uuid())
                     .and_then(|pins| pins.get(&pin.uuid()))
                     .map_or_else(|| pin.name(), String::as_str),
-                pos,
+                legend.position,
                 TextStyle {
-                    height: lib_pin.name_height().to_mm(),
-                    align,
-                    rotation: transform
-                        .map_non_mirrorable(lib_pin.rotation() + lib_pin.name_rotation()),
+                    height: heights
+                        .name
+                        .map_or(*lib_pin.name_height(), |height| *height)
+                        .to_mm(),
+                    align: legend.alignment,
+                    rotation: legend.rotation,
                     auto_rotate: true,
                     mirror_in_place: false,
                     parse_overlines: true,
@@ -813,19 +807,17 @@ impl Builder<'_> {
                     let signal = pin.signal();
                     pin.numbers_text(self.pad_names(signal.component.0, signal.signal))
                 });
-            let pos = transform.map(
-                &(lib_pin.position()
-                    + pin
-                        .numbers_position()
-                        .rotated(lib_pin.rotation(), Point::ORIGIN)),
-            );
+            let legend = self.appearance.pin_number_position(pin, transform);
             let rendered = self.text.text(
                 &numbers,
-                pos,
+                legend.position,
                 TextStyle {
-                    height: SymbolPin::numbers_height().to_mm(),
-                    align: pin.numbers_alignment(),
-                    rotation: transform.map_non_mirrorable(lib_pin.rotation()),
+                    height: heights
+                        .number
+                        .map_or(*SymbolPin::numbers_height(), |height| *height)
+                        .to_mm(),
+                    align: legend.alignment,
+                    rotation: legend.rotation,
                     auto_rotate: true,
                     mirror_in_place: false,
                     parse_overlines: false,
@@ -833,13 +825,7 @@ impl Builder<'_> {
             );
             self.insert_text(layer, z::PIN_TEXTS, rendered, object);
         }
-        if pin.net().is_none()
-            && self
-                .appearance
-                .no_connects
-                .get(&symbol.uuid())
-                .is_some_and(|pins| pins.contains(&pin.uuid()))
-        {
+        if pin.net().is_none() && self.appearance.is_no_connect(symbol.uuid(), pin.uuid()) {
             let delta = Point::from_nm(635_000, 635_000);
             self.add_cross(cross(start - delta, start + delta), object, false);
         }

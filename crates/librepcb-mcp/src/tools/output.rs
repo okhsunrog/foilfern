@@ -14,11 +14,13 @@ use librepcb_core::project::board::{
     BoardFabricationOutputSettings, ExportInfo, export_d356_netlist, export_fabrication_data,
     export_pick_place_csv,
 };
-use librepcb_core::project::erc::run_erc;
+use librepcb_core::project::erc::{ErcMessage, run_erc};
+use librepcb_core::project::schematic::Schematic;
 use librepcb_core::project::{
     AssemblyVariantId, BomGenerator, OutputJobEvent, OutputJobRunner, Project,
 };
 use librepcb_core::rule_check::Severity;
+use librepcb_core::types::Point;
 use librepcb_scene::{BoardSide, RenderOptions, RenderSize};
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -28,6 +30,7 @@ use crate::error::{ToolError, ToolResult};
 use crate::outcome::ToolOutput;
 use crate::resolve;
 use crate::session::{Session, absolute_path};
+use crate::units::PointMm;
 use crate::views;
 
 /// Arguments of `erc_run`.
@@ -145,6 +148,30 @@ pub struct RenderArgs {
     /// Image height in pixels (default 1200, max 4096).
     #[serde(default)]
     pub height: Option<u32>,
+    /// Crop to a rectangle in sheet millimeters, for schematic renders.
+    pub image_region: Option<SchematicRegion>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SchematicRegion {
+    /// Bottom-left corner in sheet millimeters.
+    min: PointMm,
+    /// Top-right corner in sheet millimeters.
+    max: PointMm,
+}
+
+impl SchematicRegion {
+    pub(super) fn points(self) -> ToolResult<(Point, Point)> {
+        let min = self.min.to_point()?;
+        let max = self.max.to_point()?;
+        if min.x >= max.x || min.y >= max.y {
+            return Err(ToolError::invalid(
+                "The schematic region needs positive width and height.",
+            ));
+        }
+        Ok((min, max))
+    }
 }
 
 fn severity_str(s: Severity) -> &'static str {
@@ -153,6 +180,19 @@ fn severity_str(s: Severity) -> &'static str {
         Severity::Warning => "warning",
         Severity::Error => "error",
     }
+}
+
+pub(super) fn erc_message_json(p: &Project, message: &ErcMessage) -> Value {
+    let msg = message.message();
+    json!({
+        "severity": severity_str(msg.severity()),
+        "message": msg.message(),
+        "description": msg.description(),
+        "kind": format!("{:?}", message.kind()),
+        "schematic": message.schematic().and_then(|id| p.schematic(id)).map(|s| s.name().as_str()),
+        "approved": p.erc_approvals().contains(message.approval()),
+        "locations": msg.locations().iter().map(views::path).collect::<Vec<_>>(),
+    })
 }
 
 /// `erc_run`.
@@ -180,15 +220,7 @@ pub fn erc_run(session: &mut Session, args: ErcArgs) -> ToolResult<ToolOutput> {
         if is_approved && !args.include_approved {
             continue;
         }
-        list.push(json!({
-            "severity": severity_str(msg.severity()),
-            "message": msg.message(),
-            "description": msg.description(),
-            "kind": format!("{:?}", m.kind()),
-            "schematic": m.schematic().and_then(|id| p.schematic(id)).map(|s| s.name().as_str()),
-            "approved": is_approved,
-            "locations": msg.locations().iter().map(views::path).collect::<Vec<_>>(),
-        }));
+        list.push(erc_message_json(p, m));
     }
     list.sort_by(|a, b| {
         let rank = |v: &Value| match v["severity"].as_str() {
@@ -440,11 +472,17 @@ pub fn render(session: &Session, args: RenderArgs) -> ToolResult<ToolOutput> {
         } else {
             RenderTarget::Schematic
         });
+    let region = args.image_region.map(SchematicRegion::points).transpose()?;
+    if region.is_some() && target == RenderTarget::Board {
+        return Err(ToolError::invalid(
+            "image_region requires a schematic target.",
+        ));
+    }
     let (png, what) = match target {
         RenderTarget::Schematic => {
             let (index, _, s) = resolve::schematic(p, args.schematic.as_deref())?;
             (
-                render_schematic_preview(p, s, width, height)?,
+                render_schematic_preview(p, s, width, height, region)?,
                 format!("schematic page {index} \"{}\"", s.name().as_str()),
             )
         }
@@ -468,20 +506,33 @@ pub fn render(session: &Session, args: RenderArgs) -> ToolResult<ToolOutput> {
             )
         }
     };
-    Ok(ToolOutput::new(
-        format!("Rendered {what} ({width}x{height} px)."),
-        json!({ "width": width, "height": height, "bytes": png.len(), "mime_type": "image/png" }),
-    )?
-    .image(png))
+    let mut result =
+        json!({ "width": width, "height": height, "bytes": png.len(), "mime_type": "image/png" });
+    if let Some((min, max)) = region {
+        result["image_region"] = json!({"min":views::point(min),"max":views::point(max)});
+    }
+    Ok(ToolOutput::new(format!("Rendered {what} ({width}x{height} px)."), result)?.image(png))
 }
 
 pub(crate) fn render_schematic_preview(
-    project: &librepcb_core::project::Project,
-    schematic: &librepcb_core::project::schematic::Schematic,
+    project: &Project,
+    schematic: &Schematic,
     width: u32,
     height: u32,
+    region: Option<(Point, Point)>,
 ) -> ToolResult<Vec<u8>> {
     if schematic.images().is_empty() {
+        if let Some((min, max)) = region {
+            let scene = librepcb_scene::SchematicScene::build(
+                project,
+                schematic.id(),
+                &librepcb_scene::ColorScheme::SCHEMATIC_LIGHT,
+            )?;
+            return Ok(
+                librepcb_scene::render_schematic_region(&scene, min, max, width, height)?
+                    .to_png()?,
+            );
+        }
         let options = RenderOptions {
             size: RenderSize::Fit { width, height },
             ..RenderOptions::default()
@@ -498,13 +549,118 @@ pub(crate) fn render_schematic_preview(
     };
     let drawing = librepcb_graphics::schematic_drawing(project, schematic, &settings)
         .map_err(|error| ToolError::internal(error.to_string()))?;
-    librepcb_graphics::GraphicsExport::default()
-        .render_png(
+    let exporter = librepcb_graphics::GraphicsExport::default();
+    let result = if let Some((min, max)) = region {
+        exporter.render_region_png(&drawing, &settings, min, max, width, height)
+    } else {
+        exporter.render_png(
             &librepcb_graphics::GraphicsPage { drawing, settings },
             width,
             height,
         )
-        .map_err(|error| ToolError::internal(error.to_string()))
+    };
+    result.map_err(|error| ToolError::internal(error.to_string()))
+}
+
+pub(super) fn render_schematic_comparison(
+    before: &Project,
+    after: &Project,
+    schematic: &Schematic,
+    size: (u32, u32),
+    region: Option<(Point, Point)>,
+    checkpoint: impl Fn() -> ToolResult<()>,
+) -> ToolResult<Vec<Vec<u8>>> {
+    let (width, height) = size;
+    let old = before.schematic(schematic.id());
+    if schematic.images().is_empty() && old.is_none_or(|sheet| sheet.images().is_empty()) {
+        use librepcb_scene::{ColorScheme, SchematicScene, render_scene};
+        let old_scene = old
+            .map(|sheet| SchematicScene::build(before, sheet.id(), &ColorScheme::SCHEMATIC_LIGHT))
+            .transpose()?;
+        checkpoint()?;
+        let new_scene =
+            SchematicScene::build(after, schematic.id(), &ColorScheme::SCHEMATIC_LIGHT)?;
+        checkpoint()?;
+        let bounds = old_scene
+            .as_ref()
+            .and_then(SchematicScene::content_bounds)
+            .into_iter()
+            .chain(new_scene.content_bounds())
+            .reduce(|a, b| a.union(b));
+        let options = RenderOptions {
+            size: RenderSize::Fit { width, height },
+            ..Default::default()
+        };
+        let render = |scene: &SchematicScene| {
+            if let Some((min, max)) = region {
+                librepcb_scene::render_schematic_region(scene, min, max, width, height)
+            } else {
+                render_scene(
+                    scene.scene(),
+                    bounds,
+                    false,
+                    new_scene.background(),
+                    &options,
+                )
+            }
+        };
+        let after_png = render(&new_scene)?.to_png()?;
+        checkpoint()?;
+        let before_png = if let Some(scene) = old_scene {
+            render(&scene)?.to_png()?
+        } else {
+            librepcb_scene::RgbaImage {
+                width,
+                height,
+                data: vec![255; width as usize * height as usize * 4],
+            }
+            .to_png()?
+        };
+        return Ok(vec![after_png, before_png]);
+    }
+    let settings = librepcb_graphics::GraphicsSettings {
+        background: librepcb_core::types::Color::WHITE,
+        ..Default::default()
+    };
+    let draw = |project, sheet| {
+        librepcb_graphics::schematic_drawing(project, sheet, &settings)
+            .map_err(|error| ToolError::internal(error.to_string()))
+    };
+    let original = old
+        .map(|sheet| draw(before, sheet))
+        .transpose()?
+        .unwrap_or_default();
+    checkpoint()?;
+    let drawings = [draw(after, schematic)?, original];
+    checkpoint()?;
+    let exporter = librepcb_graphics::GraphicsExport::default();
+    let map_error = |error: librepcb_graphics::Error| ToolError::internal(error.to_string());
+    if let Some((min, max)) = region {
+        drawings
+            .iter()
+            .map(|drawing| {
+                checkpoint()?;
+                exporter
+                    .render_region_png(drawing, &settings, min, max, width, height)
+                    .map_err(map_error)
+            })
+            .collect()
+    } else {
+        let renders = exporter
+            .matched_pngs(&drawings, &settings, width, height)
+            .map_err(map_error)?;
+        checkpoint()?;
+        renders
+            .enumerate()
+            .map(|(index, result)| {
+                let png = result.map_err(map_error)?;
+                if index + 1 < drawings.len() {
+                    checkpoint()?;
+                }
+                Ok(png)
+            })
+            .collect()
+    }
 }
 
 /// Arguments of `drc_run`.

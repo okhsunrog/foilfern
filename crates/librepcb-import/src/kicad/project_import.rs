@@ -10,7 +10,9 @@ use librepcb_core::geometry::{
 };
 use librepcb_core::library::LibraryBaseElement;
 use librepcb_core::project::circuit::{ComponentInstance, NetClass, NetSignal};
-use librepcb_core::project::schematic::import_appearance::{GlobalLabel, ImportAppearance};
+use librepcb_core::project::schematic::import_appearance::{
+    GlobalLabel, ImportAppearance, PinTextHeights,
+};
 use librepcb_core::project::schematic::{Schematic, SchematicNetSegment, SchematicSymbol};
 use librepcb_core::project::{
     ComponentInstanceId, ComponentSignalRef, Mutation, NetClassId, NetSignalId, Project,
@@ -397,6 +399,9 @@ fn import_instance(
         .library()
         .symbol(library_symbol)
         .ok_or(Error::Logic("imported symbol missing"))?;
+    if lib.definition.pin_names_offset <= 0. && !lib.definition.hide_pin_names {
+        graph.appearance.outside_pin_names.insert(uuid);
+    }
     let mut power_pin = None;
     for (source_pin, (pin_name, numbers)) in gate
         .pins
@@ -421,6 +426,20 @@ fn import_instance(
             .pins
             .iter()
             .find(|p| !p.hidden && p.position == source_pin.position && p.name == source_pin.name);
+        if let Some(visible_pin) = visible_pin {
+            let heights = PinTextHeights {
+                name: pin_text_height(visible_pin.name_height)?,
+                number: pin_text_height(visible_pin.number_height)?,
+            };
+            if heights != PinTextHeights::default() {
+                graph
+                    .appearance
+                    .pin_text_heights
+                    .entry(uuid)
+                    .or_default()
+                    .insert(pin.uuid(), heights);
+            }
+        }
         let display_number = if lib.definition.hide_pin_numbers {
             String::new()
         } else {
@@ -436,8 +455,8 @@ fn import_instance(
             String::new()
         } else {
             visible_pin
+                .filter(|p| !p.name.is_empty() && p.name != "~")
                 .map(|p| KiCadTypeConverter::convert_circuit_identifier(&p.name).to_string())
-                .filter(|_| !source_pin.name.is_empty())
                 .unwrap_or_default()
         };
         graph
@@ -476,8 +495,17 @@ fn import_instance(
 }
 
 fn project_text_height(mm: f64) -> Result<PositiveLength> {
+    Ok(PositiveLength::new(project_line_height(mm)?)?)
+}
+
+fn pin_text_height(mm: Option<f64>) -> Result<Option<UnsignedLength>> {
+    mm.map(|mm| Ok(UnsignedLength::new(project_line_height(mm)?)?))
+        .transpose()
+}
+
+fn project_line_height(mm: f64) -> Result<Length> {
     // KiCad specifies the glyph height. Native schematic text uses line height.
-    Ok(PositiveLength::new(Length::from_mm(mm * 1.5)?)?)
+    Ok(Length::from_mm(mm * 1.5)?)
 }
 
 fn field_orientation(
@@ -564,11 +592,7 @@ impl WireGraph {
             self.no_connects.insert(pos);
             for pin in self.pins.get(&pos).into_iter().flatten() {
                 if let NetLineAnchor::Pin { symbol, pin } = pin.anchor {
-                    self.appearance
-                        .no_connects
-                        .entry(symbol)
-                        .or_default()
-                        .insert(pin);
+                    self.appearance.set_no_connect(symbol, pin, true);
                 }
             }
         }

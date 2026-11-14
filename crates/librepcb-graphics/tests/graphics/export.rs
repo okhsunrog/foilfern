@@ -56,6 +56,58 @@ fn vector_and_raster_have_matching_extent_and_visible_content() {
     }
 }
 #[test]
+fn comparison_keeps_shared_geometry_in_the_same_pixels() {
+    let page = page();
+    let mut expanded = page.drawing.clone();
+    expanded.path(
+        kurbo::Rect::new(40., 0., 60., 10.).to_path(0.01),
+        0.,
+        None,
+        Some(Color::rgb(0, 0, 220)),
+        &page.settings,
+    );
+    let pngs = GraphicsExport::default()
+        .render_matched_pngs(&[page.drawing, expanded], &page.settings, 600, 200)
+        .unwrap();
+    let before = image::load_from_memory(&pngs[0]).unwrap().to_rgba8();
+    let after = image::load_from_memory(&pngs[1]).unwrap().to_rgba8();
+    assert_eq!(before.dimensions(), after.dimensions());
+    let red_pixels = |image: &image::RgbaImage| {
+        image
+            .enumerate_pixels()
+            .filter_map(|(x, y, pixel)| (pixel.0 == [220, 0, 0, 255]).then_some((x, y)))
+            .collect::<Vec<_>>()
+    };
+    assert!(!red_pixels(&before).is_empty());
+    assert_eq!(red_pixels(&before), red_pixels(&after));
+    assert_ne!(before, after);
+}
+
+#[test]
+fn region_clips_drawing_to_model_coordinates() {
+    let mut page = page();
+    page.settings.orientation = PageOrientation::Portrait;
+    let png = GraphicsExport::default()
+        .render_region_png(
+            &page.drawing,
+            &page.settings,
+            Point::from_nm(0, 3_000_000),
+            Point::from_nm(20_000_000, 7_000_000),
+            400,
+            400,
+        )
+        .unwrap();
+    let image = image::load_from_memory(&png).unwrap().to_rgba8();
+    assert_eq!(image.dimensions(), (400, 400));
+    for y in [161, 200, 238] {
+        assert_eq!(image.get_pixel(200, y).0, [220, 0, 0, 255]);
+    }
+    for y in [100, 159, 240, 300] {
+        assert_eq!(image.get_pixel(200, y).0, [0; 4]);
+    }
+}
+
+#[test]
 fn rotation_mirroring_margins_and_fixed_paper() {
     let mut page = page();
     let exporter = GraphicsExport::default();

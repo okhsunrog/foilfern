@@ -49,8 +49,8 @@ the next task merely because their last paragraph once said "next".
   and board placement/outline/zones/supported rules for rerouting. Full routed
   KiCad PCB and hierarchical schematic import remain outside that contract.
   The flat schematic import preserves instance field orientation and alignment,
-  pin legends, global label outlines, DNP and no-connect marks in Foilfern
-  renders. Imported bitmap images are included in MCP PNG previews.
+  pin legends and their sizes, global label outlines, DNP and no-connect marks
+  in Foilfern renders. Imported bitmap images are included in MCP PNG previews.
 - **Desktop:** Slint schematic/board editors, tool FSMs, dialogs, library tabs,
   workspace/project lifecycle, shared live MCP editing, rule-check panels,
   output jobs and read-only `.lppz` opening. Detailed UI gaps remain in COMPAT.md.
@@ -76,7 +76,9 @@ The editor owns one `RoutingService` per open project; MCP is its transport.
   with exact copper UUIDs and retained anchors for separate preparation.
   Local repair search tries authorized groups and pairs on a detached
   board, with sequential and optional joint passes, polling, cooperative
-  cancellation and ranked checked patches.
+  cancellation and ranked checked patches. Requests can fix both ends of a
+  replacement branch, specify a target pad-to-via escape and set hard
+  pad-pair path limits.
 - Connected via/junction edits, path replacement, explicit copper batches and
   moves/rotations of unlocked devices with their copper in one candidate.
   A rejected candidate can be extended with a checked repair via `base_candidate`.
@@ -99,10 +101,10 @@ The editor owns one `RoutingService` per open project; MCP is its transport.
   and via-barrel lengths are excluded. An unavailable trace-only length is
   `not_measured`, not zero length or a connectivity failure.
 
-Current limitations include declarative project creation, persisted engineering
-requirements, automatic diagnosis-to-repair planning, MCP progress/cancellation
-workflow or desktop candidate overlay. The router's cancellation callback is
-not yet wired through the editor/MCP preparation path. `server_info` now reports
+Remaining work includes end-to-end board creation from a document,
+persisted board requirements, automatic planning for blocked escapes,
+shared worker admission limits and the desktop candidate overlay.
+`server_info` now reports
 build-time commit, tracked-source state, Cargo profile label and API capability
 version. `device_place` supports compact responses with `include_pads: false`.
 The P0 release replay and P1a transaction foundation are complete. The first
@@ -120,12 +122,25 @@ using explicit resonator and case pin UUIDs. Its replay changed only the embedde
 symbol file. Reapplying after save/reopen produced an empty diff, and upstream
 LibrePCB ERC reported zero messages.
 
+Declarative documents can also create and wire parts from a blank sheet,
+remove existing components and reassign pins with a preview of the affected
+board objects. The [P1 acceptance runs](roadmap.md#p1--declarative-design-updates)
+record empty replay after save/reopen and preservation of unrelated geometry.
+The [schematic requirements tools](mcp-design.md#schematic-requirements) store
+UUID-bound positions, orientations, regions and net memberships with explicit
+evidence and enforce hard requirements on declarative apply.
+Schematic previews report introduced, inherited and resolved ERC findings,
+run in a detached worker with status and cancellation, and can return matched
+before/after PNGs cropped to one area. The [ESP32-C3 schematic replay](benchmarks/esp32-c3-schematic/README.md)
+exercises the complete native schematic workflow and upstream ERC.
+
 ## Evidence and continuation points
 
 | Case | Recorded result | Limit / next use |
 | --- | --- | --- |
 | [STM32 local via](mcp-routing-reliability.md#local-via-search) | Automatic bounded via-site search closes the preserved U1.21 gap; undo/reopen/upstream checks recorded | Ordinary builtin routing still misses this case; use it for strategy selection |
 | [Two-layer ESP32-C3](mcp-routing-reliability.md#two-layer-esp32-c3-dev-board-completion) | Five checked patches close all six gaps; zero ERC/DRC errors and 13 inherited silkscreen warnings; RF/crystal geometry preserved | External scratch search helped choose coordinates; 79 vias and 1096.493 mm versus 71 and 852.307 mm initially; not an automatic planner result |
+| [Local routing research](benchmarks/routing-research.md) | Compared four full-board implementations on STM32G474 and tested native joint repair and bounded placement on ESP-PD-Sink | The constrained ESP32-C3 GPIO6 repair remains open |
 | [ESP-PD-Sink selected layout](benchmarks/esp-pd-sink/review/gate/REPORT.md) | OLED, U5, U2, Kelvin, ADC and gate-clamp review batches; zero open connections, three inherited errors and nine warnings | Continue PCB review from the gate-clamp archive; mechanical/silkscreen and remaining engineering findings are not closed |
 | [Release baseline reuse](benchmarks/esp-pd-sink/review/performance/release/REPORT.md) | Repeated OLED prepare: 25.598 → 13.915 s; full validation and normalized geometry agree | Small samples; first preparation and apply are not accelerated |
 | [Competing builtin trial](benchmarks/esp-pd-sink/review/performance/release/BUILTIN.md) | Repeated prepare: 26.553 → 14.667 s; both versions reject a new plane-fed GND break | DRC dominates this local workload; no A* speedup established |
