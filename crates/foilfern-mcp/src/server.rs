@@ -843,7 +843,7 @@ impl FoilfernMcp {
     }
 
     #[tool(
-        description = "List the board and footprint texts on the configured silkscreen layers, with UUIDs and positions in mm."
+        description = "List the board and footprint texts on the configured silkscreen layers, with scoped targets, expanded text and transformed ink bounding boxes in board mm."
     )]
     async fn board_legend_list(
         &self,
@@ -854,7 +854,7 @@ impl FoilfernMcp {
     }
 
     #[tool(
-        description = "Move an existing board or footprint text by UUID, without moving its device or copper. Use board_legend_list to inspect silkscreen text."
+        description = "Move an existing board or footprint text by its scoped target (or legacy UUID plus component), without moving its device or copper. Use board_legend_list to inspect silkscreen text."
     )]
     async fn board_text_move(
         &self,

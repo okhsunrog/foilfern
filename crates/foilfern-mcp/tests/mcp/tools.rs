@@ -39,6 +39,119 @@ fn names(list: &Value, key: &str) -> Vec<String> {
 }
 
 #[test]
+fn board_legend_addresses_instances_and_reports_transformed_ink_bounds() {
+    use foilfern_mcp::tools::{board_edit, schematic_edit};
+    let tmp = tempfile::tempdir().unwrap();
+    let mut session = Session::new();
+    let ws = project::workspace_open(
+        &mut session,
+        serde_json::from_value(json!({
+            "path":tmp.path().join("workspace")
+        }))
+        .unwrap(),
+        true,
+    )
+    .unwrap();
+    crate::common::install_populated_library(Path::new(
+        ws.result["libraries_path"].as_str().unwrap(),
+    ));
+    library::library_rescan(&session).unwrap();
+    project::project_create(
+        &mut session,
+        serde_json::from_value(json!({"name":"Legend bounds"})).unwrap(),
+    )
+    .unwrap();
+    for (name, side) in [("R1", "top"), ("R2", "bottom")] {
+        schematic_edit::component_add(
+            &mut session,
+            serde_json::from_value(json!({"part":"R-0805","designator":name})).unwrap(),
+        )
+        .unwrap();
+        board_edit::device_place(
+            &mut session,
+            serde_json::from_value(
+                json!({"component":name,"position":{"x":12,"y":34},"rotation":90,"side":side}),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    }
+    let list = |session: &Session| {
+        board_edit::board_legend_list(session, serde_json::from_value(json!({})).unwrap())
+            .unwrap()
+            .result["texts"]
+            .as_array()
+            .unwrap()
+            .clone()
+    };
+    let before = list(&session);
+    let first = before
+        .iter()
+        .find(|v| v["component"] == "R1" && v["rendered_text"] == "R1")
+        .unwrap();
+    let second = before
+        .iter()
+        .find(|v| v["component"] == "R2" && v["uuid"] == first["uuid"])
+        .unwrap();
+    assert_ne!(first["target"], second["target"]);
+    assert_ne!(first["component_uuid"], second["component_uuid"]);
+    assert!(first["bbox"]["min"]["x"].is_number());
+    let pos = &first["position"];
+    let moved = board_edit::board_text_move(&mut session, serde_json::from_value(json!({
+        "target":first["target"],"position":{"x":pos["x"].as_f64().unwrap()+7.0,"y":pos["y"].as_f64().unwrap()-3.0}
+    })).unwrap()).unwrap();
+    for (axis, delta) in [("x", 7.0), ("y", -3.0)] {
+        for edge in ["min", "max"] {
+            assert!(
+                (moved.result["bbox"][edge][axis].as_f64().unwrap()
+                    - first["bbox"][edge][axis].as_f64().unwrap()
+                    - delta)
+                    .abs()
+                    < 1e-8
+            );
+        }
+    }
+    assert_eq!(
+        list(&session)
+            .iter()
+            .find(|v| v["target"] == second["target"])
+            .unwrap(),
+        second
+    );
+    assert!(
+        board_edit::board_text_move(
+            &mut session,
+            serde_json::from_value(json!({
+                "target":first["target"],"uuid":first["uuid"],"position":{"x":0,"y":0}
+            }))
+            .unwrap()
+        )
+        .is_err()
+    );
+    foilfern_mcp::tools::write::undo_redo(&mut session, Default::default(), false).unwrap();
+    assert_eq!(list(&session), before);
+    foilfern_mcp::tools::write::undo_redo(&mut session, Default::default(), true).unwrap();
+    let after_redo = list(&session);
+    let restored = after_redo
+        .iter()
+        .find(|v| v["target"] == first["target"])
+        .unwrap();
+    for (key, value) in restored.as_object().unwrap() {
+        assert_eq!(&moved.result[key], value);
+    }
+    // Legacy scoped calls remain supported, including mirrored text.
+    let legacy = board_edit::board_text_move(
+        &mut session,
+        serde_json::from_value(json!({
+            "uuid":second["uuid"],"component":"R2","position":second["position"]
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(legacy.result["bbox"], second["bbox"]);
+}
+
+#[test]
 fn declared_connector_axes_follow_rotation_mirroring_and_instance_overrides() {
     use foilfern_core::attribute::{Attribute, AttributeKey, AttributeType};
     use foilfern_core::fileio::{TransactionalDirectory, TransactionalFileSystem};

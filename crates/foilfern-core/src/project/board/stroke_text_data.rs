@@ -196,15 +196,13 @@ impl DeserializeObject for BoardStrokeTextData {
 }
 
 impl BoardStrokeTextData {
-    /// Expands attributes and strokes this board/device text in local text
-    /// coordinates (upstream `BI_StrokeText::updateText()/updatePaths()`).
-    pub fn paths(
+    /// Expands board/device attributes using the same context as rendering.
+    pub fn resolved_text(
         &self,
         project: &crate::project::Project,
         board: &super::Board,
         device: Option<&super::BoardDevice>,
-    ) -> crate::project::Result<Vec<crate::geometry::Path>> {
-        use crate::font::StrokeTextPathBuilder;
+    ) -> crate::project::Result<String> {
         use crate::project::ProjectAttributeLookup;
         let parts = if let Some(device) = device {
             let component = project
@@ -223,7 +221,19 @@ impl BoardStrokeTextData {
             }
             None => ProjectAttributeLookup::for_board(project, board, None),
         };
-        let text = lookup.substitute(self.text());
+        Ok(lookup.substitute(self.text()))
+    }
+
+    /// Expands attributes and strokes this board/device text in local text
+    /// coordinates (upstream `BI_StrokeText::updateText()/updatePaths()`).
+    pub fn paths(
+        &self,
+        project: &crate::project::Project,
+        board: &super::Board,
+        device: Option<&super::BoardDevice>,
+    ) -> crate::project::Result<Vec<crate::geometry::Path>> {
+        use crate::font::StrokeTextPathBuilder;
+        let text = self.resolved_text(project, board, device)?;
         let font = project
             .stroke_fonts()
             .font(&board.settings().default_font)?;

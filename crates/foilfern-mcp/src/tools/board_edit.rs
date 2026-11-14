@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 use foilfern_core::fileio::{CleanFileNameOptions, FileNameCase, FilePath};
 use foilfern_core::geometry::Path;
 use foilfern_core::project::board::{
-    BoardItem, BoardStrokeTextData, PlaneConnectStyle, PlaneFragmentDiagnostic,
+    Board, BoardDevice, BoardItem, BoardStrokeTextData, PlaneConnectStyle, PlaneFragmentDiagnostic,
     PlaneFragmentStatus, PlaneJob,
 };
 use foilfern_core::project::{
@@ -318,17 +318,54 @@ pub struct BoardLegendArgs {
     pub board: Option<String>,
 }
 
-fn legend_json(text: &BoardStrokeTextData, component: Option<String>) -> Value {
-    json!({
+/// Stable address of a board text, scoped to its component instance.
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BoardTextTarget {
+    pub board: String,
+    pub component: Option<String>,
+    pub uuid: String,
+}
+
+fn legend_json(
+    project: &Project,
+    board: &Board,
+    text: &BoardStrokeTextData,
+    device: Option<&BoardDevice>,
+) -> ToolResult<Value> {
+    use foilfern_core::utils::painter_path::{bounding_rect_px, is_empty_px};
+    let paths: Vec<_> = text
+        .paths(project, board, device)?
+        .iter()
+        .map(|path| text.transform().map(path))
+        .collect();
+    let bbox = if is_empty_px(&paths) {
+        Value::Null
+    } else {
+        let bounds = bounding_rect_px(&paths);
+        let scale = 1.0 / Length::new(1_000_000).to_px();
+        let radius = mm(text.stroke_width()) / 2.0;
+        json!({
+            "min":{"x":bounds.left()*scale-radius,"y":-bounds.bottom()*scale-radius},
+            "max":{"x":bounds.right()*scale+radius,"y":-bounds.top()*scale+radius},
+        })
+    };
+    Ok(json!({
         "uuid": text.uuid(),
-        "component": component,
+        "component": device.map(|d| resolve::designator(project, d.component())),
+        "component_uuid": device.map(|d| d.component()),
+        "target":{"board":board.uuid(),"component":device.map(|d| d.component()),"uuid":text.uuid()},
         "text": text.text(),
+        "rendered_text": text.resolved_text(project, board, device)?,
+        "bbox":bbox,
         "layer": text.layer().id(),
         "position": views::point(text.position()),
         "rotation": text.rotation().to_deg(),
         "height": mm(text.height()),
+        "stroke_width":mm(text.stroke_width()),
+        "mirrored":text.mirrored(),
         "locked": text.locked(),
-    })
+    }))
 }
 
 pub fn board_legend_list(session: &Session, args: BoardLegendArgs) -> ToolResult<ToolOutput> {
@@ -343,18 +380,12 @@ pub fn board_legend_list(session: &Session, args: BoardLegendArgs) -> ToolResult
         .stroke_texts()
         .values()
         .filter(is_printed)
-        .map(|text| legend_json(text, None))
-        .collect();
+        .map(|text| legend_json(project, board, text, None))
+        .collect::<ToolResult<_>>()?;
     for device in board.devices().values() {
-        texts.extend(
-            device
-                .stroke_texts()
-                .values()
-                .filter(is_printed)
-                .map(|text| {
-                    legend_json(text, Some(resolve::designator(project, device.component())))
-                }),
-        );
+        for text in device.stroke_texts().values().filter(is_printed) {
+            texts.push(legend_json(project, board, text, Some(device))?);
+        }
     }
     ToolOutput::new(
         "Board and footprint silkscreen text.",
@@ -366,8 +397,10 @@ pub fn board_legend_list(session: &Session, args: BoardLegendArgs) -> ToolResult
 #[serde(deny_unknown_fields)]
 pub struct BoardTextMoveArgs {
     pub board: Option<String>,
-    /// UUID from board_legend_list.
-    pub uuid: String,
+    /// Scoped target from board_legend_list; use instead of legacy uuid/component.
+    pub target: Option<BoardTextTarget>,
+    /// Legacy UUID; footprint text also requires component.
+    pub uuid: Option<String>,
     /// Device designator or UUID. Omit for standalone board text.
     pub component: Option<String>,
     /// New position in board millimeters.
@@ -379,11 +412,30 @@ pub struct BoardTextMoveArgs {
 
 pub fn board_text_move(session: &mut Session, args: BoardTextMoveArgs) -> ToolResult<ToolOutput> {
     let project = session.project()?.project();
-    let (_, id, board) = resolve::board(project, args.board.as_deref())?;
-    let uuid = resolve::required_uuid(&args.uuid, "board text")?;
-    let mut device = args
-        .component
-        .as_deref()
+    if args.target.is_some()
+        && (args.uuid.is_some() || args.component.is_some() || args.board.is_some())
+    {
+        return Err(ToolError::invalid(
+            "Use target alone or legacy board/uuid/component fields.",
+        ));
+    }
+    let (board_key, component_key, text_key) = match &args.target {
+        Some(target) => (
+            Some(target.board.as_str()),
+            target.component.as_deref(),
+            target.uuid.as_str(),
+        ),
+        None => (
+            args.board.as_deref(),
+            args.component.as_deref(),
+            args.uuid
+                .as_deref()
+                .ok_or_else(|| ToolError::invalid("Pass target or uuid."))?,
+        ),
+    };
+    let (_, id, board) = resolve::board(project, board_key)?;
+    let uuid = resolve::required_uuid(text_key, "board text")?;
+    let mut device = component_key
         .map(|key| {
             let (component, _) = resolve::component(project, key)?;
             board
@@ -406,12 +458,7 @@ pub fn board_text_move(session: &mut Session, args: BoardTextMoveArgs) -> ToolRe
     if let Some(rotation) = args.rotation {
         text.set_rotation(angle(rotation)?);
     }
-    let result = legend_json(
-        &text,
-        device
-            .as_ref()
-            .map(|d| resolve::designator(project, d.component())),
-    );
+    let result = legend_json(project, board, &text, device.as_ref())?;
     let mutation = match device.as_mut() {
         Some(device) => {
             device.insert_stroke_text(text);

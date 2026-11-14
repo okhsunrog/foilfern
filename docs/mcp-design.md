@@ -168,8 +168,8 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `48`, including supplier acquisition,
-official KiCad imports, rendered board-placement reviews and declared connector axes).
+`api_capability_version` (currently `49`, including supplier acquisition,
+official KiCad imports, rendered board-placement reviews, declared connector axes and scoped legend targets).
 Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
@@ -1471,3 +1471,13 @@ Device detail includes package `models` with UUID, name, STEP filename and an
 `available` flag indicating file existence, not model validity. Footprints expose
 model IDs plus their native model_position in mm and model_rotation in degrees.
 Pad/signal mappings and footprint pad geometry are returned in the same response.
+
+`board_legend_list` returns each text's native `uuid` and a complete `target`
+(`board`, optional component-instance UUID, text `uuid`). Footprint text UUIDs
+identify templates and can repeat across instances; pass the whole `target` to
+`board_text_move`. Legacy `board`/`component`/`uuid` calls remain accepted, but
+cannot be mixed with `target`. `text` preserves the native attribute template;
+`rendered_text` resolves it with the same part/device context as rendering.
+`bbox` is the transformed stroke envelope in board millimeters, including half
+the stroke width on each side; it is null for empty text. Rotated and mirrored
+instance texts are already in board coordinates and are not transformed twice.
