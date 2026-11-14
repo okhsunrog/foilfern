@@ -117,6 +117,7 @@ pub fn component_detail(p: &Project, id: ComponentInstanceId) -> ToolResult<(Str
     let mut v = component_summary(p, id, c);
     v["selected_device"] = json!(c.default_device());
     v["attributes"] = views::attributes(c.attributes());
+    v["assembly_options"] = json!(c.assembly_options());
     v["symbol_variant"] = json!({
         "uuid": c.lib_variant(),
         "name": lib.symbol_variants().by_uuid(&c.lib_variant()).map(|x| x.name().as_str()),

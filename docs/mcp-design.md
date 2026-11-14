@@ -1319,3 +1319,12 @@ the previous status while published candidates keep their normal lifecycle.
 
 See [routing service design](routing-service-design.md) for subsequent stages.
 The existing `autoroute` compatibility path continues to apply directly.
+
+Declarative `add_components` can select an instance-specific orderable `part`
+with non-empty `mpn`, optional `manufacturer` and string `attributes` (e.g.
+`LCSC`). Component string `attributes` are separate. Selection requires a device;
+the reserved `FOILFERN_DESIGN_KEY` cannot be supplied. Replaying a supplied part
+or attribute that differs from the current instance reports a conflict. Omitted
+fields preserve current selections. `component_get.assembly_options` exposes
+native selected parts. `export_bom.additional_attributes` appends columns to the
+project defaults; `LCSC[]` exports the per-part LCSC attribute.

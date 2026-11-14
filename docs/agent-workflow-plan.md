@@ -82,3 +82,17 @@ is mutually exclusive with `board`. The response identifies the selected board.
 Integration coverage compares implicit and explicit board selection and checks
 schematic mode and argument conflicts. All 85 MCP integration tests and focused
 MCP Clippy passed. This does not yet implement declarative MPN/supplier selection.
+
+### Delivered part identity substep (A2)
+
+New declarative components accept `part: {mpn, manufacturer, attributes}` and
+component `attributes`. The selected part is stored in the instance's native
+assembly option, not in a shared library device. Replay preserves identity and
+manual placement and rejects conflicting part/attribute selections. `component_get`
+returns assembly options. `export_bom.additional_attributes` adds native attribute
+columns such as `LCSC[]`. The stdio creation/replay test covers invalid input,
+preview isolation, conflict, undo/redo, board BOM and native save/reopen.
+Focused integration and all-target MCP Clippy passed.
+
+Priority update: direct CLI call/batch execution (A11) moves before the remaining
+A3/A4 work, as requested on 2026-11-14.

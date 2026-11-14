@@ -68,6 +68,10 @@ pub struct ExportBomArgs {
     /// Cannot be combined with board.
     #[serde(default)]
     pub schematic_only: bool,
+    /// Additional CSV attribute columns, appended to project settings.
+    /// A [] suffix selects per-part attributes, e.g. LCSC[].
+    #[serde(default)]
+    pub additional_attributes: Vec<String>,
     /// Assembly variant name or UUID (default: the first one).
     #[serde(default)]
     pub assembly_variant: Option<String>,
@@ -365,7 +369,15 @@ pub fn export_bom(session: &Session, args: ExportBomArgs) -> ToolResult<ToolOutp
     };
     let (variant, variant_name) = assembly_variant(p, args.assembly_variant.as_deref())?;
     let mut generator = BomGenerator::new(p);
-    generator.set_additional_attributes(p.settings().custom_bom_attributes.clone());
+    let mut attributes = p.settings().custom_bom_attributes.clone();
+    for key in args.additional_attributes {
+        let name = key.strip_suffix("[]").unwrap_or(&key);
+        foilfern_core::attribute::AttributeKey::new(name)?;
+        if !attributes.contains(&key) {
+            attributes.push(key);
+        }
+    }
+    generator.set_additional_attributes(attributes);
     let bom = generator.generate(board, variant);
     let csv = BomCsvWriter::new(&bom).generate_csv()?;
     let default = output_dir(p)?.path_to(&format!(

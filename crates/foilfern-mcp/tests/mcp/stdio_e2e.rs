@@ -3291,6 +3291,8 @@ async fn stdio_design_add_component_replays_library_and_keeps_identity() {
         "version":1,"schematic":"Main","components":{},
         "add_components":{"decoupler":{
             "designator":"C1","library_component":device["component"]["uuid"],"device":device["uuid"],
+            "part":{"mpn":"TEST-100N-0805","manufacturer":"Test Manufacturer","attributes":{"LCSC":"C12345"}},
+            "attributes":{"PURPOSE":"decoupling"},
             "value":"100 nF","position":{"x":40.64,"y":40.64},"connections":{"1":"VCC","2":"GND"}
         }}
     });
@@ -3303,6 +3305,23 @@ async fn stdio_design_add_component_replays_library_and_keeps_identity() {
         "not_found"
     );
     assert_eq!(call_ok(&client, "project_summary", json!({})).await, before);
+
+    for (field, value) in [
+        ("part", json!({"mpn":""})),
+        ("device", Value::Null),
+        ("attributes", json!({"bad key":"no"})),
+        ("attributes", json!({"FOILFERN_DESIGN_KEY":"stolen"})),
+    ] {
+        let mut invalid = document.clone();
+        invalid["add_components"]["decoupler"][field] = value;
+        assert!(
+            call(&client, "design_preview", invalid)
+                .await
+                .is_error
+                .unwrap_or(false)
+        );
+        assert_eq!(call_ok(&client, "project_summary", json!({})).await, before);
+    }
 
     let preview = call_ok(&client, "design_preview", document.clone()).await;
     assert_eq!(preview["diff"].as_array().unwrap().len(), 1);
@@ -3319,6 +3338,13 @@ async fn stdio_design_add_component_replays_library_and_keeps_identity() {
     assert!(
         applied["operation_count"].as_u64().unwrap() > applied["mutation_count"].as_u64().unwrap()
     );
+    let mut changed_part = document.clone();
+    changed_part["add_components"]["decoupler"]["part"]["mpn"] = json!("DIFFERENT-PART");
+    let rejected = call(&client, "design_preview", changed_part).await;
+    assert_eq!(
+        rejected.structured_content.unwrap()["error"]["kind"],
+        "conflict"
+    );
     let installed = call_ok(&client, "project_summary", json!({})).await;
     assert_eq!(
         installed["counts"]["library"]["devices"].as_u64().unwrap(),
@@ -3330,6 +3356,27 @@ async fn stdio_design_add_component_replays_library_and_keeps_identity() {
         before["counts"]
     );
     call_ok(&client, "redo", json!({})).await;
+    call_ok(
+        &client,
+        "device_place",
+        json!({"component":"C1","position":{"x":10,"y":10}}),
+    )
+    .await;
+    let bom = call_ok(
+        &client,
+        "export_bom",
+        json!({"additional_attributes":["LCSC[]","PURPOSE"]}),
+    )
+    .await;
+    let csv = bom["csv"].as_str().unwrap();
+    for value in [
+        "TEST-100N-0805",
+        "Test Manufacturer",
+        "C12345",
+        "decoupling",
+    ] {
+        assert!(csv.contains(value), "{csv}");
+    }
     let rename = json!({"version":1,"schematic":"Main", "components":{
         "cap":{"uuid":id,"name":{"expected":"C1","set":"C7"}}
     }});
@@ -3377,6 +3424,14 @@ async fn stdio_design_add_component_replays_library_and_keeps_identity() {
     assert_eq!(noop["operation_count"], 0);
     let component = call_ok(&client, "component_get", json!({"component":"C7"})).await;
     assert_eq!(&component["uuid"], id);
+    assert_eq!(
+        component["assembly_options"][0]["parts"][0]["mpn"],
+        "TEST-100N-0805"
+    );
+    assert_eq!(
+        component["assembly_options"][0]["parts"][0]["manufacturer"],
+        "Test Manufacturer"
+    );
     assert_eq!(component["symbols"][0]["position"], moved);
     let renamed_again = call_ok(&client, "design_preview", rename).await;
     assert_eq!(renamed_again["diff"], json!([]));

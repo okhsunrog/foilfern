@@ -3,15 +3,16 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Weak};
 
-use foilfern_core::attribute::{Attribute, AttributeKey, AttributeType};
+use foilfern_core::attribute::{Attribute, AttributeKey, AttributeList, AttributeType};
 use foilfern_core::geometry::Text;
+use foilfern_core::library::dev::{Part, PartList};
 use foilfern_core::project::schematic::SchematicSymbol;
 use foilfern_core::project::{
     ComponentInstanceId, ComponentSignalRef, LibraryElementKind, Mutation, NetSignalId, Project,
     SchematicId, SchematicMutation, SymbolRef,
 };
 use foilfern_core::types::{
-    Alignment, Angle, ElementName, Layer, Length, Point, PositiveLength, Uuid,
+    Alignment, Angle, ElementName, Layer, Length, Point, PositiveLength, SimpleString, Uuid,
 };
 use foilfern_editor::commands::{
     AddComponent, AddLibraryElement, AddNet, AutoPlaceSymbols, BlockDirection, DrawWirePaths,
@@ -205,6 +206,12 @@ struct NewComponent {
     /// Optional exact symbol variant UUID. Defaults to the project's norm.
     symbol_variant: Option<String>,
     value: String,
+    /// Selected orderable part of this instance, not a change to the shared library.
+    /// Requires a device. Omission preserves the existing assembly selection.
+    part: Option<DesignPart>,
+    /// Initial string attributes. Omitted keys preserve existing attributes on replay.
+    #[serde(default)]
+    attributes: BTreeMap<String, String>,
     /// Initial position in mm. Subsequent manual moves are retained.
     position: Option<PointMm>,
     /// Initial rotation in degrees.
@@ -221,6 +228,47 @@ struct NewComponent {
     /// Assign connections without stubs when the document supplies explicit wire groups.
     #[serde(default)]
     assign_only: bool,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct DesignPart {
+    /// Exact manufacturer part number (non-empty).
+    mpn: String,
+    #[serde(default)]
+    manufacturer: String,
+    /// Native part attributes, e.g. {"LCSC":"C12345"}.
+    #[serde(default)]
+    attributes: BTreeMap<String, String>,
+}
+
+fn design_attributes(values: &BTreeMap<String, String>) -> ToolResult<AttributeList> {
+    let mut result = AttributeList::new();
+    for (key, value) in values {
+        if key == DESIGN_KEY {
+            return Err(ToolError::invalid(
+                "The design ownership attribute is reserved.",
+            ));
+        }
+        result.push(
+            Attribute::new(AttributeKey::new(key)?, AttributeType::String, value, None)
+                .map_err(|e| ToolError::invalid(e.to_string()))?,
+        );
+    }
+    Ok(result)
+}
+
+impl DesignPart {
+    fn to_part(&self) -> ToolResult<Part> {
+        if self.mpn.trim().is_empty() {
+            return Err(ToolError::invalid("part.mpn must not be empty."));
+        }
+        Ok(Part::new(
+            SimpleString::new(&self.mpn)?,
+            SimpleString::new(&self.manufacturer)?,
+            design_attributes(&self.attributes)?,
+        ))
+    }
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -1225,6 +1273,11 @@ fn add_component(
     key: &str,
     spec: &NewComponent,
 ) -> ToolResult<(ComponentInstanceId, Option<serde_json::Value>)> {
+    let attributes = design_attributes(&spec.attributes)?;
+    let part = spec.part.as_ref().map(DesignPart::to_part).transpose()?;
+    if part.is_some() && spec.device.is_none() {
+        return Err(ToolError::invalid("A selected part requires a device."));
+    }
     let component = resolve::required_uuid(&spec.library_component, "library component")?;
     let device = spec
         .device
@@ -1263,6 +1316,21 @@ fn add_component(
         {
             return Err(conflict(format!(
                 "Component {key:?} differs in library identity or value."
+            )));
+        }
+        if attributes
+            .iter()
+            .any(|attr| instance.attributes().by_name(attr.key(), true) != Some(attr))
+            || part.as_ref().is_some_and(|part| {
+                !instance.assembly_options().iter().any(|option| {
+                    Some(option.device()) == device
+                        && option.parts().len() == 1
+                        && option.parts().get(0) == Some(part)
+                })
+            })
+        {
+            return Err(conflict(format!(
+                "Component {key:?} differs in selected part or attributes."
             )));
         }
         if !p.component_uses(instance.id()).is_some_and(|uses| {
@@ -1394,6 +1462,7 @@ fn add_component(
             .ok_or_else(|| ToolError::internal("Added component is missing."))?
             .attributes()
             .clone();
+        attrs = attributes.merged_with(&attrs);
         attrs.push(
             Attribute::new(
                 AttributeKey::new(DESIGN_KEY)?,
@@ -1403,12 +1472,31 @@ fn add_component(
             )
             .map_err(|e| ToolError::invalid(e.to_string()))?,
         );
+        let assembly_options = if let Some(part) = &part {
+            let mut options = tx
+                .project()
+                .circuit()
+                .component_instance(added.component)
+                .ok_or_else(|| ToolError::internal("Added component is missing."))?
+                .assembly_options()
+                .clone();
+            let option = options
+                .iter_mut()
+                .find(|option| Some(option.device()) == device)
+                .ok_or_else(|| ToolError::internal("Selected device has no assembly option."))?;
+            let mut parts = PartList::new();
+            parts.push(part.clone());
+            *option.parts_mut() = parts;
+            Some(options)
+        } else {
+            None
+        };
         tx.run(EditComponent {
             component: added.component.into(),
             name: None,
             value: None,
             attributes: Some(attrs),
-            assembly_options: None,
+            assembly_options,
             lock_assembly: None,
         })?;
         (added.component, true)
@@ -1508,7 +1596,7 @@ fn add_component(
         Some(
             json!({"field":"add_component","component":key,"designator":designator,
         "uuid":id,"library_component":component,"device":device,
-        "package":package,"value":spec.value,"connections":endpoints}),
+        "package":package,"value":spec.value,"part":part,"attributes":spec.attributes,"connections":endpoints}),
         ),
     ))
 }
