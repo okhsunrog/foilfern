@@ -3290,7 +3290,7 @@ async fn stdio_design_add_component_replays_library_and_keeps_identity() {
     let document = json!({
         "version":1,"schematic":"Main","components":{},
         "add_components":{"decoupler":{
-            "designator":"C1","library_component":device["component"]["uuid"],"device":device["uuid"],
+            "designator":"C1","device":device["uuid"],
             "part":{"mpn":"TEST-100N-0805","manufacturer":"Test Manufacturer","attributes":{"LCSC":"C12345"}},
             "attributes":{"PURPOSE":"decoupling"},
             "value":"100 nF","position":{"x":40.64,"y":40.64},"connections":{"1":"VCC","2":"GND"}
@@ -3309,6 +3309,10 @@ async fn stdio_design_add_component_replays_library_and_keeps_identity() {
     for (field, value) in [
         ("part", json!({"mpn":""})),
         ("device", Value::Null),
+        (
+            "library_component",
+            json!("00000000-0000-0000-0000-000000000001"),
+        ),
         ("attributes", json!({"bad key":"no"})),
         ("attributes", json!({"FOILFERN_DESIGN_KEY":"stolen"})),
     ] {

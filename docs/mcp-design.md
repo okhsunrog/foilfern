@@ -1379,3 +1379,9 @@ serving and local execution cannot be combined. No client, subprocess bridge,
 network transport or protocol initialization is required; the SDK peer context
 is local plumbing for the same dispatcher. Interactive client requests are not
 supported in this mode.
+
+For declarative `add_components`, `library_component` is optional when `device`
+is supplied. The device's native component reference is resolved while preparing
+the transaction. An explicitly supplied component must still agree with the
+device. Omit `device` only for schematic-only components, which must name their
+`library_component`.

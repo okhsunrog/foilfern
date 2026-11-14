@@ -110,3 +110,11 @@ All 89 MCP integration tests and all-target MCP Clippy passed. The CLI entry poi
 is complete; the broader design-document CI workflow in A11 is still pending.
 
 The MCP server Rust type is now `FoilfernMcp`; the old type name was removed.
+
+### Delivered device-only creation substep (A3)
+
+A declarative new component can specify only its device UUID. The referenced
+library component is inferred and imported through the same transaction; an
+explicit incompatible library_component is rejected. The existing stdio creation
+acceptance now exercises device-only creation, rollback, undo/redo, persisted
+reopen and no-op replay, and rejects conflicting explicit component references.

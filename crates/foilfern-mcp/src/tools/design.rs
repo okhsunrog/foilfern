@@ -200,7 +200,8 @@ enum LayoutDirection {
 struct NewComponent {
     /// Designator used on first creation.
     designator: String,
-    library_component: String,
+    /// Exact component UUID. Optional when device supplies it unambiguously.
+    library_component: Option<String>,
     /// Exact device UUID. Omit for a schematic-only library component.
     device: Option<String>,
     /// Optional exact symbol variant UUID. Defaults to the project's norm.
@@ -1278,12 +1279,25 @@ fn add_component(
     if part.is_some() && spec.device.is_none() {
         return Err(ToolError::invalid("A selected part requires a device."));
     }
-    let component = resolve::required_uuid(&spec.library_component, "library component")?;
     let device = spec
         .device
         .as_deref()
         .map(|id| resolve::required_uuid(id, "device"))
         .transpose()?;
+    let component = match spec.library_component.as_deref() {
+        Some(component) => resolve::required_uuid(component, "library component")?,
+        None => {
+            let device = device.ok_or_else(|| {
+                ToolError::invalid("Supply device or library_component for a new component.")
+            })?;
+            tx.run(AddLibraryElement::new(LibraryElementKind::Device, device))?;
+            tx.project()
+                .library()
+                .device(&device)
+                .ok_or_else(|| ToolError::not_found(format!("Device {device} not found.")))?
+                .component_uuid()
+        }
+    };
     let variant = spec
         .symbol_variant
         .as_deref()
