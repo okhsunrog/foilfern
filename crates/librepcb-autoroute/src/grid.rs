@@ -211,8 +211,9 @@ pub(crate) fn rasterize_trace_item(
     layer_bits: &[u64],
     item: &Item,
     half_width: f64,
+    clearance: f64,
 ) {
-    let Some(keep) = item.trace_keep else {
+    let Some(keep) = item.trace_keep(clearance) else {
         return;
     };
     let d = grid.trace_distance(keep, half_width);
@@ -226,8 +227,8 @@ pub(crate) fn rasterize_trace_item(
 }
 
 /// Rasterizes an item into the via map.
-pub(crate) fn rasterize_via_item(grid: &Grid, map: &mut [u32], item: &Item) {
-    if let Some(keep) = item.via_keep_other {
+pub(crate) fn rasterize_via_item(grid: &Grid, map: &mut [u32], item: &Item, clearance: f64) {
+    if let Some(keep) = item.via_keep_other(clearance) {
         grid.rasterize(map, &item.core, keep + 2.0, owner_of(item.net));
     }
     if let Some(keep) = item.via_keep_own {

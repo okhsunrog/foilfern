@@ -289,9 +289,9 @@ impl<'a> Inputs<'a> {
             })
     }
 
-    fn copper_clearance_base(&self, largest_class: Option<RuleValue>) -> RuleValue {
+    fn copper_clearance_base(&self, net_class: Option<RuleValue>) -> RuleValue {
         let board = self.board_copper_minimum();
-        largest_class
+        net_class
             .filter(|class| class.length > board.length)
             .unwrap_or(board)
     }
@@ -327,10 +327,20 @@ impl<'a> Inputs<'a> {
     pub(super) fn routing_rules(&self) -> RoutingRules {
         let default = RoutingRules::default();
         let mut net_trace_widths = std::collections::BTreeMap::new();
+        let mut net_clearances = std::collections::BTreeMap::new();
         let mut neck_downs = std::collections::BTreeMap::new();
+        let board_clearance = self.board_copper_minimum().length;
         let trace_width = self.trace_width(None).effective();
         for net in self.circuit.net_signals().values() {
             let class = self.circuit.net_class(net.net_class());
+            if let Some(class) = class
+                && *class.min_copper_copper_clearance() > board_clearance
+            {
+                net_clearances.insert(
+                    net.uuid(),
+                    *class.min_copper_copper_clearance() + CLEARANCE_MARGIN,
+                );
+            }
             let dimension = self.trace_width(class);
             let nominal = dimension.effective();
             if nominal != trace_width {
@@ -350,13 +360,13 @@ impl<'a> Inputs<'a> {
                 }
             }
         }
-        let clearance = self.copper_clearance_base(self.largest_class_copper_minimum());
         let via_drill = self.via_drill().effective();
         RoutingRules {
             trace_width,
             net_trace_widths,
             neck_downs,
-            clearance: clearance.length + CLEARANCE_MARGIN,
+            clearance: board_clearance + CLEARANCE_MARGIN,
+            net_clearances,
             board_clearance: self.copper_board_clearance().length + CLEARANCE_MARGIN,
             npth_clearance: self.copper_npth_clearance().length + CLEARANCE_MARGIN,
             drill_clearance: self.drill_clearance().length + CLEARANCE_MARGIN,
@@ -389,6 +399,13 @@ impl<'a> Inputs<'a> {
             .and_then(|n| self.circuit.net_class(n.net_class()));
         let (inherited_drill, inherited_source) = self.inherited_drill(class);
         let largest_class = self.largest_class_copper_minimum();
+        let net_class_clearance = class.map(|c| RuleValue {
+            length: *c.min_copper_copper_clearance(),
+            source: Source::NetClass {
+                uuid: c.uuid(),
+                field: "min_copper_copper_clearance",
+            },
+        });
         Report {
             trace_width: self.trace_width(class).report(rules.trace_width_of(&net.0)),
             via_drill: self.via_drill().report(rules.via_drill),
@@ -408,8 +425,8 @@ impl<'a> Inputs<'a> {
                 inherited_diameter_mm: self.diameter_from_design_rules(inherited_drill).to_mm(),
             },
             copper_clearance: ClearanceReport::new(
-                rules.clearance,
-                self.copper_clearance_base(largest_class),
+                rules.clearance_of(&net.0),
+                self.copper_clearance_base(net_class_clearance),
             ),
             board_copper_minimum: self.board_copper_minimum(),
             largest_class_copper_minimum: largest_class,

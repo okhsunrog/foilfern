@@ -815,6 +815,9 @@ impl RepairSearchJob {
         use crate::commands::autoroute::CLEARANCE_MARGIN;
         let rules = &mut problem.rules;
         rules.clearance -= CLEARANCE_MARGIN;
+        for clearance in rules.net_clearances.values_mut() {
+            *clearance -= CLEARANCE_MARGIN;
+        }
         rules.board_clearance -= CLEARANCE_MARGIN;
         rules.npth_clearance -= CLEARANCE_MARGIN;
         rules.drill_clearance -= CLEARANCE_MARGIN;

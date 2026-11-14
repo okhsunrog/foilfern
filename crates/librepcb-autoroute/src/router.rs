@@ -32,6 +32,9 @@ const DEFAULT_PITCH: i64 = 100_000;
 const AUTO_MAX_STATES: u64 = 16_000_000;
 /// Hard limit for an explicitly configured pitch.
 const MAX_STATES: u64 = 80_000_000;
+/// Limit cached grids per copper geometry so varied net classes cannot
+/// make memory use proportional to the number of nets.
+const MAX_CACHED_MAPS: usize = 4;
 
 /// An air wire to route.
 #[derive(Debug, Clone, Copy)]
@@ -104,7 +107,6 @@ struct AttemptFailures {
 /// Numeric rules in nanometers.
 #[derive(Debug, Clone, Copy)]
 struct Rules {
-    clearance: f64,
     via_radius: f64,
     via_drill_radius: f64,
     drill_clearance: f64,
@@ -122,9 +124,9 @@ pub(crate) struct Router<'p> {
     via_cost: u32,
     factors: Vec<DirFactors>,
     items: Items,
-    trace_maps: BTreeMap<i64, Layered>,
+    trace_maps: BTreeMap<(i64, Length), Layered>,
     edge_count: usize,
-    via_map: Layered,
+    via_maps: BTreeMap<Length, Layered>,
     search: Search,
     congestion: Option<Congestion>,
     wires: Vec<Wire>,
@@ -165,6 +167,7 @@ impl<'p> Router<'p> {
             r.via_cost,
         ]
         .iter()
+        .chain(r.net_clearances.values())
         .any(|l| *l < Length::ZERO)
         {
             return Err(Error::NegativeClearance);
@@ -260,7 +263,6 @@ impl<'p> Router<'p> {
             |n: &NetId| -> u32 { nets.binary_search(n).map(|i| i as u32).unwrap_or(NO_NET) };
 
         let rules = Rules {
-            clearance: nm(r.clearance),
             via_radius: nm(*r.via_diameter) / 2.0,
             via_drill_radius: nm(*r.via_drill) / 2.0,
             drill_clearance: nm(r.drill_clearance),
@@ -276,6 +278,7 @@ impl<'p> Router<'p> {
                     core: Core::Segment(a, b),
                     net: NO_NET,
                     layers: all_bits,
+                    copper_clearance: None,
                     trace_keep: Some(nm(r.board_clearance)),
                     via_keep_other: Some(edge_via_keep),
                     via_keep_own: None,
@@ -286,11 +289,16 @@ impl<'p> Router<'p> {
         let edge_count = items.len();
         for o in &problem.obstacles {
             let (core, radius) = core_of(&o.shape);
-            let cl = rules.clearance.max(o.clearance.map_or(0.0, nm));
+            let cl = nm(o
+                .net
+                .as_ref()
+                .map_or(r.clearance, |net| r.clearance_of(net)))
+            .max(o.clearance.map_or(0.0, nm));
             items.push(Item {
                 core,
                 net: o.net.as_ref().map_or(NO_NET, net_index),
                 layers: bits_of(&o.layers),
+                copper_clearance: Some(cl),
                 trace_keep: Some(radius + cl),
                 via_keep_other: Some(radius + cl + rules.via_radius),
                 via_keep_own: None,
@@ -310,6 +318,7 @@ impl<'p> Router<'p> {
                 core,
                 net: NO_NET,
                 layers: all_bits,
+                copper_clearance: None,
                 trace_keep,
                 via_keep_other: Some(via_keep),
                 via_keep_own: None,
@@ -318,19 +327,23 @@ impl<'p> Router<'p> {
         }
         for t in &problem.terminals {
             let (core, radius) = core_of(&t.shape);
-            let cl = rules.clearance.max(t.clearance.map_or(0.0, nm));
+            let cl = nm(r.clearance_of(&t.net)).max(t.clearance.map_or(0.0, nm));
             let via_keep = radius + cl + rules.via_radius;
             items.push(Item {
                 core,
                 net: net_index(&t.net),
                 layers: bits_of(&t.layers),
+                copper_clearance: Some(cl),
                 trace_keep: Some(radius + cl),
                 via_keep_other: Some(via_keep),
-                via_keep_own: Some(via_keep),
+                via_keep_own: Some(
+                    radius + nm(r.clearance).max(t.clearance.map_or(0.0, nm)) + rules.via_radius,
+                ),
                 route: None,
             });
         }
-        let items = Items::new(outline, items);
+        let clearances = nets.iter().map(|net| nm(r.clearance_of(net))).collect();
+        let items = Items::new(outline, items, clearances, nm(r.clearance));
 
         // Air wires.
         let mut wires = Vec::new();
@@ -386,19 +399,6 @@ impl<'p> Router<'p> {
             })
             .collect();
 
-        let mut via_map = Layered::new(grid.cells());
-        grid.block_outside(&mut via_map.fixed, items.outline());
-        if let Some(region) = problem.region {
-            grid.block_outside_region(
-                &mut via_map.fixed,
-                region,
-                Length::new(rules.via_radius.ceil() as i64),
-            );
-        }
-        for item in items.iter() {
-            rasterize_via_item(&grid, &mut via_map.fixed, item);
-        }
-
         let n_wires = wires.len();
         Ok(Self {
             problem,
@@ -413,7 +413,7 @@ impl<'p> Router<'p> {
             items,
             trace_maps: BTreeMap::new(),
             edge_count,
-            via_map,
+            via_maps: BTreeMap::new(),
             search: Search::default(),
             congestion: None,
             wires,
@@ -447,9 +447,13 @@ impl<'p> Router<'p> {
             .copied()
     }
 
-    /// Makes sure the trace map for half width `h` exists.
-    fn ensure_trace_map(&mut self, h: i64) {
-        if self.trace_maps.contains_key(&h) {
+    fn clearance_of(&self, net: u32) -> Length {
+        self.problem.rules.clearance_of(&self.nets[net as usize])
+    }
+
+    /// Keep a small cache shared by nets with the same width and clearance.
+    fn ensure_trace_map(&mut self, h: i64, clearance: Length) {
+        if self.trace_maps.contains_key(&(h, clearance)) {
             return;
         }
         let cells = self.grid.cells();
@@ -468,9 +472,47 @@ impl<'p> Router<'p> {
             } else {
                 &mut map.fixed
             };
-            rasterize_trace_item(&self.grid, target, &self.layer_bits, item, h as f64);
+            rasterize_trace_item(
+                &self.grid,
+                target,
+                &self.layer_bits,
+                item,
+                h as f64,
+                nm(clearance),
+            );
         }
-        self.trace_maps.insert(h, map);
+        if self.trace_maps.len() >= MAX_CACHED_MAPS {
+            self.trace_maps.pop_first();
+        }
+        self.trace_maps.insert((h, clearance), map);
+    }
+
+    fn ensure_via_map(&mut self, clearance: Length) {
+        if self.via_maps.contains_key(&clearance) {
+            return;
+        }
+        let mut map = Layered::new(self.grid.cells());
+        self.grid
+            .block_outside(&mut map.fixed, self.items.outline());
+        if let Some(region) = self.problem.region {
+            self.grid.block_outside_region(
+                &mut map.fixed,
+                region,
+                Length::new(self.rules.via_radius.ceil() as i64),
+            );
+        }
+        for item in self.items.iter() {
+            let target = if item.route.is_some() {
+                &mut map.routes
+            } else {
+                &mut map.fixed
+            };
+            rasterize_via_item(&self.grid, target, item, nm(clearance));
+        }
+        if self.via_maps.len() >= MAX_CACHED_MAPS {
+            self.via_maps.pop_first();
+        }
+        self.via_maps.insert(clearance, map);
     }
 
     /// Union-find representatives of the terminals, joined by the routes.
@@ -507,7 +549,7 @@ impl<'p> Router<'p> {
         h: i64,
     ) -> HashMap<u32, (u32, Ep)> {
         let cells = self.grid.cells();
-        let map = &self.trace_maps[&h];
+        let map = &self.trace_maps[&(h, self.clearance_of(wire.net))];
         let owner = owner_of(wire.net);
         let usable_node =
             |node: usize| usable(map.fixed[node], owner) && usable(map.routes[node], owner);
@@ -640,7 +682,7 @@ impl<'p> Router<'p> {
         }
         let (core, radius) = core_of(&terminal.shape);
         let cells = self.grid.cells();
-        let map = &self.trace_maps[&h];
+        let map = &self.trace_maps[&(h, self.clearance_of(net))];
         let owner = owner_of(net);
         let pitch = self.grid.pitch as f64;
         let scope_bits = match &terminal.layers {
@@ -827,7 +869,7 @@ impl<'p> Router<'p> {
             .map_err(|_| Error::UnknownTerminal(id.0))? as u32;
         let width = self.width_of(net);
         let h = (*width).to_nm() / 2;
-        self.ensure_trace_map(h);
+        self.ensure_trace_map(h, self.clearance_of(net));
         let nodes = self.terminal_access(id.0, net, h);
         let cells = self.grid.cells();
         let point = |p: P| Point::new(Length::new(p.x), Length::new(p.y));
@@ -940,7 +982,9 @@ impl<'p> Router<'p> {
         let wire = self.wires[w];
         let width = self.width_of(wire.net);
         let h = width.to_nm() / 2;
-        self.ensure_trace_map(h);
+        let clearance = self.clearance_of(wire.net);
+        self.ensure_trace_map(h, clearance);
+        self.ensure_via_map(clearance);
         let comps = self.components();
         let sources = self.anchors(&comps, comps[wire.a], &wire, h);
         let targets = self.anchors(&comps, comps[wire.b], &wire, h);
@@ -950,7 +994,8 @@ impl<'p> Router<'p> {
         let mut source_list: Vec<(u32, u32)> = sources.iter().map(|(n, (c, _))| (*n, *c)).collect();
         source_list.sort_unstable();
         let target_costs: HashMap<u32, u32> = targets.iter().map(|(n, (c, _))| (*n, *c)).collect();
-        let map = &self.trace_maps[&h];
+        let map = &self.trace_maps[&(h, clearance)];
+        let via_map = &self.via_maps[&clearance];
         let mut via_layers = 0u64;
         if !self
             .problem
@@ -974,8 +1019,8 @@ impl<'p> Router<'p> {
             },
             trace_fixed: &map.fixed,
             trace_routes: &map.routes,
-            via_fixed: &self.via_map.fixed,
-            via_routes: &self.via_map.routes,
+            via_fixed: &via_map.fixed,
+            via_routes: &via_map.routes,
             region: self.net_region(wire.net).map(|region| {
                 (
                     region,
@@ -1133,7 +1178,7 @@ impl<'p> Router<'p> {
                 let history = self
                     .congestion
                     .get_or_insert_with(|| Congestion::new(self.grid, self.routing.len()));
-                let routes = &self.trace_maps[&h].routes;
+                let routes = &self.trace_maps[&(h, clearance)].routes;
                 for &node in &found.nodes {
                     if !usable(routes[node as usize], owner_of(wire.net)) {
                         contested
@@ -1143,7 +1188,7 @@ impl<'p> Router<'p> {
                 for pair in found.nodes.windows(2) {
                     let cell = (pair[0] % cells) as usize;
                     if pair[0] / cells != pair[1] / cells
-                        && !usable(self.via_map.routes[cell], owner_of(wire.net))
+                        && !usable(self.via_maps[&clearance].routes[cell], owner_of(wire.net))
                     {
                         contested.push(history.via_tile(cell));
                     }
@@ -1276,6 +1321,7 @@ impl<'p> Router<'p> {
         let id = self.routes.len();
         let net = self.wires[w].net;
         let r = self.rules;
+        let clearance = self.items.clearance(net);
         let mut new_items = Vec::new();
         for run in &runs {
             let hw = run.half_width() as f64;
@@ -1284,8 +1330,9 @@ impl<'p> Router<'p> {
                     core: Core::Segment(pair[0], pair[1]),
                     net,
                     layers: self.layer_bits[run.layer],
-                    trace_keep: Some(hw + r.clearance),
-                    via_keep_other: Some(hw + r.clearance + r.via_radius),
+                    copper_clearance: Some(clearance),
+                    trace_keep: Some(hw + clearance),
+                    via_keep_other: Some(hw + clearance + r.via_radius),
                     via_keep_own: None,
                     route: Some(id),
                 });
@@ -1297,24 +1344,28 @@ impl<'p> Router<'p> {
                 core: Core::Point(v),
                 net,
                 layers: self.all_bits,
-                trace_keep: Some(r.via_radius + r.clearance),
-                via_keep_other: Some((2.0 * r.via_radius + r.clearance).max(drill_keep)),
+                copper_clearance: Some(clearance),
+                trace_keep: Some(r.via_radius + clearance),
+                via_keep_other: Some(2.0 * r.via_radius + clearance),
                 via_keep_own: Some(drill_keep),
                 route: Some(id),
             });
         }
         let mut indices = Vec::new();
         for item in new_items {
-            for (&mh, map) in &mut self.trace_maps {
+            for (&(mh, clearance), map) in &mut self.trace_maps {
                 rasterize_trace_item(
                     &self.grid,
                     &mut map.routes,
                     &self.layer_bits,
                     &item,
                     mh as f64,
+                    nm(clearance),
                 );
             }
-            rasterize_via_item(&self.grid, &mut self.via_map.routes, &item);
+            for (&clearance, map) in &mut self.via_maps {
+                rasterize_via_item(&self.grid, &mut map.routes, &item, nm(clearance));
+            }
             indices.push(self.items.insert(item));
         }
         self.routes.push(Some(RouteState {
@@ -1356,21 +1407,26 @@ impl<'p> Router<'p> {
     }
 
     fn rebuild_route_maps(&mut self) {
-        self.via_map.routes.iter_mut().for_each(|c| *c = 0);
+        for map in self.via_maps.values_mut() {
+            map.routes.fill(0);
+        }
         for map in self.trace_maps.values_mut() {
             map.routes.iter_mut().for_each(|c| *c = 0);
         }
         for item in self.items.iter().filter(|i| i.route.is_some()) {
-            for (&mh, map) in &mut self.trace_maps {
+            for (&(mh, clearance), map) in &mut self.trace_maps {
                 rasterize_trace_item(
                     &self.grid,
                     &mut map.routes,
                     &self.layer_bits,
                     item,
                     mh as f64,
+                    nm(clearance),
                 );
             }
-            rasterize_via_item(&self.grid, &mut self.via_map.routes, item);
+            for (&clearance, map) in &mut self.via_maps {
+                rasterize_via_item(&self.grid, &mut map.routes, item, nm(clearance));
+            }
         }
     }
 
@@ -1438,7 +1494,7 @@ impl<'p> Router<'p> {
         let mut entries = Vec::with_capacity(terminals.len());
         for (t, net) in terminals {
             let h = self.width_of(net).to_nm() / 2;
-            self.ensure_trace_map(h);
+            self.ensure_trace_map(h, self.clearance_of(net));
             let nodes: Vec<_> = self
                 .terminal_access(t, net, h)
                 .into_iter()

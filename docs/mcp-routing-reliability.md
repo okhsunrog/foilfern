@@ -416,13 +416,14 @@ raised the value. `via_drill` and `via_size` accept the same overrides as
 the DRC annular-ring minimum. `via_storage` records whether new vias
 would store explicit dimensions and shows their inherited dimensions.
 
-`copper_clearance` uses the largest board or project net-class minimum
-plus the 0.01 mm builtin margin. A board tie uses the board setting.
-The report includes the board and largest class inputs, the other
-clearance types, and the effective trace layers. `grid_pitch` reports the
-actual pitch when endpoint access was computed, otherwise
-`effective_mm` is null. Probe blockers indicate which clearance applied,
-including when the pad's own clearance exceeded the routing baseline.
+`copper_clearance` reports the greater of the board and selected net class
+minimums plus the 0.01 mm builtin margin. A board tie uses the board setting.
+Between different nets the router uses the greater clearance of the two
+objects, including any footprint pad override. Probe blockers report that
+pair's clearance. The largest class input is included for reference.
+The report also includes the other clearance types and effective trace
+layers. `grid_pitch.effective_mm` reports the actual pitch when endpoint
+access was computed and is null otherwise.
 
 Builtin uses the selected net class's default trace width when there is
 no request override. Its width and drill floors come from the board DRC

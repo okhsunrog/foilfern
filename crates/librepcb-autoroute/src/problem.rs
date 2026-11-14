@@ -173,8 +173,10 @@ pub struct RoutingRules {
     pub net_trace_widths: BTreeMap<NetId, PositiveLength>,
     /// Optional reduced-width escapes from pads, by net.
     pub neck_downs: BTreeMap<NetId, NeckDown>,
-    /// Copper to copper clearance between different nets.
+    /// Board minimum copper clearance between different nets.
     pub clearance: Length,
+    /// Higher copper clearance required by individual nets.
+    pub net_clearances: BTreeMap<NetId, Length>,
     /// Copper to board edge clearance.
     pub board_clearance: Length,
     /// Copper to non-plated hole clearance.
@@ -225,6 +227,7 @@ impl Default for RoutingRules {
             net_trace_widths: BTreeMap::new(),
             neck_downs: BTreeMap::new(),
             clearance: Length::new(200_000),
+            net_clearances: BTreeMap::new(),
             board_clearance: Length::new(300_000),
             npth_clearance: Length::new(250_000),
             drill_clearance: Length::new(350_000),
@@ -267,6 +270,12 @@ pub enum RoutingOrder {
 }
 
 impl RoutingRules {
+    /// Clearance of new copper on this net before checking the other object.
+    pub fn clearance_of(&self, net: &NetId) -> Length {
+        self.clearance
+            .max(self.net_clearances.get(net).copied().unwrap_or_default())
+    }
+
     /// Returns the trace width of a net.
     pub fn trace_width_of(&self, net: &NetId) -> PositiveLength {
         self.net_trace_widths

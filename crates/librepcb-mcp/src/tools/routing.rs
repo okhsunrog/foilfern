@@ -947,13 +947,20 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
         })
         .transpose()?;
     let obstacle_net = |id| crate::resolve::net_name(p, librepcb_core::project::NetSignalId(id));
-    let clearance = |pad: Option<librepcb_core::types::Length>| match pad
-        .filter(|value| *value > problem.rules.clearance)
-    {
-        Some(value) => (mm(value), "pad_copper_clearance"),
-        None => (mm(problem.rules.clearance), "copper_clearance"),
-    };
+    let clearance =
+        |from: &_, other: Option<_>, pad: Option<librepcb_core::types::Length>| {
+            let copper = problem.rules.clearance_of(from).max(
+                other.map_or(problem.rules.clearance, |net| {
+                    problem.rules.clearance_of(&net)
+                }),
+            );
+            match pad.filter(|value| *value > copper) {
+                Some(value) => (mm(value), "pad_copper_clearance"),
+                None => (mm(copper), "copper_clearance"),
+            }
+        };
     let endpoints: Vec<_> = selected.iter().copied().zip(&access).map(|(id, report)| {
+        let net = &problem.terminals[id.0].net;
         let probes: Vec<_> = report.probes.iter().map(|probe| {
             let blocker = match probe.blocker {
                 None => serde_json::Value::Null,
@@ -968,7 +975,7 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
                 }),
                 Some(AccessBlocker::Terminal(id)) => {
                     let terminal = &problem.terminals[id.0];
-                    let (clearance_mm, source) = clearance(terminal.clearance);
+                    let (clearance_mm, source) = clearance(net, Some(terminal.net), terminal.clearance);
                     json!({"kind":"terminal","anchor":anchor(id),"net":obstacle_net(terminal.net),
                         "object":RoutingObject::from_anchor(extracted.terminal_anchors[id.0]),
                         "clearance_mm":clearance_mm,"clearance_source":source})
@@ -976,7 +983,7 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
                 Some(AccessBlocker::Obstacle(index)) => {
                     let item = &problem.obstacles[index];
                     let object = extracted.obstacle_objects[index];
-                    let (clearance_mm, source) = clearance(item.clearance);
+                    let (clearance_mm, source) = clearance(net, item.net, item.clearance);
                     json!({"kind":"obstacle","index":index,"object":object,
                         "trace_uuid":(object.kind == RoutingObjectKind::Trace).then_some(object.uuid),
                         "net":item.net.map(obstacle_net),
@@ -1002,8 +1009,8 @@ pub fn routing_diagnose(session: &Session, args: RoutingDiagnoseArgs) -> ToolRes
         access.first().map(|report| report.grid_pitch),
     );
     let mut out = ToolOutput::new("Inspected builtin routing rules, terminal access and local clearance.", json!({
-        "net":args.net,"board":board,"clearance_mm":mm(problem.rules.clearance),
-        "clearance_source":"maximum board and net-class clearance plus builtin margin",
+        "net":args.net,"board":board,"clearance_mm":mm(problem.rules.clearance_of(&net.0)),
+        "clearance_source":"board and selected net class minimum plus builtin margin",
         "rules":rules,
         "probe_length_mm":mm(*reach),"unsupported_air_wires":extracted.unsupported.len(),
         "endpoint_count":ids.len(),"endpoints":endpoints,

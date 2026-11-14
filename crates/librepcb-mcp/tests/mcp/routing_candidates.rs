@@ -1797,11 +1797,15 @@ fn diagnostics_report_rule_precedence_and_effective_dimensions() {
     assert_eq!(rule["via_storage"]["explicit"], true);
     assert_eq!(rule["board_copper_minimum"]["mm"], 0.21);
     assert_eq!(
-        rule["copper_clearance"]["base"]["source"]["uuid"],
-        json!(power_id)
+        rule["copper_clearance"]["base"]["source"]["kind"],
+        "board_drc"
     );
     assert_eq!(rule["copper_clearance"]["margin_mm"], 0.01);
-    assert_eq!(rule["copper_clearance"]["effective_mm"], 0.34);
+    assert_eq!(rule["copper_clearance"]["effective_mm"], 0.22);
+    assert_eq!(
+        rule["largest_class_copper_minimum"]["source"]["uuid"],
+        json!(power_id)
+    );
     assert_eq!(rule["grid_pitch"]["source"]["kind"], "builtin_auto");
     assert_eq!(
         rule["grid_pitch"]["effective_mm"],
@@ -1810,6 +1814,10 @@ fn diagnostics_report_rule_precedence_and_effective_dimensions() {
     assert_eq!(
         diagnose(args(json!({"net":"B"})))["rules"]["trace_width"]["effective_mm"],
         0.42
+    );
+    assert_eq!(
+        diagnose(args(json!({"net":"B"})))["rules"]["copper_clearance"]["effective_mm"],
+        0.34
     );
 
     let requested = diagnose(args(json!({

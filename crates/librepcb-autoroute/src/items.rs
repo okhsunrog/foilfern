@@ -1,7 +1,7 @@
 //! Copper items with their keepout distances, in an R*-tree for exact
 //! clearance checks.
 //!
-//! An [`Item`] stores, instead of a clearance, the distances from its core
+//! An [`Item`] stores the distances from its core
 //! (see [`geometry`](crate::geometry)) that the center line of a trace and
 //! the center of a via must keep:
 //!
@@ -13,9 +13,10 @@
 //! - `via_keep_own`: the same for vias of the item's own net (drill-to-drill
 //!   distance of vias, pads which must not carry vias).
 //!
-//! This makes all rules (copper, board edge, NPTH, drill clearances) one
-//! uniform check, used both for rasterizing the grid and for the final
-//! verification.
+//! For foreign copper, increase these distances by the difference when the
+//! routing net requires more clearance than the item. Board edges, holes and
+//! own-net via rules use their own distances. Grid rasterization and exact
+//! verification use the same distances.
 
 use rstar::{AABB, RTree, RTreeObject};
 
@@ -35,6 +36,9 @@ pub(crate) struct Item {
     pub net: u32,
     /// Bit mask of copper layer indices.
     pub layers: u64,
+    /// Clearance already included in the copper keep distances. Non-copper
+    /// items retain their independent rules.
+    pub copper_clearance: Option<f64>,
     pub trace_keep: Option<f64>,
     pub via_keep_other: Option<f64>,
     pub via_keep_own: Option<f64>,
@@ -43,6 +47,22 @@ pub(crate) struct Item {
 }
 
 impl Item {
+    fn extra_clearance(&self, clearance: f64) -> f64 {
+        self.copper_clearance
+            .map_or(0.0, |own| (clearance - own).max(0.0))
+    }
+
+    pub fn trace_keep(&self, clearance: f64) -> Option<f64> {
+        self.trace_keep
+            .map(|keep| keep + self.extra_clearance(clearance))
+    }
+
+    pub fn via_keep_other(&self, clearance: f64) -> Option<f64> {
+        self.via_keep_other.map(|keep| {
+            (keep + self.extra_clearance(clearance)).max(self.via_keep_own.unwrap_or(0.0))
+        })
+    }
+
     fn max_keep(&self) -> f64 {
         [self.trace_keep, self.via_keep_other, self.via_keep_own]
             .into_iter()
@@ -82,11 +102,18 @@ pub(crate) struct Items {
     alive: Vec<bool>,
     tree: RTree<Entry>,
     max_keep: f64,
+    clearances: Vec<f64>,
+    board_clearance: f64,
     outline: Vec<Vec<P>>,
 }
 
 impl Items {
-    pub fn new(outline: Vec<Vec<P>>, static_items: Vec<Item>) -> Self {
+    pub fn new(
+        outline: Vec<Vec<P>>,
+        static_items: Vec<Item>,
+        clearances: Vec<f64>,
+        board_clearance: f64,
+    ) -> Self {
         let entries = static_items
             .iter()
             .enumerate()
@@ -101,8 +128,17 @@ impl Items {
             items: static_items,
             tree: RTree::bulk_load(entries),
             max_keep,
+            clearances,
+            board_clearance,
             outline,
         }
+    }
+
+    pub fn clearance(&self, net: u32) -> f64 {
+        self.clearances
+            .get(net as usize)
+            .copied()
+            .unwrap_or(self.board_clearance)
     }
 
     pub fn outline(&self) -> &[Vec<P>] {
@@ -183,14 +219,16 @@ impl Items {
         let bit = 1u64 << layer;
         let lo = P::new(a.x.min(b.x), a.y.min(b.y));
         let hi = P::new(a.x.max(b.x), a.y.max(b.y));
-        for (index, item) in self.candidates(lo, hi, half_width) {
+        let clearance = self.clearance(net);
+        for (index, item) in self.candidates(lo, hi, half_width + clearance - self.board_clearance)
+        {
             if item.layers & bit == 0 || (item.net == net && net != NO_NET) {
                 continue;
             }
             if item.route.is_some() && item.route == skip_route {
                 continue;
             }
-            let Some(keep) = item.trace_keep else {
+            let Some(keep) = item.trace_keep(clearance) else {
                 continue;
             };
             if item.core.distance_to_segment(a, b) < keep + half_width {
@@ -229,14 +267,15 @@ impl Items {
         if !self.inside_board(p) {
             return Err(Violation::Static(None));
         }
-        for (index, item) in self.candidates(p, p, 0.0) {
+        let clearance = self.clearance(net);
+        for (index, item) in self.candidates(p, p, clearance - self.board_clearance) {
             if item.route.is_some() && item.route == skip_route {
                 continue;
             }
             let keep = if item.net == net && net != NO_NET {
                 own_keep(index, item)
             } else {
-                item.via_keep_other
+                item.via_keep_other(clearance)
             };
             let Some(keep) = keep else {
                 continue;

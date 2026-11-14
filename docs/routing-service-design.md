@@ -293,7 +293,7 @@ access points and blocking shapes on a selected copper layer.
 See the [preserved STM32 observation](mcp-routing-reliability.md#local-access-diagnostics).
 
 The same diagnostic reports effective builtin rules and their inputs for
-the selected net, including DRC clamps, the conservative copper clearance,
+the selected net, including DRC clamps, copper clearance for each probed pair,
 and via dimensions. See the [rule report](mcp-routing-reliability.md#effective-builtin-rules).
 
 Schematic `connect` and `disconnect` can resolve a package pad before

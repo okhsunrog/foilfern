@@ -160,7 +160,6 @@ fn on_layer(scope: &LayerScope, layer: Layer) -> bool {
 /// clearance, holes, via drill clearances. Returns the violations.
 fn drc(p: &RoutingProblem, r: &RoutingResult) -> Vec<String> {
     let rules = &p.rules;
-    let cl = rules.clearance.to_mm();
     let eps = 1e-6;
     let mut errors = Vec::new();
     // Copper objects: (net, layer scope, core, description).
@@ -169,6 +168,7 @@ fn drc(p: &RoutingProblem, r: &RoutingResult) -> Vec<String> {
         layers: LayerScope,
         core: Core,
         what: String,
+        clearance: Length,
     }
     let mut objs: Vec<Obj> = Vec::new();
     for (i, t) in p.terminals.iter().enumerate() {
@@ -177,6 +177,9 @@ fn drc(p: &RoutingProblem, r: &RoutingResult) -> Vec<String> {
             layers: t.layers.clone(),
             core: core_of(&t.shape),
             what: format!("terminal {i}"),
+            clearance: rules
+                .clearance_of(&t.net)
+                .max(t.clearance.unwrap_or_default()),
         });
     }
     for (i, o) in p.obstacles.iter().enumerate() {
@@ -185,6 +188,10 @@ fn drc(p: &RoutingProblem, r: &RoutingResult) -> Vec<String> {
             layers: o.layers.clone(),
             core: core_of(&o.shape),
             what: format!("obstacle {i}"),
+            clearance: o
+                .net
+                .map_or(rules.clearance, |net| rules.clearance_of(&net))
+                .max(o.clearance.unwrap_or_default()),
         });
     }
     for (ri, route) in r.routes.iter().enumerate() {
@@ -194,6 +201,7 @@ fn drc(p: &RoutingProblem, r: &RoutingResult) -> Vec<String> {
                 layers: LayerScope::single(s.layer),
                 core: Core::Seg(v(s.start), v(s.end), s.width.to_mm() / 2.0),
                 what: format!("route {ri} segment"),
+                clearance: rules.clearance_of(&route.net),
             });
         }
         for via in &route.vias {
@@ -202,6 +210,7 @@ fn drc(p: &RoutingProblem, r: &RoutingResult) -> Vec<String> {
                 layers: LayerScope::All,
                 core: Core::Seg(v(via.position), v(via.position), via.diameter.to_mm() / 2.0),
                 what: format!("route {ri} via"),
+                clearance: rules.clearance_of(&route.net),
             });
         }
     }
@@ -212,6 +221,7 @@ fn drc(p: &RoutingProblem, r: &RoutingResult) -> Vec<String> {
         .collect();
     for (ri, route) in r.routes.iter().enumerate() {
         let mine = |o: &Obj| o.net == Some(route.net);
+        let clearance = |object: &Obj| rules.clearance_of(&route.net).max(object.clearance).to_mm();
         for s in &route.segments {
             let (a, b, hw) = (v(s.start), v(s.end), s.width.to_mm() / 2.0);
             for o in objs
@@ -219,7 +229,7 @@ fn drc(p: &RoutingProblem, r: &RoutingResult) -> Vec<String> {
                 .filter(|o| !mine(o) && on_layer(&o.layers, s.layer))
             {
                 let d = check::seg_core(a, b, &o.core) - hw;
-                if d < cl - eps {
+                if d < clearance(o) - eps {
                     errors.push(format!("route {ri} segment vs {}: {d:.4}", o.what));
                 }
             }
@@ -247,7 +257,7 @@ fn drc(p: &RoutingProblem, r: &RoutingResult) -> Vec<String> {
             let r_drill = via.drill.to_mm() / 2.0;
             for o in objs.iter().filter(|o| !mine(o)) {
                 let d = check::seg_core(c, c, &o.core) - r_via;
-                if d < cl - eps {
+                if d < clearance(o) - eps {
                     errors.push(format!("route {ri} via vs {}: {d:.4}", o.what));
                 }
             }
@@ -347,6 +357,109 @@ fn assert_clean(p: &RoutingProblem, r: &RoutingResult) {
     let errors = drc(p, r);
     assert!(errors.is_empty(), "clearance violations: {errors:#?}");
     assert_connected(p, r);
+}
+
+#[test]
+fn copper_clearance_depends_on_both_nets() {
+    let mut problem = RoutingProblem::new(
+        rect_outline(12.0, 12.0),
+        two_layers(),
+        RoutingRules::default(),
+    );
+    let (ordinary, special) = (net(1), net(2));
+    problem.rules.net_clearances.insert(special, mm(2.0));
+    let a = smd(&mut problem, ordinary, 1.5, 6.0, 0.6, 0.6);
+    let b = smd(&mut problem, ordinary, 10.5, 6.0, 0.6, 0.6);
+    problem.connect(a, b);
+    let obstacle = |net| {
+        Obstacle::copper(
+            Shape::Segment {
+                start: pt(1.0, 7.0),
+                end: pt(11.0, 7.0),
+                width: pos(0.3),
+            },
+            LayerScope::All,
+            Some(net),
+        )
+    };
+    let other = net(3);
+    problem.add_obstacle(obstacle(other));
+    let direct = route(&problem).unwrap();
+    assert!(direct.unrouted.is_empty());
+    assert_clean(&problem, &direct);
+    assert_eq!(direct.segments().count(), 1);
+
+    for (route_net, obstacle_net) in [(ordinary, special), (special, other)] {
+        problem.terminals[a.0].net = route_net;
+        problem.terminals[b.0].net = route_net;
+        problem.obstacles[0] = obstacle(obstacle_net);
+        let result = route(&problem).unwrap();
+        // The fixed endpoint is already closer than the required clearance.
+        assert_eq!(result.unrouted[0].reason, UnroutedReason::NoAccess);
+    }
+}
+
+#[test]
+fn generated_copper_preserves_net_class_clearance() {
+    let mut problem = RoutingProblem::new(
+        rect_outline(16.0, 14.0),
+        two_layers(),
+        RoutingRules::default(),
+    );
+    let (ordinary, special) = (net(1), net(2));
+    problem.rules.net_clearances.insert(special, mm(1.2));
+    problem.rules.critical_nets.insert(special);
+    let a = smd(&mut problem, special, 4.0, 7.0, 0.6, 0.6);
+    let b = smd(&mut problem, special, 12.0, 7.0, 0.6, 0.6);
+    let c = smd(&mut problem, ordinary, 1.5, 8.0, 0.6, 0.6);
+    let d = smd(&mut problem, ordinary, 14.5, 8.0, 0.6, 0.6);
+    problem.connect(a, b);
+    problem.connect(c, d);
+    let result = route(&problem).unwrap();
+    assert!(result.unrouted.is_empty(), "{:?}", result.unrouted);
+    assert_clean(&problem, &result);
+    let ordinary_route = result.routes.iter().find(|r| r.net == ordinary).unwrap();
+    assert!(ordinary_route.segments.len() > 1);
+}
+
+#[test]
+fn local_via_respects_clearance_to_foreign_copper_on_either_net() {
+    use librepcb_autoroute::{LocalViaSite, find_local_via};
+
+    let mut problem = RoutingProblem::new(
+        rect_outline(12.0, 12.0),
+        two_layers(),
+        RoutingRules::default(),
+    );
+    let (ordinary, foreign) = (net(1), net(2));
+    smd(&mut problem, ordinary, 3.0, 6.0, 0.6, 0.6);
+    problem.add_obstacle(Obstacle::copper(
+        Shape::Circle {
+            center: pt(6.0, 7.0),
+            diameter: pos(0.4),
+        },
+        LayerScope::single(Layer::BOT_COPPER),
+        Some(foreign),
+    ));
+    let launch = |problem: &RoutingProblem| {
+        find_local_via(
+            problem,
+            ordinary,
+            [
+                (pt(3.0, 6.0), Layer::TOP_COPPER),
+                (pt(8.0, 6.0), Layer::BOT_COPPER),
+            ],
+            LocalViaSite::Exact(pt(6.0, 6.0)),
+        )
+        .unwrap()
+    };
+    assert!(launch(&problem).is_some());
+    for net in [ordinary, foreign] {
+        problem.rules.net_clearances.insert(net, mm(0.6));
+        // A 0.25 mm trace still clears the obstacle. A 0.7 mm via does not.
+        assert!(launch(&problem).is_none());
+        problem.rules.net_clearances.clear();
+    }
 }
 
 // ---------------------------------------------------------------------------
