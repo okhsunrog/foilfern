@@ -212,3 +212,27 @@ fn batch_stops_or_continues_and_validates_before_execution() {
     assert!(!output.status.success());
     assert_eq!(records(&output).len(), 1);
 }
+
+/// Every advertised operation must be reachable without an SDK request context.
+#[tokio::test]
+async fn direct_dispatch_covers_the_entire_catalog() {
+    use foilfern_mcp::{FoilfernMcp, Session};
+    let server = FoilfernMcp::new(Session::new());
+    let names = server.tool_names();
+    assert_eq!(names.len(), 101);
+    for name in names {
+        // With no workspace/project, valid empty inputs can only inspect the
+        // empty session; required inputs fail before any external side effect.
+        let result = server.dispatch(&name, Default::default()).await;
+        assert!(
+            result.is_ok(),
+            "advertised operation {name} is missing: {result:?}"
+        );
+    }
+    assert!(
+        server
+            .dispatch("unknown_tool", Default::default())
+            .await
+            .is_err()
+    );
+}

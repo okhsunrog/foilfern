@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `52`, including supplier acquisition,
+`api_capability_version` (currently `53`, including supplier acquisition,
 official KiCad imports, rendered board-placement reviews, declared connector axes, scoped legend targets and bounded legend placement).
 Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`

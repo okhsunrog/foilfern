@@ -13,7 +13,6 @@
 use std::sync::Arc;
 
 use rmcp::handler::server::router::tool::ToolRouter;
-use rmcp::handler::server::tool::ToolCallContext;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
     CallToolRequestParams, CallToolResponse, CallToolResult, Implementation, JsonObject,
@@ -105,8 +104,7 @@ const BOARD_DESIGN_GUIDE: &str = include_str!("../../../docs/mcp-board-workflow.
 const DEVBOARD_URI: &str = "librepcb://examples/esp32-c3-devboard";
 const DEVBOARD_DOCUMENT: &str = include_str!("../../../docs/examples/esp32-c3-devboard.json");
 
-/// Message prefix of rmcp's argument deserialization errors.
-const DESERIALIZE_ERROR_PREFIX: &str = "failed to deserialize parameters:";
+mod dispatch;
 
 tokio::task_local! {
     /// The name of the tool being called (for the host's change notices).
@@ -195,14 +193,6 @@ impl FoilfernMcp {
                 valid.join(", ")
             }
         )))
-    }
-
-    /// The revision of the open project, if any.
-    async fn current_revision(&self) -> Option<u64> {
-        self.blocking(|s| Ok(s.project.as_ref().map(|p| p.project().revision())))
-            .await
-            .ok()
-            .flatten()
     }
 
     /// Runs `f` on the locked session in a blocking thread (see
@@ -1634,36 +1624,11 @@ impl ServerHandler for FoilfernMcp {
     async fn call_tool(
         &self,
         request: CallToolRequestParams,
-        context: RequestContext<RoleServer>,
+        _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
-        // Argument errors are tool errors with kind `invalid_argument` (in
-        // the result envelope), not protocol errors.
-        let name = request.name.clone();
-        if let Err(e) = self.check_arguments(&name, request.arguments.as_ref()) {
-            return Ok(error_result(&e, self.current_revision().await).into());
-        }
-        let context = ToolCallContext::new(self, request, context);
-        let response = CURRENT_TOOL
-            .scope(name.to_string(), self.tool_router.call(context))
-            .await?;
-        // rmcp reports argument deserialization failures as plain error
-        // results; give them the envelope with `invalid_argument`.
-        if let CallToolResponse::Complete(result) = &response
-            && result.is_error == Some(true)
-            && result.structured_content.is_none()
-            && let Some(message) = result
-                .content
-                .first()
-                .and_then(|c| c.as_text())
-                .and_then(|t| t.text.strip_prefix(DESERIALIZE_ERROR_PREFIX))
-        {
-            let e = ToolError::invalid(format!(
-                "Invalid arguments for tool {name}: {}",
-                message.trim()
-            ));
-            return Ok(error_result(&e, self.current_revision().await).into());
-        }
-        Ok(response)
+        self.dispatch(&request.name, request.arguments.unwrap_or_default())
+            .await
+            .map(Into::into)
     }
 
     async fn list_resources(
