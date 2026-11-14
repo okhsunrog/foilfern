@@ -23,6 +23,8 @@ use crate::tools::trace_path::{self, PadAddress, PadIdentity};
 use crate::units::{PointMm, angle};
 use crate::{resolve, views};
 
+mod repair;
+
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct BoardLayout {
@@ -36,6 +38,8 @@ pub(super) struct BoardLayout {
     /// Add saved board requirements by ID, preserving the existing document.
     #[serde(default)]
     requirements: Vec<BoardRule>,
+    /// Suggest local branch repairs, or try only the branches explicitly authorized here.
+    repair: Option<repair::RepairInput>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -146,6 +150,8 @@ pub(super) struct AppliedLayout {
     board: BoardId,
     new_devices: BTreeSet<ComponentInstanceId>,
     regions: Vec<Value>,
+    moved: bool,
+    repair: Option<repair::RepairInput>,
     /// For a combined schematic/board document, compare placement against
     /// the circuit and board after the explicitly requested schematic edits.
     placement_baseline: Option<Project>,
@@ -289,6 +295,7 @@ impl BoardLayout {
             }
         }
         let mut new_devices = BTreeSet::new();
+        let mut moved = false;
         let mut region_checks = Vec::new();
         while let Some(instance) = ready.pop_first() {
             checkpoint()?;
@@ -414,6 +421,7 @@ impl BoardLayout {
                 if current.locked && changes_pose {
                     return Err(ToolError::refused(format!("{key}: the device is locked.")));
                 }
+                moved |= changes_pose;
                 if current != desired {
                     tx.run(MoveDevice {
                         component: instance.into(),
@@ -533,6 +541,8 @@ impl BoardLayout {
             board: id,
             new_devices,
             regions: region_checks,
+            moved,
+            repair: self.repair,
             placement_baseline,
         })
     }
@@ -541,12 +551,17 @@ impl BoardLayout {
 fn changed_traces(before: &Project, after: &Project, id: BoardId) -> ToolResult<Vec<Value>> {
     let previous = board(before, id)?;
     let next = board(after, id)?;
+    let next_traces: BTreeMap<_, _> = next
+        .net_segments()
+        .values()
+        .flat_map(|segment| segment.traces().keys().map(move |uuid| (*uuid, segment)))
+        .collect();
     let mut changed = Vec::new();
-    for (id, segment) in previous.net_segments() {
-        let Some(next_segment) = next.net_segment(*id) else {
-            continue;
-        };
+    for segment in previous.net_segments().values() {
         for trace in segment.traces().values() {
+            let Some(next_segment) = next_traces.get(&trace.uuid()) else {
+                continue;
+            };
             let anchors = [trace.p1(), trace.p2()];
             if !anchors.into_iter().any(|anchor| match anchor {
                 TraceAnchor::FootprintPad { device, .. } => {
@@ -586,6 +601,19 @@ impl AppliedLayout {
         checkpoint: impl Fn() -> ToolResult<()> + Sync,
     ) -> ToolResult<LayoutReview> {
         let before = self.placement_baseline.as_ref().unwrap_or(source);
+        let repair = self
+            .repair
+            .map(|input| input.resolve(before, self.board, preview.revision, self.moved))
+            .transpose()?;
+        let cancelled = || checkpoint().is_err();
+        let trial = repair
+            .as_ref()
+            .filter(|request| self.moved && request.authorized())
+            .map(|request| request.run(before, proposed, self.board, cancelled))
+            .transpose();
+        checkpoint()?;
+        let trial = trial?;
+        let proposed = trial.as_ref().map_or(proposed, |trial| &trial.project);
         let traces = changed_traces(before, proposed, self.board)?;
         let mut original = ProjectEditor::new(before.snapshot()?);
         let mut updated = ProjectEditor::new(proposed.snapshot()?);
@@ -597,7 +625,6 @@ impl AppliedLayout {
                 tx.write_file(PATH, rules.asset()?)
             })?;
         }
-        let cancelled = || checkpoint().is_err();
         let baseline =
             capture_placement_state(&mut original, self.board, &BTreeSet::new(), &cancelled);
         checkpoint()?;
@@ -650,16 +677,42 @@ impl AppliedLayout {
                 blockers.push(format!("{} is outside its placement region", region["key"]));
             }
         }
+        let repair_evidence = if let Some(request) = repair {
+            if let Some(trial) = trial.as_ref() {
+                if !trial.routing.failed_requests.is_empty() {
+                    blockers
+                        .push("local routing could not reconnect every authorized branch".into());
+                }
+                Some(request.trial_evidence(before, proposed, self.board, trial)?)
+            } else if !self.moved {
+                Some(json!({"status":"placement_unchanged"}))
+            } else {
+                Some(request.proposals(
+                    before,
+                    proposed,
+                    self.board,
+                    preview.revision,
+                    &traces,
+                    &validation,
+                )?)
+            }
+        } else {
+            None
+        };
         let blocked = !blockers.is_empty();
         validation.acceptable = !blocked;
         preview.review_board(self.board, source, proposed, blockers.clone())?;
-        Ok(LayoutReview {
-            evidence: json!({
-                "board":self.board, "applicable":!blocked,"blockers":blockers,
-                "regions":self.regions,"new_devices":self.new_devices,"changed_traces":traces,
-                "unrouted_after":opened,"validation":validation,
-            }),
-            blocked,
-        })
+        let mut evidence = json!({
+            "board":self.board, "applicable":!blocked,"blockers":blockers,
+            "regions":self.regions,"new_devices":self.new_devices,"changed_traces":traces,
+            "unrouted_after":opened,"validation":validation,
+        });
+        if let Some(repair) = repair_evidence {
+            evidence["repair"] = repair;
+        }
+        if let Some(trial) = trial {
+            preview.append_board_routing(trial.mutations);
+        }
+        Ok(LayoutReview { evidence, blocked })
     }
 }

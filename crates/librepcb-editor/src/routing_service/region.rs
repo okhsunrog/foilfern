@@ -57,6 +57,33 @@ impl RegionalRepairProposal {
         editable: &BTreeSet<NetSignalId>,
         max_objects: usize,
     ) -> Result<Vec<Self>> {
+        let mut proposals =
+            Self::suggest_in_scope(project, board, bounds, blockers, editable, max_objects)?;
+        proposals.retain(|proposal| proposal.net != target);
+        Ok(proposals)
+    }
+
+    /// Expand exact placement conflicts and moved pad traces into replacement branches.
+    pub fn for_placement(
+        project: &Project,
+        board: &Board,
+        bounds: RoutingBounds,
+        blockers: &[RoutingObject],
+        editable: &BTreeSet<NetSignalId>,
+    ) -> Result<Vec<Self>> {
+        let mut proposals = Self::suggest_in_scope(project, board, bounds, blockers, editable, 16)?;
+        proposals.retain(|proposal| proposal.branch.is_some());
+        Ok(proposals)
+    }
+
+    fn suggest_in_scope(
+        project: &Project,
+        board: &Board,
+        bounds: RoutingBounds,
+        blockers: &[RoutingObject],
+        editable: &BTreeSet<NetSignalId>,
+        max_objects: usize,
+    ) -> Result<Vec<Self>> {
         let region = bounds.region()?;
         let items = copper(project, board)?;
         let requirements = Requirements::load(project)?;
@@ -72,7 +99,7 @@ impl RegionalRepairProposal {
             let Some(item) = eligible(&object.uuid) else {
                 continue;
             };
-            let Some(net) = item.net.filter(|net| *net != target) else {
+            let Some(net) = item.net else {
                 continue;
             };
             let Some(segment) = board.net_segment(item.segment) else {
@@ -129,30 +156,10 @@ impl RegionalRepairProposal {
                     existing.blockers.push(object.uuid);
                 }
             } else {
-                let mut ends = BTreeMap::new();
-                for id in &traces {
-                    let item = &items[id];
-                    let Geometry::Trace { trace, endpoints } = &item.geometry else {
-                        continue;
-                    };
-                    for (anchor, position) in [trace.p1(), trace.p2()].into_iter().zip(endpoints) {
-                        let (count, _) = ends.entry(anchor).or_insert((0, *position));
-                        *count += 1;
-                    }
-                }
-                let anchors: Vec<_> = ends
-                    .into_iter()
-                    .filter_map(|(anchor, (count, position))| match anchor {
-                        TraceAnchor::Via(via) if vias.contains(&via) => None,
-                        TraceAnchor::Junction(_) if count == segment.traces_at(anchor).count() => {
-                            None
-                        }
-                        _ => Some((anchor, position)),
-                    })
-                    .collect();
+                let selected = traces.union(&vias).copied().collect();
+                let anchors = branch_anchors(&items, segment, &selected);
                 let branch = if let [(a, _), (b, _)] = anchors.as_slice() {
                     let pair = [*a, *b];
-                    let selected = traces.union(&vias).copied().collect();
                     retained_branch(&items, board, &selected, pair).map(|_| pair)
                 } else {
                     None
@@ -170,6 +177,31 @@ impl RegionalRepairProposal {
         proposals.sort_by_key(|proposal| proposal.traces.len() + proposal.vias.len());
         Ok(proposals)
     }
+}
+
+/// Find the original retained anchors of a selection, on the staged geometry.
+pub(super) fn branch_anchors(
+    items: &BTreeMap<Uuid, Copper>,
+    segment: &librepcb_core::project::board::BoardNetSegment,
+    selected: &BTreeSet<Uuid>,
+) -> Vec<(TraceAnchor, Point)> {
+    let mut ends = BTreeMap::new();
+    for id in selected {
+        let Geometry::Trace { trace, endpoints } = &items[id].geometry else {
+            continue;
+        };
+        for (anchor, position) in [trace.p1(), trace.p2()].into_iter().zip(endpoints) {
+            let (count, _) = ends.entry(anchor).or_insert((0, *position));
+            *count += 1;
+        }
+    }
+    ends.into_iter()
+        .filter_map(|(anchor, (count, position))| match anchor {
+            TraceAnchor::Via(via) if selected.contains(&via) => None,
+            TraceAnchor::Junction(_) if count == segment.traces_at(anchor).count() => None,
+            _ => Some((anchor, position)),
+        })
+        .collect()
 }
 
 pub(super) fn check_rip_up_permissions(
@@ -225,6 +257,10 @@ pub(crate) struct Copper {
 }
 
 impl Copper {
+    pub(super) fn segment(&self) -> NetSegmentId {
+        self.segment
+    }
+
     pub(super) fn net(&self) -> Option<NetSignalId> {
         self.net
     }

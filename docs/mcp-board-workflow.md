@@ -132,7 +132,9 @@ custom `outline`, then rebuild planes.
 Use [`design_preview` with `board_layout`](mcp-design.md#declarative-board-placement)
 to place a group at explicit coordinates or relative to device pads.
 Lock mechanically constrained parts and review DRC and any copper changes
-before applying. Use `device_place` for individual placements or
+before applying. On a routed board, add `board_layout.repair` to see
+eligible local branches and explicitly authorize the UUIDs for replacement
+within the same placement preview. Use `device_place` for individual placements or
 `device_auto_place` to seed positions for the remaining components. Inspect
 `board_get` and `render` before routing. Automatic placement is a starting
 point. Decoupling, return paths, thermal layout and sensitive signals need

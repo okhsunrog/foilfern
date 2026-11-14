@@ -27,6 +27,7 @@ use crate::routing_validation::{
 mod comparison;
 mod copper;
 mod placement;
+mod placement_repair;
 pub(crate) mod region;
 mod repair_search;
 mod staged;
@@ -38,6 +39,7 @@ pub use placement::{
     PlacementComparison, PlacementJob, PlacementRequest, PlacementResults, PlacementSearchStatus,
     PlacementSites, PlacementTarget, PlacementTrace, PlacementVia,
 };
+pub use placement_repair::{PlacementRepair, PlacementRepairTrial};
 pub use region::{RegionalRepairProposal, RegionalRoutingRequest};
 pub use repair_search::{
     RepairLaunch, RepairLaunchFailure, RepairLaunchSearch, RepairSearchJob, RepairSearchRequest,
@@ -390,6 +392,23 @@ impl RoutingJob {
     }
 }
 
+/// Collects the exact forward mutations from a disposable routing sandbox.
+pub(super) fn freeze_mutations(mut sandbox: ProjectEditor) -> Result<Vec<Mutation>, RoutingError> {
+    let mut groups = Vec::new();
+    let mut count = 0;
+    while sandbox.undo()? {
+        let group = sandbox.undo_stack().redo_mutations()?;
+        count += group.len();
+        if count > MAX_CANDIDATE_MUTATIONS {
+            return Err(RoutingError::Refused(
+                "Candidate mutation limit exceeded.".into(),
+            ));
+        }
+        groups.push(group);
+    }
+    Ok(groups.into_iter().rev().flatten().collect())
+}
+
 fn rebuild_connectivity(editor: &mut ProjectEditor, board: BoardId) -> Result<(), RoutingError> {
     editor
         .update_derived_data(|project| project.rebuild_planes(board, None))?
@@ -461,26 +480,14 @@ impl RoutingSource {
             project,
             base_revision,
             source_context,
-            mut sandbox,
+            sandbox,
             baseline_reused,
             ..
         } = self;
         let validation = details.validate(&before, &after);
         // Undo on the private sandbox exposes exact forward mutations.
         // A compound candidate can produce multiple entries.
-        let mut groups = Vec::new();
-        let mut count = 0;
-        while sandbox.undo()? {
-            let group = sandbox.undo_stack().redo_mutations()?;
-            count += group.len();
-            groups.push(group);
-        }
-        if count > MAX_CANDIDATE_MUTATIONS {
-            return Err(RoutingError::Refused(
-                "Candidate mutation limit exceeded.".into(),
-            ));
-        }
-        let mutations: Vec<_> = groups.into_iter().rev().flatten().collect();
+        let mutations = freeze_mutations(sandbox)?;
         Ok(RoutingCandidate {
             owner,
             source_context,

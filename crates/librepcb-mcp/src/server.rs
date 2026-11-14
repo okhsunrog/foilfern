@@ -1410,7 +1410,7 @@ impl LibrePcbMcp {
     // --- Declarative design updates ----------------------------------------------
 
     #[tool(
-        description = "Preview a version 1 design document for schematic edits, board placement or both. Board placement reports pose diffs, DRC, connectivity and saved requirements. Create a sheet, nets and parts, manage fields, find a clear field position with place_text, place selected blocks and draw local wire paths. Reports ERC changes, affected board objects, schematic requirements and reviewed annotation overlaps."
+        description = "Preview a version 1 design document for schematic edits, board placement or both. Board placement reports pose diffs, DRC, connectivity and saved requirements. Use board_layout.repair to propose local copper replacements and preview explicitly authorized branches with the placement. Schematic edits include nets, parts, fields, blocks and local wire paths, with ERC and annotation review."
     )]
     async fn design_preview(
         &self,

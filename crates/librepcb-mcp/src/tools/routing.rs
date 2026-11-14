@@ -292,7 +292,7 @@ impl PlaneProbes {
     }
 }
 
-fn routing_error(error: RoutingError) -> ToolError {
+pub(super) fn routing_error(error: RoutingError) -> ToolError {
     match error {
         RoutingError::Editor(e) => e.into(),
         error @ (RoutingError::NotFound(_)
@@ -1125,7 +1125,7 @@ pub struct RoutingEditRouteArgs {
 }
 
 impl RoutingEditRouteArgs {
-    fn command(
+    pub(super) fn command(
         self,
         project: &Project,
         board: librepcb_core::project::BoardId,
@@ -1163,7 +1163,7 @@ pub struct RoutingRegionArgs {
 }
 
 impl RoutingRegionArgs {
-    fn bounds(&self) -> ToolResult<librepcb_editor::commands::RoutingBounds> {
+    pub(super) fn bounds(&self) -> ToolResult<librepcb_editor::commands::RoutingBounds> {
         let min = self.min.to_point()?;
         let max = self.max.to_point()?;
         if min.x >= max.x || min.y >= max.y {

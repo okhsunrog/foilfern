@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `40`). Its `build` object contains
+`api_capability_version` (currently `41`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -512,6 +512,43 @@ expected air wires. The check still blocks increased gaps among the
 previously placed terminals of any existing net, new DRC errors, courtyard
 conflicts and failed hard rules. Use `unrouted_after` to see the total
 remaining connections, including new devices.
+
+Use `board_layout.repair` to inspect or replace local copper on a board
+with existing routes. Pass a routing rectangle in `region`, an optional
+smaller `edit_region`, and the net names or UUIDs in `editable_nets`.
+The first preview lists `repair.proposals` based on exact copper clearance
+findings and traces that follow moved pads. Each proposal identifies its
+blockers, retained anchors and the copper UUIDs in `branch`.
+`repair.unresolved_blockers` identifies copper without an eligible
+proposal and reports its net and reason.
+
+```json
+{
+  "region": {"min":{"x":7,"y":9},"max":{"x":21,"y":17}},
+  "editable_nets": ["LINK"]
+}
+```
+
+The caller can revise the pose, discard the preview or resubmit the
+document with the preview's `base_revision` as `repair.expected_revision`
+and selected proposal lists as `repair.branches`, for example
+`"branches":[["<trace UUID>","<via UUID>","<trace UUID>"]]`. A caller may
+also specify its own exact lists. Each list must be a simple branch
+between two retained anchors. List every incident trace when removing a
+via. The request accepts up to eight disjoint branches with 1–16 objects
+each. The builtin router reconnects those anchors using the final pad
+positions and uses the saved rules. Optional `repair.route` accepts the
+builtin settings for explicit copper continuation, with nets inferred
+from the branches. Use the design preview budget and cancellation for the
+whole operation.
+
+The routed preview reports removed and added copper under `repair`.
+Unlisted routing copper on the staged board is preserved, including any
+pad endpoint changes already required by the proposed placement.
+Full board checks reject failed branches, new errors, new connectivity
+gaps, courtyard conflicts and hard rule violations. Repairs run only when
+an existing device changes pose. Replaying an applied pose skips the
+already completed copper replacement.
 
 Use `design_apply` with the preview ID. The exact patch is tied to the
 reviewed revision and goes into one undo entry. After save and reopen, an

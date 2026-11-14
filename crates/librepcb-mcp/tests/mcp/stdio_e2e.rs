@@ -459,7 +459,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 40);
+    assert_eq!(info["api_capability_version"], 41);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -4086,5 +4086,81 @@ async fn stdio_declarative_board_placement_reviews_and_replays_one_patch() {
         json!(["board requirement preserve-branch"])
     );
     assert_eq!(call_ok(&client, "board_get", json!({})).await, moved);
+
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, routed);
+    let history = call_ok(&client, "history", json!({})).await;
+    let mut repair = json!({"version":1,"board_layout":{
+        "placements":{"R2":{"position":{"x":x+0.1,"y":current["y"]},"expected":{"position":current}}},
+        "repair":{"region":{"min":{"x":7,"y":9},"max":{"x":21,"y":17}},"editable_nets":["LINK"]}
+    }});
+    let review = call_ok(&client, "design_preview", repair.clone()).await;
+    assert_eq!(review["board_layout"]["applicable"], false);
+    let proposals = review["board_layout"]["repair"]["proposals"]
+        .as_array()
+        .unwrap();
+    assert!(!proposals.is_empty(), "{review:#}");
+    let blocker = crowded["board_layout"]["validation"]["new_errors"][0]["objects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|o| o["kind"] == "via")
+        .unwrap();
+    let proposal = proposals
+        .iter()
+        .find(|proposal| {
+            proposal["branch"]
+                .as_array()
+                .unwrap()
+                .contains(&blocker["uuid"])
+        })
+        .expect("the actual via blocker has a two-anchor repair");
+    assert_eq!(proposals[0], *proposal);
+    repair["board_layout"]["repair"]["expected_revision"] = review["base_revision"].clone();
+    repair["board_layout"]["repair"]["branches"] = json!([proposal["branch"]]);
+    let mut incomplete = repair.clone();
+    incomplete["board_layout"]["repair"]["branches"] = json!([[blocker["uuid"]]]);
+    let refused = call(&client, "design_preview", incomplete).await;
+    assert_eq!(
+        refused.structured_content.unwrap()["error"]["kind"],
+        "invalid_argument"
+    );
+    let mut protected = repair.clone();
+    protected["board_layout"]["requirements"] = json!([{
+        "id":"keep-via","source":"Review","severity":"hard",
+        "check":{"kind":"protected_copper","object":blocker["uuid"]}
+    }]);
+    let refused = call(&client, "design_preview", protected).await;
+    assert_eq!(
+        refused.structured_content.unwrap()["error"]["kind"],
+        "refused"
+    );
+    let mut stale_repair = repair.clone();
+    stale_repair["board_layout"]["repair"]["expected_revision"] = json!(0);
+    let refused = call(&client, "design_preview", stale_repair).await;
+    assert_eq!(
+        refused.structured_content.unwrap()["error"]["kind"],
+        "stale_revision"
+    );
+    let fixed = call_ok(&client, "design_preview", repair.clone()).await;
+    assert_eq!(fixed["board_layout"]["applicable"], true, "{fixed:#}");
+    let evidence = &fixed["board_layout"]["repair"];
+    assert_eq!(evidence["removed"], proposal["branch"]);
+    assert!(!evidence["added"].as_array().unwrap().is_empty());
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, routed);
+    call_ok(&client, "design_apply", json!({"preview":fixed["preview"]})).await;
+    let repaired = call_ok(&client, "board_get", json!({})).await;
+    assert_eq!(repaired["air_wires"], json!([]));
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, routed);
+    call_ok(&client, "redo", json!({})).await;
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, repaired);
+    let repeated = call_ok(&client, "design_preview", repair).await;
+    assert_eq!(repeated["diff"], json!([]));
+    assert_eq!(
+        repeated["board_layout"]["repair"]["status"],
+        "placement_unchanged"
+    );
     client.cancel().await.unwrap();
 }

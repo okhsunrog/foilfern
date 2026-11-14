@@ -32,7 +32,7 @@ because its tools exist or one board has zero air wires.
 | --- | --- | --- | --- |
 | P0 | Identifiable builds, concise responses and measured operation costs | Existing API | Complete; [release replay](benchmarks/esp-pd-sink/review/performance/p0/REPORT.md) |
 | P1 | Declarative schematic and board updates which preserve manual work | P0 evidence conventions; P1a transaction foundation | In progress; creation, local rewiring, reviewed topology edits and board placement implemented |
-| P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | In progress; schematic requirements and apply gate implemented, board requirements next |
+| P2 | Persisted requirements with explicit enforcement and evidence | P0; shared identity decisions with P1 | In progress; schematic and board requirements implemented |
 | P3 | Bounded long operations with progress and cancellation | P0 timing; existing candidate lifecycle | In progress; schematic preview, local repair and placement searches report status, budgets and cancellation |
 | P4 | Diagnosed local repair with bounded placement alternatives | P2, P3 | In progress; authorized branch repair and region-based placement trials implemented |
 | P5 | Visual candidate review in the desktop editor | Existing candidates; P2/P4 extend the displayed evidence | Planned |
@@ -346,6 +346,11 @@ its copper in a snapshot. Diagnosis can also use rejected trials to propose
 branches from exact DRC blockers and report new neighbor gaps. The fresh
 36-device ESP32-C3 board supplies two additional acceptance gaps
 (GPIO7 and UART_RX).
+
+Declarative board placement can also propose local branch repairs from
+the placement's DRC conflicts and moved pad attachments. After exact
+UUID authorization, the router uses the same retained anchors at their
+final positions and the design preview checks the composed patch.
 
 Done when:
 

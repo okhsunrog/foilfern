@@ -155,6 +155,13 @@ impl DesignPreview {
         &self.requirement_findings
     }
 
+    /// Includes the exact mutations from a detached routing trial in the
+    /// reviewed design patch. The trial starts from the proposed board.
+    pub fn append_board_routing(&mut self, mutations: Vec<Mutation>) {
+        self.operations
+            .extend(mutations.into_iter().map(Operation::Mutation));
+    }
+
     /// Binds a board placement review to the exact patch and requirements.
     pub fn review_board(
         &mut self,
