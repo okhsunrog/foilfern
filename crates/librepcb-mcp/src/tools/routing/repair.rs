@@ -8,10 +8,10 @@ use librepcb_core::project::{BoardId, NetSegmentId, NetSignalId, Project};
 use librepcb_core::types::{Length, PositiveLength, Uuid};
 use librepcb_editor::commands::autoroute::{
     AccessBlocker, Autoroute, ExtractedProblem, RoutingConnection, RoutingObject,
-    RoutingSearchBlocker, UnroutedAirWire, diagnose_access,
+    RoutingObjectKind, RoutingSearchBlocker, UnroutedAirWire, diagnose_access,
 };
 use librepcb_editor::routing_service::{
-    RegionalRepairProposal, RoutingCandidateDetails, RoutingService,
+    RegionalRepairProposal, RepairLaunch, RoutingCandidateDetails, RoutingService,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -37,7 +37,7 @@ pub struct RepairArgs {
     pub editable_nets: Vec<String>,
     /// Optional builtin, staged or additive copper continuation candidate with search_evidence.
     pub evidence_candidate: Option<String>,
-    /// Finished additive escape search from this board and revision.
+    /// Finished repair search from this board, net and revision.
     pub evidence_search: Option<String>,
     /// Max number of existing traces and vias in one suggestion, 1–16 (default 8).
     pub max_objects: Option<usize>,
@@ -120,6 +120,18 @@ fn copper_segments(board: &Board, net: NetSignalId) -> BTreeMap<TraceAnchor, Net
     segments
 }
 
+fn launch_request(launch: &RepairLaunch) -> Value {
+    let (component, pad) = launch.from;
+    json!({
+        "from": {"component":component,"pad":pad},
+        "layer": launch.layer.id(),
+        "position": crate::views::point(launch.position),
+        "width": launch.width.to_mm(),
+        "drill": launch.drill.map(|drill| drill.to_mm()),
+        "size": launch.size.map(|size| size.to_mm()),
+    })
+}
+
 pub(super) fn suggest(
     project: &Project,
     board: &Board,
@@ -194,10 +206,12 @@ pub(super) fn suggest(
     let mut continuation_failures = Vec::new();
     let mut escape_sites = Vec::new();
     let mut escape_blockers = Vec::new();
+    let mut validation_failures = Vec::new();
+    let mut validation_blockers = Vec::new();
     if let Some(id) = &args.evidence_search {
         let id = crate::resolve::required_uuid(id, "repair search")?;
-        let failures = service
-            .repair_launch_failures(project, board.id(), net, id)
+        let (failures, trials) = service
+            .repair_search_evidence(project, board.id(), net, id)
             .map_err(super::routing_error)?;
         let segments = copper_segments(board, net);
         let same_branch = |a, b| {
@@ -244,18 +258,86 @@ pub(super) fn suggest(
             }
             escape_blockers.push(blockers.clone());
             escape_sites.push(json!({
-                "target_launch": {
-                    "from": {"component":component,"pad":pad},
-                    "layer": launch.layer.id(),
-                    "position": crate::views::point(launch.position),
-                    "width": launch.width.to_mm(),
-                    "drill": launch.drill.map(|drill| drill.to_mm()),
-                    "size": launch.size.map(|size| size.to_mm()),
-                },
+                "target_launch": launch_request(launch),
                 "reason":wire.reason,
                 "soft_reason":wire.soft_reason,
                 "blockers":blockers,
             }));
+        }
+        // A report for an explicit/generated launch is relevant to this
+        // connection only when the launch lies on one of its source branches.
+        let source_copper: BTreeSet<_> = board
+            .net_segments()
+            .values()
+            .flat_map(|segment| segment.traces().keys().chain(segment.vias().keys()))
+            .copied()
+            .collect();
+        for (index, trial) in trials.iter().enumerate() {
+            if validation_failures.len() == MAX_PROPOSALS {
+                break;
+            }
+            let Some(validation) = &trial.validation else {
+                continue;
+            };
+            if !validation.after.complete || validation.acceptable {
+                continue;
+            }
+            if connections.len() != 1 {
+                let Some(launch) = &trial.target_launch else {
+                    continue;
+                };
+                let origin = TraceAnchor::FootprintPad {
+                    device: launch.from.0.0,
+                    pad: launch.from.1,
+                };
+                let touches =
+                    |ids: [TraceAnchor; 2]| ids.into_iter().any(|a| same_branch(a, origin));
+                if !touches(native_anchors)
+                    || connections
+                        .iter()
+                        .filter(|ids| touches(ids.map(|id| extracted.terminal_anchors[id.0])))
+                        .take(2)
+                        .count()
+                        != 1
+                {
+                    continue;
+                }
+            }
+            let found: Vec<_> = validation
+                .new_errors
+                .iter()
+                .filter(|finding| !finding.objects.is_empty())
+                .take(MAX_PROPOSALS)
+                .collect();
+            let mut blockers = Vec::new();
+            for object in found.iter().flat_map(|finding| &finding.objects) {
+                if matches!(
+                    object.kind,
+                    RoutingObjectKind::Trace | RoutingObjectKind::Via
+                ) && source_copper.contains(&object.uuid)
+                    && !trial.rip_up.contains(&object.uuid)
+                {
+                    if !validation_blockers.contains(object) {
+                        validation_blockers.push(*object);
+                    }
+                    if !blockers.contains(&object.uuid) {
+                        blockers.push(object.uuid);
+                    }
+                }
+            }
+            if !found.is_empty() || !validation.unrouted_regression_details.is_empty() {
+                validation_failures.push((
+                    blockers,
+                    json!({
+                        "trial": index,
+                        "strategy": trial.strategy,
+                        "rip_up": trial.rip_up,
+                        "target_launch": trial.target_launch.as_ref().map(launch_request),
+                        "clearance_conflicts": found,
+                        "unrouted_regressions": validation.unrouted_regression_details,
+                    }),
+                ));
+            }
         }
     }
     let staged_project = evidence
@@ -321,6 +403,7 @@ pub(super) fn suggest(
     let blockers: Vec<_> = probe_blockers
         .iter()
         .chain(&search_blockers)
+        .chain(&validation_blockers)
         .copied()
         .collect();
     let mut proposals = RegionalRepairProposal::suggest(
@@ -334,10 +417,13 @@ pub(super) fn suggest(
     )?;
     if evidence_board.is_some() || args.evidence_search.is_some() {
         proposals.sort_by_key(|proposal| {
-            !proposal
-                .blockers
-                .iter()
-                .any(|id| search_blockers.iter().any(|object| object.uuid == *id))
+            let has = |objects: &[RoutingObject]| {
+                proposal
+                    .blockers
+                    .iter()
+                    .any(|id| objects.iter().any(|object| object.uuid == *id))
+            };
+            (!has(&validation_blockers), !has(&search_blockers))
         });
     }
     let proposal_count = proposals.len();
@@ -412,6 +498,14 @@ pub(super) fn suggest(
                         .collect::<Vec<_>>()
                 );
             }
+            let next_trials: Vec<_> = validation_failures
+                .iter()
+                .filter(|(blockers, _)| proposal.blockers.iter().any(|id| blockers.contains(id)))
+                .map(|(_, failure)| &failure["trial"])
+                .collect();
+            if !next_trials.is_empty() {
+                result["addresses_clearance_in_trials"] = json!(next_trials);
+            }
             if let Some(pair) = proposal.branch {
                 let anchor = |anchor| match anchor {
                     TraceAnchor::Junction(id) => json!({"junction":id}),
@@ -443,6 +537,15 @@ pub(super) fn suggest(
     }
     if args.evidence_search.is_some() {
         out["escape_sites"] = json!(escape_sites);
+        out["validation_failures"] = json!(
+            validation_failures
+                .into_iter()
+                .map(|(blockers, mut failure)| {
+                    failure["source_copper"] = json!(blockers);
+                    failure
+                })
+                .collect::<Vec<_>>()
+        );
     }
     Ok(out)
 }

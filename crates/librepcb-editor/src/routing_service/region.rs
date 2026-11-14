@@ -409,6 +409,25 @@ pub(super) fn ensure_preserved_copper(
     Ok(())
 }
 
+pub(super) fn select_copper(
+    board: &Board,
+    copper: &BTreeMap<Uuid, Copper>,
+    selected: &BTreeSet<Uuid>,
+) -> Result<BoardSelection> {
+    let mut selection = BoardSelection::default();
+    for &id in selected {
+        let item = copper
+            .get(&id)
+            .ok_or_else(|| Error::not_found("Trace or via", id))?;
+        if item.is_via() {
+            item.select_via(id, board, selected, &mut selection)?;
+        } else {
+            item.select_trace(id, &mut selection);
+        }
+    }
+    Ok(selection)
+}
+
 pub(super) struct RipUp {
     pub(super) board: BoardId,
     pub(super) selection: BoardSelection,
@@ -485,7 +504,6 @@ impl RegionalRoutingRequest {
         let selected: BTreeSet<_> = self.rip_up.iter().copied().collect();
         check_rip_up_permissions(project, board_id, &selected)?;
         let before = copper(project, board)?;
-        let mut selection = BoardSelection::default();
         for uuid in &selected {
             let item = before
                 .get(uuid)
@@ -507,16 +525,11 @@ impl RegionalRoutingRequest {
                 ))
                 .into());
             }
-            if item.is_via() {
-                item.select_via(*uuid, board, &selected, &mut selection)?;
-            } else {
-                item.select_trace(*uuid, &mut selection);
-            }
         }
         if !selected.is_empty() {
             editor.execute(RipUp {
                 board: board_id,
-                selection,
+                selection: select_copper(board, &before, &selected)?,
             })?;
         }
         let revision = editor.project().revision();

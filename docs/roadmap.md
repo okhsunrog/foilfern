@@ -334,7 +334,11 @@ change count. The worker generates escape sites from the pad and compares
 routes over user-authorized branches. Diagnosis can reuse failed additive
 searches to link those sites with the neighboring branches that blocked
 them. The operator can select a site and authorize each branch in a new
-repair request. Board-level requirement persistence remains tracked in P2.
+repair request. For each permitted group, generated launch screening now runs after removing
+its copper in a snapshot. Diagnosis can also use rejected trials to propose
+branches from exact DRC blockers and report new neighbor gaps. The fresh
+36-device ESP32-C3 board supplies two additional acceptance gaps
+(GPIO7 and UART_RX).
 
 Done when:
 

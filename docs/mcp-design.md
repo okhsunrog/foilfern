@@ -1019,16 +1019,24 @@ candidate's copper to the failed continuation's anchors, such as a new
 escape via, and reports matching attempts in `continuation_failures`.
 Ambiguous matches are omitted.
 
-Alternatively, set `repair.evidence_search` to the UUID of the current
-finished additive `routing_repair_start` search on the same board revision
-and target net. In that search, use `target_launch_search`, omit `groups`
-and enable `route.search_evidence`. Diagnosis follows failed continuations
-from the generated vias back to the requested air wire. Its `escape_sites`
-array contains matching failures, sampled blocker UUIDs and a
-`target_launch` in board millimeters ready to reuse in a new repair
-request. Each proposal's `escape_sites` array indexes those failures
-starting at zero. The operator can choose a launch and authorize specific
-groups with `neighbor_anchors`, choose other combinations, or apply no edit.
+Alternatively, set `repair.evidence_search` to the UUID of a finished
+`routing_repair_start` search on the same board revision and target net.
+For additive searches with `target_launch_search` and `route.search_evidence`,
+diagnosis follows failed continuations from the generated vias back to the
+requested air wire. Its `escape_sites` array contains matching failures,
+sampled blocker UUIDs and a `target_launch` in board millimeters ready to
+reuse in a new request. A proposal's `escape_sites` indexes this array.
+
+For repairs rejected by whole-board validation, `validation_failures`
+reports the failed trial's strategy, removals, launch if present, exact
+copper-pair clearance findings and any sampled new gaps on neighboring
+nets. `source_copper` lists the traces and vias in those conflicts that
+already exist in the live board and were outside the trial's removal list.
+A proposal's `addresses_clearance_in_trials` lists the zero-based trial
+indices for which it covers an existing blocker. It is a next scope to
+review. Use the conflict details to choose another exit if the conflicting
+geometry was generated during the failed trial, or authorize an additional
+branch if a fixed trace or via is eligible for replacement.
 
 Search evidence includes bounded samples at multiple locations and layers
 along a failed frontier. Proposals supported by continuation samples appear
@@ -1110,12 +1118,14 @@ Supply a target-net pad and its copper layer, for example
 `{"from":"U1.12","layer":"top","radius":1,"max_sites":6}`. Within the
 radius (at most 1.5 mm) the worker screens straight leads and through vias
 on a 0.025 mm site grid, using the target `route` dimensions after applying
-the builtin minimum rules. It keeps up to eight sites, shortest lead
-first. Screening uses source copper and native clearance thresholds.
-The worker tries the authorized groups and strategies for each site, then
-ranks candidates using the complete board checks and path requirements.
+the builtin minimum rules. For each trial group or pair of groups, it
+screens sites on a detached copy with those exact UUIDs removed, using
+native clearance thresholds. It keeps up to eight sites per group,
+shortest lead first, and cycles through the groups before trying their
+next sites. The worker tries the routing strategies and ranks candidates
+using the complete board checks and path requirements.
 With this option, omit `groups` and `rip_up_region` to try an additive
-continuation. The `launch_sites` status lists the sites that passed
+continuation. The `launch_sites` status lists the union of sites that passed
 screening even if no continuation succeeds. Each trial, choice,
 and preview identifies its exact `target_launch`.
 For blocked continuations, pass the finished `search` UUID as

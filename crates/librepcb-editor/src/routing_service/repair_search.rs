@@ -424,13 +424,13 @@ impl RoutingService {
     }
 
     /// Returns evidence only for a finished search on the unchanged source.
-    pub fn repair_launch_failures(
+    pub fn repair_search_evidence(
         &self,
         project: &Project,
         board: BoardId,
         target: NetSignalId,
         id: Uuid,
-    ) -> Result<Vec<RepairLaunchFailure>, RoutingError> {
+    ) -> Result<(Vec<RepairLaunchFailure>, Vec<RepairTrial>), RoutingError> {
         let search = self
             .repair_search
             .as_ref()
@@ -438,7 +438,7 @@ impl RoutingService {
             .ok_or(RoutingError::RepairSearchNotFound(id))?;
         if search.board != board || search.target != target {
             return Err(Error::InvalidArgument(
-                "The escape search is for a different board or target net.".into(),
+                "The repair search is for a different board or target net.".into(),
             )
             .into());
         }
@@ -454,10 +454,10 @@ impl RoutingService {
         let progress = search.progress.lock();
         if progress.stop.is_none() || progress.stop == Some(StopReason::Failed) {
             return Err(RoutingError::Refused(
-                "Use a finished escape search with checked trials.".into(),
+                "Use a finished repair search with checked trials.".into(),
             ));
         }
-        Ok(progress.launch_failures.clone())
+        Ok((progress.launch_failures.clone(), progress.trials.clone()))
     }
 
     pub fn cancel_repair_search(&self) {
@@ -767,8 +767,21 @@ impl RepairSearchJob {
     fn find_launch_sites(
         &self,
         search: &RepairLaunchSearch,
+        trial: &Trial,
     ) -> Result<Vec<RepairLaunch>, RoutingError> {
-        let project = self.source.sandbox.project();
+        let mut snapshot = None;
+        if !trial.rip_up.is_empty() {
+            let mut source = self.source.fork()?;
+            let project = source.sandbox.project();
+            let board = resolve_board(project, Some(self.state.board))?;
+            let copper = super::region::copper(project, board)?;
+            source.sandbox.execute(super::region::RipUp {
+                board: self.state.board,
+                selection: super::region::select_copper(board, &copper, &trial.rip_up)?,
+            })?;
+            snapshot = Some(source);
+        }
+        let project = snapshot.as_ref().unwrap_or(&self.source).sandbox.project();
         let board = resolve_board(project, Some(self.state.board))?;
         let target = self.state.target;
         let pad = self
@@ -1016,14 +1029,30 @@ impl RepairSearchJob {
         let strategies = self.request.strategies();
         let launches = if let Some(search) = &self.request.target_launch_search {
             self.state.phase(RepairSearchPhase::LaunchSites);
-            let sites = self.find_launch_sites(search)?;
+            let mut launches = Vec::new();
+            let mut sites = Vec::new();
+            for trial in &self.trials {
+                if self.state.stop().is_some() {
+                    break;
+                }
+                let trial_sites = self.find_launch_sites(search, trial)?;
+                for site in &trial_sites {
+                    if !sites
+                        .iter()
+                        .any(|other: &RepairLaunch| other.position == site.position)
+                    {
+                        sites.push(site.clone());
+                    }
+                }
+                launches.push(trial_sites.into_iter().map(Some).collect::<Vec<_>>());
+            }
             let mut progress = self.state.progress.lock();
-            progress.planned =
-                (self.trials.len() * strategies.len() * sites.len()).min(self.request.max_trials);
-            progress.launch_sites = Some(sites.clone());
-            sites.into_iter().map(Some).collect::<Vec<_>>()
+            let combinations = launches.iter().map(Vec::len).sum::<usize>() * strategies.len();
+            progress.planned = combinations.min(self.request.max_trials);
+            progress.launch_sites = Some(sites);
+            launches
         } else {
-            vec![self.request.target_launch.clone()]
+            vec![vec![self.request.target_launch.clone()]; self.trials.len()]
         };
         if let Some(reason) = self.state.stop() {
             return Ok(RepairSearchResults {
@@ -1032,15 +1061,20 @@ impl RepairSearchJob {
                 candidates,
             });
         }
-        let launches = &launches;
-        // Try every copper scope at the shortest site before moving to the
-        // next site. A tight budget can still reach a joint pair.
-        let trials = launches.iter().flat_map(|launch| {
-            self.trials.iter().flat_map(move |trial| {
-                strategies
-                    .iter()
-                    .map(move |&strategy| (trial, strategy, launch))
-            })
+        // Give each scope a chance at its best site before trying its
+        // second site. A tight budget can still reach a joint pair.
+        let max_sites = launches.iter().map(Vec::len).max().unwrap_or(0);
+        let trials = (0..max_sites).flat_map(|index| {
+            self.trials
+                .iter()
+                .zip(&launches)
+                .flat_map(move |(trial, sites)| {
+                    sites.get(index).into_iter().flat_map(move |launch| {
+                        strategies
+                            .iter()
+                            .map(move |&strategy| (trial, strategy, launch))
+                    })
+                })
         });
         for (i, (trial, strategy, launch)) in trials.enumerate() {
             if let Some(reason) = self.state.stop() {

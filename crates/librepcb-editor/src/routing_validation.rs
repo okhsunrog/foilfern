@@ -11,14 +11,15 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use librepcb_core::geometry::TraceAnchor;
 use librepcb_core::project::board::AirWire;
-use librepcb_core::project::board::drc::DrcMessageKind;
+use librepcb_core::project::board::drc::{DrcMessage, DrcMessageKind};
 use librepcb_core::project::board_requirements::Requirements;
 use librepcb_core::project::{BoardId, ComponentInstanceId, NetSignalId};
 use librepcb_core::rule_check::Severity;
-use librepcb_core::types::Uuid;
+use librepcb_core::types::{Layer, Uuid};
 use serde::{Deserialize, Serialize};
 
 use crate::board_requirements::{Finding, State};
+use crate::commands::autoroute::{RoutingObject, RoutingObjectKind};
 use crate::{ProjectEditor, Result, routing_stats};
 
 /// A full DRC snapshot of the actual board. Counts exclude approved messages.
@@ -40,6 +41,40 @@ pub struct RoutingDrcFinding {
     pub message: String,
     pub approval: String,
     pub copper: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub objects: Vec<RoutingObject>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub layers: Vec<Layer>,
+}
+
+fn copper_pair_objects(message: &DrcMessage) -> Vec<RoutingObject> {
+    if message.kind() != DrcMessageKind::CopperCopperClearanceViolation {
+        return Vec::new();
+    }
+    // Use the native, canonical object identifiers already attached by DRC.
+    use RoutingObjectKind as Kind;
+    message
+        .approval()
+        .children_named("object")
+        .filter_map(|object| {
+            let (kind, uuid) = [
+                ("trace/@0", Kind::Trace),
+                ("via/@0", Kind::Via),
+                ("pad/@0", Kind::Pad),
+                ("polygon/@0", Kind::Polygon),
+                ("circle/@0", Kind::Circle),
+                ("stroke_text/@0", Kind::StrokeText),
+            ]
+            .into_iter()
+            .find_map(|(path, kind)| object.child_value(path).ok().map(|uuid| (kind, uuid)))?;
+            Some(RoutingObject {
+                kind,
+                uuid,
+                device_uuid: object.child_value("device/@0").ok(),
+                pad_uuid: None,
+            })
+        })
+        .collect()
 }
 
 pub type RoutingError = RoutingDrcFinding;
@@ -244,6 +279,8 @@ pub(crate) fn capture_routing_state_with_cancel(
                         message: message.message().message().to_owned(),
                         approval,
                         copper,
+                        objects: copper_pair_objects(&message),
+                        layers: message.copper_layers().collect(),
                     },
                 );
             }

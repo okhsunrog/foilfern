@@ -294,6 +294,89 @@ async fn stdio_repair_search_deduplicates_groups_and_publishes_a_checked_candida
     assert_eq!(call_ok(&client, "board_get", json!({})).await, source);
 
     call_ok(&client, "design_rules_set", json!({"min_copper_width":0.2})).await;
+    // A neighboring trace crosses the only via search area. Its exact
+    // UUID must be authorized before any launch can be generated.
+    let blocker = call_ok(
+        &client,
+        "trace_add",
+        json!({
+            "from":{"x":4.2,"y":8.95},"to":{"x":5.8,"y":8.95},
+            "layer":"bottom","net":"B","width":0.9,
+        }),
+    )
+    .await;
+    let blocker = &blocker["traces"][0]["uuid"];
+    let source = call_ok(&client, "board_get", json!({})).await;
+    let history = call_ok(&client, "history", json!({})).await;
+    let mut request = json!({
+        "target":"A",
+        "region":{"min":{"x":2,"y":6},"max":{"x":17,"y":13}},
+        "target_launch_search":{"from":"R1.1","layer":"top","radius":0.8,"max_sites":1},
+        "route":{"via_drill":0.3,"via_size":0.6},
+    });
+    let started = call_ok(&client, "routing_repair_start", request.clone()).await;
+    let status = poll(started["search"].clone()).await;
+    assert_eq!(status["launch_sites"], json!([]), "{status:#}");
+    request["groups"] = json!([[blocker]]);
+    request["rip_up_region"] = json!({"min":{"x":3.5,"y":7},"max":{"x":6.5,"y":10}});
+    let started = call_ok(&client, "routing_repair_start", request).await;
+    let status = poll(started["search"].clone()).await;
+    assert_eq!(
+        status["launch_sites"].as_array().unwrap().len(),
+        1,
+        "{status:#}"
+    );
+    assert_eq!(status["trials"][0]["rip_up"], json!([blocker]));
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, source);
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    let region = json!({"min":{"x":2,"y":6},"max":{"x":17,"y":13}});
+    let edits = json!({"min":{"x":3.5,"y":7},"max":{"x":16,"y":12}});
+    let started = call_ok(
+        &client,
+        "routing_repair_start",
+        json!({
+            "target":"A","region":region,"rip_up_region":edits,
+            "groups":[[branch["uuid"]]],
+            "target_launch":{
+                "from":"R1.1","layer":"top","position":{"x":5,"y":8.4},
+                "width":0.2,"drill":0.3,"size":0.6
+            }
+        }),
+    )
+    .await;
+    let status = poll(started["search"].clone()).await;
+    assert_eq!(status["candidates"], json!([]), "{status:#}");
+    let diagnosed = call_ok(
+        &client,
+        "routing_diagnose",
+        json!({
+            "net":"A","repair":{
+                "region":region,"rip_up_region":edits,"editable_nets":["B"],
+                "evidence_search":started["search"]
+            }
+        }),
+    )
+    .await;
+    let repair = &diagnosed["repair"];
+    let failure = &repair["validation_failures"][0];
+    assert_eq!(
+        failure["source_copper"],
+        json!([blocker]),
+        "{repair:#}\n{status:#}"
+    );
+    assert_eq!(
+        failure["clearance_conflicts"][0]["layers"],
+        json!(["bot_cu"])
+    );
+    assert_eq!(repair["proposals"][0]["remove_traces"], json!([blocker]));
+    assert_eq!(
+        repair["proposals"][0]["addresses_clearance_in_trials"],
+        json!([0])
+    );
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, source);
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    call_ok(&client, "undo", json!({})).await;
+
     let arrival = call_ok(
         &client,
         "via_add",
@@ -376,7 +459,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 37);
+    assert_eq!(info["api_capability_version"], 38);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(

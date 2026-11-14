@@ -1221,7 +1221,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Inspect builtin rules, grid access and blockers for one net. With repair, suggest bounded copper changes on editable neighboring nets. Use repair.evidence_search with a finished additive escape search or repair.evidence_candidate with a prepared builtin continuation. Prepare and preview a proposal separately. Optionally attach a focused PNG."
+        description = "Inspect builtin rules, grid access and blockers for one net. With repair, suggest bounded copper changes on editable neighboring nets. Use repair.evidence_search with a finished repair search or repair.evidence_candidate with a prepared builtin continuation. Prepare and preview a proposal separately. Optionally attach a focused PNG."
     )]
     async fn routing_diagnose(
         &self,
