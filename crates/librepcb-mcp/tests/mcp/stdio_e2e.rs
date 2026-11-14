@@ -168,6 +168,46 @@ async fn stdio_repair_search_deduplicates_groups_and_publishes_a_checked_candida
     );
     call_ok(&client, "undo", json!({})).await;
     assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
+
+    let launch = |pad| json!({"from":pad,"layer":"top","radius":0.8,"max_sites":2});
+    let mut paired = json!({
+        "target":"A","groups":[[id]],
+        "region":{"min":{"x":3,"y":7},"max":{"x":17,"y":13}},
+        "rip_up_region":{"min":{"x":4,"y":8},"max":{"x":16,"y":12}},
+        "neighbor_region":{"min":{"x":3,"y":7},"max":{"x":17,"y":13}},
+        "joint_route":{"via_drill":0.3,"via_size":0.6,"layers":["top","bottom"]},
+        "target_launch_search":launch("R1.1"),
+        "neighbor_launch_search":launch("R2.1"),
+        "max_trials":2,
+    });
+    let invalid = call(&client, "routing_repair_start", paired.clone()).await;
+    assert_eq!(invalid.is_error, Some(true));
+    paired["neighbor_launch_search"] = launch("R1.2");
+    let started = call_ok(&client, "routing_repair_start", paired).await;
+    let status = poll(started["search"].clone()).await;
+    assert_eq!(status["completed_trials"], 2, "{status:#}");
+    for trial in status["trials"].as_array().unwrap() {
+        assert_eq!(trial["strategy"], "joint");
+        assert_eq!(trial["rip_up"], json!([id]));
+        assert_ne!(
+            trial["target_launch"]["position"],
+            trial["neighbor_launch"]["position"]
+        );
+    }
+    let choice = &status["candidates"][0];
+    let preview = call_ok(
+        &client,
+        "routing_preview",
+        json!({"candidate":choice["candidate"]}),
+    )
+    .await;
+    assert_eq!(
+        preview["repair"]["neighbor_launch"],
+        choice["neighbor_launch"]
+    );
+    assert_eq!(preview["validation"]["after"]["unrouted"], 0);
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
+
     call_ok(&client, "trace_remove", json!({"uuids":[id]})).await;
     call_ok(
         &client,

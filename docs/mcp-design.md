@@ -1273,6 +1273,24 @@ For blocked continuations, pass the finished `search` UUID as
 `routing_diagnose.repair.evidence_search` to inspect the corresponding
 neighboring copper before authorizing removals.
 
+For two pads competing for the same escape corridor, add
+`neighbor_launch_search` with the same fields and supply `joint_route`.
+The neighbor pad must belong to a different net with an authorized removal
+in the trial. Its group must allow ordinary continuation on that net, so
+omit exact `neighbor_anchors` for it. This mode runs joint trials only.
+Both site searches use the dimensions from `joint_route`. The neighbor
+lead must fit `neighbor_region` and clears the staged target lead and via.
+Sites on each pad are spaced apart so a small budget can explore different
+escapes. Each pair counts as one trial. Status and preview report the
+chosen coordinates as `target_launch` and `neighbor_launch`. The candidate
+still needs explicit application.
+
+In paired searches, a checked candidate can also discard vias created by
+the trial that DRC marks as useless. The worker checks the resulting board
+and pad-pair requirements again and reports any discarded IDs in
+`pruned_vias`. Existing vias require explicit authorization. A
+`UselessVia` finding includes its via UUID in `objects` for review.
+
 `trace_requirements` adds up to 16 hard requirements measured on each
 fully checked repair. Each entry names a pad pair under `path` and may
 specify `max_length_mm` and `max_layer_changes`. The anchored path must

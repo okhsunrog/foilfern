@@ -61,6 +61,8 @@ pub struct RepairSearchArgs {
     pub target_launch: Option<RepairLaunchArgs>,
     /// Generate and compare nearby pad-to-via leads. Mutually exclusive with target_launch.
     pub target_launch_search: Option<RepairLaunchSearchArgs>,
+    /// Also search for a pad-to-via lead on an authorized neighbor in joint trials.
+    pub neighbor_launch_search: Option<RepairLaunchSearchArgs>,
     pub expected_revision: Option<u64>,
 }
 
@@ -120,7 +122,7 @@ pub struct RepairLaunchArgs {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RepairLaunchSearchArgs {
-    /// Name of a target-net footprint pad, e.g. U1.12.
+    /// Name of a footprint pad, e.g. U1.12.
     pub from: crate::tools::trace_path::PadAddress,
     pub layer: String,
     /// Search radius in mm. Positive, at most 1.5 (default 1.0).
@@ -252,23 +254,21 @@ pub fn start(
             })
         })
         .transpose()?;
+    let resolve_launch_search = |search: RepairLaunchSearchArgs| -> ToolResult<_> {
+        Ok(RepairLaunchSearch {
+            from: crate::tools::trace_path::footprint_pad_id(project, native_board, &search.from)?,
+            layer: board_edit::copper_layer(&search.layer)?,
+            radius: board_edit::positive(search.radius.unwrap_or(1.0), "launch search radius")?,
+            max_sites: search.max_sites.unwrap_or(6),
+        })
+    };
     let target_launch_search = args
         .target_launch_search
-        .map(|search| -> ToolResult<_> {
-            Ok(RepairLaunchSearch {
-                from: crate::tools::trace_path::footprint_pad_id(
-                    project,
-                    native_board,
-                    &search.from,
-                )?,
-                layer: board_edit::copper_layer(&search.layer)?,
-                radius: board_edit::positive(
-                    search.radius.unwrap_or(1.0),
-                    "target_launch_search.radius",
-                )?,
-                max_sites: search.max_sites.unwrap_or(6),
-            })
-        })
+        .map(resolve_launch_search)
+        .transpose()?;
+    let neighbor_launch_search = args
+        .neighbor_launch_search
+        .map(resolve_launch_search)
         .transpose()?;
     let (status, job) = open
         .routing
@@ -285,6 +285,7 @@ pub fn start(
                 trace_requirements,
                 target_launch,
                 target_launch_search,
+                neighbor_launch_search,
                 max_objects: args.max_objects.unwrap_or(12),
                 max_trials: args.max_trials.unwrap_or(24),
                 max_candidates: args.max_candidates.unwrap_or(2),

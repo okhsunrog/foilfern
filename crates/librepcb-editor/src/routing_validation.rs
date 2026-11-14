@@ -87,6 +87,9 @@ pub fn drc_objects(message: &DrcMessage) -> Vec<RoutingObject> {
         DrcMessageKind::MinimumWidthViolation | DrcMessageKind::SilkscreenClearanceViolation => {
             parse(message.approval(), &graphics).into_iter().collect()
         }
+        DrcMessageKind::UselessVia => parse(message.approval(), &[("via/@0", Kind::Via)])
+            .into_iter()
+            .collect(),
         _ => Vec::new(),
     }
 }

@@ -23,7 +23,9 @@ use crate::result::{
 use crate::search::{DirFactors, NEUTRAL, Query, STEP, Search, SearchFailure, TURN_45};
 
 mod local_via;
-pub use local_via::{LocalViaBridge, LocalViaSite, find_escape_vias, find_local_via};
+pub use local_via::{
+    LocalViaBridge, LocalViaSite, find_escape_vias, find_local_via, find_spaced_escape_vias,
+};
 
 /// Default grid pitch (0.1 mm).
 const DEFAULT_PITCH: i64 = 100_000;

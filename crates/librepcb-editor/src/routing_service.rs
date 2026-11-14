@@ -173,13 +173,7 @@ impl RoutingCandidateDetails {
             Self::Regional { regional, .. } => regional
                 .improve_net
                 .is_none_or(|net| after.unrouted_for(net) < before.unrouted_for(net)),
-            Self::Repair { repair } => {
-                after.unrouted_for(repair.target) < before.unrouted_for(repair.target)
-                    && repair
-                        .trace_requirements
-                        .iter()
-                        .all(|check| check.after.met)
-            }
+            Self::Repair { repair } => repair.improves(before, after),
             _ => true,
         };
         let mut validation = RoutingValidation::compare_candidate(before, after);

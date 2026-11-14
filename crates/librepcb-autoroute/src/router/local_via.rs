@@ -45,6 +45,33 @@ pub fn find_escape_vias(
     max_sites: usize,
     cancelled: impl Fn() -> bool,
 ) -> Result<Vec<Point>> {
+    escape_vias(problem, net, anchor, radius, max_sites, cancelled, 0)
+}
+
+/// Sample distinct exits so a small joint budget explores different corridors.
+pub fn find_spaced_escape_vias(
+    problem: &RoutingProblem,
+    net: NetId,
+    anchor: (Point, Layer),
+    radius: PositiveLength,
+    max_sites: usize,
+    cancelled: impl Fn() -> bool,
+) -> Result<Vec<Point>> {
+    escape_vias(problem, net, anchor, radius, max_sites, cancelled, 150_000)
+}
+
+fn escape_vias(
+    problem: &RoutingProblem,
+    net: NetId,
+    anchor: (Point, Layer),
+    radius: PositiveLength,
+    max_sites: usize,
+    cancelled: impl Fn() -> bool,
+    spacing: i128,
+) -> Result<Vec<Point>> {
+    if max_sites == 0 {
+        return Ok(Vec::new());
+    }
     let router = Router::new(problem)?;
     let net = router
         .nets
@@ -64,19 +91,30 @@ pub fn find_escape_vias(
         (dx * dx + dy * dy, site.x, site.y)
     });
     let via_radius = router.rules.via_radius.ceil() as i64;
-    Ok(sites
-        .into_iter()
-        .take_while(|_| !cancelled())
-        .filter(|&p| {
-            p != from
-                && router.within_region(from, width)
-                && router.within_region(p, width.max(via_radius))
-                && router.local_via_clear(p, net)
-                && router.check_segment_strict(from, p, layer, net, width)
-        })
-        .take(max_sites)
-        .map(P::to_point)
-        .collect())
+    if !router.within_region(from, width) {
+        return Ok(Vec::new());
+    }
+    let mut selected: Vec<P> = Vec::new();
+    for p in sites.into_iter().take_while(|_| !cancelled()) {
+        if p == from || !router.within_region(p, width.max(via_radius)) {
+            continue;
+        }
+        let too_close = selected.iter().any(|other| {
+            let dx = i128::from(p.x) - i128::from(other.x);
+            let dy = i128::from(p.y) - i128::from(other.y);
+            dx * dx + dy * dy < spacing * spacing
+        });
+        if !too_close
+            && router.local_via_clear(p, net)
+            && router.check_segment_strict(from, p, layer, net, width)
+        {
+            selected.push(p);
+            if selected.len() == max_sites {
+                break;
+            }
+        }
+    }
+    Ok(selected.into_iter().map(P::to_point).collect())
 }
 
 impl Router<'_> {
