@@ -12,7 +12,7 @@ preview/apply revision checks, undo and native LibrePCB interoperability.
 | --- | --- | --- | --- |
 | A1 | Safe library search | Warn about ambiguous 0201/0402/0603 even with limit 1; explain that whole is textual, not dimensional. Later rank by verified dimensions and explicit unit convention, not name guesses. | Warning implemented; focused integration test and Clippy passed; dimension-based ranking remains planned |
 | A2 | Part identity and BOM | Declarative components accept manufacturer/MPN, supplier identity and attributes through editor mutations; preserve identities on reconciliation, undo and save/reopen. BOM without an explicit board selects the first board consistently; schematic-only projects still work. Test package, MPN and supplier fields end to end. | Implemented: board-default BOM and native instance part identity; stdio replay/save/reopen covered |
-| A3 | Resolve devices and pins | Device alone resolves its library component. Exact MPN/name lookup returns candidates and rejects ambiguous selections. One detail response exposes signals, named pads, footprint dimensions and model availability. UUIDs remain the stable persisted identity. | Planned |
+| A3 | Resolve devices and pins | Device alone resolves its library component. Exact MPN/name lookup returns candidates and rejects ambiguous selections. One detail response exposes signals, named pads, footprint dimensions and model availability. UUIDs remain the stable persisted identity. | Implemented: device-only creation, exact lookup and complete device/model details |
 | A4 | Import a concrete purchasable part | LCSC ID or exact MPN produces a reviewed native component/device/package/symbol bundle with pin mapping, MPN, supplier ID and available 3D assets. See the import stages below. | Priority after A2/A3 |
 | A5 | Partial library install and official KiCad discovery | One unresolved library does not discard successful independent requests; report per-item results and dependency failures. Discover official KiCad libraries explicitly and import a selected pinned source. | Planned |
 | A6 | Board placement review | Board-layout preview returns an image plus absolute pad positions after rotation/mirroring. Preview performs no mutation and preserves stale-source refusal. Connector orientation comes from explicit metadata or geometry with confidence, never a guessed direction. | Planned |
@@ -203,3 +203,22 @@ opt-in; all-target Clippy passed for both crates. The opt-in C8734 experiment
 converted 48 pins/pads/mappings and attached its actual STEP, then reopened all
 native library elements. Upstream CLI comparison and rendered alignment have not
 been verified; accepting a STEP file is not evidence of correct model alignment.
+
+### Delivered exact-ID MCP acquisition (A4)
+
+`part_import {lcsc:"C8734"}` acquires source and optional STEP, creates the native
+library/bundle in one transaction, rescans and returns complete device/component
+details plus a ready declarative device/part entry. It does not modify a project.
+`cache:"offline"` makes no HTTP requests; `require_model:true` refuses missing or
+invalid models. Missing optional models produce an explicit partial result.
+Repeated imports preserve native edits; changed source/model snapshots conflict
+instead of overwriting them. HTTP and CAD conversion run outside the session lock;
+installation refuses a switched workspace. Sources/model snapshots retain hashes
+and attribution. The CLI `call`/`batch` registry exposes the same tool.
+
+All 91 MCP integration tests passed plus all-target MCP/importer Clippy. A local
+HTTP test covers native library creation, offline replay, retained manual part
+edits, changed-source conflict and mandatory-model refusal. The opt-in live
+registry acceptance imported C8734 with 48 mappings and its actual STEP, then
+replayed offline with the same native UUID. Exact MPN acquisition, the remaining
+part corpus, rendered alignment and upstream CLI reopening remain pending.

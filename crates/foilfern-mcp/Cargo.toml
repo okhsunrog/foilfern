@@ -52,3 +52,4 @@ workspace = true
 rmcp = { version = "3.4.1", features = ["client", "transport-child-process", "transport-streamable-http-client-reqwest"] }
 tempfile = "3.27.0"
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "process"] }
+wiremock = "0.6.5"

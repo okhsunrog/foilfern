@@ -13,6 +13,7 @@ pub mod layout;
 pub mod library;
 pub mod mutation;
 pub mod output;
+pub mod part;
 pub mod project;
 pub mod requirements;
 pub mod schematic_edit;

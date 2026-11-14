@@ -41,6 +41,7 @@ use crate::tools::output::{
     DrcArgs, ErcArgs, ExportBomArgs, ExportFabricationArgs, ExportNetlistArgs, ExportPickPlaceArgs,
     JobsRunArgs, RenderArgs,
 };
+use crate::tools::part::{self, PartImportArgs};
 use crate::tools::project::{
     ProjectCloseArgs, ProjectCreateArgs, ProjectOpenArgs, ProjectSaveArgs, WorkspacePathArgs,
 };
@@ -55,7 +56,7 @@ use crate::tools::{
 
 /// Instructions sent to the client on initialization (the agent's
 /// workflow guide).
-pub const INSTRUCTIONS: &str = "LibrePCB MCP server: design schematics and PCBs end to end; \
+pub const INSTRUCTIONS: &str = "Foilfern MCP server: design schematics and PCBs end to end; \
 the files open in upstream LibrePCB. One workspace (libraries) and one project are open at a \
 time.\n\
 Check server_info for an open workspace and project before opening either. \
@@ -538,6 +539,27 @@ impl FoilfernMcp {
         Parameters(args): Parameters<LibraryImportArgs>,
     ) -> Result<CallToolResult, McpError> {
         self.run(move |s| import::library_import(s, args)).await
+    }
+
+    #[tool(
+        description = "Import an exact LCSC part (e.g. C8734) into a local workspace library: symbol, signal/pad mapping, footprint, MPN/manufacturer/LCSC and referenced STEP model. Returns complete device/component details and a ready add_component entry. Source snapshots support offline replay; existing native elements are preserved. Missing/invalid models produce an explicit partial result unless require_model=true."
+    )]
+    async fn part_import(
+        &self,
+        Parameters(args): Parameters<PartImportArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let target = match self.blocking(|s| part::target(s)).await {
+            Ok(target) => target,
+            Err(error) => return self.run(move |_| Err(error)).await,
+        };
+        let provider = match part::provider() {
+            Ok(provider) => provider,
+            Err(error) => return self.run(move |_| Err(error)).await,
+        };
+        match part::acquire(&target, args, provider).await {
+            Ok(acquired) => self.run(move |s| part::finish(s, target, acquired)).await,
+            Err(error) => self.run(move |_| Err(error)).await,
+        }
     }
 
     #[tool(

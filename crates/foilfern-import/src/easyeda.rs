@@ -256,8 +256,30 @@ impl NativePart {
     /// Writes all four objects through one native filesystem transaction.
     /// Existing element directories are refused to preserve manual edits.
     pub fn install(&mut self, library: &FilePath) -> Result<(), Error> {
+        self.install_with_library(library, None)
+    }
+
+    /// Optionally creates the containing library in the same transaction as
+    /// the four elements. A supplied library never replaces existing metadata.
+    pub fn install_with_library(
+        &mut self,
+        library: &FilePath,
+        mut create: Option<foilfern_core::library::Library>,
+    ) -> Result<(), Error> {
         let fs = Arc::new(TransactionalFileSystem::open_rw(library)?);
         let mut directory = TransactionalDirectory::new(Arc::clone(&fs), "");
+        if let Some(new) = create.as_mut() {
+            // open_rw acquired this transaction's lock before inspecting the
+            // root; every other file/directory still means user-owned data.
+            if directory.files("").iter().any(|name| name != ".lock")
+                || !directory.dirs("").is_empty()
+            {
+                return Err(Error::Source(
+                    "Refusing to replace a nonempty library directory.".into(),
+                ));
+            }
+            new.save_to(&mut directory)?;
+        }
         let identities = [
             ("sym", self.symbol.metadata().uuid()),
             ("cmp", self.component.metadata().uuid()),
