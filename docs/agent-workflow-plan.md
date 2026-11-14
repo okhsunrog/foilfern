@@ -17,7 +17,7 @@ preview/apply revision checks, undo and native LibrePCB interoperability.
 | A5 | Partial library install and official KiCad discovery | One unresolved library does not discard successful independent requests; report per-item results and dependency failures. Discover official KiCad libraries explicitly and import a selected pinned source. | Implemented; deeper inheritance and shared-source updates remain explicitly unsupported |
 | A6 | Board placement review | Board-layout preview returns an image plus absolute pad positions after rotation/mirroring. Preview performs no mutation and preserves stale-source refusal. Connector orientation comes from explicit metadata or geometry with confidence, never a guessed direction. | Implemented: candidate images, absolute pads and explicitly declared connector axes; physical model alignment is a separate A4 gate |
 | A7 | Legend editing | Identify text by device instance plus footprint-text UUID; report transformed bbox. Bounded text placement tests mask/courtyard constraints and reports fresh DRC delta with undo. | Implemented: scoped targets, transformed ink bounds and bounded native-geometry search with fresh DRC review |
-| A8 | Output access and plane defaults | Create/update validated output jobs through MCP; fresh projects can export STEP and graphics. Default plane outline uses the actual board contour; test nonrectangular boards and holes. | Planned |
+| A8 | Output access and plane defaults | Create/update validated output jobs through MCP; fresh projects can export STEP and graphics. Default plane outline uses the actual board contour; test nonrectangular boards and holes. | Plane contour default delivered; output-job management next |
 | A9 | Response and tool discovery cost | Measure current tools/list and representative preview/apply payloads. Add compact change summaries with detail retrieval. Investigate opt-in tool groups and client compatibility; preserve default discoverability. Budget tests catch payload regressions. | Planned; extend existing P0 |
 | A10 | Rules with diagnostic provenance | Identify footprint-internal versus placement-induced DRC findings. Versioned factory profiles record source/date and require explicit selection; no silent relaxation to pass a footprint. | Planned |
 | A11 | Reproducible design as code | CLI tool/batch execution reuses the same tool implementations and session. Commit a design document; CI checks idempotence, semantic diff, ERC/DRC, exports and upstream reopen. Reports have bounded output and deterministic failure status. | Local call/batch implemented; CI design-document workflow remains planned |
@@ -416,3 +416,12 @@ preview leaves the live board unchanged, copper/device data stays unchanged,
 blocked searches cannot apply, and repeated documents produce no diff. This is
 verification against supplied footprint geometry; actual body dimensions remain
 a library-validation concern.
+
+### A8: actual default plane contour
+
+MCP `plane_add` now copies the one closed native board outline, retaining arcs
+and footprint-provided contours. Missing or multiple contours require an explicit
+outline. The upstream editor gesture remains unchanged. Native plane calculation
+continues to subtract cutouts. A focused integration test verifies exact contour
+readback on an L-shaped board, copper inside its body but absent from its notch
+and cutout, and preservation of rounded-outline arcs. All-target MCP Clippy passed.

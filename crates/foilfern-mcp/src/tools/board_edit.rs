@@ -1155,7 +1155,15 @@ pub fn plane_add(session: &mut Session, args: PlaneAddArgs) -> ToolResult<ToolOu
                 .collect::<ToolResult<_>>()?;
             Some(closed_path(&points))
         }
-        None => None,
+        None => {
+            let paths = p.board_outline_paths(board)?;
+            if paths.len() != 1 {
+                return Err(ToolError::invalid(
+                    "Default plane requires exactly one closed board outline; supply explicit outline vertices for this board.",
+                ));
+            }
+            paths.into_iter().next()
+        }
     };
     let settings = PlaneSettings {
         min_width: args

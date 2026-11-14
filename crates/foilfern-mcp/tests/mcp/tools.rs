@@ -39,6 +39,106 @@ fn names(list: &Value, key: &str) -> Vec<String> {
 }
 
 #[test]
+fn default_plane_copies_the_native_contour_and_fill_respects_cutouts() {
+    use foilfern_mcp::tools::{board_edit, design};
+    let tmp = tempfile::tempdir().unwrap();
+    let mut session = Session::new();
+    project::workspace_open(
+        &mut session,
+        serde_json::from_value(json!({"path":tmp.path().join("workspace")})).unwrap(),
+        true,
+    )
+    .unwrap();
+    project::project_create(
+        &mut session,
+        serde_json::from_value(json!({"name":"Contour plane"})).unwrap(),
+    )
+    .unwrap();
+    let net = design::preview(
+        &mut session,
+        serde_json::from_value(
+            json!({"version":1,"schematic":"Main","create_schematic":true,"add_nets":["GND"]}),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    design::apply(
+        &mut session,
+        serde_json::from_value(json!({"preview":net.result["preview"]})).unwrap(),
+    )
+    .unwrap();
+    board_edit::board_set_outline(&mut session,serde_json::from_value(json!({"polygon":[
+        {"x":0,"y":0},{"x":30,"y":0},{"x":30,"y":10},{"x":10,"y":10},{"x":10,"y":30},{"x":0,"y":30}
+    ]})).unwrap()).unwrap();
+    board_edit::board_polygon_add(
+        &mut session,
+        serde_json::from_value(json!({"layer":"brd_cutouts","vertices":[
+            {"x":3,"y":13},{"x":7,"y":13},{"x":7,"y":17},{"x":3,"y":17}
+        ]}))
+        .unwrap(),
+    )
+    .unwrap();
+    let outline = layout::board_get(&session, Default::default())
+        .unwrap()
+        .result["outlines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|outline| outline["layer"] == "brd_outlines")
+        .unwrap()["path"]
+        .clone();
+    let plane = board_edit::plane_add(
+        &mut session,
+        serde_json::from_value(json!({"net":"GND","keep_islands":true})).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(plane.result["outline"], outline);
+    for (x, y, filled) in [(5, 5, true), (20, 20, false), (5, 15, false)] {
+        let job = board_edit::prepare_plane_diagnostic(
+            &session,
+            serde_json::from_value(json!({"plane":plane.result["uuid"],"probe":{"x":x,"y":y}}))
+                .unwrap(),
+        )
+        .unwrap();
+        let report = board_edit::run_plane_diagnostic(job).unwrap();
+        assert_eq!(
+            report.result["probe"]["status"].is_string(),
+            filled,
+            "{report:?}"
+        );
+    }
+    // The automatic editor drawing gesture keeps its upstream behavior;
+    // this MCP default copies arcs exactly instead of making a bounding box.
+    board_edit::board_set_outline(
+        &mut session,
+        serde_json::from_value(json!({"width":20,"height":15,"corner_radius":2})).unwrap(),
+    )
+    .unwrap();
+    let outline = layout::board_get(&session, Default::default())
+        .unwrap()
+        .result["outlines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|outline| outline["layer"] == "brd_outlines")
+        .unwrap()["path"]
+        .clone();
+    let plane = board_edit::plane_add(
+        &mut session,
+        serde_json::from_value(json!({"net":"GND"})).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(plane.result["outline"], outline);
+    assert!(
+        outline
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|vertex| vertex["arc_deg"].as_f64().is_some_and(|angle| angle != 0.0))
+    );
+}
+
+#[test]
 fn board_legend_addresses_instances_and_reports_transformed_ink_bounds() {
     use foilfern_mcp::tools::{board_edit, schematic_edit};
     let tmp = tempfile::tempdir().unwrap();

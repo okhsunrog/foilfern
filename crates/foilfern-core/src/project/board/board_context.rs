@@ -391,6 +391,41 @@ impl<'a> BoardContext<'a> {
 }
 
 impl Project {
+    /// Closed board contours, including polygons and circles in placed
+    /// footprints (upstream DRC `getBoardOutlines()`). Arcs are retained.
+    /// Cutouts are separate native objects and are not outer contours.
+    pub fn board_outline_paths(&self, board: BoardId) -> BoardExportResult<Vec<Path>> {
+        let b = self.board(board).ok_or(Error::NotFound {
+            kind: EntityKind::Board,
+            uuid: board.0,
+        })?;
+        let context = BoardContext::new(self, b)?;
+        let mut paths: Vec<_> = b
+            .polygons()
+            .values()
+            .filter(|polygon| {
+                polygon.layer() == Layer::BOARD_OUTLINES && polygon.path().is_closed()
+            })
+            .map(|polygon| polygon.path().clone())
+            .collect();
+        for device in &context.devices {
+            let transform = device.transform();
+            for polygon in device.footprint.polygons() {
+                if polygon.layer() == Layer::BOARD_OUTLINES && polygon.path().is_closed() {
+                    paths.push(transform.map(polygon.path()));
+                }
+            }
+            for circle in device.footprint.circles() {
+                if circle.layer() == Layer::BOARD_OUTLINES {
+                    paths.push(
+                        transform.map(&Path::circle(circle.diameter()).translated(circle.center())),
+                    );
+                }
+            }
+        }
+        Ok(paths)
+    }
+
     /// Returns the bounding rectangle `(bottom_left, top_right)` of the
     /// board outlines of a board and of its footprints, or `None` if there
     /// are no outlines (upstream `Board::calculateBoundingRect()`). Fails if

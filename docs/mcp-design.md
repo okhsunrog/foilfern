@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `50`, including supplier acquisition,
+`api_capability_version` (currently `51`, including supplier acquisition,
 official KiCad imports, rendered board-placement reviews, declared connector axes, scoped legend targets and bounded legend placement).
 Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
@@ -1495,3 +1495,9 @@ checks the supplied library geometry, not whether it accurately models a body.
 The final board is rechecked after authorized routing repair. No valid pose
 blocks apply; the candidate image and evidence remain reviewable. Successful
 moves use the normal revision-bound patch, single undo group and replay behavior.
+
+`plane_add` without `outline` copies the board's one closed outer contour,
+including native arcs and footprint-provided board contours. It refuses missing
+or multiple outer contours and asks for explicit vertices. Native cutouts stay
+separate and are subtracted by the ordinary plane fill. The editor's interactive
+automatic drawing gesture still uses the upstream enclosing rectangle.
