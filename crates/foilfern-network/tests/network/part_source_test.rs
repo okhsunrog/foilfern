@@ -20,6 +20,73 @@ async fn mount(server: &MockServer, data: serde_json::Value) {
         .await;
 }
 
+#[tokio::test]
+async fn exact_mpn_resolution_rejects_fuzzy_ambiguous_truncated_and_stale_index_results() {
+    let server = MockServer::start().await;
+    let cache = tempfile::tempdir().unwrap();
+    let provider = EasyEdaProvider::with_base(super::nam(), &server.uri())
+        .unwrap()
+        .with_search_base(&server.uri())
+        .unwrap();
+    let resolve = |policy| {
+        provider.resolve_mpn(
+            "TEST-PART-1",
+            cache.path(),
+            policy,
+            CancellationToken::new(),
+        )
+    };
+    let index = |components: serde_json::Value| {
+        Mock::given(path("/api/search")).respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({"components":components})),
+        )
+    };
+    index(json!([{"lcsc":8734,"mfr":"TEST-PART-1TR"}]))
+        .mount(&server)
+        .await;
+    assert!(matches!(
+        resolve(CachePolicy::Refresh).await,
+        Err(Error::NoMatch(_))
+    ));
+    server.reset().await;
+    index(json!([{"lcsc":8734,"mfr":"TEST-PART-1"},{"lcsc":123,"mfr":"test-part-1"}]))
+        .mount(&server)
+        .await;
+    match resolve(CachePolicy::Refresh).await.unwrap_err() {
+        Error::Ambiguous { candidates, .. } => assert_eq!(candidates, vec!["C123", "C8734"]),
+        error => panic!("{error}"),
+    }
+    server.reset().await;
+    index(json!(vec![json!({"lcsc":8734,"mfr":"TEST-PART-1"}); 100]))
+        .mount(&server)
+        .await;
+    assert!(matches!(
+        resolve(CachePolicy::Refresh).await,
+        Err(Error::Invalid(_))
+    ));
+    server.reset().await;
+    index(json!([{"lcsc":8734,"mfr":"TEST-PART-1"},{"lcsc":8734,"mfr":"TEST-PART-1"},{"lcsc":9,"mfr":"TEST-PART-1TR"}])).mount(&server).await;
+    assert_eq!(
+        resolve(CachePolicy::PreferCache).await.unwrap().lcsc,
+        "C8734"
+    );
+    mount(&server, response("WRONG-PART", "C8734")).await;
+    assert!(matches!(
+        provider
+            .acquire_mpn(
+                "TEST-PART-1",
+                cache.path(),
+                CachePolicy::PreferCache,
+                CancellationToken::new()
+            )
+            .await,
+        Err(Error::Invalid(_))
+    ));
+    server.reset().await;
+    assert!(resolve(CachePolicy::Offline).await.unwrap().from_cache);
+    assert!(server.received_requests().await.unwrap().is_empty());
+}
+
 #[test]
 fn identities_cannot_be_used_as_paths_or_urls() {
     assert_eq!(canonical_lcsc(" c008734 ").unwrap(), "C8734");

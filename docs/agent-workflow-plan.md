@@ -222,3 +222,19 @@ edits, changed-source conflict and mandatory-model refusal. The opt-in live
 registry acceptance imported C8734 with 48 mappings and its actual STEP, then
 replayed offline with the same native UUID. Exact MPN acquisition, the remaining
 part corpus, rendered alignment and upstream CLI reopening remain pending.
+
+### Delivered exact MPN acquisition (A4)
+
+`part_import` accepts exactly one of `lcsc` and `mpn`. MPN selection uses the
+tscircuit JLC index with a retained SHA-256 snapshot and offline replay. Only a
+unique exact case-insensitive MPN can select an LCSC ID; fuzzy, ambiguous and
+possibly truncated responses fail. CAD acquisition independently rechecks the MPN
+so a stale index cannot substitute a different part. Ambiguity reports supplier
+IDs for an explicit choice; prices and stock do not choose a device.
+
+Focused network/MCP tests and all-target Clippy passed. Tests cover fuzzy suffixes,
+duplicate IDs, ambiguous exact MPNs, truncated lists, index/source disagreement,
+offline replay, conflicting selectors and native installation by MPN. The live
+registry acceptance also passed with `mpn:"STM32F103C8T6"`, acquired C8734 with its
+STEP and replayed offline by ID. Some other live index queries returned HTTP 500
+during corpus research; exact-ID acquisition remains independent of that index.

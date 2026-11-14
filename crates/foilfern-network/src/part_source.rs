@@ -17,13 +17,26 @@ use tokio_util::sync::CancellationToken;
 use crate::NetworkAccessManager;
 
 mod model;
+mod mpn;
 pub use model::StepAsset;
+pub use mpn::ResolvedMpn;
 
 const MAX_SOURCE_BYTES: usize = 32 * 1024 * 1024;
 
 /// Failure to acquire or validate a supplier snapshot.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// No exact MPN in the supplier index.
+    #[error("No exact supplier match for MPN {0:?}; pass an explicit LCSC ID.")]
+    NoMatch(String),
+    /// Several orderable IDs share the exact MPN; no implicit choice is safe.
+    #[error("MPN {mpn:?} is ambiguous; select an LCSC ID from {candidates:?}.")]
+    Ambiguous {
+        /// Exact query.
+        mpn: String,
+        /// Distinct supplier IDs.
+        candidates: Vec<String>,
+    },
     /// Invalid supplier identity or malformed/mismatched source data.
     #[error("Invalid part source: {0}")]
     Invalid(String),
@@ -96,6 +109,7 @@ pub struct EasyEdaProvider {
     manager: NetworkAccessManager,
     base: reqwest::Url,
     model_base: reqwest::Url,
+    search_base: reqwest::Url,
 }
 
 impl EasyEdaProvider {
@@ -114,6 +128,8 @@ impl EasyEdaProvider {
             manager,
             base,
             model_base: reqwest::Url::parse("https://modules.easyeda.com/")
+                .map_err(|e| Error::Invalid(e.to_string()))?,
+            search_base: reqwest::Url::parse("https://jlcsearch.tscircuit.com/")
                 .map_err(|e| Error::Invalid(e.to_string()))?,
         })
     }

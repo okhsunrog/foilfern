@@ -607,7 +607,8 @@ blocked by a proxy, and the library list entry has a repository URL and
 `git` is available, the repository is cloned shallowly at the commit of
 the ZIP URL into a temporary directory, `.git` is removed and the result
 renamed into place; the result reports `method: zip|git`),
-`part_import` (`lcsc`, `cache: prefer_cache|offline|refresh`, `require_model`)
+`part_import` (exactly one of `lcsc` or `mpn`,
+`cache: prefer_cache|offline|refresh`, `require_model`)
 acquires an exact supplier part into `SupplierParts.lplib` in the workspace's
 local libraries. It returns full device/component details (including signal/pad
 mapping), a ready `add_component` device/part entry, source identity and hashes,
@@ -619,6 +620,9 @@ elements, including manual edits, are retained on repeat; changed source/model
 snapshots cause a conflict rather than an overwrite. Downloads and CAD conversion
 run outside the session lock; installation rechecks the workspace and writes the
 four elements and (when needed) containing library in one filesystem transaction.
+MPN resolution uses the tscircuit JLC index, retains its source snapshot, refuses
+fuzzy/ambiguous/possibly truncated results, and independently checks the MPN in
+the authoritative CAD source. Candidate LCSC IDs are reported on ambiguity.
 
 `library_rescan`, `library_import` (EAGLE `*.lbr` or KiCad libraries
 into a local workspace library or a library directory, like upstream's

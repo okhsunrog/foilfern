@@ -22,7 +22,8 @@ fn source() -> Value {
 
 fn args(cache: PartCache) -> PartImportArgs {
     PartImportArgs {
-        lcsc: "C123".into(),
+        lcsc: Some("C123".into()),
+        mpn: None,
         cache,
         require_model: false,
     }
@@ -50,6 +51,13 @@ async fn acquisition_installs_once_replays_offline_and_refuses_changed_sources()
     let target = part::target(&session).unwrap();
     let server = MockServer::start().await;
     mount(&server, source()).await;
+    Mock::given(path("/api/search"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({"components":[{"lcsc":123,"mfr":"TEST-123"}]})),
+        )
+        .mount(&server)
+        .await;
     // Reuse the official HTTP client identity with a test endpoint.
     let provider = EasyEdaProvider::with_base(
         foilfern_network::NetworkAccessManager::new(foilfern_network::ClientInfo {
@@ -63,10 +71,20 @@ async fn acquisition_installs_once_replays_offline_and_refuses_changed_sources()
     )
     .unwrap()
     .with_model_base(&server.uri())
+    .unwrap()
+    .with_search_base(&server.uri())
     .unwrap();
-    let acquired = part::acquire(&target, args(PartCache::PreferCache), provider.clone())
-        .await
-        .unwrap();
+    let acquired = part::acquire(
+        &target,
+        PartImportArgs {
+            lcsc: None,
+            mpn: Some("TEST-123".into()),
+            ..args(PartCache::PreferCache)
+        },
+        provider.clone(),
+    )
+    .await
+    .unwrap();
     let out = part::finish(&session, target.clone(), acquired).unwrap();
     assert_eq!(out.result["reused"], false);
     assert_eq!(out.result["device"]["pads"].as_array().unwrap().len(), 2);
@@ -110,6 +128,17 @@ async fn acquisition_installs_once_replays_offline_and_refuses_changed_sources()
     assert_eq!(again.result["device"]["uuid"], device);
     assert_eq!(again.result["add_component"]["part"]["mpn"], "TEST-MANUAL");
     assert!(server.received_requests().await.unwrap().is_empty());
+    let invalid = part::acquire(
+        &target,
+        PartImportArgs {
+            mpn: Some("TEST-123".into()),
+            ..args(PartCache::Offline)
+        },
+        provider.clone(),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(invalid.kind, ErrorKind::InvalidArgument);
     let mut changed = source();
     changed["result"]["dataStr"]["head"]["c_para"]["Manufacturer Part"] = json!("TEST-CHANGED");
     mount(&server, changed).await;
@@ -161,7 +190,7 @@ async fn c8734_imports_through_registry_with_step_and_replays_offline() {
     let imported = runner
         .call(
             "part_import",
-            json!({"lcsc":"C8734","require_model":true})
+            json!({"mpn":"STM32F103C8T6","require_model":true})
                 .as_object()
                 .unwrap()
                 .clone(),

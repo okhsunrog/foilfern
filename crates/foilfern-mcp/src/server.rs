@@ -542,7 +542,7 @@ impl FoilfernMcp {
     }
 
     #[tool(
-        description = "Import an exact LCSC part (e.g. C8734) into a local workspace library: symbol, signal/pad mapping, footprint, MPN/manufacturer/LCSC and referenced STEP model. Returns complete device/component details and a ready add_component entry. Source snapshots support offline replay; existing native elements are preserved. Missing/invalid models produce an explicit partial result unless require_model=true."
+        description = "Import an exact LCSC ID (e.g. C8734) or unique exact MPN into a local workspace library: symbol, signal/pad mapping, footprint, MPN/manufacturer/LCSC and referenced STEP model. Returns complete device/component details and a ready add_component entry. Ambiguous MPNs fail with candidate LCSC IDs; source MPN is independently checked. Snapshots support offline replay; existing native elements are preserved. Missing/invalid models produce an explicit partial result unless require_model=true."
     )]
     async fn part_import(
         &self,

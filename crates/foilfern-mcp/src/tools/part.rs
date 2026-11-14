@@ -52,7 +52,12 @@ impl From<PartCache> for CachePolicy {
 pub struct PartImportArgs {
     /// Exact supplier ID, for example C8734. Imports symbol, pin mapping,
     /// footprint, MPN/manufacturer/LCSC and the referenced STEP when available.
-    pub lcsc: String,
+    #[serde(default)]
+    pub lcsc: Option<String>,
+    /// Exact manufacturer part number, instead of lcsc. Zero, ambiguous or
+    /// possibly truncated index results fail; the CAD source MPN is rechecked.
+    #[serde(default)]
+    pub mpn: Option<String>,
     /// Source/model cache policy (default prefer_cache).
     #[serde(default)]
     pub cache: PartCache,
@@ -102,7 +107,8 @@ fn source_error(error: foilfern_network::part_source::Error) -> ToolError {
     use foilfern_network::part_source::Error;
     let kind = match &error {
         Error::Invalid(_) | Error::Json(_) => ErrorKind::InvalidArgument,
-        Error::Offline(_) => ErrorKind::NotFound,
+        Error::Offline(_) | Error::NoMatch(_) => ErrorKind::NotFound,
+        Error::Ambiguous { .. } => ErrorKind::Conflict,
         Error::Cancelled => ErrorKind::Cancelled,
         Error::Io(_) | Error::File(_) => ErrorKind::Io,
         Error::Worker(_) => ErrorKind::Internal,
@@ -118,15 +124,30 @@ pub async fn acquire(
     args: PartImportArgs,
     provider: EasyEdaProvider,
 ) -> ToolResult<AcquiredPart> {
-    let source = provider
-        .acquire(
-            &args.lcsc,
-            target.cache.as_path(),
-            args.cache.into(),
-            Default::default(),
-        )
-        .await
-        .map_err(source_error)?;
+    let source = match (&args.lcsc, &args.mpn) {
+        (Some(lcsc), None) => {
+            provider
+                .acquire(
+                    lcsc,
+                    target.cache.as_path(),
+                    args.cache.into(),
+                    Default::default(),
+                )
+                .await
+        }
+        (None, Some(mpn)) => {
+            provider
+                .acquire_mpn(
+                    mpn,
+                    target.cache.as_path(),
+                    args.cache.into(),
+                    Default::default(),
+                )
+                .await
+        }
+        _ => return Err(ToolError::invalid("Pass exactly one of lcsc or mpn.")),
+    }
+    .map_err(source_error)?;
     let reference =
         easyeda::model_reference(&source.raw).map_err(|e| ToolError::invalid(e.to_string()))?;
     let mut warnings = Vec::new();
