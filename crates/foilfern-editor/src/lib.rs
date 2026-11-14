@@ -46,6 +46,7 @@ mod editor;
 mod error;
 mod freerouting;
 pub mod fsm;
+pub mod legend_placement;
 pub mod library_editor;
 mod library_source;
 mod open_project;

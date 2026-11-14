@@ -168,8 +168,8 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `49`, including supplier acquisition,
-official KiCad imports, rendered board-placement reviews, declared connector axes and scoped legend targets).
+`api_capability_version` (currently `50`, including supplier acquisition,
+official KiCad imports, rendered board-placement reviews, declared connector axes, scoped legend targets and bounded legend placement).
 Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
@@ -1481,3 +1481,17 @@ cannot be mixed with `target`. `text` preserves the native attribute template;
 `bbox` is the transformed stroke envelope in board millimeters, including half
 the stroke width on each side; it is null for empty text. Rotated and mirrored
 instance texts are already in board coordinates and are not transformed twice.
+
+A board layout can contain `legend_placements` without device `placements`.
+Each entry contains a complete `target` from `board_legend_list` and `candidates`
+(an ordered list of `{position:{x,y}, rotation?}` in board mm). Up to 16 texts and
+32 poses per text are accepted. The first clear pose wins. The preview reports
+each attempted pose's mask, board-edge/cutout, courtyard and text-overlap checks,
+the chosen text and the existing full before/after DRC validation. Checks use
+native font strokes and exact DRC regions. Mask and board-edge clearance use the
+configured silkscreen clearance. Courtyards fall back to package outlines with
+explicit component IDs; devices with neither geometry block the search. This
+checks the supplied library geometry, not whether it accurately models a body.
+The final board is rechecked after authorized routing repair. No valid pose
+blocks apply; the candidate image and evidence remain reviewable. Successful
+moves use the normal revision-bound patch, single undo group and replay behavior.

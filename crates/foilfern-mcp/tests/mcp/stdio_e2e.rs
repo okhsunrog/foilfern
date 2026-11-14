@@ -41,6 +41,145 @@ async fn call_ok(
 }
 
 #[tokio::test]
+async fn stdio_legend_search_checks_obstacles_and_replays_one_patch() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    let project = call_ok(
+        &client,
+        "project_create",
+        json!({"name":"Legend search","directory":tmp.path().join("native")}),
+    )
+    .await;
+    call_ok(
+        &client,
+        "component_add",
+        json!({"part":"R-0805","designator":"R1"}),
+    )
+    .await;
+    call_ok(
+        &client,
+        "device_place",
+        json!({"component":"R1","position":{"x":10,"y":10}}),
+    )
+    .await;
+    call_ok(
+        &client,
+        "board_set_outline",
+        json!({"width":30,"height":20}),
+    )
+    .await;
+    call_ok(
+        &client,
+        "board_polygon_add",
+        json!({"layer":"brd_cutouts","vertices":[
+            {"x":3,"y":13},{"x":8,"y":13},{"x":8,"y":18},{"x":3,"y":18}
+        ]}),
+    )
+    .await;
+    let mut before = call_ok(&client, "board_legend_list", json!({})).await;
+    let target = before["texts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["rendered_text"] == "R1")
+        .unwrap()["target"]
+        .clone();
+    let board = call_ok(&client, "board_get", json!({"include_pads":true})).await;
+    let pad = board["devices"][0]["pads"][0]["position"].clone();
+    call_ok(
+        &client,
+        "board_text_move",
+        json!({"target":target,"position":pad}),
+    )
+    .await;
+    before = call_ok(&client, "board_legend_list", json!({})).await;
+    let request = json!({"version":1,"board_layout":{"legend_placements":[{"target":target,"candidates":[
+        {"position":{"x":-10,"y":10}}, {"position":pad}, {"position":{"x":10,"y":10}}, {"position":{"x":5,"y":15}}, {"position":{"x":25,"y":15},"rotation":0}
+    ]}]}});
+    let proposed = call_ok(&client, "design_preview", request.clone()).await;
+    let report = &proposed["board_layout"]["legend_placements"][0];
+    let validation = &proposed["board_layout"]["validation"];
+    assert!(
+        validation["before"]["warnings"].as_u64().unwrap()
+            > validation["after"]["warnings"].as_u64().unwrap(),
+        "{validation:#}"
+    );
+    assert_eq!(report["applicable"], true, "{proposed:#}");
+    assert_eq!(
+        report["attempts"].as_array().unwrap().len(),
+        5,
+        "{report:#}"
+    );
+    assert_eq!(report["attempts"][0]["checks"]["outside_board"], true);
+    assert_eq!(report["attempts"][1]["checks"]["mask_overlap"], true);
+    assert_eq!(report["attempts"][3]["checks"]["outside_board"], true);
+    assert!(
+        !report["attempts"][2]["checks"]["courtyard_overlaps"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        call_ok(&client, "board_legend_list", json!({})).await,
+        before
+    );
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":proposed["preview"]}),
+    )
+    .await;
+    let after = call_ok(&client, "board_legend_list", json!({})).await;
+    let moved = after["texts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["target"] == target)
+        .unwrap();
+    assert_eq!(moved["position"], json!({"x":25.0,"y":15.0}));
+    assert_eq!(
+        call_ok(&client, "board_get", json!({"include_pads":true})).await,
+        board
+    );
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(
+        call_ok(&client, "board_legend_list", json!({})).await,
+        before
+    );
+    call_ok(&client, "redo", json!({})).await;
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    call_ok(&client, "project_open", json!({"path":project["path"]})).await;
+    let repeated = call_ok(&client, "design_preview", request).await;
+    assert_eq!(repeated["diff"], json!([]));
+    assert_eq!(
+        call_ok(&client, "board_legend_list", json!({})).await,
+        after
+    );
+    let blocked = call_ok(&client,"design_preview",json!({"version":1,"board_layout":{"legend_placements":[{"target":target,"candidates":[{"position":{"x":-10,"y":10}}]}]}})).await;
+    assert_eq!(blocked["board_layout"]["applicable"], false);
+    let refused = call(
+        &client,
+        "design_apply",
+        json!({"preview":blocked["preview"]}),
+    )
+    .await;
+    assert_eq!(refused.is_error, Some(true));
+    assert_eq!(
+        call_ok(&client, "board_legend_list", json!({})).await,
+        after
+    );
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
 async fn stdio_repair_search_deduplicates_groups_and_publishes_a_checked_candidate() {
     let tmp = tempfile::tempdir().unwrap();
     let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));
@@ -499,7 +638,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 49);
+    assert_eq!(info["api_capability_version"], 50);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(

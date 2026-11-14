@@ -24,6 +24,7 @@ use crate::tools::trace_path::{self, PadAddress, PadIdentity};
 use crate::units::{PointMm, angle};
 use crate::{resolve, views};
 
+mod legend;
 mod repair;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -35,7 +36,11 @@ pub(super) struct BoardLayout {
     /// use board X/Y coordinates, including when viewing the bottom side.
     image_side: Option<Side>,
     /// Component keys from the design document, or designators/UUIDs.
+    #[serde(default)]
     placements: BTreeMap<String, Placement>,
+    /// Bounded silkscreen-text searches; positions use board coordinates.
+    #[serde(default)]
+    legend_placements: Vec<legend::LegendPlacement>,
     /// Named rectangles for device origins, in board millimeters.
     #[serde(default)]
     regions: BTreeMap<String, Region>,
@@ -157,6 +162,7 @@ pub(super) struct AppliedLayout {
     new_devices: BTreeSet<ComponentInstanceId>,
     regions: Vec<Value>,
     moved: bool,
+    legend: Vec<Value>,
     repair: Option<repair::RepairInput>,
     /// For a combined schematic/board document, compare placement against
     /// the circuit and board after the explicitly requested schematic edits.
@@ -486,6 +492,8 @@ impl BoardLayout {
             )));
         }
 
+        let legend = legend::apply(self.legend_placements, tx, id, diff, &mut checkpoint)?;
+
         let project = tx.project();
         let saved = Requirements::load(project).map_err(foilfern_editor::Error::from)?;
         let mut rules: BTreeMap<_, _> = saved
@@ -552,6 +560,7 @@ impl BoardLayout {
             new_devices,
             regions: region_checks,
             moved,
+            legend,
             repair: self.repair,
             placement_baseline,
         })
@@ -604,7 +613,7 @@ fn changed_traces(before: &Project, after: &Project, id: BoardId) -> ToolResult<
 
 impl AppliedLayout {
     pub(super) fn review(
-        self,
+        mut self,
         preview: &mut DesignPreview,
         source: &Project,
         proposed: &Project,
@@ -654,7 +663,15 @@ impl AppliedLayout {
             validation.board_requirements_before = guard.findings_before().to_vec();
             validation.board_requirements_after = guard.findings_after(proposed)?;
         }
+        legend::review(proposed, self.board, &mut self.legend, checkpoint)?;
         let mut blockers = Vec::new();
+        if self
+            .legend
+            .iter()
+            .any(|report| report["applicable"] == false)
+        {
+            blockers.push("no verified clear position for a legend text".to_owned());
+        }
         if !validation.before.complete || !validation.after.complete {
             blockers.push("board DRC did not complete".to_owned());
         }
@@ -715,6 +732,7 @@ impl AppliedLayout {
         preview.review_board(self.board, source, proposed, blockers.clone())?;
         let mut evidence = json!({
             "board":self.board, "applicable":!blocked,"blockers":blockers,
+            "legend_placements":self.legend,
             "regions":self.regions,"new_devices":self.new_devices,"changed_traces":traces,
             "unrouted_after":opened,"validation":validation,
         });

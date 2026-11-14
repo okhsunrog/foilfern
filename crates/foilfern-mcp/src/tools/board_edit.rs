@@ -327,7 +327,7 @@ pub struct BoardTextTarget {
     pub uuid: String,
 }
 
-fn legend_json(
+pub(crate) fn legend_json(
     project: &Project,
     board: &Board,
     text: &BoardStrokeTextData,
