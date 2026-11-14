@@ -67,7 +67,7 @@ impl NetworkAccessManager {
         };
         let headers: HeaderMap = [
             header("accept-language", &info.locale)?,
-            header("x-foilfern-appversion", &info.app_version)?,
+            header("x-librepcb-appversion", &info.app_version)?,
             header("x-librepcb-gitrevision", &info.git_revision)?,
             header(
                 "x-librepcb-fileformatversion",

@@ -92,7 +92,7 @@ async fn test_http_get() {
     // Default headers sent to the server.
     let requests = server.received_requests().await.unwrap();
     let headers = &requests[0].headers;
-    assert_eq!(headers.get("x-foilfern-appversion").unwrap(), "2.0.0-test");
+    assert_eq!(headers.get("x-librepcb-appversion").unwrap(), "2.0.0-test");
     assert_eq!(headers.get("x-librepcb-gitrevision").unwrap(), "0123abc");
     assert_eq!(headers.get("x-librepcb-fileformatversion").unwrap(), "2");
     assert_eq!(headers.get("accept-language").unwrap(), "de_CH");
