@@ -160,6 +160,11 @@ code changes using the same build profile, board snapshot and request.
   aggregates and types with interior mutability, caches or handles.
 - `Mutation`, `Change` and the types they contain derive serde
   `Serialize`/`Deserialize` unconditionally (JSON is the MCP wire format).
+- Bump MCP `api_capability_version` at most once per feature branch, only
+  when the branch changes the public MCP contract or capabilities. Finalize
+  the bump before merging; intermediate commits, fixes and follow-up changes
+  within the same branch keep that number. Branches without MCP contract or
+  capability changes do not bump it.
 - Commit and push each completed logical step to the current branch's upstream
   by default. Parallel porting agents work in separate git worktrees and
   leave their changes for the coordinating agent to review.
