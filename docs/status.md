@@ -77,8 +77,8 @@ The editor owns one `RoutingService` per open project; MCP is its transport.
   Local repair search tries authorized groups and pairs on a detached
   board, with sequential and optional joint passes, polling, cooperative
   cancellation and ranked checked patches. Requests can fix both ends of a
-  replacement branch, specify a target pad-to-via escape and set hard
-  pad-pair path limits.
+  replacement branch, specify or search for a target pad-to-via escape,
+  and set hard pad-pair path limits.
 - Connected via/junction edits, path replacement, explicit copper batches and
   moves/rotations of unlocked devices with their copper in one candidate.
   A rejected candidate can be extended with a checked repair via `base_candidate`.
@@ -102,7 +102,7 @@ The editor owns one `RoutingService` per open project; MCP is its transport.
   `not_measured`, not zero length or a connectivity failure.
 
 Remaining work includes end-to-end board creation from a document,
-persisted board requirements, suggesting escape sites for blocked connections,
+persisted board requirements, composing escape and blocker suggestions,
 shared worker admission limits and the desktop candidate overlay.
 `server_info` now reports
 build-time commit, tracked-source state, Cargo profile label and API capability

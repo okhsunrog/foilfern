@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `34`). Its `build` object contains
+`api_capability_version` (currently `35`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -1033,7 +1033,7 @@ snapshot. When enabled, the joint attempt follows its sequential attempt
 for each set, and the status and candidate identify their `strategy`.
 
 `max_objects` caps each removal set (1–16, default 12), `max_trials`
-counts attempts across both strategies (1–72, default 24), and
+counts attempts across all sites and both strategies (1–72, default 24), and
 `max_candidates` reserves up to three candidate slots (default 2).
 Only complete checks, no new errors, no net connectivity
 regression, and fewer opens on the target produce a candidate. Candidates
@@ -1048,6 +1048,20 @@ launch is staged after neighbor routing, before the target continuation.
 In the joint pass it is staged after rip-up and before both nets are routed.
 It stays fixed during routing and is previewed and applied as part of the
 same checked patch.
+
+`target_launch_search` is an alternative to giving an exact `target_launch`.
+Supply a target-net pad and its copper layer, for example
+`{"from":"U1.12","layer":"top","radius":1,"max_sites":6}`. Within the
+radius (at most 1.5 mm) the worker screens straight leads and through vias
+on a 0.025 mm site grid, using the target `route` dimensions after applying
+the builtin minimum rules. It keeps up to eight sites, shortest lead
+first. Screening uses source copper and native clearance thresholds.
+The worker tries the authorized groups and strategies for each site, then
+ranks candidates using the complete board checks and path requirements.
+With this option, omit `groups` and `rip_up_region` to try an additive
+continuation. The `launch_sites` status lists the sites that passed
+screening even if no continuation succeeds. Each trial, choice,
+and preview identifies its exact `target_launch`.
 
 `trace_requirements` adds up to 16 hard requirements measured on each
 fully checked repair. Each entry names a pad pair under `path` and may

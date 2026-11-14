@@ -1144,7 +1144,7 @@ impl LibrePcbMcp {
     }
 
     #[tool(
-        description = "Start bounded local repair over authorized trace/via groups and pairs. Use neighbor_anchors to reconnect a branch at its two retained endpoints. Route neighbors then the target, or try both together with joint_route. Poll or cancel with routing_repair_status and inspect checked candidates with routing_preview."
+        description = "Start bounded local repair over authorized trace/via groups. Use neighbor_anchors to reconnect a branch at its retained endpoints, or target_launch_search to compare clear escape vias near a target pad. Poll or cancel with routing_repair_status and inspect checked candidates with routing_preview."
     )]
     async fn routing_repair_start(
         &self,

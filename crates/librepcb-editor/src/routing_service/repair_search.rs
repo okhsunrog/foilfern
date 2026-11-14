@@ -6,9 +6,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use librepcb_core::geometry::TraceAnchor;
-use librepcb_core::project::board::AirWire;
-use librepcb_core::project::{BoardId, NetSignalId, Project};
-use librepcb_core::types::{Length, Uuid};
+use librepcb_core::project::board::{AirWire, Board, FootprintPadView};
+use librepcb_core::project::{BoardId, ComponentInstanceId, NetSignalId, Project};
+use librepcb_core::types::{Layer, Length, Point, PositiveLength, Uuid};
 use parking_lot::Mutex;
 use serde::Serialize;
 
@@ -43,17 +43,27 @@ pub struct RepairSearchRequest {
     /// Hard pad-to-pad constraints checked on each complete trial.
     pub trace_requirements: Vec<TracePreference>,
     pub target_launch: Option<RepairLaunch>,
+    pub target_launch_search: Option<RepairLaunchSearch>,
+}
+
+/// Find candidate via sites near an existing target pad before repairing.
+#[derive(Debug)]
+pub struct RepairLaunchSearch {
+    pub from: (ComponentInstanceId, Uuid),
+    pub layer: Layer,
+    pub radius: PositiveLength,
+    pub max_sites: usize,
 }
 
 /// An authorized additive, straight pad-to-via lead on the target net.
 #[derive(Debug, Clone, Serialize)]
 pub struct RepairLaunch {
-    pub from: (librepcb_core::project::ComponentInstanceId, Uuid),
-    pub layer: librepcb_core::types::Layer,
-    pub position: librepcb_core::types::Point,
-    pub width: librepcb_core::types::PositiveLength,
-    pub drill: Option<librepcb_core::types::PositiveLength>,
-    pub size: Option<librepcb_core::types::PositiveLength>,
+    pub from: (ComponentInstanceId, Uuid),
+    pub layer: Layer,
+    pub position: Point,
+    pub width: PositiveLength,
+    pub drill: Option<PositiveLength>,
+    pub size: Option<PositiveLength>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -96,6 +106,7 @@ pub enum RepairStrategy {
 pub enum RepairSearchPhase {
     Queued,
     Baseline,
+    LaunchSites,
     Neighbors,
     Target,
     Joint,
@@ -128,6 +139,8 @@ pub struct RepairSearchStatus {
     pub planned_trials: usize,
     pub current_groups: Vec<usize>,
     pub current_strategy: Option<RepairStrategy>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub launch_sites: Option<Vec<RepairLaunch>>,
     pub cancel_requested: bool,
     stop_reason: Option<StopReason>,
     pub trials: Vec<RepairTrial>,
@@ -139,6 +152,8 @@ pub struct RepairSearchStatus {
 pub struct RepairTrial {
     pub groups: Vec<usize>,
     pub strategy: RepairStrategy,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_launch: Option<RepairLaunch>,
     pub rip_up: BTreeSet<Uuid>,
     pub target_unrouted: Option<usize>,
     pub validation: Option<RoutingValidation>,
@@ -199,6 +214,8 @@ pub struct RepairChoice {
     pub candidate: Uuid,
     pub groups: Vec<usize>,
     pub strategy: RepairStrategy,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_launch: Option<RepairLaunch>,
     pub target_unrouted: usize,
     pub affected_objects: usize,
     pub new_warnings: usize,
@@ -222,6 +239,8 @@ struct Progress {
     phase: RepairSearchPhase,
     groups: Vec<usize>,
     strategy: Option<RepairStrategy>,
+    planned: usize,
+    launch_sites: Option<Vec<RepairLaunch>>,
     trials: Vec<RepairTrial>,
     stop: Option<StopReason>,
     candidates: Vec<RepairChoice>,
@@ -240,7 +259,6 @@ pub(super) struct ActiveRepairSearch {
     context: SourceContext,
     started: Instant,
     budget: Duration,
-    planned: usize,
     reserved: usize,
     cancel: AtomicBool,
     progress: Mutex<Progress>,
@@ -269,9 +287,10 @@ impl ActiveRepairSearch {
             budget_ms: self.budget.as_millis(),
             remaining_ms: self.budget.saturating_sub(elapsed).as_millis(),
             completed_trials: progress.trials.len(),
-            planned_trials: self.planned,
+            planned_trials: progress.planned,
             current_groups: progress.groups.clone(),
             current_strategy: progress.strategy,
+            launch_sites: progress.launch_sites.clone(),
             cancel_requested: self.cancel.load(Ordering::Relaxed),
             stop_reason: progress.stop,
             trials: progress.trials.clone(),
@@ -345,13 +364,20 @@ impl RoutingService {
             context: source.source_context.clone(),
             started: Instant::now(),
             budget: request.time_budget,
-            planned: (trials.len() * strategy_count).min(request.max_trials),
             reserved: request.max_candidates,
             cancel: AtomicBool::new(false),
             progress: Mutex::new(Progress {
                 phase: RepairSearchPhase::Queued,
                 groups: Vec::new(),
                 strategy: None,
+                planned: (trials.len()
+                    * strategy_count
+                    * request
+                        .target_launch_search
+                        .as_ref()
+                        .map_or(1, |search| search.max_sites))
+                .min(request.max_trials),
+                launch_sites: None,
                 trials: Vec::new(),
                 stop: None,
                 candidates: Vec::new(),
@@ -455,12 +481,34 @@ impl Drop for RoutingService {
 }
 
 impl RepairSearchRequest {
-    fn plan(
+    fn launch_pad<'a>(
         &self,
-        project: &Project,
-        board: &librepcb_core::project::board::Board,
-    ) -> Result<Vec<Trial>, RoutingError> {
-        if !(1..=8).contains(&self.groups.len())
+        project: &'a Project,
+        board: &'a Board,
+        (component, pad): (ComponentInstanceId, Uuid),
+        layer: Layer,
+    ) -> Result<FootprintPadView<'a>, RoutingError> {
+        let view = board
+            .device(component)
+            .ok_or_else(|| Error::not_found("Device", component))?
+            .pad(&pad, project.library(), project.circuit())
+            .map_err(Error::from)?
+            .ok_or_else(|| Error::not_found("Pad", pad))?;
+        if view.net() != Some(self.target)
+            || !board.copper_layers().contains(&layer)
+            || !view.is_on_layer(layer)
+        {
+            return Err(Error::InvalidArgument(
+                "The launch pad must be on the target net and layer.".into(),
+            )
+            .into());
+        }
+        Ok(view)
+    }
+
+    fn plan(&self, project: &Project, board: &Board) -> Result<Vec<Trial>, RoutingError> {
+        if self.groups.len() > 8
+            || (self.groups.is_empty() && self.target_launch_search.is_none())
             || !(1..=16).contains(&self.max_objects)
             || !(1..=72).contains(&self.max_trials)
             || !(1..=3).contains(&self.max_candidates)
@@ -493,22 +541,28 @@ impl RepairSearchRequest {
             .into());
         }
         if let Some(launch) = &self.target_launch {
-            let (component, pad) = launch.from;
-            let view = board
-                .device(component)
-                .ok_or_else(|| Error::not_found("Device", component))?
-                .pad(&pad, project.library(), project.circuit())
-                .map_err(Error::from)?
-                .ok_or_else(|| Error::not_found("Pad", pad))?;
+            let view = self.launch_pad(project, board, launch.from, launch.layer)?;
             let lead_radius = Length::new(launch.width.to_nm() / 2 + launch.width.to_nm() % 2);
-            if view.net() != Some(self.target)
-                || !board.copper_layers().contains(&launch.layer)
-                || !view.is_on_layer(launch.layer)
-                || !target_bounds.contains(view.position(), lead_radius)
+            if !target_bounds.contains(view.position(), lead_radius)
                 || !target_bounds.contains(launch.position, lead_radius)
             {
                 return Err(Error::InvalidArgument(
                     "The launch pad and lead must be on the target net and inside region.".into(),
+                )
+                .into());
+            }
+        }
+        if let Some(search) = &self.target_launch_search {
+            if self.target_launch.is_some()
+                || !(1..=8).contains(&search.max_sites)
+                || search.radius.to_nm() > 1_500_000
+            {
+                return Err(Error::InvalidArgument("Supply either target_launch or target_launch_search. The search radius is at most 1.5 mm with 1–8 sites.".into()).into());
+            }
+            let view = self.launch_pad(project, board, search.from, search.layer)?;
+            if !target_bounds.contains(view.position(), Length::ZERO) {
+                return Err(Error::InvalidArgument(
+                    "The launch pad must lie inside region.".into(),
                 )
                 .into());
             }
@@ -600,6 +654,14 @@ impl RepairSearchRequest {
             }
         }
         trials.sort_by_key(|trial| (trial.groups.len(), trial.rip_up.len()));
+        if trials.is_empty() {
+            trials.push(Trial {
+                groups: Vec::new(),
+                rip_up: BTreeSet::new(),
+                nets: BTreeSet::new(),
+                branches: Vec::new(),
+            });
+        }
         Ok(trials)
     }
 }
@@ -644,16 +706,68 @@ impl RepairLaunch {
 }
 
 impl RepairSearchJob {
-    fn stage_launch(
+    fn find_launch_sites(
         &self,
-        sandbox: &mut ProjectEditor,
-        board: BoardId,
-        target: NetSignalId,
-    ) -> Result<(), RoutingError> {
-        if let Some(launch) = &self.request.target_launch {
-            launch.stage(sandbox, board, target)?;
+        search: &RepairLaunchSearch,
+    ) -> Result<Vec<RepairLaunch>, RoutingError> {
+        let project = self.source.sandbox.project();
+        let board = resolve_board(project, Some(self.state.board))?;
+        let target = self.state.target;
+        let pad = self
+            .request
+            .launch_pad(project, board, search.from, search.layer)?;
+        let options = Autoroute {
+            // The straight lead is legal on the pad layer even if the
+            // continuation is restricted to other layers.
+            layers: Some(vec![search.layer]),
+            grid_pitch: None,
+            ..self.request.route.clone()
+        };
+        let mut extracted = crate::commands::autoroute::extract_problem(
+            project,
+            board.id(),
+            &options,
+            Some(&BTreeSet::from([target])),
+        )?;
+        let problem = &mut extracted.problem;
+        // Test exact lead and via geometry at the native rule thresholds.
+        // The grid router keeps its extra margin for continuations.
+        use crate::commands::autoroute::CLEARANCE_MARGIN;
+        let rules = &mut problem.rules;
+        rules.clearance -= CLEARANCE_MARGIN;
+        rules.board_clearance -= CLEARANCE_MARGIN;
+        rules.npth_clearance -= CLEARANCE_MARGIN;
+        rules.drill_clearance -= CLEARANCE_MARGIN;
+        rules.drill_board_clearance -= CLEARANCE_MARGIN;
+        for clearance in problem
+            .terminals
+            .iter_mut()
+            .map(|t| &mut t.clearance)
+            .chain(problem.obstacles.iter_mut().map(|o| &mut o.clearance))
+            .flatten()
+        {
+            *clearance -= CLEARANCE_MARGIN;
         }
-        Ok(())
+        let sites = librepcb_autoroute::find_escape_vias(
+            problem,
+            target.0,
+            (pad.position(), search.layer),
+            search.radius,
+            search.max_sites,
+            || self.state.stop().is_some(),
+        )
+        .map_err(Error::from)?;
+        Ok(sites
+            .into_iter()
+            .map(|position| RepairLaunch {
+                from: search.from,
+                layer: search.layer,
+                position,
+                width: problem.rules.trace_width_of(&target.0),
+                drill: Some(problem.rules.via_drill),
+                size: Some(problem.rules.via_diameter),
+            })
+            .collect())
     }
 
     fn run_trial(
@@ -665,6 +779,13 @@ impl RepairSearchJob {
         let board = self.state.board;
         let target = self.state.target;
         let cancelled = || self.state.stop().is_some();
+        let launch = report.target_launch.clone();
+        let stage_launch = |sandbox: &mut ProjectEditor| {
+            if let Some(launch) = &launch {
+                launch.stage(sandbox, board, target)?;
+            }
+            Ok(())
+        };
         let neighbor_bounds = self
             .request
             .neighbor_route
@@ -714,9 +835,7 @@ impl RepairSearchJob {
                     improve_net: Some(target),
                 };
                 let routing =
-                    request.run_with_staging(sandbox, board, None, &[], cancelled, |sandbox| {
-                        self.stage_launch(sandbox, board, target)
-                    })?;
+                    request.run_with_staging(sandbox, board, None, &[], cancelled, stage_launch)?;
                 (Some(neighbor), None, route, routing)
             }
             RepairStrategy::Joint => {
@@ -749,7 +868,7 @@ impl RepairSearchJob {
                     Some((target, neighbor_bounds.region()?)),
                     &trial.branches,
                     cancelled,
-                    |sandbox| self.stage_launch(sandbox, board, target),
+                    stage_launch,
                 )?;
                 report.neighbor_failures =
                     summarize_failures(&routing, |failure| failure.net != target);
@@ -773,7 +892,7 @@ impl RepairSearchJob {
             route,
             routing,
             trace_requirements: Vec::new(),
-            target_launch: self.request.target_launch.clone(),
+            target_launch: launch,
             neighbor_branches: trial.branches.clone(),
         }))
     }
@@ -819,11 +938,35 @@ impl RepairSearchJob {
             .collect::<crate::Result<Vec<_>>>()?;
         let strategies = [RepairStrategy::Sequential, RepairStrategy::Joint];
         let strategies = &strategies[..1 + usize::from(self.request.joint_route.is_some())];
-        let trials = self
-            .trials
-            .iter()
-            .flat_map(|trial| strategies.iter().map(move |&strategy| (trial, strategy)));
-        for (i, (trial, strategy)) in trials.enumerate() {
+        let launches = if let Some(search) = &self.request.target_launch_search {
+            self.state.phase(RepairSearchPhase::LaunchSites);
+            let sites = self.find_launch_sites(search)?;
+            let mut progress = self.state.progress.lock();
+            progress.planned =
+                (self.trials.len() * strategies.len() * sites.len()).min(self.request.max_trials);
+            progress.launch_sites = Some(sites.clone());
+            sites.into_iter().map(Some).collect::<Vec<_>>()
+        } else {
+            vec![self.request.target_launch.clone()]
+        };
+        if let Some(reason) = self.state.stop() {
+            return Ok(RepairSearchResults {
+                search: self.state.id,
+                stop: reason,
+                candidates,
+            });
+        }
+        let launches = &launches;
+        // Try every copper scope at the shortest site before moving to the
+        // next site. A tight budget can still reach a joint pair.
+        let trials = launches.iter().flat_map(|launch| {
+            self.trials.iter().flat_map(move |trial| {
+                strategies
+                    .iter()
+                    .map(move |&strategy| (trial, strategy, launch))
+            })
+        });
+        for (i, (trial, strategy, launch)) in trials.enumerate() {
             if let Some(reason) = self.state.stop() {
                 stop = reason;
                 break;
@@ -845,6 +988,7 @@ impl RepairSearchJob {
             let mut report = RepairTrial {
                 groups: trial.groups.clone(),
                 strategy,
+                target_launch: launch.clone(),
                 rip_up: trial.rip_up.clone(),
                 target_unrouted: None,
                 validation: None,
@@ -913,6 +1057,7 @@ impl RepairSearchJob {
                     candidate: candidate.info().candidate,
                     groups: trial.groups.clone(),
                     strategy,
+                    target_launch: launch.clone(),
                     target_unrouted,
                     affected_objects: trial.rip_up.len(),
                     new_warnings: validation.new_warning_count,

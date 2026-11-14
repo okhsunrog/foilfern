@@ -243,6 +243,54 @@ async fn stdio_repair_search_deduplicates_groups_and_publishes_a_checked_candida
     }
     call_ok(&client, "undo", json!({})).await;
     assert_eq!(call_ok(&client, "board_get", json!({})).await, source);
+
+    let mut auto = json!({
+        "target":"A",
+        "region":{"min":{"x":3,"y":7},"max":{"x":17,"y":13}},
+        "route":{"via_drill":0.3,"via_size":0.6,"layers":["top","bottom"]},
+        "target_launch_search":{"from":"R1.1","layer":"top","radius":0.8,"max_sites":2},
+        "trace_requirements":[{"path":{"from":"R1.1","to":"R2.1"}}],
+    });
+    auto["target_launch_search"]["radius"] = json!(1.51);
+    let invalid = call(&client, "routing_repair_start", auto.clone()).await;
+    assert_eq!(invalid.is_error, Some(true));
+    auto["target_launch_search"]["radius"] = json!(0.8);
+    let history = call_ok(&client, "history", json!({})).await;
+    let started = call_ok(&client, "routing_repair_start", auto).await;
+    let status = poll(started["search"].clone()).await;
+    let sites = status["launch_sites"].as_array().unwrap();
+    assert_eq!(sites.len(), 2, "{status:#}");
+    assert_ne!(sites[0]["position"], sites[1]["position"]);
+    assert_eq!(status["planned_trials"], 2);
+    assert_eq!(status["completed_trials"], 2);
+    assert_eq!(status["trials"][0]["target_launch"], sites[0]);
+    assert_eq!(status["trials"][1]["target_launch"], sites[1]);
+    assert_eq!(call_ok(&client, "history", json!({})).await, history);
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, source);
+    let selected = &status["candidates"][0];
+    assert!(selected["candidate"].is_string(), "{status:#}");
+    let preview = call_ok(
+        &client,
+        "routing_preview",
+        json!({"candidate":selected["candidate"]}),
+    )
+    .await;
+    assert_eq!(
+        preview["repair"]["target_launch"],
+        selected["target_launch"]
+    );
+    call_ok(
+        &client,
+        "routing_apply",
+        json!({"candidate":selected["candidate"]}),
+    )
+    .await;
+    assert_eq!(
+        call_ok(&client, "board_get", json!({})).await["air_wires"],
+        json!([])
+    );
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, source);
     client.cancel().await.unwrap();
 }
 
@@ -253,7 +301,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 34);
+    assert_eq!(info["api_capability_version"], 35);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(

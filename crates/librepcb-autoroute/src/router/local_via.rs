@@ -3,6 +3,7 @@
 use super::*;
 
 const SEARCH_PITCH: i64 = 50_000;
+const ESCAPE_PITCH: i64 = 25_000;
 const MAX_RADIUS: i64 = 1_500_000;
 const MAX_LEAD: f64 = 4_000_000.0;
 
@@ -33,6 +34,51 @@ pub fn find_local_via(
     router.local_via(net, anchors, site)
 }
 
+/// Find clear straight pad-to-via leads, ordered by lead length.
+/// These are local clearance checks. The caller still routes the continuation
+/// and validates the final board. All site checks use the same geometry.
+pub fn find_escape_vias(
+    problem: &RoutingProblem,
+    net: NetId,
+    anchor: (Point, Layer),
+    radius: PositiveLength,
+    max_sites: usize,
+    cancelled: impl Fn() -> bool,
+) -> Result<Vec<Point>> {
+    let router = Router::new(problem)?;
+    let net = router
+        .nets
+        .binary_search(&net)
+        .map_err(|_| Error::InvalidLocalVia)? as u32;
+    let layer = router
+        .routing
+        .iter()
+        .position(|&i| problem.copper_layers[i] == anchor.1)
+        .ok_or(Error::InvalidLocalVia)?;
+    let from = P::from(anchor.0);
+    let width = router.width_of(net).to_nm() / 2;
+    let mut sites = local_sites(from, radius, ESCAPE_PITCH)?;
+    sites.sort_unstable_by_key(|site| {
+        let dx = i128::from(site.x) - i128::from(from.x);
+        let dy = i128::from(site.y) - i128::from(from.y);
+        (dx * dx + dy * dy, site.x, site.y)
+    });
+    let via_radius = router.rules.via_radius.ceil() as i64;
+    Ok(sites
+        .into_iter()
+        .take_while(|_| !cancelled())
+        .filter(|&p| {
+            p != from
+                && router.within_region(from, width)
+                && router.within_region(p, width.max(via_radius))
+                && router.local_via_clear(p, net)
+                && router.check_segment_strict(from, p, layer, net, width)
+        })
+        .take(max_sites)
+        .map(P::to_point)
+        .collect())
+}
+
 impl Router<'_> {
     fn local_via(
         &self,
@@ -59,7 +105,7 @@ impl Router<'_> {
         let h = width.to_nm() / 2;
         let sites = match site {
             LocalViaSite::Exact(point) => vec![P::from(point)],
-            LocalViaSite::Search(radius) => local_sites(anchors[0], radius)?,
+            LocalViaSite::Search(radius) => local_sites(anchors[0], radius, SEARCH_PITCH)?,
         };
         let mut ranked: Vec<_> = sites
             .into_iter()
@@ -139,20 +185,17 @@ fn octilinear_length(a: P, b: P) -> f64 {
     dx.max(dy) + (std::f64::consts::SQRT_2 - 1.0) * dx.min(dy)
 }
 
-fn local_sites(center: P, radius: PositiveLength) -> Result<Vec<P>> {
+fn local_sites(center: P, radius: PositiveLength, pitch: i64) -> Result<Vec<P>> {
     let r = radius.to_nm();
     if r > MAX_RADIUS {
         return Err(Error::InvalidLocalVia);
     }
-    let start = |v: i64| v.saturating_sub(r).div_euclid(SEARCH_PITCH);
-    let end = |v: i64| v.saturating_add(r).div_euclid(SEARCH_PITCH);
+    let start = |v: i64| v.saturating_sub(r).div_euclid(pitch);
+    let end = |v: i64| v.saturating_add(r).div_euclid(pitch);
     let mut sites = Vec::new();
     for x in start(center.x)..=end(center.x) {
         for y in start(center.y)..=end(center.y) {
-            let p = P::new(
-                x.saturating_mul(SEARCH_PITCH),
-                y.saturating_mul(SEARCH_PITCH),
-            );
+            let p = P::new(x.saturating_mul(pitch), y.saturating_mul(pitch));
             if (p.x.abs_diff(center.x) as f64).hypot(p.y.abs_diff(center.y) as f64) <= r as f64 {
                 sites.push(p);
             }

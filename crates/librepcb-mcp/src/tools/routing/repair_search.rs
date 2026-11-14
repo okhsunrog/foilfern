@@ -8,7 +8,8 @@ use librepcb_core::project::Project;
 use librepcb_core::project::board::Board;
 use librepcb_core::types::Uuid;
 use librepcb_editor::routing_service::{
-    RepairLaunch, RepairSearchJob, RepairSearchRequest, RepairSearchResults, RoutingError,
+    RepairLaunch, RepairLaunchSearch, RepairSearchJob, RepairSearchRequest, RepairSearchResults,
+    RoutingError,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -27,11 +28,12 @@ pub struct RepairSearchArgs {
     pub target: String,
     /// Bounds for new target-net copper in mm.
     pub region: RoutingRegionArgs,
-    /// Bounds for existing copper authorized for removal in mm.
-    pub rip_up_region: RoutingRegionArgs,
+    /// Bounds for authorized removals in mm. Required when groups are supplied.
+    pub rip_up_region: Option<RoutingRegionArgs>,
     /// Bounds for new neighbor copper. Defaults to rip_up_region.
     pub neighbor_region: Option<RoutingRegionArgs>,
-    /// One to eight groups of exact trace and via UUIDs, explicitly authorized for removal.
+    /// Up to eight groups of authorized trace/via UUIDs. May be empty for launch search.
+    #[serde(default)]
     pub groups: Vec<Vec<String>>,
     /// Optional exact replacements with two retained endpoints for each named group index.
     #[serde(default)]
@@ -57,6 +59,8 @@ pub struct RepairSearchArgs {
     pub trace_requirements: Vec<TracePreferenceArgs>,
     /// Add one explicit straight target pad-to-through-via lead before routing the target.
     pub target_launch: Option<RepairLaunchArgs>,
+    /// Generate and compare nearby pad-to-via leads. Mutually exclusive with target_launch.
+    pub target_launch_search: Option<RepairLaunchSearchArgs>,
     pub expected_revision: Option<u64>,
 }
 
@@ -115,6 +119,18 @@ pub struct RepairLaunchArgs {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+pub struct RepairLaunchSearchArgs {
+    /// Name of a target-net footprint pad, e.g. U1.12.
+    pub from: crate::tools::trace_path::PadAddress,
+    pub layer: String,
+    /// Search radius in mm. Positive, at most 1.5 (default 1.0).
+    pub radius: Option<f64>,
+    /// Number of clear sites to evaluate, 1–8 (default 6).
+    pub max_sites: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RepairStatusArgs {
     pub search: String,
     /// Request cancellation, keeping candidates whose validation has completed.
@@ -143,7 +159,17 @@ pub fn start(
         ));
     }
     let mut route = args.route.command(project, board)?;
-    route.region = Some(args.region.bounds()?);
+    let region = args.region.bounds()?;
+    route.region = Some(region);
+    let rip_up_region = match args.rip_up_region {
+        Some(bounds) => bounds.bounds()?,
+        None if args.groups.is_empty() => region,
+        None => {
+            return Err(ToolError::invalid(
+                "Supply rip_up_region when authorizing removals.",
+            ));
+        }
+    };
     let mut neighbor_route = args.neighbor_route.command(project, board)?;
     let joint_route = args
         .joint_route
@@ -154,14 +180,15 @@ pub fn start(
         .as_ref()
         .map(RoutingRegionArgs::bounds)
         .transpose()?;
-    if !(1..=8).contains(&args.groups.len())
+    if args.groups.len() > 8
+        || (args.groups.is_empty() && args.target_launch_search.is_none())
         || args
             .groups
             .iter()
             .any(|group| !(1..=16).contains(&group.len()))
     {
         return Err(ToolError::invalid(
-            "Supply 1–8 groups, each with 1–16 copper UUIDs.",
+            "Supply 1–8 groups with 1–16 copper UUIDs each, or use target_launch_search without removals.",
         ));
     }
     let groups: Vec<_> = args
@@ -225,6 +252,24 @@ pub fn start(
             })
         })
         .transpose()?;
+    let target_launch_search = args
+        .target_launch_search
+        .map(|search| -> ToolResult<_> {
+            Ok(RepairLaunchSearch {
+                from: crate::tools::trace_path::footprint_pad_id(
+                    project,
+                    native_board,
+                    &search.from,
+                )?,
+                layer: board_edit::copper_layer(&search.layer)?,
+                radius: board_edit::positive(
+                    search.radius.unwrap_or(1.0),
+                    "target_launch_search.radius",
+                )?,
+                max_sites: search.max_sites.unwrap_or(6),
+            })
+        })
+        .transpose()?;
     let (status, job) = open
         .routing
         .start_repair_search(
@@ -234,11 +279,12 @@ pub fn start(
                 route,
                 neighbor_route,
                 joint_route,
-                rip_up_region: args.rip_up_region.bounds()?,
+                rip_up_region,
                 groups,
                 neighbor_anchors,
                 trace_requirements,
                 target_launch,
+                target_launch_search,
                 max_objects: args.max_objects.unwrap_or(12),
                 max_trials: args.max_trials.unwrap_or(24),
                 max_candidates: args.max_candidates.unwrap_or(2),

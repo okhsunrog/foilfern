@@ -40,7 +40,8 @@ pub use placement::{
 };
 pub use region::{RegionalRepairProposal, RegionalRoutingRequest};
 pub use repair_search::{
-    RepairLaunch, RepairSearchJob, RepairSearchRequest, RepairSearchResults, RepairSearchStatus,
+    RepairLaunch, RepairLaunchSearch, RepairSearchJob, RepairSearchRequest, RepairSearchResults,
+    RepairSearchStatus,
 };
 pub use staged::StagedRoutingRequest;
 
