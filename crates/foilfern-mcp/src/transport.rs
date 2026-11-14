@@ -5,7 +5,7 @@
 //! All MCP client sessions of one server share one [`McpState`].
 
 use crate::host::McpState;
-use crate::server::LibrePcbMcp;
+use crate::server::FoilfernMcp;
 
 /// Port of the LibrePCB MCP server embedded in the desktop app (Slint's UI
 /// debugging MCP server uses 8765).
@@ -14,7 +14,7 @@ pub const EMBEDDED_PORT: u16 = 8766;
 /// Serves MCP over stdin/stdout until the client disconnects.
 pub async fn serve_stdio(state: McpState) -> Result<(), String> {
     use rmcp::ServiceExt;
-    let running = LibrePcbMcp::with_state(state)
+    let running = FoilfernMcp::with_state(state)
         .serve(rmcp::transport::stdio())
         .await
         .map_err(|e| e.to_string())?;
@@ -45,9 +45,9 @@ mod http {
     ) -> std::io::Result<()> {
         let config =
             StreamableHttpServerConfig::default().with_cancellation_token(shutdown.child_token());
-        let service: StreamableHttpService<LibrePcbMcp, LocalSessionManager> =
+        let service: StreamableHttpService<FoilfernMcp, LocalSessionManager> =
             StreamableHttpService::new(
-                move || Ok(LibrePcbMcp::with_state(state.clone())),
+                move || Ok(FoilfernMcp::with_state(state.clone())),
                 Default::default(),
                 config,
             );

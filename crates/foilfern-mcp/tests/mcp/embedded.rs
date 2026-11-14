@@ -13,7 +13,7 @@ use foilfern_core::types::{ElementName, Uuid};
 use foilfern_editor::commands::project::AddSchematic;
 use foilfern_editor::{LibraryElementSource, NoLibrarySource};
 use foilfern_mcp::{
-    ChangeNotice, HostDecision, LibrePcbMcp, McpHost, McpState, OpenProject, SharedProject,
+    ChangeNotice, FoilfernMcp, HostDecision, McpHost, McpState, OpenProject, SharedProject,
 };
 use parking_lot::Mutex;
 use rmcp::ServiceExt;
@@ -82,7 +82,7 @@ fn open_shared(lpp: &Path) -> SharedProject {
 async fn connect(state: McpState) -> Client {
     let (server_io, client_io) = tokio::io::duplex(1 << 20);
     tokio::spawn(async move {
-        let server = LibrePcbMcp::with_state(state)
+        let server = FoilfernMcp::with_state(state)
             .serve(server_io)
             .await
             .unwrap();

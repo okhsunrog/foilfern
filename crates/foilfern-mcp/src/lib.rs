@@ -147,5 +147,5 @@ pub use host::{
     ChangeNotice, Focus, HostDecision, McpHost, McpState, ProjectCreateRequest, StandaloneHost,
 };
 pub use outcome::ToolOutput;
-pub use server::LibrePcbMcp;
+pub use server::FoilfernMcp;
 pub use session::{OpenProject, Session, SharedProject, SharedWorkspace};

@@ -114,18 +114,18 @@ tokio::task_local! {
 
 /// The LibrePCB MCP server (cheap to clone; clones share the state).
 #[derive(Clone)]
-pub struct LibrePcbMcp {
+pub struct FoilfernMcp {
     state: McpState,
     tool_router: ToolRouter<Self>,
 }
 
-impl std::fmt::Debug for LibrePcbMcp {
+impl std::fmt::Debug for FoilfernMcp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("LibrePcbMcp").finish_non_exhaustive()
+        f.debug_struct("FoilfernMcp").finish_non_exhaustive()
     }
 }
 
-impl LibrePcbMcp {
+impl FoilfernMcp {
     /// Creates a standalone server (host: [`StandaloneHost`]) on `session`.
     pub fn new(session: Session) -> Self {
         Self::with_state(McpState::from_session(session, Arc::new(StandaloneHost)))
@@ -323,7 +323,7 @@ impl LibrePcbMcp {
 }
 
 #[tool_router]
-impl LibrePcbMcp {
+impl FoilfernMcp {
     // --- Session / project -------------------------------------------------
 
     #[tool(
@@ -1572,7 +1572,7 @@ impl LibrePcbMcp {
 }
 
 #[tool_handler]
-impl ServerHandler for LibrePcbMcp {
+impl ServerHandler for FoilfernMcp {
     async fn call_tool(
         &self,
         request: CallToolRequestParams,
