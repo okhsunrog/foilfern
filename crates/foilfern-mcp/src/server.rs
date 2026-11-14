@@ -531,12 +531,33 @@ impl FoilfernMcp {
         description = "Import an EAGLE library (*.lbr) or KiCad libraries (*.kicad_sym, \
                        *.pretty) into a local LibrePCB library of the workspace (like \
                        upstream's import wizards; the index is rescanned). dry_run=true lists \
-                       the elements; elements selects some (dependencies follow)."
+                       the elements; elements selects some (dependencies follow). For KiCad, \
+                       source=official:Library:Symbol downloads exact official symbol, parents, \
+                       default footprint, available STEP and licenses at pinned commits; target \
+                       defaults to a local KiCad Imports library. official_footprint overrides \
+                       the exact package; source_cache supports offline replay."
     )]
     async fn library_import(
         &self,
         Parameters(args): Parameters<LibraryImportArgs>,
     ) -> Result<CallToolResult, McpError> {
+        if args.source.starts_with("official:") {
+            let target = match self.blocking(|s| import::official::target(s)).await {
+                Ok(target) => target,
+                Err(error) => return self.run(move |_| Err(error)).await,
+            };
+            let provider = match import::official::provider() {
+                Ok(provider) => provider,
+                Err(error) => return self.run(move |_| Err(error)).await,
+            };
+            return match import::official::prepare(&target, args, provider).await {
+                Ok(prepared) => {
+                    self.run(move |s| import::official::finish(s, target, prepared))
+                        .await
+                }
+                Err(error) => self.run(move |_| Err(error)).await,
+            };
+        }
         self.run(move |s| import::library_import(s, args)).await
     }
 

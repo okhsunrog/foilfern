@@ -168,8 +168,8 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `45`, including supplier part acquisition
-and per-request library installation reports).
+`api_capability_version` (currently `46`, including supplier part acquisition,
+per-request library installation reports and pinned official KiCad imports).
 Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
@@ -648,6 +648,23 @@ additional categories; rescans the index; implementation in
 `foilfern-import`). `project_create` imports an EAGLE project with
 `eagle_schematic`/`eagle_board` (upstream new project wizard with EAGLE
 import; a delegating host gets both paths in `ProjectCreateRequest`).
+
+For automatic official KiCad acquisition, call `library_import` with
+`format:"kicad", source:"official:Interface_USB:CH340G"`. `official_release`
+defaults to the tested 10.0.8 release, resolved independently to exact commits
+for symbols, footprints and models. The acquisition supports split symbol files
+and older aggregate files, fetches the selected symbol's parent and exact default
+footprint, and validates available STEP geometry. `official_footprint` selects an
+explicit `Library:Footprint`; `source_cache` accepts prefer_cache/offline/refresh.
+Source bytes, hashes and original license documents are retained. A native
+"KiCad Imports" collection is created by default only for actual imports; dry
+runs create no native library. Results include `official_source` provenance and
+installed device details, with `add_component` when exactly one device resolves.
+Missing/invalid optional models are reported explicitly as partial. The existing
+native importer preserves already imported elements: refreshing source caches is
+not a native update operation. Cyclic/deeper-than-one-level inheritance is refused;
+the existing importer remains the format compatibility boundary. No 3D alignment
+or datasheet correctness is inferred from successful acquisition.
 
 Circuit & schematic:
 `component_add` (component or device uuid, optional designator/value,

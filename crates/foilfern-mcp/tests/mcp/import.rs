@@ -22,6 +22,9 @@ fn args(format: ImportFormat, source: &str) -> LibraryImportArgs {
     LibraryImportArgs {
         format,
         source: data(source),
+        official_release: None,
+        official_footprint: None,
+        source_cache: None,
         shapes_3d: None,
         library: None,
         dry_run: true,

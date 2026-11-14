@@ -25,6 +25,8 @@ use crate::resolve::{parse_uuid, required_uuid};
 use crate::session::{Session, absolute_path};
 use crate::tools::library;
 
+pub mod official;
+
 /// At most this many elements are listed by a dry run (the count is always
 /// returned).
 const MAX_LISTED: usize = 500;
@@ -52,14 +54,29 @@ pub struct LibraryImportArgs {
     /// directory, a `*.kicad_mod` file, or a directory which is scanned
     /// together with its direct subdirectories (e.g. the KiCad library
     /// installation directory).
+    /// For official KiCad acquisition, use "official:Library:Symbol", e.g.
+    /// "official:Interface_USB:CH340G". Downloads parents, the exact default
+    /// footprint, available STEP and license files at pinned commits.
     pub source: String,
+    /// For source="official:Library:Symbol": official KiCad release tag,
+    /// resolved to exact repository commits (default 10.0.8).
+    #[serde(default)]
+    pub official_release: Option<String>,
+    /// For an official source: exact Library:Footprint override, useful when
+    /// a generic symbol has no default footprint. Never chooses a fuzzy match.
+    #[serde(default)]
+    pub official_footprint: Option<String>,
+    /// Cache policy for official source acquisition (default prefer_cache).
+    #[serde(default)]
+    pub source_cache: Option<crate::tools::part::PartCache>,
     /// KiCad only: directory with the `*.3dshapes` directories (default:
     /// `source`).
     #[serde(default)]
     pub shapes_3d: Option<String>,
     /// Target library: name or UUID of a local library of the workspace, or
     /// the path of a library directory (`*.lplib`). Not needed for a dry
-    /// run.
+    /// run. Official sources default to a local "KiCad Imports" library,
+    /// created only for an actual import.
     #[serde(default)]
     pub library: Option<String>,
     /// Only list the elements (with their selection state), import
@@ -92,6 +109,19 @@ pub struct LibraryImportArgs {
 
 /// `library_import`.
 pub fn library_import(session: &Session, args: LibraryImportArgs) -> ToolResult<ToolOutput> {
+    if args.source.starts_with("official:") {
+        return Err(ToolError::invalid(
+            "Resolve the official source with the asynchronous acquisition flow before native import.",
+        ));
+    }
+    if args.official_release.is_some()
+        || args.official_footprint.is_some()
+        || args.source_cache.is_some()
+    {
+        return Err(ToolError::invalid(
+            "Official source options require an official:Library:Symbol source.",
+        ));
+    }
     let source = absolute_path(&args.source)?;
     if !source.is_existing_file() && !source.is_existing_dir() {
         return Err(ToolError::not_found(format!(

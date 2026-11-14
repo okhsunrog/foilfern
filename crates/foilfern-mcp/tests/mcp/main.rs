@@ -6,6 +6,7 @@ mod design;
 mod embedded;
 mod import;
 mod local_calls;
+mod official;
 mod part;
 mod routing;
 mod routing_candidates;

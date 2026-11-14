@@ -328,3 +328,31 @@ available. Official licensing/attribution must accompany fetched/converted libra
 collections; references: https://www.kicad.org/libraries/download/ and
 https://www.kicad.org/libraries/license/. MCP automatic assembly/import is next;
 fetching valid bytes alone is not native conversion evidence.
+
+### Delivered automatic official KiCad imports (A5)
+
+`library_import source:"official:Library:Symbol", format:"kicad"` now assembles
+pinned official source dependencies and enters the existing native importer.
+The default tested release is 10.0.8; an exact footprint override and offline
+source replay are supported. Split/aggregate symbol files and one inheritance
+level work; effective inherited footprint properties are materialized and parents
+precede derived symbols for the native import order. Deeper/cyclic inheritance
+is refused. Available STEP assets are validated before use. Licenses and source
+hash/commit provenance accompany the bundle and native collection. Actual imports
+default to a local KiCad Imports library, while dry runs create no native library.
+Installed device details and a ready device entry reduce follow-up lookup calls.
+Capability version is 46.
+
+The local HTTP acceptance covers inherited symbol selection, STEP attachment,
+retained licenses, dry run, offline replay and duplicate prevention. All-target
+MCP Clippy passed. A live CH340G registry test performed a dry run and offline
+native import with the SOIC-16 STEP; exact device lookup and upstream CLI strict
+reopen passed. The current importer deliberately skips already imported elements;
+source refresh does not update native data. A richer source-change conflict and
+update workflow for shared KiCad dependencies remains future work.
+
+Continuation after this checkpoint: finish A4 datasheet/model-alignment evidence,
+then A6 board preview/absolute pads, A7 legend placement, A8 jobs/planes, A9 response
+cost, A10 rule provenance, A11 design-document CI and A12 3D/electrical intent.
+Use the delivered CLI and acquisition tools for those checks; do not replace the
+remaining product work with board experiments or mark the entire plan complete.
