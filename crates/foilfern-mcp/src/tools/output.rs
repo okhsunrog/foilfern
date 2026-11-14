@@ -61,9 +61,13 @@ pub struct ExportFabricationArgs {
 #[serde(deny_unknown_fields)]
 pub struct ExportBomArgs {
     /// Board name, index or UUID: BOM of the devices on this board;
-    /// default: generic BOM of all components.
+    /// default: the first board, or generic BOM if the project has no boards.
     #[serde(default)]
     pub board: Option<String>,
+    /// Export all schematic components without board package information.
+    /// Cannot be combined with board.
+    #[serde(default)]
+    pub schematic_only: bool,
     /// Assembly variant name or UUID (default: the first one).
     #[serde(default)]
     pub assembly_variant: Option<String>,
@@ -349,9 +353,15 @@ pub fn export_fabrication(
 /// `export_bom`.
 pub fn export_bom(session: &Session, args: ExportBomArgs) -> ToolResult<ToolOutput> {
     let p = session.project()?.project();
+    if args.schematic_only && args.board.is_some() {
+        return Err(ToolError::invalid(
+            "board and schematic_only cannot be combined.",
+        ));
+    }
     let board = match &args.board {
         Some(b) => Some(resolve::board(p, Some(b))?.2),
-        None => None,
+        None if args.schematic_only => None,
+        None => p.boards().first(),
     };
     let (variant, variant_name) = assembly_variant(p, args.assembly_variant.as_deref())?;
     let mut generator = BomGenerator::new(p);
@@ -372,6 +382,7 @@ pub fn export_bom(session: &Session, args: ExportBomArgs) -> ToolResult<ToolOutp
         json!({
             "file": file.to_native(),
             "assembly_variant": variant_name,
+            "board": board.map(|b| b.uuid()),
             "csv": if content.len() <= 65536 { Some(content) } else { None },
         }),
     )

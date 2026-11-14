@@ -667,6 +667,12 @@ Checks and outputs:
 content; the target defaults to the board when `board` or `side` is
 given).
 
+`export_bom` defaults to the first board, including its device package and part
+information. Projects without boards fall back to a generic schematic BOM.
+Use `schematic_only: true` explicitly for a generic BOM in a project with boards;
+it cannot be combined with `board`. The response identifies the selected board
+UUID (or null for the generic BOM).
+
 `drc_run` includes an `objects` array on each finding. Copper-pair clearance
 findings identify both objects. Graphic width and silkscreen clearance
 findings identify the affected polygon, circle or stroke text. Footprint

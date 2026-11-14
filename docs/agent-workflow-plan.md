@@ -11,7 +11,7 @@ preview/apply revision checks, undo and native LibrePCB interoperability.
 | Order | Scope | Acceptance | State |
 | --- | --- | --- | --- |
 | A1 | Safe library search | Warn about ambiguous 0201/0402/0603 even with limit 1; explain that whole is textual, not dimensional. Later rank by verified dimensions and explicit unit convention, not name guesses. | Warning implemented; focused integration test and Clippy passed; dimension-based ranking remains planned |
-| A2 | Part identity and BOM | Declarative components accept manufacturer/MPN, supplier identity and attributes through editor mutations; preserve identities on reconciliation, undo and save/reopen. BOM without an explicit board selects the first board consistently; schematic-only projects still work. Test package, MPN and supplier fields end to end. | Planned |
+| A2 | Part identity and BOM | Declarative components accept manufacturer/MPN, supplier identity and attributes through editor mutations; preserve identities on reconciliation, undo and save/reopen. BOM without an explicit board selects the first board consistently; schematic-only projects still work. Test package, MPN and supplier fields end to end. | In progress: board-default BOM patch; declarative part identity next |
 | A3 | Resolve devices and pins | Device alone resolves its library component. Exact MPN/name lookup returns candidates and rejects ambiguous selections. One detail response exposes signals, named pads, footprint dimensions and model availability. UUIDs remain the stable persisted identity. | Planned |
 | A4 | Import a concrete purchasable part | LCSC ID or exact MPN produces a reviewed native component/device/package/symbol bundle with pin mapping, MPN, supplier ID and available 3D assets. See the import stages below. | Priority after A2/A3 |
 | A5 | Partial library install and official KiCad discovery | One unresolved library does not discard successful independent requests; report per-item results and dependency failures. Discover official KiCad libraries explicitly and import a selected pinned source. | Planned |
@@ -73,3 +73,12 @@ from the converted CAD component, with optional local asset download. Missing
 3D is explicitly reported by the CLI. This is a source trace, not a successful
 live import or validation of pin correctness. Inspect `easyeda` source and its
 license next; copying the CLI wrapper alone would not implement conversion.
+
+### Delivered BOM substep (A2)
+
+`export_bom` selects the first board by default, falling back to generic BOM for
+boardless projects. `schematic_only` explicitly requests the generic export and
+is mutually exclusive with `board`. The response identifies the selected board.
+Integration coverage compares implicit and explicit board selection and checks
+schematic mode and argument conflicts. All 85 MCP integration tests and focused
+MCP Clippy passed. This does not yet implement declarative MPN/supplier selection.

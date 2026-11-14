@@ -424,6 +424,38 @@ fn checks_exports_and_render() {
     assert!(bom.starts_with(&project_dir));
     assert!(out.result["csv"].as_str().unwrap().contains("R1"));
 
+    let explicit = output::export_bom(
+        &session,
+        ExportBomArgs {
+            board: Some("0".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(out.result["board"].is_string());
+    assert_eq!(out.result["board"], explicit.result["board"]);
+    assert_eq!(out.result["csv"], explicit.result["csv"]);
+    let schematic = output::export_bom(
+        &session,
+        ExportBomArgs {
+            schematic_only: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(schematic.result["board"].is_null());
+    assert!(
+        output::export_bom(
+            &session,
+            ExportBomArgs {
+                board: Some("0".into()),
+                schematic_only: true,
+                ..Default::default()
+            },
+        )
+        .is_err()
+    );
+
     let pnp = tmp.path().join("pnp.csv");
     let out = output::export_pick_place(
         &session,
