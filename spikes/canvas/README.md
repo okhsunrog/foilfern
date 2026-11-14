@@ -2,7 +2,7 @@
 
 Throwaway prototype to choose the board/schematic canvas architecture for the
 Slint UI. It loads LibrePCB boards from `../LibrePCB/tests/data` (hand-written
-loader, not librepcb-core) or a synthetic stress scene, and renders them with
+loader, not foilfern-core) or a synthetic stress scene, and renders them with
 several approaches, with pan, zoom and R-tree hit-testing.
 
 ## Results

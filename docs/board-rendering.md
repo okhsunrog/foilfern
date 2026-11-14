@@ -29,7 +29,7 @@ Project -> BoardPhysicalGeometry -> realistic 2D paths -> Vello / SVG / PDF
                                 -> future mesh builder -> 3D renderer
 ```
 
-`librepcb_graphics::realistic_board_drawing()` selects material colors and
+`foilfern_graphics::realistic_board_drawing()` selects material colors and
 paint order from the snapshot and export settings. Output jobs reuse a
 snapshot across top/bottom pages. Transparent mask/legend colors request the
 board's fabrication colors; absent roles remain hidden. Copper and paste
@@ -37,7 +37,7 @@ regions use the viewed face's drill projection, even if the job enables
 layers from both faces.
 
 The resulting `Drawing::filled_areas()` retains ordered compound paths.
-PNG uses `librepcb_canvas::render::rasterize_filled_paths()` and `vello_cpu`;
+PNG uses `foilfern_canvas::render::rasterize_filled_paths()` and `vello_cpu`;
 SVG/PDF use those same paths and the same page transform without embedding
 a board bitmap. The raster path preserves even-odd cutouts directly instead
 of inserting areas into the editor scene, whose fill batching normalizes
@@ -51,10 +51,10 @@ A future 3D mesh builder uses canonical outlines, resolved drill spans and
 model references. It must not extrude a flat projection: upstream's flat
 blind-via treatment differs from physical depth. Bevy is a candidate for
 lighting, materials and camera control. The application workspace now has
-mechanical BRep construction and STEP tessellation in `librepcb-step`;
+mechanical BRep construction and STEP tessellation in `foilfern-step`;
 it has no Bevy dependency or interactive 3D viewer yet.
 
-`librepcb_step::StepModel::from_board()` consumes the canonical snapshot
+`foilfern_step::StepModel::from_board()` consumes the canonical snapshot
 to build a mechanical BRep board and placed component solids with
 Monstertruck, with STEP and OBJ output. CAN–USB's component placements match
 the official STEP export individually in independent OCCT checks. This
@@ -68,7 +68,7 @@ depth-aware drill geometry. Mechanical PCB bodies are opaque, with the
 upstream linear-RGB-to-sRGB color encoding; mask alpha belongs to the
 separate physical surface renderer. The CLI injects STEP preparation through
 the core job runner, retaining indexed ownership, archives and cleanup.
-See `../crates/librepcb-step/README.md` and `../spikes/step/README.md` for
+See `../crates/foilfern-step/README.md` and `../spikes/step/README.md` for
 API boundaries and independent validation. The probe reuses the workspace
 backend through its optional diagnostics feature.
 

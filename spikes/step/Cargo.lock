@@ -865,7 +865,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "librepcb-core"
+name = "foilfern-core"
 version = "0.1.0"
 dependencies = [
  "alphanumeric-sort",
@@ -881,7 +881,7 @@ dependencies = [
  "image",
  "interactive-html-bom",
  "libm",
- "librepcb-i18n",
+ "foilfern-i18n",
  "log",
  "md-5",
  "path-clean",
@@ -907,20 +907,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "librepcb-i18n"
+name = "foilfern-i18n"
 version = "0.1.0"
 dependencies = [
  "sys-locale",
 ]
 
 [[package]]
-name = "librepcb-step"
+name = "foilfern-step"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clipper",
  "libm",
- "librepcb-core",
+ "foilfern-core",
  "monstertruck-io",
  "monstertruck-meshing",
  "monstertruck-modeling",
@@ -1829,8 +1829,8 @@ name = "step-spike"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "librepcb-core",
- "librepcb-step",
+ "foilfern-core",
+ "foilfern-step",
  "monstertruck-io",
  "monstertruck-meshing",
  "monstertruck-modeling",

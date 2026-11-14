@@ -1,6 +1,6 @@
 //! Build a mechanical 3D board prototype from the shared physical snapshot.
 use anyhow::{Context, Result, ensure};
-use librepcb_core::{
+use foilfern_core::{
     fileio::{FilePath, FileSystem, TransactionalDirectory, TransactionalFileSystem},
     project::{AssemblyVariantId, ProjectLoader, board::BoardPhysicalGeometry},
 };

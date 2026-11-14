@@ -42,10 +42,10 @@ Use a release build of Foilfern for real-board routing, DRC runs and
 performance measurements. Build the binary the workflow uses, for example:
 
 ```sh
-cargo build --locked --release -p librepcb-mcp --bin librepcb-mcp
+cargo build --locked --release -p foilfern-mcp --bin foilfern-mcp
 ```
 
-Run `target/release/librepcb-mcp` (under the configured target directory
+Run `target/release/foilfern-mcp` (under the configured target directory
 if overridden), and restart the MCP process after rebuilding it. Use
 ordinary dev builds for focused correctness tests and debugging. Record
 the commit, binary path and Cargo profile in performance reports. Compare
@@ -53,27 +53,27 @@ code changes using the same build profile, board snapshot and request.
 
 ## Layout
 
-- `crates/librepcb-core`: domain model (port of `libs/librepcb/core`), one
+- `crates/foilfern-core`: domain model (port of `libs/librepcb/core`), one
   module per upstream directory (`types`, `serialization`, `geometry`,
   `library`, `project`, `export`, ...).
-- `crates/librepcb-i18n`: runtime for translating strings from Rust code.
-- `crates/librepcb-editor`: shared commands, undo, editor FSMs and routing service.
-- `crates/librepcb-app`: Slint desktop host; `ui/` is the separate app UI crate.
-- `crates/librepcb-cli`: command-line checks and exports.
-- `crates/librepcb-network`: async networking (tokio, reqwest).
-- `crates/librepcb-canvas`: 2D rendering canvas (vello_cpu, rstar, kurbo) with
+- `crates/foilfern-i18n`: runtime for translating strings from Rust code.
+- `crates/foilfern-editor`: shared commands, undo, editor FSMs and routing service.
+- `crates/foilfern-app`: Slint desktop host; `ui/` is the separate app UI crate.
+- `crates/foilfern-cli`: command-line checks and exports.
+- `crates/foilfern-network`: async networking (tokio, reqwest).
+- `crates/foilfern-canvas`: 2D rendering canvas (vello_cpu, rstar, kurbo) with
   an optional Slint adapter.
-- `crates/librepcb-graphics`: vector/raster document export and realistic 2D board output.
-- `crates/librepcb-step`: pure-Rust CAD import, mechanical STEP output and document minification.
-- `crates/librepcb-render3d`: physical board meshes and offscreen Bevy PBR rendering.
+- `crates/foilfern-graphics`: vector/raster document export and realistic 2D board output.
+- `crates/foilfern-step`: pure-Rust CAD import, mechanical STEP output and document minification.
+- `crates/foilfern-render3d`: physical board meshes and offscreen Bevy PBR rendering.
 - `crates/clipper`: pure-Rust port of Clipper 1.
-- `crates/librepcb-scene`: schematic/board scene builders on the canvas and
+- `crates/foilfern-scene`: schematic/board scene builders on the canvas and
   headless PNG rendering.
-- `crates/librepcb-autoroute`: built-in grid autorouter (original code, no
+- `crates/foilfern-autoroute`: built-in grid autorouter (original code, no
   upstream counterpart).
-- `crates/librepcb-import`: EAGLE and KiCad library import and EAGLE project
+- `crates/foilfern-import`: EAGLE and KiCad library import and EAGLE project
   import (port of `libs/librepcb/{eagleimport,kicadimport}`).
-- `crates/librepcb-mcp`: MCP server (rmcp; binary `librepcb-mcp`, stdio or
+- `crates/foilfern-mcp`: MCP server (rmcp; binary `foilfern-mcp`, stdio or
   streamable HTTP with the feature `http`), see `docs/mcp-design.md`.
 - `tools/ts2po`: converter from Qt `.ts` to gettext `.po`.
 - `lang/<lang>/LC_MESSAGES/*.po`: translation catalogs.
@@ -137,7 +137,7 @@ code changes using the same build profile, board snapshot and request.
 - Numeric semantics must match upstream exactly (integer nanometers, rounding
   modes, overflow checks); file output depends on them. Transcendental
   functions come from the `libm` crate for cross-platform determinism.
-- User-visible strings go through `librepcb_i18n::tr!` using the upstream Qt
+- User-visible strings go through `foilfern_i18n::tr!` using the upstream Qt
   translation context (the C++ class name) as context and `{0}`, `{1}`
   placeholders instead of Qt's `%1`, `%2`, so existing translations keep
   matching. `tr!` always formats (`{{`/`}}` are literal braces, `{}` takes the
@@ -150,7 +150,7 @@ code changes using the same build profile, board snapshot and request.
 - Upstream already has some Rust in `libs/librepcb/rust-core` (zip
   read/write, Length/Angle/Point/Vertex, toolbox, math). Reuse its logic where
   it applies instead of re-deriving it from the C++.
-- Keep core synchronous: no async runtime in `librepcb-core` (it is CPU/file
+- Keep core synchronous: no async runtime in `foilfern-core` (it is CPU/file
   bound). Long core operations run on caller-provided threads and report
   progress via callbacks or channels.
 - Networking, MCP and AI integration are async (tokio) and live in their own

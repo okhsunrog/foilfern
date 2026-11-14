@@ -174,7 +174,7 @@ workspace Clippy with all targets and warnings denied, and formatting. The
 [session report](notes/drc-session-results-2026-11-12.md) describes the final
 design, performance and compatibility boundaries. The Nix addition at
 `f3c3fda` was evaluated for x86_64-linux and
-aarch64-linux; shell/resource/library checks and `cargo check -p librepcb-i18n`
+aarch64-linux; shell/resource/library checks and `cargo check -p foilfern-i18n`
 ran on x86_64-linux. This was not a full workspace or GUI-in-Nix acceptance run.
 
 Earlier full-workspace, upstream CLI, GPU and desktop evidence is in

@@ -24,8 +24,8 @@ of network searches or copied library data. With `LIBREPCB_UPSTREAM_DIR`
 configured, run:
 
 ```sh
-cargo test -p librepcb-editor autoroute_test
-cargo test -p librepcb-mcp --features http routing::
+cargo test -p foilfern-editor autoroute_test
+cargo test -p foilfern-mcp --features http routing::
 ```
 
 The first suite reproduces the automatic/manual via representation problem
@@ -113,14 +113,14 @@ J2, three open connections between J1 shield pads, and 211 warnings.
 
 The flat schematic import produced 148 placed symbols including power
 symbols, and matched all 60 groups of connected physical pins in the
-KiCad CLI netlist when compared by reference and pin number. LibrePCB-RS
+KiCad CLI netlist when compared by reference and pin number. Foilfern
 ERC reported zero errors and warnings. KiCad's generated names for
 unnamed nets can differ in the schematic-only import.
 
 Importing the PCB setup restored all 86 placements (75 top, 11 bottom),
 339 numbered pad centers, eight plane outlines, the antenna keepout, and
 the four-layer board outline. The 12 unnumbered KiCad entries were
-paste and mask apertures and non-plated holes. The initial LibrePCB-RS board had
+paste and mask apertures and non-plated holes. The initial Foilfern board had
 169 open connections after fill. Its remaining DRC errors included two
 copper-to-hole findings and a keepout finding on the antenna pad. The
 KiCad keepout allows pads, while the native copper keepout covers pads

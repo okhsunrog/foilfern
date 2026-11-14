@@ -1,7 +1,7 @@
 //! Checks that the `lang/` catalogs work with Slint's bundled translations
-//! and give the same results as `librepcb_i18n`.
+//! and give the same results as `foilfern_i18n`.
 
-use librepcb_i18n::{tr, trn};
+use foilfern_i18n::{tr, trn};
 
 slint::include_modules!();
 
@@ -14,9 +14,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     i_slint_backend_testing::init_no_event_loop();
     let ui = MainMenuBar::new()?;
 
-    // Every catalog known to librepcb_i18n must be selectable in Slint under
+    // Every catalog known to foilfern_i18n must be selectable in Slint under
     // the same tag.
-    for lang in librepcb_i18n::available_languages() {
+    for lang in foilfern_i18n::available_languages() {
         slint::select_bundled_translation(lang)?;
     }
 
@@ -28,12 +28,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("ru", 5),
         ("en", 2),
     ] {
-        let tag = librepcb_i18n::set_language(lang)?;
+        let tag = foilfern_i18n::set_language(lang)?;
         slint::select_bundled_translation(tag)?;
         ui.set_count(count);
         println!("{tag} (count = {count}):");
 
-        // Slint and librepcb_i18n must agree on every string.
+        // Slint and foilfern_i18n must agree on every string.
         let file = tr!("MainMenuBar", "File");
         let undo = tr!("MainMenuBar", "Undo: {}", "X");
         let choose = tr!("DeviceDependencyCard", "Choose {}", "Symbol");

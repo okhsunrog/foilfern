@@ -16,7 +16,7 @@ vello29 = { version = "0.10", package = "vello" }
 vello30 = { git = "https://github.com/linebender/vello", rev = "a9f11bbe752c391a2e420657d65cbd1fc97f4fae", version = "0.10.0", package = "vello" }
 vello_cpu = { version = "0.2.0", features = ["multithreading"] }
 
-# Standalone: not part of the librepcb-rs workspace.
+# Standalone: not part of the foilfern workspace.
 [workspace]
 
 [build-dependencies]

@@ -86,7 +86,7 @@ comparisons are recorded below; they do not prove equality on all coordinates.
 
 Final validation:
 
-- `cargo test --locked -p librepcb-core`: **113 unit + 894 integration tests
+- `cargo test --locked -p foilfern-core`: **113 unit + 894 integration tests
   passed**, one integration test ignored. `LIBREPCB_CLI` was set, including
   upstream DRC, migration, roundtrip and export oracles.
 - `cargo clippy --locked --workspace --all-targets -- -D warnings` passed.
@@ -110,7 +110,7 @@ checked.
 ## Reproduction
 
 ```sh
-cargo build --locked --release -p librepcb-core --example drc_copper_benchmark
+cargo build --locked --release -p foilfern-core --example drc_copper_benchmark
 target/release/examples/drc_copper_benchmark /path/to/project.lpp full
 target/release/examples/drc_copper_benchmark /path/to/project.lpp layers
 ```

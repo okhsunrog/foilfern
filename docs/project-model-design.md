@@ -1,6 +1,6 @@
 # Project model design
 
-Current architecture of `librepcb_core::project` and the editor layer, reviewed
+Current architecture of `foilfern_core::project` and the editor layer, reviewed
 2026-11-11. The upstream behavioral reference is `libs/librepcb/core/project`.
 This document describes implemented ownership and invariants; new declarative
 updates and requirements are planned in [the roadmap](roadmap.md).
@@ -11,7 +11,7 @@ Native serialization and interoperability remain hard requirements.
 
 ## 1. Storage and identity
 
-[`Project`](../crates/librepcb-core/src/project/project.rs) owns the transactional
+[`Project`](../crates/foilfern-core/src/project/project.rs) owns the transactional
 directory, file name and UUID, metadata/settings, save/open time, typed output
 jobs, stroke fonts, project library, circuit, ERC approvals, ordered schematics
 and boards, reverse index and change journal. Its revision comes from the journal;
@@ -42,7 +42,7 @@ pointer graph.
 
 ## 2. Relationships and reverse lookups
 
-[`RefIndex`](../crates/librepcb-core/src/project/ref_index.rs) is private to the
+[`RefIndex`](../crates/foilfern-core/src/project/ref_index.rs) is private to the
 project. It tracks net uses, component uses and bus uses across aggregates.
 Mutation implementations update it; the loader populates the model through the
 validating insertion paths. `Project::is_ref_index_consistent()` compares it
@@ -78,7 +78,7 @@ and restores the saved file overlay before discarding the buffered events.
 
 ## 4. Mutations, commands and undo
 
-[`Mutation`](../crates/librepcb-core/src/project/mutation/mod.rs) is serializable
+[`Mutation`](../crates/foilfern-core/src/project/mutation/mod.rs) is serializable
 data. `Project::apply(mutation)` returns the inverse on success. Schematic and
 board item operations are nested `SchematicMutation` and `BoardMutation` variants;
 typed project methods are wrappers around the same implementation.
@@ -90,7 +90,7 @@ Removal inverses carry removed values so undo preserves identities. Inverses
 are data, not closures. Serialization details live in the source enums rather
 than a second handwritten list of variants in this document.
 
-[`ProjectEditor`](../crates/librepcb-editor/src/editor.rs) owns the project,
+[`ProjectEditor`](../crates/foilfern-editor/src/editor.rs) owns the project,
 library source and undo stack. Intent-level `Command`s execute through a
 `Transaction`. A command starts one labeled group, or joins an already active
 group. Standalone commands and MCP writes run through `execute_atomic`, which
@@ -100,7 +100,7 @@ a new group discards redo; starting and aborting one does not discard redo.
 Undo/redo apply stored inverse operations and keep their inverses for the next
 transition. They restore data, not an earlier revision number.
 
-[`Operation`](../crates/librepcb-editor/src/undo_stack.rs) covers more than
+[`Operation`](../crates/foilfern-editor/src/undo_stack.rs) covers more than
 `Mutation`: it also adds/removes file-backed project library elements and
 writes/removes project asset files. Library additions/removals are `Project`
 methods with journal events, not serializable `Mutation` variants. This is why
@@ -119,7 +119,7 @@ upgrade state in `OpenProject`; revision equality alone is not a dirty-state tes
 
 ## 5. Change notification and derived data
 
-[`ChangeLog`](../crates/librepcb-core/src/project/change.rs) stores a bounded
+[`ChangeLog`](../crates/foilfern-core/src/project/change.rs) stores a bounded
 sequence of `Change` events (default capacity 4096). It currently uses a vector,
 dropping the older half when full. `Project::revision()` is the latest sequence
 number; one command/mutation may publish multiple events. A lagging consumer of
@@ -154,7 +154,7 @@ inputs rather than keying everything on revision alone.
 
 ## 6. Concurrency model
 
-[`SharedProject`](../crates/librepcb-editor/src/open_project.rs) is
+[`SharedProject`](../crates/foilfern-editor/src/open_project.rs) is
 `Arc<parking_lot::Mutex<OpenProject>>`. `OpenProject` holds the editor, directory
 lock/filesystem, save/upgrade bookkeeping and session-owned `RoutingService`.
 The desktop and embedded MCP share that handle and one undo history. Standalone
@@ -178,7 +178,7 @@ state. An actor or copy-on-write project model is not currently used.
 
 ## 7. Loading, saving and detached snapshots
 
-[`ProjectLoader`](../crates/librepcb-core/src/project/loader/mod.rs) verifies
+[`ProjectLoader`](../crates/foilfern-core/src/project/loader/mod.rs) verifies
 native markers/versions, rejects unsupported newer files, performs migrations
 in the transactional filesystem and loads typed jobs, library, circuit,
 schematics, boards and settings. Old-format migration and ERC approval cleanup
@@ -212,15 +212,15 @@ Candidates and baseline caches are not native project objects.
 
 | Area | Owning source |
 | --- | --- |
-| Project aggregate, snapshots and serialization | `librepcb-core/src/project/project.rs` |
-| IDs, changes, reverse index and library ownership | `librepcb-core/src/project/{id,change,ref_index,library}.rs` |
-| Typed circuit, schematic and board data | `librepcb-core/src/project/{circuit,schematic,board}/` |
-| Validating changes and native loading | `librepcb-core/src/project/{mutation,loader}/` |
-| Electrical and board checks | `librepcb-core/src/project/erc/`, `board/drc/` |
-| Commands, file/library operations and history | `librepcb-editor/src/{editor,undo_stack,open_project}.rs`, `commands/` |
-| Detached routing work and validation | `librepcb-editor/src/routing_service/`, `routing_service.rs`, `routing_validation.rs` |
-| Tool DTOs, dispatch and session orchestration | `librepcb-mcp/src/` |
-| UI event translation and scene presentation | `librepcb-app`, `librepcb-scene`, `librepcb-canvas` |
+| Project aggregate, snapshots and serialization | `foilfern-core/src/project/project.rs` |
+| IDs, changes, reverse index and library ownership | `foilfern-core/src/project/{id,change,ref_index,library}.rs` |
+| Typed circuit, schematic and board data | `foilfern-core/src/project/{circuit,schematic,board}/` |
+| Validating changes and native loading | `foilfern-core/src/project/{mutation,loader}/` |
+| Electrical and board checks | `foilfern-core/src/project/erc/`, `board/drc/` |
+| Commands, file/library operations and history | `foilfern-editor/src/{editor,undo_stack,open_project}.rs`, `commands/` |
+| Detached routing work and validation | `foilfern-editor/src/routing_service/`, `routing_service.rs`, `routing_validation.rs` |
+| Tool DTOs, dispatch and session orchestration | `foilfern-mcp/src/` |
+| UI event translation and scene presentation | `foilfern-app`, `foilfern-scene`, `foilfern-canvas` |
 
 The initial skeleton/parallel porting assignments are historical. These modules
 contain implementations; new work follows the ownership boundaries rather than

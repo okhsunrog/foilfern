@@ -7,9 +7,9 @@ upstream_dir="${LIBREPCB_UPSTREAM_DIR:-"$repo_dir/../LibrePCB"}"
 upstream_dir="$(cd -- "$upstream_dir" && pwd)"
 cd -- "$repo_dir"
 export LIBREPCB_UPSTREAM_DIR="$upstream_dir"
-cargo build -p librepcb-cli
+cargo build -p foilfern-cli
 cli_target_dir="$(cargo metadata --no-deps --format-version 1 | uv run --no-project python -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')"
-cli_executable="$cli_target_dir/debug/librepcb-cli"
+cli_executable="$cli_target_dir/debug/foilfern-cli"
 cd -- "$upstream_dir/tests/cli"
 uv run pytest --librepcb-executable="$cli_executable" "$@" \
     open_project/test_open.py \

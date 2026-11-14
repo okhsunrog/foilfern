@@ -9,8 +9,8 @@ license = "GPL-3.0-or-later"
 
 [dependencies]
 anyhow = "1.0.104"
-librepcb-core = { version = "0.1.0", path = "../../crates/librepcb-core" }
-librepcb-step = { version = "0.1.0", path = "../../crates/librepcb-step", features = ["diagnostics"] }
+foilfern-core = { version = "0.1.0", path = "../../crates/foilfern-core" }
+foilfern-step = { version = "0.1.0", path = "../../crates/foilfern-step", features = ["diagnostics"] }
 monstertruck-io = "0.4.1"
 monstertruck-meshing = "0.4.1"
 monstertruck-modeling = "0.4.1"

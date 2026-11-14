@@ -19,7 +19,7 @@ denied, and production CLI/MCP/application builds passed in that run.
 The regenerated CAN–USB mechanical assembly was independently checked with
 OCCT/XCAF: 87 valid solids and 2,048 face appearances were retained. Realistic
 board PNGs were inspected. Logs/artifacts were recorded at the host-local path
-`/home/okhsunrog/tmp_zfs/codex_tmp/librepcb-mcp-integration/`; that path is not a
+`/home/okhsunrog/tmp_zfs/codex_tmp/foilfern-mcp-integration/`; that path is not a
 portable fixture or a promise that the files remain available elsewhere.
 
 ## Interactive board 3D viewer

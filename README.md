@@ -67,12 +67,12 @@ want their integration comparisons; the development shell does not install
 either or enable otherwise skipped comparisons automatically.
 
 ```sh
-cargo run --locked --release -p librepcb-app -- --project /path/to/board.lpp
-cargo run --locked --release -p librepcb-cli -- open-project /path/to/board.lpp --erc --drc
+cargo run --locked --release -p foilfern-app -- --project /path/to/board.lpp
+cargo run --locked --release -p foilfern-cli -- open-project /path/to/board.lpp --erc --drc
 ```
 
 Add `--tab board3d` to the desktop command to open the 3D view.
-[3D controls and graphics requirements](crates/librepcb-render3d/README.md)
+[3D controls and graphics requirements](crates/foilfern-render3d/README.md)
 
 ## AI agents over MCP
 
@@ -84,7 +84,7 @@ in the open project and undo its edits from the desktop editor's history.
 Install the standalone server from the checkout.
 
 ```sh
-cargo install --locked --path crates/librepcb-mcp
+cargo install --locked --path crates/foilfern-mcp
 ```
 
 Register it with your MCP client. The server opens the workspace you pass and
@@ -93,16 +93,16 @@ creates it if needed.
 **Codex**
 
 ```sh
-codex mcp add foilfern -- librepcb-mcp --workspace "$HOME/LibrePCB-Workspace"
+codex mcp add foilfern -- foilfern-mcp --workspace "$HOME/LibrePCB-Workspace"
 ```
 
 **Claude Code**
 
 ```sh
-claude mcp add --transport stdio foilfern -- librepcb-mcp --workspace "$HOME/LibrePCB-Workspace"
+claude mcp add --transport stdio foilfern -- foilfern-mcp --workspace "$HOME/LibrePCB-Workspace"
 ```
 
-For other clients, configure a stdio server with the command `librepcb-mcp`
+For other clients, configure a stdio server with the command `foilfern-mcp`
 and arguments `--workspace` and the absolute workspace path. To connect to an
 open desktop project, launch the editor with `--mcp` and point a Streamable
 HTTP client at `http://127.0.0.1:8766/mcp`.

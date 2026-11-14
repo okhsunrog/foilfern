@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "crates/librepcb-app/ui", "tools/*"]
+members = ["crates/*", "crates/foilfern-app/ui", "tools/*"]
 exclude = ["spikes"]
 
 [workspace.package]
@@ -25,5 +25,5 @@ debug = false
 
 # The generated Slint UI code is huge (tens of MB of Rust); without debug
 # info its artifacts are about ten times smaller and link faster.
-[profile.dev.package.librepcb-app-ui]
+[profile.dev.package.foilfern-app-ui]
 debug = false

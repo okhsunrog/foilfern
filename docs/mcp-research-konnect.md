@@ -60,7 +60,7 @@ design input, not a claim that every proposed feature shipped.
 7. **Observability tools**: recent calls ring buffer, per-tool stats, JSONL
    log, `server_info` (`observability.rs`).
 8. **Visual feedback**: `render_schematic`/`render_board` returning MCP image
-   content from `librepcb-canvas`; pin the rasterizer if baselines are stored.
+   content from `foilfern-canvas`; pin the rasterizer if baselines are stored.
 9. **Skills and subagents**: a build agent (place → wire → annotate → save →
    ERC → render and look → fix), a review agent, "one design owner at a
    time", and an evidence hierarchy (requirements/datasheets > ERC/DRC >
@@ -103,7 +103,7 @@ design input, not a claim that every proposed feature shipped.
 ## Original decisions and implementation notes
 
 1. **Process model**: one MCP crate, two hosts. First a standalone
-   `librepcb-mcp` that owns the project and takes the upstream-compatible
+   `foilfern-mcp` that owns the project and takes the upstream-compatible
    `DirectoryLock`; the same server is now embedded in the Slint app on the
    shared `Arc<parking_lot::Mutex<OpenProject>>`, so the user can watch edits.
 2. **Undo**: one shared history with labeled groups; each agent tool call is
@@ -112,7 +112,7 @@ design input, not a claim that every proposed feature shipped.
    plus a raw `apply_mutation` escape hatch with a generated schema and full
    validation.
 4. **Skills**: skill and agent files in this repository, installed by
-   `librepcb-mcp init` (installer still planned). The client-independent
+   `foilfern-mcp init` (installer still planned). The client-independent
    board workflow is now embedded as `librepcb://guides/board-design`, a
    standard MCP resource available over stdio and HTTP without installation.
 5. **Toolsets**: no dynamic loading. The original under-60 target is historical;

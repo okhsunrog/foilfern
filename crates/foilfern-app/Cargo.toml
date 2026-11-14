@@ -1,0 +1,58 @@
+[package]
+name = "foilfern-app"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "LibrePCB graphical application (Slint UI)"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "foilfern"
+path = "src/main.rs"
+# The binary has no unit tests (they live in the library): do not link an
+# empty test harness of the whole dependency tree.
+test = false
+
+[lints]
+workspace = true
+
+[dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["std", "clock"] }
+clap = { version = "4.6.7", features = ["derive"] }
+clipboard-rs = { version = "0.3.5", default-features = false, features = ["wayland"] }
+env_logger = "0.11.11"
+foilfern-app-ui = { version = "0.1.0", path = "ui" }
+foilfern-canvas = { version = "0.1.0", path = "../foilfern-canvas", features = ["slint"] }
+foilfern-core = { version = "0.1.0", path = "../foilfern-core" }
+foilfern-editor = { version = "0.1.0", path = "../foilfern-editor" }
+foilfern-graphics = { version = "0.1.0", path = "../foilfern-graphics" }
+foilfern-i18n = { version = "0.1.0", path = "../foilfern-i18n" }
+foilfern-import = { version = "0.1.0", path = "../foilfern-import" }
+foilfern-mcp = { version = "0.1.0", path = "../foilfern-mcp", features = ["http"] }
+foilfern-network = { version = "0.1.0", path = "../foilfern-network" }
+foilfern-render3d = { version = "0.1.0", path = "../foilfern-render3d" }
+foilfern-scene = { version = "0.1.0", path = "../foilfern-scene" }
+foilfern-step = { version = "0.1.0", path = "../foilfern-step" }
+log = "0.4.34"
+open = "5.4.4"
+parking_lot = "0.12.5"
+png = "0.18.1"
+rfd = "0.17.2"
+slint = { git = "https://github.com/slint-ui/slint", rev = "aebe3dd580ce0594de272bc5797b7444a2aa18fd", version = "1.20.0" }
+thiserror = "2.0.21"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "sync"] }
+tokio-util = "0.7.19"
+
+[features]
+# Slint's embedded MCP server for driving the UI from agents (see the crate
+# documentation, "Debugging the UI with agents"). Equivalent to
+# `--features slint/mcp`; never enable it by default.
+ui-debug-mcp = ["slint/mcp"]
+
+[dev-dependencies]
+rmcp = { version = "3.4.1", features = ["client", "transport-streamable-http-client-reqwest"] }
+serde_json = "1.0.151"
+tempfile = "3.27.0"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros"] }

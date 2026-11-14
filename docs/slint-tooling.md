@@ -14,7 +14,7 @@ application, including its canvas callbacks. Compile it as a development
 option; `mcp` is not a default dependency feature:
 
 ```sh
-SLINT_EMIT_DEBUG_INFO=1 cargo build -p librepcb-canvas \
+SLINT_EMIT_DEBUG_INFO=1 cargo build -p foilfern-canvas \
     --example canvas_demo --features slint,slint/mcp
 uv run --no-project python scripts/check-slint-mcp.py \
     --binary target/debug/examples/canvas_demo \
@@ -43,7 +43,7 @@ For an interactive MCP client, start the demo with a fixed port instead:
 
 ```sh
 SLINT_EMIT_DEBUG_INFO=1 SLINT_MCP_PORT=9315 SLINT_BACKEND=headless-software \
-    cargo run -p librepcb-canvas --example canvas_demo \
+    cargo run -p foilfern-canvas --example canvas_demo \
     --features slint,slint/mcp -- --no-stress
 ```
 

@@ -265,7 +265,7 @@ mod tests {
 
     /// Evaluates the header with the runtime's evaluator.
     fn librepcb_plural(header: &str, n: u64) -> usize {
-        librepcb_i18n::PluralForms::parse(header)
+        foilfern_i18n::PluralForms::parse(header)
             .expect("valid plural expression")
             .index(n)
     }

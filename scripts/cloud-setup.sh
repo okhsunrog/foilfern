@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Prepares a fresh machine (e.g. a Claude Code cloud environment, CI) for
-# working on librepcb-rs:
+# working on Foilfern:
 #
 # 1. system packages for building and for running the upstream CLI headless
 #    (Debian/Ubuntu only; skipped elsewhere),
@@ -11,7 +11,7 @@
 #    `xvfb-run` because the release build only ships the xcb Qt platform
 #    plugin,
 # 5. the FreeRouting autorouter (Java >= 25, jar in the tools directory) with
-#    a headless `freerouting` launcher, used by `librepcb-editor`'s
+#    a headless `freerouting` launcher, used by `foilfern-editor`'s
 #    `FreeroutingRouter` and its round trip tests.
 #
 # Afterwards `cargo test --workspace` runs everything, including the
@@ -21,7 +21,7 @@
 #   LIBREPCB_UPSTREAM_DIR  upstream checkout (default: ../LibrePCB next to
 #                          this repository, as in .cargo/config.toml)
 #   LIBREPCB_TOOLS_DIR     where the CLI release is unpacked
-#                          (default: ~/.local/share/librepcb-rs)
+#                          (default: ~/.local/share/foilfern; reuses existing librepcb-rs directory)
 #   LIBREPCB_BIN_DIR       where the `librepcb-cli` and `freerouting`
 #                          wrappers are installed (default: /usr/local/bin
 #                          if writable, else ~/.local/bin)
@@ -42,7 +42,13 @@ FREEROUTING_SHA256="251101c3eeac22d7e7dfcf6796603279e5d1000283eb82d8f093780f7afc
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UPSTREAM_DIR="${LIBREPCB_UPSTREAM_DIR:-${ROOT}/../LibrePCB}"
-TOOLS_DIR="${LIBREPCB_TOOLS_DIR:-${HOME}/.local/share/librepcb-rs}"
+if [[ -n "${LIBREPCB_TOOLS_DIR:-}" ]]; then
+  TOOLS_DIR="${LIBREPCB_TOOLS_DIR}"
+elif [[ -d "${HOME}/.local/share/librepcb-rs" && ! -d "${HOME}/.local/share/foilfern" ]]; then
+  TOOLS_DIR="${HOME}/.local/share/librepcb-rs"
+else
+  TOOLS_DIR="${HOME}/.local/share/foilfern"
+fi
 if [[ -n "${LIBREPCB_BIN_DIR:-}" ]]; then
   BIN_DIR="${LIBREPCB_BIN_DIR}"
 elif [[ -w /usr/local/bin ]]; then
@@ -111,7 +117,7 @@ mkdir -p "${BIN_DIR}"
 cat >"${BIN_DIR}/librepcb-cli" <<EOF
 #!/usr/bin/env bash
 # Upstream librepcb-cli ${CLI_VERSION}, run headless (installed by
-# librepcb-rs/scripts/cloud-setup.sh). The release build only ships the xcb
+# foilfern/scripts/cloud-setup.sh). The release build only ships the xcb
 # platform plugin, so callers asking for "offscreen" get xcb on Xvfb instead.
 export QT_QPA_PLATFORM=xcb
 exec xvfb-run -a "${CLI_DIR}/bin/librepcb-cli" "\$@"
@@ -141,7 +147,7 @@ if [[ -n "${JAVA_FOR_FREEROUTING}" ]]; then
   cat >"${BIN_DIR}/freerouting" <<EOF
 #!/usr/bin/env bash
 # FreeRouting ${FREEROUTING_VERSION}, run headless with Java >= 25 (installed by
-# librepcb-rs/scripts/cloud-setup.sh). librepcb-editor finds this launcher in
+# foilfern/scripts/cloud-setup.sh). foilfern-editor finds this launcher in
 # the PATH; alternatively set LIBREPCB_FREEROUTING_JAR=${FREEROUTING_JAR}
 # (and LIBREPCB_FREEROUTING_JAVA=${JAVA_FOR_FREEROUTING}).
 exec "${JAVA_FOR_FREEROUTING}" -Djava.awt.headless=true -jar "${FREEROUTING_JAR}" "\$@"

@@ -1,5 +1,5 @@
 //! Placeholder conversion between Qt (`%1`, `%L1`, `%n`) and the brace style
-//! (`{0}`, `{n}`) used by Slint and `librepcb_i18n`.
+//! (`{0}`, `{n}`) used by Slint and `foilfern_i18n`.
 
 use std::collections::BTreeSet;
 

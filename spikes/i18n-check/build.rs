@@ -6,7 +6,7 @@ fn main() {
     // shared `lang/*/LC_MESSAGES/librepcb.po` catalogs are staged under this
     // crate's name.
     let domain = std::env::var("CARGO_PKG_NAME").expect("set by cargo");
-    let lang = librepcb_i18n::build_support::stage_for_slint(&out_dir, &domain)
+    let lang = foilfern_i18n::build_support::stage_for_slint(&out_dir, &domain)
         .expect("stage translations");
     slint_build::compile_with_config(
         "ui/main.slint",

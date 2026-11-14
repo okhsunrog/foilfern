@@ -1,6 +1,6 @@
 # MCP server design
 
-Current contract of `crates/librepcb-mcp`, reviewed 2026-11-11 against `f3c3fda`.
+Current contract of `crates/foilfern-mcp`, reviewed 2026-11-11 against `f3c3fda`.
 The [Konnect notes](mcp-research-konnect.md) record its historical rationale;
 the [roadmap](roadmap.md) defines planned work. Goal: an agent designs a board end to
 end through MCP alone — find parts, draw the schematic, place and route the
@@ -19,21 +19,21 @@ without the repository or client-specific configuration files.
 ## Layers
 
 ```
-librepcb-mcp      MCP protocol (rmcp, stdio + optional streamable HTTP), tool
+foilfern-mcp      MCP protocol (rmcp, stdio + optional streamable HTTP), tool
                   DTOs (serde + schemars), outcome envelope, session state
-librepcb-editor   UndoStack + intent-level commands over Mutation (no MCP types)
-librepcb-core     model, Mutation/apply, ERC/DRC, exports, jobs, workspace/library DB
-librepcb-network  library download (api.librepcb.org)
+foilfern-editor   UndoStack + intent-level commands over Mutation (no MCP types)
+foilfern-core     model, Mutation/apply, ERC/DRC, exports, jobs, workspace/library DB
+foilfern-network  library download (api.librepcb.org)
 ```
 
-`librepcb-mcp` owns no domain logic: every tool is a thin adapter that
+`foilfern-mcp` owns no domain logic: every tool is a thin adapter that
 parses the DTO, calls one editor command or core query, and builds the
 response. Logic an agent needs that a UI would also need (auto-placement of
-wires, device placement, routing helpers) lives in `librepcb-editor`.
+wires, device placement, routing helpers) lives in `foilfern-editor`.
 
 ## Process and state
 
-- Binary `librepcb-mcp` (stdio by default, `--http <addr>` for streamable
+- Binary `foilfern-mcp` (stdio by default, `--http <addr>` for streamable
   HTTP), or embedded in the desktop app (see below). One server holds at
   most one workspace and one project, as shared handles
   (`SessionSlots { workspace: Option<SharedWorkspace>, project:
@@ -49,7 +49,7 @@ wires, device placement, routing helpers) lives in `librepcb-editor`.
   across `.await`. Detached tools lock for capture and publication and run
   their worker on the captured project between those calls.
 - `OpenProject { editor: ProjectEditor, file_system (lock), saved_revision,
-  upgraded }` lives in the editor crate (`librepcb_editor::OpenProject`,
+  upgraded }` lives in the editor crate (`foilfern_editor::OpenProject`,
   `OpenProject::open()` locks and loads), so the app opens projects the
   same way. The `ProjectEditor` (editor crate) owns the project, its
   undo stack and the library element source (the workspace library
@@ -71,7 +71,7 @@ wires, device placement, routing helpers) lives in `librepcb-editor`.
 The desktop app starts the server in-process ("watch the agent",
 `ui-design.md` decision 4); the standalone binary is just another host.
 
-- Library API (`librepcb_mcp::{host, transport}`): the host creates
+- Library API (`foilfern_mcp::{host, transport}`): the host creates
   `McpState::new(Arc<dyn McpHost>)`, hands over its own handles with
   `set_workspace()` / `set_project()` (e.g. the project of the active
   tab; takes effect with the next tool call) and starts
@@ -124,8 +124,8 @@ The desktop app starts the server in-process ("watch the agent",
 
 ## Tool conventions
 
-Output jobs install the same `librepcb-graphics::ProjectGraphicsExporter` and
-`librepcb-step::board_exporter()` adapters as the desktop application and CLI.
+Output jobs install the same `foilfern-graphics::ProjectGraphicsExporter` and
+`foilfern-step::board_exporter()` adapters as the desktop application and CLI.
 `jobs_run` executes mechanical STEP and realistic 2D graphics alongside the
 manufacturing, interactive BOM and archive jobs. Core owns output filenames,
 archives and cleanup; it has no CAD or renderer dependency. The standalone
@@ -613,7 +613,7 @@ import wizards: `dry_run` lists the elements with selection and
 "already imported" state, `elements` selects some with their
 dependencies, options name prefix, "EAGLE/KiCad Import" categories and
 additional categories; rescans the index; implementation in
-`librepcb-import`). `project_create` imports an EAGLE project with
+`foilfern-import`). `project_create` imports an EAGLE project with
 `eagle_schematic`/`eagle_board` (upstream new project wizard with EAGLE
 import; a delegating host gets both paths in `ProjectCreateRequest`).
 
@@ -749,7 +749,7 @@ its existing petgraph dependency; no new dependency or native format is added.
 An agent cannot route by coordinates reliably. Two paths, both behind
 `autoroute`:
 
-1. Built-in grid router: the pure algorithm in `librepcb-autoroute` (A* on
+1. Built-in grid router: the pure algorithm in `foilfern-autoroute` (A* on
    a per-layer grid with via cost, exact clearance checks, rip-up and
    reroute, air wires routed shortest first) and the editor command
    `commands::Autoroute`, which extracts the problem from the board (DRC
@@ -760,7 +760,7 @@ An agent cannot route by coordinates reliably. Two paths, both behind
    `autoroute` backend `builtin`, used by `auto` when FreeRouting is not
    installed or a nets/layers filter is given.
 2. FreeRouting through Specctra DSN export / SES import
-   (`librepcb_editor::FreeroutingRouter`: export with a manifest, run the
+   (`foilfern_editor::FreeroutingRouter`: export with a manifest, run the
    jar headless as a subprocess with a timeout, strict session import as
    one undo group). For MCP, export under the read lock, run FreeRouting
    without lock and import under the write lock; the manifest rejects the
@@ -848,12 +848,12 @@ the contract, reproducible cases and current priorities.
 
 The stroke fonts new projects get (`resources/fontobene/*.bene`, like
 upstream's `Project::create()` copies them from `share/librepcb`) and the
-default font for rendering come from `librepcb_scene::resources`: a
+default font for rendering come from `foilfern_scene::resources`: a
 resources directory on disk (`LIBREPCB_SHARE`, else `../share/librepcb`
 next to the executable) wins; otherwise the fonts embedded into the
 binary at build time from `$LIBREPCB_UPSTREAM_DIR/share/librepcb/fontobene`
 (nothing is copied into this repository) are used, so an installed
-`librepcb-mcp` works on machines without the upstream checkout.
+`foilfern-mcp` works on machines without the upstream checkout.
 
 ## Tests
 
@@ -868,7 +868,7 @@ binary at build time from `$LIBREPCB_UPSTREAM_DIR/share/librepcb/fontobene`
   Set `LIBREPCB_TEST_LIBRARIES_DIR` to the directory containing the four
   listed `.lplib` libraries and `LIBREPCB_CLI` to the official CLI for the
   upstream ERC check, then run
-  `cargo test -p librepcb-mcp --test mcp stdio_esp32_c3_schematic_acceptance`.
+  `cargo test -p foilfern-mcp --test mcp stdio_esp32_c3_schematic_acceptance`.
 
 ### Reviewed builtin routing
 

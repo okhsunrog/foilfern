@@ -1,6 +1,6 @@
 //! Converts LibrePCB's Qt `.ts` translation files (`../LibrePCB/i18n`) into
 //! gettext catalogs usable by both Slint's bundled translations and
-//! `librepcb_i18n`:
+//! `foilfern_i18n`:
 //!
 //! * `<out>/<lang>/LC_MESSAGES/<domain>.po` for each translated language,
 //! * `<out>/<domain>.pot` template from the source-language file (`en_US`).

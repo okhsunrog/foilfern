@@ -1944,7 +1944,7 @@ name = "i18n-check"
 version = "0.1.0"
 dependencies = [
  "i-slint-backend-testing",
- "librepcb-i18n",
+ "foilfern-i18n",
  "slint",
  "slint-build",
 ]
@@ -2422,7 +2422,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "librepcb-i18n"
+name = "foilfern-i18n"
 version = "0.1.0"
 dependencies = [
  "sys-locale",

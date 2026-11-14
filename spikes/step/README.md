@@ -1,7 +1,7 @@
 # Monstertruck STEP feasibility probe
 
 Standalone Rust 2024 harness, excluded from the application workspace; its
-CAD implementation now lives in `crates/librepcb-step`, reused through the
+CAD implementation now lives in `crates/foilfern-step`, reused through the
 `diagnostics` feature. Uses
 Monstertruck 0.4.1 (`monstertruck-io`, not the deprecated
 `monstertruck-step` re-export), modeling, topology and robust meshing.
@@ -38,7 +38,7 @@ Set `LIBREPCB_UPSTREAM_DIR` to the checkout described in the root
 copying its fixtures into this repository. For this standalone experiment:
 
 ```sh
-export STEP_WORK=/home/okhsunrog/tmp_zfs/codex_tmp/librepcb-step
+export STEP_WORK=/home/okhsunrog/tmp_zfs/codex_tmp/foilfern-step
 mkdir -p "$STEP_WORK"
 export TMPDIR="$STEP_WORK" CARGO_TARGET_DIR="$STEP_WORK/target"
 cargo build --manifest-path spikes/step/Cargo.toml --bins
@@ -267,8 +267,8 @@ intersecting curved cutouts.
 
 ## Workspace and native CLI integration (2026-11-09)
 
-The guarded application API is `librepcb_step::StepModel`; see
-`../../crates/librepcb-step/README.md`. The harness no longer owns a separate
+The guarded application API is `foilfern_step::StepModel`; see
+`../../crates/foilfern-step/README.md`. The harness no longer owns a separate
 copy of the CAD implementation. All seventeen probe inputs still pass
 geometry and independent XCAF checks after the move.
 
@@ -287,7 +287,7 @@ covered only components and did not establish PCB color correctness.
 To validate the native CLI file using a probe run's board metadata:
 
 ```sh
-cargo run -p librepcb-cli -- open-project --run-job 'STEP Model' \
+cargo run -p foilfern-cli -- open-project --run-job 'STEP Model' \
   --outdir "$STEP_WORK/native" /absolute/path/to/can2usb.lppz
 uv run spikes/step/compare-board.py "$STEP_WORK/can2usb-3d" \
   "$STEP_WORK/can2usb-oracle/can2usb_v2.step" \

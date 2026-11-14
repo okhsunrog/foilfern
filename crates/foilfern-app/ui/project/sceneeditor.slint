@@ -1,0 +1,46 @@
+// Scene context menu of the schematic and board editor tabs.
+//
+// Not from upstream: upstream opens Qt menus (QMenu) from the editor states.
+// This file is part of foilfern.
+
+import { MenuItem, MenuPopup, MenuSeparator } from "../widgets.slint";
+
+// An entry of a scene context menu (empty text: separator).
+export struct SceneMenuEntry {
+    text: string,
+    enabled: bool,
+    checkable: bool,
+    checked: bool,
+    is-default: bool,
+}
+
+export global SceneEditor {
+    // Context menu: the backend sets the entries and position (relative to
+    // the scene) and increments `menu-serial` to show it in the tab of
+    // `menu-section`.
+    in-out property <int> menu-section: -1;
+    in-out property <length> menu-x;
+    in-out property <length> menu-y;
+    in-out property <[SceneMenuEntry]> menu-entries;
+    in-out property <int> menu-serial: 0;
+    callback menu-activated(int, int);  // Section, entry index
+}
+
+export component SceneContextMenu inherits MenuPopup {
+    in property <int> section-index;
+
+    for entry[i] in SceneEditor.menu-entries: VerticalLayout {
+        if entry.text.is-empty: MenuSeparator { }
+        if !entry.text.is-empty: MenuItem {
+            text: entry.text;
+            enabled: entry.enabled;
+            checkable: entry.checkable;
+            checked: entry.checked;
+            default: entry.is-default;
+
+            clicked => {
+                SceneEditor.menu-activated(section-index, i);
+            }
+        }
+    }
+}

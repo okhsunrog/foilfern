@@ -15,7 +15,7 @@ HTML to another browser does not automatically transfer that progress.
 Run the job by its configured name (this name is used by upstream fixtures):
 
 ```sh
-target/debug/librepcb-cli open-project \
+target/debug/foilfern-cli open-project \
   --run-job 'Interactive BOM' --outdir assembly path/to/project.lpp
 ```
 

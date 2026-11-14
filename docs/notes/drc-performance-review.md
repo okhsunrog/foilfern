@@ -9,7 +9,7 @@ validation and relevant tests. This review does not change production code.
 
 ### 1. Reject spatially separated pairs before polygon clipping
 
-`crates/librepcb-core/src/project/board/drc/check.rs:780` enumerates every
+`crates/foilfern-core/src/project/board/drc/check.rs:780` enumerates every
 copper pair. Net/layer filters help, but each surviving pair invokes a complete
 Clipper intersection without an object-level spatial rejection. The drill loop
 at line 1150 has the same problem; device clearances at line 2163 test up to
@@ -93,7 +93,7 @@ These are correctness findings, not performance claims:
   that all checks naturally fail together; one missing rule loses its own
   supported approvals by the same path.
 - `drc_worker` builds planes off-lock, applies them, then extracts a fresh
-  snapshot under another lock (`librepcb-app/src/rule_check.rs:380–422`).
+  snapshot under another lock (`foilfern-app/src/rule_check.rs:380–422`).
   `apply_plane_job_result` still applies fragments when revisions differ;
   it merely leaves the layers dirty (`plane_fragments_builder.rs:443`).
   An edit while pouring can therefore produce a snapshot containing new
@@ -114,7 +114,7 @@ These are correctness findings, not performance claims:
   reliability improvement to document in COMPAT.md.
 
 The routing service already caches a revision/context-bound baseline
-(`librepcb-editor/src/routing_service.rs:231, 339`); do not propose that as a
+(`foilfern-editor/src/routing_service.rs:231, 339`); do not propose that as a
 missing feature. Extend reuse only after establishing a common snapshot
 contract. A global project revision also changes for derived-data updates, so a
 future persistent cache needs a content generation/key that cannot invalidate
@@ -189,7 +189,7 @@ spatial index, change clipping tolerance, or batch unions.
 - CPU: Intel Core Ultra 5 125H. This is a shared desktop; unrelated builds
   occurred during parts of the experiment. Treat timings as diagnostic samples,
   not a statistically isolated performance guarantee.
-- Build: `cargo build --locked --release -p librepcb-core --example drc_review`.
+- Build: `cargo build --locked --release -p foilfern-core --example drc_review`.
 - Binary: `/home/okhsunrog/tmp_zfs/codex_tmp/drc-review/worktree/target/release/examples/drc_review`.
 - Input: tracked `docs/benchmarks/esp-pd-sink/inputs.tar.gz`, extracted under
   the task directory and opened read-only. Archive SHA-256:
@@ -255,7 +255,7 @@ checks, forced plane rebuilding, approval behavior and multithreading. Command:
 
 ```sh
 DRC_REVIEW_BOUNDS=1 DRC_REVIEW_SKIP_EMPTY=1 \
-  cargo test --locked --release -p librepcb-core --test unittests drc -- --test-threads=1
+  cargo test --locked --release -p foilfern-core --test unittests drc -- --test-threads=1
 ```
 
 `LIBREPCB_UPSTREAM_DIR` selected the checkout above; `LIBREPCB_CLI` selected the
@@ -268,7 +268,7 @@ Local diagnostic artifacts, deliberately outside tracked production source:
 `instrument-v1.patch`, `instrument-v2.patch`, `run_benchmark.py`,
 `run_benchmark_v2.py`, binary copies, raw JSONL results, logs and summaries.
 Apply the instrumentation patch to the reviewed base and copy the example to
-`crates/librepcb-core/examples/drc_review.rs` to reproduce; provide the upstream
+`crates/foilfern-core/examples/drc_review.rs` to reproduce; provide the upstream
 checkout through `LIBREPCB_UPSTREAM_DIR`. Prototype code is not proposed as a
 finished implementation.
 
@@ -340,7 +340,7 @@ implementation, not the earlier runtime-switch prototypes. The baseline is
 `f2fb53dddcf7fbe7e61f4e0bcd5297f4a4ebb2cc` (correctness fixes, no skip); the
 optimized version is `e6702663d37e0c826d40685c361bbdaae5696ca4`. Both were built
 with the standard Cargo **release** profile and the same temporary
-`librepcb-core` example calling `Project::run_drc(board, None, false, ...)`.
+`foilfern-core` example calling `Project::run_drc(board, None, false, ...)`.
 Project loading is outside the timer; plane rebuilding, air wires, extraction
 and checks are inside. This is a core replay, not MCP transport or GUI latency.
 

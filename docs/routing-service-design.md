@@ -33,10 +33,10 @@ Freerouting/SES workflows retain their documented behavior during migration.
 
 ## Existing foundation (R0, implemented)
 
-- `librepcb-autoroute`: independent geometry problem and routing result,
+- `foilfern-autoroute`: independent geometry problem and routing result,
   deterministic grid A*, pad access, bounded rip-up/reroute, simplification and
   geometric verification, configurable ordering, pad escape and congestion history.
-- `librepcb-editor`: extraction from real board/DRC data and application through
+- `foilfern-editor`: extraction from real board/DRC data and application through
   ordinary commands, preserving the shared model and undo history.
 - Full applied-model before/after DRC and connectivity validation for built-in,
   Freerouting and SES import; explicit/automatic via dimensions are consistent.
@@ -53,7 +53,7 @@ Freerouting/SES workflows retain their documented behavior during migration.
 GUI / MCP
     |
     v
-routing service in librepcb-editor
+routing service in foilfern-editor
     |-- snapshot / effective constraints / request
     |-- planner and algorithm adapters
     |-- candidate geometry and topology changes
@@ -64,7 +64,7 @@ routing service in librepcb-editor
       authoritative LibrePCB project + shared undo
 ```
 
-`librepcb-core::Project` remains the only authoritative board and circuit model.
+`foilfern-core::Project` remains the only authoritative board and circuit model.
 A routing snapshot is derived from it and never becomes a second independently
 editable project. Integer nanometres and explicit board, net and object IDs are
 used at boundaries; external coordinate ranges require checked conversions.
@@ -189,7 +189,7 @@ Acceptance cases:
 
 #### Concrete R1 contract
 
-The domain implementation is `librepcb_editor::routing_service`, with one
+The domain implementation is `foilfern_editor::routing_service`, with one
 `RoutingService` owned by each `OpenProject`. GUI and MCP can share this service
 through their existing shared open-project handle. Candidate storage is not
 owned by individual MCP transports and never enters native serialization.

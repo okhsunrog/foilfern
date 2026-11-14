@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Imports upstream LibrePCB's Slint UI into crates/librepcb-app/ui.
+"""Imports upstream LibrePCB's Slint UI into crates/foilfern-app/ui.
 
 Copies all `.slint` files of `libs/librepcb/ui` and the resources they
 reference (images, icons and fonts outside of `libs/librepcb/ui`), and
@@ -16,7 +16,7 @@ The upstream checkout is taken from $LIBREPCB_UPSTREAM_DIR (default
 they are not checked out (clone them at the commits upstream pins).
 
 The script overwrites the `.slint` files, so local changes to them must be
-re-applied afterwards (see crates/librepcb-app/ui/PROVENANCE.md). Files of
+re-applied afterwards (see crates/foilfern-app/ui/PROVENANCE.md). Files of
 this repository (`Cargo.toml`, `build.rs`, `src/`, `PROVENANCE.md`) are not
 touched.
 """
@@ -29,10 +29,10 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-DST = REPO / "crates" / "librepcb-app" / "ui"
+DST = REPO / "crates" / "foilfern-app" / "ui"
 RESOURCES = "resources"
 
-# Resources used by the Rust backend (crates/librepcb-app/src/icons.rs), not
+# Resources used by the Rust backend (crates/foilfern-app/src/icons.rs), not
 # referenced by any `.slint` file.
 BACKEND_RESOURCES = [
     "img/app/librepcb.png",

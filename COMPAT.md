@@ -37,7 +37,7 @@ into Part 2. An entry that mixes both is split.
   translated name), and the file lists noted under fileio below.
 - **Transcendental functions** (`sin`, `cos`, `tan`, `acos`, `atan`,
   `atan2`, `hypot`, the math parser functions) come from the `libm` crate in
-  `librepcb-core` and `clipper`, so results are identical on all platforms.
+  `foilfern-core` and `clipper`, so results are identical on all platforms.
   Upstream calls the platform C library (glibc, MSVC CRT, ...) except for
   the functions it routes through its own Rust code (`Point::rotated()`,
   arc radius/center), which already use `libm`. `libm` differs from glibc
@@ -210,7 +210,7 @@ into Part 2. An entry that mixes both is split.
   resulting colors are written to `jobs.lp` by the default graphics jobs.
   (Embedded default colors: see Part 2, export.)
 - **Graphics export** (port of `GraphicsExport`, `GraphicsPainter` and the
-  painters, in the scene crate as `librepcb_scene::export`): no Qt, so the
+  painters, in the scene crate as `foilfern_scene::export`): no Qt, so the
   written bytes differ completely from upstream's `QPdfWriter`,
   `QSvgGenerator` and `QImageWriter` output. The page layout follows
   upstream (fixed or content-derived page size, orientation incl. the
@@ -419,7 +419,7 @@ differ between platforms/implementations:
 - `FootprintPainter` is not part of core; it is ported in the scene crate
   as `FootprintScene` (see scene).
 
-## network (crate librepcb-network)
+## network (crate foilfern-network)
 
 - Async (tokio/reqwest); progress is a `watch` channel, so intermediate
   progress states may be coalesced (upstream emits every signal).
@@ -537,7 +537,7 @@ differ between platforms/implementations:
   generator, and the elements of a resulting segment may be listed in
   another order. Files are unaffected (elements are saved sorted by UUID).
 
-## scene (crate librepcb-scene)
+## scene (crate foilfern-scene)
 
 Rendering only; no file is affected.
 
@@ -569,14 +569,14 @@ Rendering only; no file is affected.
   Part 2 for the vias this misses). Plane outlines are drawn as minimum
   width lines (upstream: fragments only). Zones and air wires are not
   drawn (like upstream).
-- Project graphics jobs and schematic exports use `librepcb-graphics`;
-  interactive canvas scenes and library previews use `librepcb-scene`.
+- Project graphics jobs and schematic exports use `foilfern-graphics`;
+  interactive canvas scenes and library previews use `foilfern-scene`.
   Realistic project output uses the shared `BoardPhysicalGeometry`, retaining
   drill spans, face-dependent blind-hole projection, mask and legend clipping
   for future 3D consumers. Rasterization uses vello_cpu; vector output retains
   even-odd contours. Antialiasing and font shaping differ from Qt.
 
-## render3d (crate librepcb-render3d)
+## render3d (crate foilfern-render3d)
 
 - The interactive board viewer uses Bevy PBR rather than upstream's Qt/OpenGL
   renderer. Lighting, tone mapping, camera controls, triangulation and pixels
@@ -769,7 +769,7 @@ Rendering only; no file is affected.
 - `DrcMsgInvalidPadConnection` keeps upstream's untranslated `'%2'` in its
   message (upstream substitutes only the first placeholder).
 
-## editor (crate librepcb-editor)
+## editor (crate foilfern-editor)
 
 - **Undo stack**: every change is recorded in a group (upstream `execCmd()`
   of a single command is a group with one operation). The redo history is
@@ -868,7 +868,7 @@ Rendering only; no file is affected.
   current segment directly (upstream first creates a segment for it).
 - **Add pad:** changing the net re-creates the preview segment with the
   new net (upstream removes, edits and re-adds it).
-- **Hit testing:** grab areas are the scene items of `librepcb-scene`
+- **Hit testing:** grab areas are the scene items of `foilfern-scene`
   (device grab area: its footprint graphics); junctions are tested on the
   model with a circle of the widest trace at them (upstream
   `BGI_NetPoint`). Items of equal priority are ordered by item reference
@@ -951,7 +951,7 @@ Rendering only; no file is affected.
 - A project without a directory on disk cannot run output jobs (the
   output directory is relative to it).
 
-## import (crate librepcb-import)
+## import (crate foilfern-import)
 
 - EAGLE XML (parseagle): numbers are parsed with `str::parse` after
   trimming instead of `QString::toDouble()`/`toInt()`, and XML is read
@@ -994,7 +994,7 @@ Rendering only; no file is affected.
   MCP tool `library_import` uses the wizards' defaults (name prefix off,
   categories on) for both.
 
-## CLI (crate librepcb-cli)
+## CLI (crate foilfern-cli)
 
 The console output (messages, help texts, exit codes) is identical to
 upstream `librepcb-cli` 2.1.1 except for:
@@ -1004,7 +1004,7 @@ upstream `librepcb-cli` 2.1.1 except for:
   lines as upstream, but the files differ (see export). The help texts
   list `pdf, svg, bmp, jpeg, jpg, png` as supported extensions (upstream:
   PDF, SVG and all image formats of the Qt installation).
-- **`--version`** prints `Implementation librepcb-rs (Rust, no Qt)`
+- **`--version`** prints `Implementation foilfern (Rust, no Qt)`
   instead of the Qt version line, `OpenCascade N/A`, and the Git revision
   `unknown`; the application version is the crate version (also written
   into exported files as generating software).
@@ -1036,7 +1036,7 @@ upstream `librepcb-cli` 2.1.1 except for:
   FreeRouting 2.4.1 reports bogus clearance violations and leaves
   connections unrouted with the finer resolution.
 
-## app (crate librepcb-app)
+## app (crate foilfern-app)
 
 - **Number formatting in the UI** (`Backend.format-length` etc.) uses `.`
   as decimal separator and no group separators instead of `QLocale`; input
@@ -1119,7 +1119,7 @@ upstream `librepcb-cli` 2.1.1 except for:
   grid), but as an undoable step ("Change Grid Properties"); upstream
   changes them without undo command.
 - **Scene editing (schematic and board tabs):** the editor FSMs of
-  `librepcb-editor` get the Slint pointer/key events; double clicks are
+  `foilfern-editor` get the Slint pointer/key events; double clicks are
   detected like upstream (500 ms) but allow 2 px of movement between the
   presses (upstream: same scene position). Overlays (selection rectangle,
   ruler, scene cursor, gray-out) are canvas items. Cross-probing highlights
@@ -1197,7 +1197,7 @@ upstream `librepcb-cli` 2.1.1 except for:
   - *Cross-probing* also highlights the pins or pads of the component
     signals the other tab reports (`fsmCrossProbe()`) and buses.
 - **Library management (M4a):**
-  - *Libraries panel:* the installer of `librepcb-network` downloads the
+  - *Libraries panel:* the installer of `foilfern-network` downloads the
     ZIP and falls back to cloning the repository with git.
   - *Library tab:* the checks run synchronously after each change.
   - *Undo stacks:* the library tab and every element tab have their own
@@ -1217,7 +1217,7 @@ upstream `librepcb-cli` 2.1.1 except for:
     others become read-only after an interface-breaking change until
     "unlock" (upstream: same).
   - *Symbol previews* in the component and device tabs are images
-    rendered with `librepcb-scene`; texts are shown raw (`{{NAME}}`).
+    rendered with `foilfern-scene`; texts are shown raw (`{{NAME}}`).
   - *Device pinout:* "auto-connect" and "load from file" keep the
     existing connections (upstream asks whether to reset them first).
   - *Categories and organizations* use a snapshot undo stack over the
@@ -1306,13 +1306,13 @@ upstream `librepcb-cli` 2.1.1 except for:
 - **Graphics export:** printing, previews and the asynchronous API
   (progress signals, cancellation, clipboard) are not ported.
 
-## network (crate librepcb-network)
+## network (crate foilfern-network)
 
 - The HTTP disk cache is not ported (`setCacheLoadControl()`,
   `setMinimumCacheTime()`, `AlwaysCache`); `ApiEndpoint`'s `forceNoCache`
   parameter is therefore dropped.
 
-## scene (crate librepcb-scene)
+## scene (crate foilfern-scene)
 
 - Images (schematic and symbol images) are not drawn yet, only their
   borders.
@@ -1327,7 +1327,7 @@ upstream `librepcb-cli` 2.1.1 except for:
 - Not ported: UI themes and color scheme logic (`UiTheme`, `ColorRole`,
   `BaseColorScheme`, `UserColorScheme`).
 
-## editor (crate librepcb-editor)
+## editor (crate foilfern-editor)
 
 - **Removing traces as a side effect** (disconnecting component signals,
   replacing devices, changing the net of a schematic segment) does not
@@ -1344,7 +1344,7 @@ upstream `librepcb-cli` 2.1.1 except for:
 - Kernel unwinds become typed errors; size/nesting limits do not provide
   process isolation, cancellation or memory/time limits.
 
-## app (crate librepcb-app)
+## app (crate foilfern-app)
 
 - **Board 3D viewer:** Bevy renders the shared physical board geometry and STEP
   component meshes into an offscreen image. The current Slint adapter reads

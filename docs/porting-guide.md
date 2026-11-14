@@ -1,14 +1,14 @@
 # Porting guide
 
 Conventions for porting upstream LibrePCB (`../LibrePCB`, C++/Qt) to
-`librepcb-core` and sibling crates. `AGENTS.md` has the rules; this file shows
+`foilfern-core` and sibling crates. `AGENTS.md` has the rules; this file shows
 how they are applied in the existing code, so you don't have to rediscover
 them.
 
 ## Module layout
 
 - One module per upstream directory: `libs/librepcb/core/geometry/` →
-  `crates/librepcb-core/src/geometry/`. Top-level upstream files get a
+  `crates/foilfern-core/src/geometry/`. Top-level upstream files get a
   top-level module (`sqlitedatabase.cpp` → `sqlite_database.rs`).
 - One file per upstream class, snake_case with word separators, named
   after the Rust type or concept without prefixes or abbreviations the
@@ -23,10 +23,10 @@ them.
   modules from earlier waves keep their names.
 - `mod.rs` declares private submodules and re-exports the public types
   (`pub use circle::{Circle, CircleList, CircleListTag};`), so users write
-  `librepcb_core::geometry::Circle`. Each module has one `error.rs`.
+  `foilfern_core::geometry::Circle`. Each module has one `error.rs`.
 - Every file starts with `//! Port of libs/librepcb/core/<dir>/<file>.{h,cpp}.`
   followed by the differences to upstream (see `sexpression.rs`).
-- Async code (network, MCP, AI) lives in its own crate; `librepcb-core`
+- Async code (network, MCP, AI) lives in its own crate; `foilfern-core`
   stays synchronous.
 
 ## Porting a class
@@ -102,14 +102,14 @@ current-format element (add new element types there).
   functions. Use `#[from]` for nested module errors (a `types::Error` can be
   `?`-propagated into `serialization::Error`).
 - Messages are the upstream strings. Strings upstream translates use
-  `librepcb_i18n::tr!` with the upstream context (C++ class name, or the
+  `foilfern_i18n::tr!` with the upstream context (C++ class name, or the
   context lupdate recorded):
   `#[error("{}", tr!("Length", "Value must be > 0!"))]`. Replace `%1`, `%2`
   by `{0}`, `{1}`; `{{`/`}}` are literal braces. Plurals: `trn!` with `{n}`.
   The context is the `msgctxt` of `lang/librepcb.pot`, including the
   namespace for classes outside the `librepcb` root namespace
   (`librepcb::editor::CmdBoardEdit`, `librepcb::eagleimport::...`). The
-  test `context_check` in `librepcb-i18n` fails for contexts or source
+  test `context_check` in `foilfern-i18n` fails for contexts or source
   strings missing from the catalog; genuinely new strings go into its
   allow-list.
 - Untranslated upstream strings (logic errors, debug messages) stay plain
@@ -172,10 +172,10 @@ current-format element (add new element types there).
 ## Tests
 
 - Ported gtests go to
-  `crates/librepcb-core/tests/unittests/<module>/<name>_test.rs` (one
+  `crates/foilfern-core/tests/unittests/<module>/<name>_test.rs` (one
   integration-test binary per crate, declared in `tests/unittests/main.rs`;
   other crates follow the same pattern, e.g.
-  `librepcb-network/tests/network/main.rs`), keeping the upstream test
+  `foilfern-network/tests/network/main.rs`), keeping the upstream test
   vectors and names in snake_case
   (`testSerializeAndDeserialize` → `test_serialize_and_deserialize`).
   Parametrized suites become loops over data tables.

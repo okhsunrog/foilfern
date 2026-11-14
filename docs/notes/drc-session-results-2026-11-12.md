@@ -169,7 +169,7 @@ Approval identities are separate from this display geometry.
 ## Reproduction and stopping point
 
 ```sh
-cargo build --locked --release -p librepcb-core --example drc_copper_benchmark
+cargo build --locked --release -p foilfern-core --example drc_copper_benchmark
 target/release/examples/drc_copper_benchmark /path/to/project.lpp full
 ```
 

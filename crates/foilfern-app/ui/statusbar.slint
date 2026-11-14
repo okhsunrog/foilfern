@@ -1,0 +1,527 @@
+import {
+    CheckBox,
+    IconButton,
+    ProgressBar,
+    TextInput,
+    ToolTip,
+} from "widgets.slint";
+import { NotificationsPopup } from "notificationspopup.slint";
+import {
+    Backend,
+    Data,
+    EditorCommandSet as Cmd,
+    FeatureState,
+    GridStyle,
+    Helpers,
+    Int64,
+    LengthEditParseResult,
+    LengthUnit,
+    NotificationData,
+    NotificationType,
+    TabAction,
+    TabType,
+} from "api.slint";
+
+export component StatusBar inherits Rectangle {
+    property <GridStyle> current-grid-style: {
+        if Data.current-tab.type == TabType.symbol {
+            Data.current-symbol-tab.grid-style
+        } else if Data.current-tab.type == TabType.package {
+            Data.current-package-tab.grid-style
+        } else if Data.current-tab.type == TabType.schematic {
+            Data.current-schematic-tab.grid-style
+        } else {
+            Data.current-board-2d-tab.grid-style
+        }
+    };
+    property <Int64> current-grid-interval: {
+        if Data.current-tab.type == TabType.symbol {
+            Data.current-symbol-tab.grid-interval
+        } else if Data.current-tab.type == TabType.package {
+            Data.current-package-tab.grid-interval
+        } else if Data.current-tab.type == TabType.schematic {
+            Data.current-schematic-tab.grid-interval
+        } else {
+            Data.current-board-2d-tab.grid-interval
+        }
+    };
+    property <LengthUnit> current-unit: {
+        if Data.current-tab.type == TabType.symbol {
+            Data.current-symbol-tab.unit
+        } else if Data.current-tab.type == TabType.package {
+            Data.current-package-tab.unit
+        } else if Data.current-tab.type == TabType.schematic {
+            Data.current-schematic-tab.unit
+        } else {
+            Data.current-board-2d-tab.unit
+        }
+    };
+
+    function set-current-grid-style(gs: GridStyle) {
+        if Data.current-tab.type == TabType.symbol {
+            Data.current-section.symbol-tabs[Data.current-section.current-tab-index].grid-style = gs;
+        } else if Data.current-tab.type == TabType.package {
+            Data.current-section.package-tabs[Data.current-section.current-tab-index].grid-style = gs;
+        } else if Data.current-tab.type == TabType.schematic {
+            Data.current-section.schematic-tabs[Data.current-section.current-tab-index].grid-style = gs;
+        } else if Data.current-tab.type == TabType.board-2d {
+            Data.current-section.board-2d-tabs[Data.current-section.current-tab-index].grid-style = gs;
+        } else {
+            debug("Unhandled case in set-current-grid-style().");
+        }
+    }
+
+    function set-current-grid-interval(value: Int64) {
+        if Data.current-tab.type == TabType.symbol {
+            Data.current-section.symbol-tabs[Data.current-section.current-tab-index].grid-interval = value;
+        } else if Data.current-tab.type == TabType.package {
+            Data.current-section.package-tabs[Data.current-section.current-tab-index].grid-interval = value;
+        } else if Data.current-tab.type == TabType.schematic {
+            Data.current-section.schematic-tabs[Data.current-section.current-tab-index].grid-interval = value;
+        } else if Data.current-tab.type == TabType.board-2d {
+            Data.current-section.board-2d-tabs[Data.current-section.current-tab-index].grid-interval = value;
+        } else {
+            debug("Current tab type not handled.");
+        }
+    }
+
+    function set-current-unit(u: LengthUnit) {
+        if Data.current-tab.type == TabType.symbol {
+            Data.current-section.symbol-tabs[Data.current-section.current-tab-index].unit = u;
+        } else if Data.current-tab.type == TabType.package {
+            Data.current-section.package-tabs[Data.current-section.current-tab-index].unit = u;
+        } else if Data.current-tab.type == TabType.schematic {
+            Data.current-section.schematic-tabs[Data.current-section.current-tab-index].unit = u;
+        } else if Data.current-tab.type == TabType.board-2d {
+            Data.current-section.board-2d-tabs[Data.current-section.current-tab-index].unit = u;
+        } else {
+            debug("Unhandled case in set-current-unit().");
+        }
+    }
+
+    public function focus-grid-interval() {
+        grid-interval-edt.enabled = true;
+        grid-interval-edt.focus();
+    }
+
+    callback focus-root;
+
+    height: 25px;
+    background: Data.theme.window;
+
+    HorizontalLayout {
+        padding-left: 10px;
+
+        Rectangle {
+            horizontal-stretch: 1;
+
+            status-txt := Text {
+                width: 100%;
+                height: 100%;
+                vertical-alignment: center;
+                accessible-description: "status text";
+
+                states [
+                    status-tip when !Data.status-tip.is-empty: {
+                        text: Data.status-tip;
+                        color: Data.theme.base-text;
+                    }
+                    message when !Data.status-bar-message.is-empty: {
+                        text: Data.status-bar-message;
+                        color: Data.theme.base-text;
+                    }
+                    default when true: {
+                        text: Data.workspace-path;
+                        color: Data.theme.control-text-muted;
+                    }
+                ]
+            }
+        }
+
+        Rectangle {
+            width: 10px;
+        }
+
+        coordinates-txt := Text {
+            vertical-alignment: center;
+            font-family: "Noto Sans Mono";
+            font-size: 11px;
+            color: Data.theme.base-text;
+            text: Data.cursor-coordinates;
+            visible: Data.current-tab.features.grid != FeatureState.not-supported;
+            accessible-role: none;
+        }
+
+        Rectangle {
+            width: max(unit-ta.preferred-width + self.height - unit-ta.preferred-height, 38px);
+            background: unit-ta.has-hover ? Data.theme.control-checked : transparent;
+
+            unit-ta := TouchArea {
+                enabled: Data.current-tab.features.grid == FeatureState.enabled;
+
+                unit-txt := Text {
+                    vertical-alignment: center;
+                    font-size: 11px;
+                    text: Helpers.get-unit-short-str(current-unit);
+                    color: parent.enabled ? Data.theme.base-text : Data.theme.base-text-disabled;
+                }
+
+                clicked => {
+                    unit-popup.show();
+                }
+            }
+
+            unit-popup := PopupWindow {
+                x: -(self.preferred-width - parent.width) / 2;
+                y: -self.preferred-height;
+
+                Rectangle {
+                    background: Data.theme.window;
+                    border-color: Data.theme.base-border;
+                    border-width: 1px;
+
+                    VerticalLayout {
+                        padding: 1px;
+
+                        for unit in Helpers.all-length-units: unit-item-ta := TouchArea {
+                            Rectangle {
+                                preferred-width: unit-item-txt.preferred-width + 8px;
+                                preferred-height: unit-item-txt.preferred-height + 8px;
+                                background: parent.has-hover ? Data.theme.base : transparent;
+
+                                unit-item-txt := Text {
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    font-weight: (unit == current-unit) ? 600 : 400;
+                                    color: Data.theme.base-text;
+                                    text: Helpers.get-unit-short-str(unit);
+                                    accessible-role: none;
+                                }
+                            }
+
+                            clicked => {
+                                set-current-unit(unit);
+                            }
+                        }
+                    }
+
+                    // Hide the bottom border.
+                    Rectangle {
+                        y: parent.height - self.height;
+                        height: 1px;
+                        background: Data.theme.window;
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            width: max(grid-interval-edt.min-width, grid-interval-edt.preferred-width) + 2 * grid-interval-edt.x;
+            background: grid-interval-ta.has-hover ? Data.theme.control-checked : transparent;
+
+            grid-interval-ta := TouchArea {
+                enabled: Data.current-tab.features.grid == FeatureState.enabled;
+
+                grid-interval-edt := TextInput {
+                    property <string> data-text: Backend.format-length(current-grid-interval, current-unit);
+                    property <LengthEditParseResult> parse-result;
+
+                    x: 5px;
+                    font-family: "Noto Sans Mono";
+                    font-size: 11px;
+                    wrap: no-wrap;
+                    single-line: true;
+                    vertical-alignment: center;
+                    color: grid-interval-ta.enabled ? Data.theme.base-text : Data.theme.base-text-disabled;
+                    text: data-text;
+                    enabled: false;
+
+                    changed data-text => {
+                        self.text = data-text;
+                    }
+
+                    changed has-focus => {
+                        if self.has-focus {
+                            self.select-all();
+                            self.min-width = self.preferred-width;
+                        } else {
+                            self.clear-selection();
+                            self.text = data-text;
+                            self.enabled = false;
+                            self.min-width = self.preferred-width;
+                        }
+                    }
+
+                    key-pressed(event) => {
+                        if event.text == Key.Return {
+                            focus-root();
+                            parse-result = Backend.parse-length-input(self.text, current-unit, { msb: 0, lsb: 1 });
+                            if parse-result.valid {
+                                set-current-grid-interval(parse-result.evaluated-value);
+                                set-current-unit(parse-result.evaluated-unit);
+                            }
+                            return accept;
+                        } else if event.text == Key.Escape {
+                            focus-root();
+                            return accept;
+                        }
+                        reject
+                    }
+                }
+
+                clicked => {
+                    grid-interval-edt.enabled = true;
+                    grid-interval-edt.focus();
+                }
+
+                scroll-event(event) => {
+                    if event.delta-y > 0 {
+                        Helpers.trigger-current-tab-action(TabAction.grid-interval-increase);
+                        return accept;
+                    } else if event.delta-y < 0 {
+                        Helpers.trigger-current-tab-action(TabAction.grid-interval-decrease);
+                        return accept;
+                    }
+                    reject
+                }
+            }
+
+            if grid-interval-ta.has-hover: grid-interval-tt := ToolTip {
+                property <string> suffix: Cmd.grid-properties.shortcut.is-empty ? "" : " (\{Cmd.grid-properties.shortcut})";
+
+                x: (parent.width - self.width) / 2;
+                y: -self.height - 5px;
+                text: @tr("Grid Interval") + suffix + "\n(" + @tr("scroll up/down on hover") + ")";
+            }
+        }
+
+        VerticalLayout {
+            width: self.height * 0.7;
+
+            grid-interval-increase-btn := IconButton {
+                width: parent.width;
+                height: parent.height / 2;
+                icon: @image-url("resources/libs/font-awesome/svgs/solid/caret-up.svg");
+                icon-scale: 1.0;
+                icon-offset-y: 2px;
+                enabled: Data.current-tab.features.grid == FeatureState.enabled;
+
+                clicked => {
+                    Helpers.trigger-current-tab-action(TabAction.grid-interval-increase);
+                }
+            }
+
+            grid-interval-decrease-btn := IconButton {
+                width: parent.width;
+                height: parent.height / 2;
+                icon: @image-url("resources/libs/font-awesome/svgs/solid/caret-down.svg");
+                icon-scale: 1.0;
+                icon-offset-y: -2px;
+                enabled: Data.current-tab.features.grid == FeatureState.enabled;
+
+                clicked => {
+                    Helpers.trigger-current-tab-action(TabAction.grid-interval-decrease);
+                }
+            }
+        }
+
+        grid-style-btn := IconButton {
+            tooltip: @tr("Grid Style");
+            tooltip-position: top;
+            icon: {
+                if current-grid-style == GridStyle.lines {
+                    @image-url("resources/libs/bootstrap-icons/icons/grid-3x3.svg")
+                } else if current-grid-style == GridStyle.dots {
+                    @image-url("resources/img/grid-dots.svg")
+                } else {
+                    @image-url("resources/img/grid-none.svg")
+                }
+            };
+            icon-scale: 0.7;
+            enabled: Data.current-tab.features.grid == FeatureState.enabled;
+
+            clicked => {
+                if current-grid-style == GridStyle.none {
+                    set-current-grid-style(GridStyle.dots);
+                } else if current-grid-style == GridStyle.dots {
+                    set-current-grid-style(GridStyle.lines);
+                } else {
+                    set-current-grid-style(GridStyle.none);
+                }
+            }
+        }
+
+        ignore-locks-btn := IconButton {
+            tooltip: Cmd.ignore-locks.text;
+            tooltip-position: top;
+            background-color-checked: Data.theme.error;
+            color-checked: Data.theme.error-text;
+            icon: {
+                if self.checked {
+                    @image-url("resources/libs/font-awesome/svgs/solid/lock-open.svg")
+                } else {
+                    @image-url("resources/libs/font-awesome/svgs/solid/lock.svg")
+                }
+            };
+            icon-scale: 0.6;
+            checked: {
+                if Data.current-tab.type == TabType.schematic {
+                    Data.current-schematic-tab.ignore-placement-locks
+                } else if Data.current-tab.type == TabType.board-2d {
+                    Data.current-board-2d-tab.ignore-placement-locks
+                } else {
+                    false
+                }
+            };
+            enabled: (Data.current-tab.type == TabType.schematic) || (Data.current-tab.type == TabType.board-2d);
+
+            clicked => {
+                if Data.current-tab.type == TabType.schematic {
+                    Data.current-section.schematic-tabs[Data.current-section.current-tab-index].ignore-placement-locks = !self.checked;
+                } else if Data.current-tab.type == TabType.board-2d {
+                    Data.current-section.board-2d-tabs[Data.current-section.current-tab-index].ignore-placement-locks = !self.checked;
+                } else {
+                    debug("Unsupported tab type for ignoring placement locks.");
+                }
+            }
+        }
+
+        Rectangle {
+            width: 10px;
+        }
+
+        Rectangle {
+            max-width: 150px;
+
+            progress-bar := ProgressBar {
+                property <NotificationData> notification: Data.notifications[Data.notifications-progress-index];
+
+                width: 100%;
+                visible: (Data.notifications-progress-index >= 0) && (notification.type == NotificationType.progress);
+                progress: notification.progress / 100;
+            }
+        }
+
+        Rectangle {
+            width: 10px;
+        }
+
+        // Embedded LibrePCB MCP server (foilfern, no upstream
+        // counterpart): shows whether it runs and whether an agent is
+        // editing; the popup starts/stops it.
+        mcp-btn := IconButton {
+            icon: @image-url("resources/libs/font-awesome/svgs/solid/wand-magic-sparkles.svg");
+            icon-scale: 0.6;
+            tooltip: {
+                if Data.mcp-agent-active {
+                    @tr("AI agent: {}", Data.mcp-agent-status)
+                } else if Data.mcp-server-running {
+                    @tr("MCP server running at {}", Data.mcp-server-url)
+                } else {
+                    @tr("MCP server stopped")
+                }
+            };
+            tooltip-position: top;
+            checked: Data.mcp-server-running;
+            background-color: Data.mcp-agent-active ? Data.theme.accent : transparent;
+            color-checked: Data.mcp-agent-active ? Data.theme.accent-text : Data.theme.base-text;
+            accessible-label: "MCP server";
+
+            mcp-popup := PopupWindow {
+                x: parent.width - self.preferred-width;
+                y: -self.preferred-height;
+                close-policy: close-on-click-outside;
+
+                Rectangle {
+                    background: Data.theme.window;
+                    border-color: Data.theme.base-border;
+                    border-width: 1px;
+
+                    VerticalLayout {
+                        padding: 8px;
+                        spacing: 6px;
+
+                        Text {
+                            text: @tr("AI Agents (MCP)");
+                            font-weight: 600;
+                            color: Data.theme.base-text;
+                        }
+
+                        mcp-enable-cbx := CheckBox {
+                            text: @tr("Enable the MCP server");
+                            checked: Data.mcp-server-running;
+
+                            toggled(checked) => {
+                                Backend.toggle-mcp-server();
+                            }
+                        }
+
+                        if Data.mcp-server-running: Text {
+                            text: Data.mcp-server-url;
+                            font-family: "Noto Sans Mono";
+                            font-size: 11px;
+                            color: Data.theme.base-text-muted;
+                        }
+
+                        mcp-follow-cbx := CheckBox {
+                            text: @tr("Show what the agent edits");
+                            checked: Data.mcp-follow-agent;
+
+                            toggled(checked) => {
+                                Data.mcp-follow-agent = checked;
+                            }
+                        }
+
+                        if Data.mcp-agent-active: Text {
+                            text: Data.mcp-agent-status;
+                            font-size: 11px;
+                            color: Data.theme.base-text;
+                        }
+                    }
+                }
+            }
+
+            clicked => {
+                mcp-popup.show();
+            }
+        }
+
+        notifications-btn := IconButton {
+            property <int> item-count: Data.notifications.length;
+
+            icon: @image-url("resources/libs/font-awesome/svgs/regular/bell.svg");
+            background: (Data.notifications-unread > 0) ? Data.theme.accent : transparent;
+            color-enabled: (Data.notifications-unread > 0) ? Data.theme.accent-text : Data.theme.base-text;
+            enabled: Data.notifications.length > 0;
+
+            // Accessibility
+            accessible-expandable: true;
+            accessible-expanded: Data.notifications-shown;
+            accessible-label: "\{Data.notifications-unread} Notifications";
+            accessible-action-expand => {
+                self.clicked();
+            }
+
+            changed item-count => {
+                if item-count == 0 {
+                    Data.notifications-shown = false;
+                }
+            }
+
+            notifications-popup := NotificationsPopup {
+                x: parent.width - self.width;
+                y: -self.height;
+                width: min(max(self.preferred-width, 300px), root.width * 0.5, 700px);
+                height: Data.notifications-shown ? self.preferred-height : 0;
+                visible: self.height > 0;
+                clip: true;
+
+                animate height { duration: 100ms; }
+            }
+
+            clicked => {
+                Data.notifications-shown = !Data.notifications-shown;
+            }
+        }
+    }
+}

@@ -1,0 +1,546 @@
+//! Schematic and board read tools: `schematic_list`, `schematic_get`,
+//! `board_get`.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use foilfern_core::geometry::{NetLineAnchor, Text, TraceAnchor};
+use foilfern_core::project::board::{Board, BoardAirWiresBuilder, PlaneFragments};
+use foilfern_core::project::schematic::Schematic;
+use foilfern_core::project::schematic::import_appearance::ImportAppearance;
+use foilfern_core::project::{ComponentInstanceId, NetSegmentId, Project, SymbolId};
+use foilfern_core::types::Point;
+use foilfern_scene::{
+    Annotation, AnnotationOverlap, ColorScheme, SchematicScene, annotation_overlaps,
+};
+use schemars::JsonSchema;
+use serde::Deserialize;
+use serde_json::{Value, json};
+
+use crate::error::{ToolError, ToolResult};
+use crate::outcome::ToolOutput;
+use crate::resolve;
+use crate::session::Session;
+use crate::tools::circuit::device_json;
+use crate::units::{deg, mm};
+use crate::views;
+
+/// Arguments of `schematic_get`.
+#[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SchematicGetArgs {
+    /// Schematic page name, index ("0") or UUID (default: first page).
+    #[serde(default)]
+    pub schematic: Option<String>,
+}
+
+/// Arguments of `schematic_review`.
+#[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SchematicReviewArgs {
+    /// Page name, index or UUID. Defaults to the first page.
+    schematic: Option<String>,
+    /// Report overlaps involving these component designators or UUIDs. Omit for the whole sheet.
+    #[serde(default)]
+    components: Vec<String>,
+}
+
+/// Arguments of `board_get`.
+#[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BoardGetArgs {
+    /// Board name, index ("0") or UUID (default: first board).
+    #[serde(default)]
+    pub board: Option<String>,
+    /// Include the pads of every device (default true).
+    #[serde(default)]
+    pub include_pads: Option<bool>,
+}
+
+/// `schematic_list`.
+pub fn schematic_list(session: &Session) -> ToolResult<ToolOutput> {
+    let p = session.project()?.project();
+    let pages: Vec<Value> = p
+        .schematics()
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            json!({
+                "index": i,
+                "uuid": s.uuid(),
+                "name": s.name().as_str(),
+                "grid_interval": mm(s.grid_interval()),
+                "symbols": s.symbols().len(),
+                "net_segments": s.net_segments().len(),
+                "bus_segments": s.bus_segments().len(),
+                "texts": s.texts().len(),
+                "polygons": s.polygons().len(),
+            })
+        })
+        .collect();
+    let names: Vec<&str> = p.schematics().iter().map(|s| s.name().as_str()).collect();
+    ToolOutput::new(
+        format!("{} schematic page(s): {}", pages.len(), names.join(", ")),
+        json!({ "schematics": pages }),
+    )
+}
+
+fn net_line_anchor(
+    p: &Project,
+    schematic: &Schematic,
+    segment: NetSegmentId,
+    anchor: NetLineAnchor,
+) -> Value {
+    let position = schematic
+        .net_line_anchor_position(segment, anchor, p.view())
+        .map(views::point);
+    match anchor {
+        NetLineAnchor::Junction(j) => json!({ "junction": j, "position": position }),
+        NetLineAnchor::BusJunction { segment, junction } => {
+            json!({ "bus_segment": segment, "bus_junction": junction, "position": position })
+        }
+        NetLineAnchor::Pin { symbol, pin } => {
+            let label = schematic
+                .symbols()
+                .get(&SymbolId(symbol))
+                .and_then(|s| s.pin(p.view(), pin).ok().flatten())
+                .map(|pv| resolve::signal_label(p, pv.signal()));
+            json!({ "pin": label, "symbol": symbol, "pin_uuid": pin, "position": position })
+        }
+    }
+}
+
+/// `schematic_get`.
+pub fn schematic_get(session: &Session, args: SchematicGetArgs) -> ToolResult<ToolOutput> {
+    let p = session.project()?.project();
+    let (index, _, s) = resolve::schematic(p, args.schematic.as_deref())?;
+    let ctx = p.view();
+    let appearance = ImportAppearance::load(p, s);
+    let mut symbols = Vec::new();
+    for sym in s.symbols().values() {
+        let pins: Vec<Value> = sym
+            .pins(ctx)?
+            .iter()
+            .map(|pin| {
+                json!({
+                    "name": pin.name(),
+                    "pin": resolve::signal_label(p, pin.signal()),
+                    "net": pin.net().map(|n| resolve::net_name(p, n)),
+                    "position": views::point(pin.position()),
+                    "wired": s.pin_net_segment(sym.id(), pin.uuid()).is_some(),
+                    "no_connect": pin.net().is_none() && appearance.is_no_connect(sym.uuid(), pin.uuid()),
+                })
+            })
+            .collect();
+        symbols.push(json!({
+            "uuid": sym.uuid(),
+            "name": sym.name(ctx).ok(),
+            "component": resolve::designator(p, sym.component()),
+            "gate": sym.lib_gate(),
+            "position": views::point(sym.position()),
+            "rotation": deg(sym.rotation()),
+            "mirrored": sym.mirrored(),
+            "pins": pins,
+            "texts": sym.texts().values().map(symbol_text_json).collect::<Vec<_>>(),
+        }));
+    }
+    let mut segments = Vec::new();
+    for (id, seg) in s.net_segments() {
+        let junctions: Vec<Value> = seg
+            .junctions()
+            .values()
+            .map(|j| json!({ "uuid": j.uuid(), "position": views::point(j.position()) }))
+            .collect();
+        let lines: Vec<Value> = seg
+            .lines()
+            .values()
+            .map(|l| {
+                json!({
+                    "uuid": l.uuid(),
+                    "from": net_line_anchor(p, s, *id, l.p1()),
+                    "to": net_line_anchor(p, s, *id, l.p2()),
+                    "width": mm(l.width()),
+                })
+            })
+            .collect();
+        let labels: Vec<Value> = seg
+            .labels()
+            .values()
+            .map(|l| {
+                json!({
+                    "uuid": l.uuid(),
+                    "position": views::point(l.position()),
+                    "rotation": deg(l.rotation()),
+                    "mirrored": l.mirrored(),
+                })
+            })
+            .collect();
+        segments.push(json!({
+            "uuid": id.0,
+            "net": resolve::net_name(p, seg.net()),
+            "junctions": junctions,
+            "lines": lines,
+            "labels": labels,
+        }));
+    }
+    let texts: Vec<Value> = s
+        .texts()
+        .values()
+        .map(|t| json!({ "uuid": t.uuid(), "text": t.text(), "position": views::point(t.position()) }))
+        .collect();
+    let summary = format!(
+        "Schematic page {index} \"{}\": {} symbol(s), {} net segment(s).",
+        s.name().as_str(),
+        symbols.len(),
+        segments.len()
+    );
+    ToolOutput::new(
+        summary,
+        json!({
+            "index": index,
+            "uuid": s.uuid(),
+            "name": s.name().as_str(),
+            "grid_interval": mm(s.grid_interval()),
+            "symbols": symbols,
+            "net_segments": segments,
+            "bus_segments": s.bus_segments().len(),
+            "polygons": s.polygons().len(),
+            "texts": texts,
+        }),
+    )
+}
+
+/// `schematic_review`.
+pub fn schematic_review(session: &Session, args: SchematicReviewArgs) -> ToolResult<ToolOutput> {
+    let open = session.project()?;
+    let project = open.project();
+    let (_, _, schematic) = resolve::schematic(project, args.schematic.as_deref())?;
+    let components = args
+        .components
+        .iter()
+        .map(|key| resolve::component(project, key).map(|(id, _)| id))
+        .collect::<ToolResult<BTreeSet<_>>>()?;
+    let findings = annotation_review(project, schematic, &components, true)?;
+    ToolOutput::new(
+        format!(
+            "{} schematic annotation overlap(s).",
+            findings.entries.len()
+        ),
+        json!({"schematic":schematic.id(), "annotation_overlaps":findings.overlaps().collect::<Vec<_>>()}),
+    )
+}
+
+pub(super) struct AnnotationReview {
+    entries: Vec<((Annotation, Annotation), Value)>,
+}
+
+impl AnnotationReview {
+    pub(super) fn overlaps(&self) -> impl Iterator<Item = &Value> {
+        self.entries.iter().map(|(_, finding)| finding)
+    }
+
+    pub(super) fn changes_since(&self, baseline: Option<Self>) -> Value {
+        let mut baseline: BTreeMap<_, _> = baseline
+            .into_iter()
+            .flat_map(|baseline| baseline.entries)
+            .collect();
+        let mut introduced = Vec::new();
+        let mut inherited = Vec::new();
+        for (pair, finding) in &self.entries {
+            if baseline.remove(pair).is_some() {
+                inherited.push(finding);
+            } else {
+                introduced.push(finding);
+            }
+        }
+        let resolved: Vec<_> = baseline.into_values().collect();
+        json!({"introduced":introduced,"inherited":inherited,"resolved":resolved})
+    }
+}
+
+pub(super) fn annotation_review(
+    project: &Project,
+    schematic: &Schematic,
+    components: &BTreeSet<ComponentInstanceId>,
+    require_placed: bool,
+) -> ToolResult<AnnotationReview> {
+    let symbols: BTreeSet<_> = schematic
+        .symbols()
+        .iter()
+        .filter(|(_, symbol)| components.contains(&symbol.component()))
+        .map(|(id, _)| *id)
+        .collect();
+    let placed: BTreeSet<_> = symbols
+        .iter()
+        .map(|id| schematic.symbols()[id].component())
+        .collect();
+    if require_placed && let Some(component) = components.difference(&placed).next() {
+        return Err(ToolError::invalid(format!(
+            "Review component {} has no symbols on the selected sheet.",
+            resolve::designator(project, *component)
+        )));
+    }
+    let segments = schematic
+        .net_segments()
+        .iter()
+        .filter(|(_, segment)| {
+            segment
+                .connected_pins()
+                .iter()
+                .any(|(symbol, _)| symbols.contains(symbol))
+        })
+        .map(|(id, _)| *id)
+        .collect();
+    let scene = SchematicScene::build(project, schematic.id(), &ColorScheme::SCHEMATIC_LIGHT)?;
+    let describe = |object| match object {
+        Annotation::SymbolText(symbol, text) => {
+            let placed = &schematic.symbols()[&symbol];
+            let layer = placed.texts().get(&text).map(|t| t.layer().id());
+            json!({"kind":"symbol_text","component":resolve::designator(project, placed.component()),"symbol":symbol,"text":text,"layer":layer})
+        }
+        Annotation::NetLabel(segment, label) => {
+            let net = schematic.net_segments()[&segment].net();
+            json!({"kind":"net_label","net":resolve::net_name(project, net),"segment":segment,"label":label})
+        }
+        Annotation::Wire(segment, wire) => {
+            let net = schematic.net_segments()[&segment].net();
+            json!({"kind":"wire","net":resolve::net_name(project, net),"segment":segment,"wire":wire})
+        }
+        Annotation::Text(text) => json!({"kind":"schematic_text","text":text}),
+        Annotation::PinName(symbol, pin) | Annotation::PinNumber(symbol, pin) => {
+            let placed = &schematic.symbols()[&symbol];
+            let pin_label = placed
+                .pin(project.view(), pin)
+                .ok()
+                .flatten()
+                .map(|pin| resolve::signal_label(project, pin.signal()));
+            let kind = if matches!(object, Annotation::PinName(..)) {
+                "pin_name"
+            } else {
+                "pin_number"
+            };
+            json!({"kind":kind,"component":resolve::designator(project, placed.component()),"symbol":symbol,"pin_uuid":pin,"pin":pin_label})
+        }
+    };
+    let scope = (!components.is_empty()).then_some((&symbols, &segments));
+    let entries = annotation_overlaps(&scene, scope)
+        .into_iter()
+        .map(
+            |AnnotationOverlap {
+                 first,
+                 second,
+                 bounds,
+             }| {
+                let pair = (first.min(second), first.max(second));
+                (
+                    pair,
+                    json!({"first":describe(first),"second":describe(second),"bounds_mm":bounds}),
+                )
+            },
+        )
+        .collect();
+    Ok(AnnotationReview { entries })
+}
+
+pub(crate) fn symbol_text_json(text: &Text) -> Value {
+    json!({
+        "uuid": text.uuid(),
+        "layer": text.layer().id(),
+        "text": text.text(),
+        "position": views::point(text.position()),
+        "rotation": deg(text.rotation()),
+        "height": mm(text.height()),
+    })
+}
+
+pub(crate) fn trace_anchor(
+    p: &Project,
+    board: &Board,
+    position: Option<Point>,
+    anchor: TraceAnchor,
+) -> Value {
+    let position = position.map(views::point);
+    match anchor {
+        TraceAnchor::Junction(j) => json!({ "junction": j, "position": position }),
+        TraceAnchor::Via(v) => json!({ "via": v, "position": position }),
+        TraceAnchor::Pad(pad) => json!({ "board_pad": pad, "position": position }),
+        TraceAnchor::FootprintPad { device, pad } => {
+            let component = ComponentInstanceId(device);
+            let name = board
+                .device(component)
+                .and_then(|d| d.pad(&pad, p.library(), p.circuit()).ok().flatten())
+                .and_then(|pv| pv.package_pad().map(|pp| pp.name().as_str().to_owned()));
+            json!({
+                "pad": name.map(|n| format!("{}.{n}", resolve::designator(p, component))),
+                "pad_uuid": pad,
+                "position": position,
+            })
+        }
+    }
+}
+
+/// The unrouted connections (air wires) of a board, computed without
+/// changing the model (the stored air wires may be outdated).
+pub fn air_wires_json(p: &Project, b: &Board) -> Vec<Value> {
+    air_wires_json_with_fill(p, b, None)
+}
+
+pub(crate) fn current_plane_fill(p: &Project, b: &Board) -> ToolResult<Option<PlaneFragments>> {
+    if b.derived().dirty_plane_layers().is_empty() {
+        return Ok(None);
+    }
+    let Some(job) = p.plane_job(b.id(), None)? else {
+        return Ok(None);
+    };
+    let fill = job.run();
+    fill.check()?;
+    Ok(Some(fill))
+}
+
+pub(crate) fn air_wires_json_with_fill(
+    p: &Project,
+    b: &Board,
+    fill: Option<&PlaneFragments>,
+) -> Vec<Value> {
+    let builder = BoardAirWiresBuilder::new(b, p.library(), p.circuit());
+    let mut air_wires = Vec::new();
+    for net in p.circuit().net_signals().keys() {
+        let wires = match fill {
+            Some(fill) => builder.build_air_wires_with_fragments(*net, &fill.planes),
+            None => builder.build_air_wires(*net),
+        };
+        for aw in wires {
+            air_wires.push(json!({
+                "net": resolve::net_name(p, *net),
+                "from": trace_anchor(p, b, Some(aw.p1_position()), aw.p1()),
+                "to": trace_anchor(p, b, Some(aw.p2_position()), aw.p2()),
+                "length": mm(*(aw.p2_position() - aw.p1_position()).length()),
+            }));
+        }
+    }
+    air_wires
+}
+
+/// `board_get`.
+pub fn board_get(session: &Session, args: BoardGetArgs) -> ToolResult<ToolOutput> {
+    let p = session.project()?.project();
+    let (index, _, b) = resolve::board(p, args.board.as_deref())?;
+    let include_pads = args.include_pads.unwrap_or(true);
+    let settings = b.settings();
+
+    let mut outlines = Vec::new();
+    let mut polygons = Vec::new();
+    for poly in b.polygons().values() {
+        if poly.layer().is_board_edge() {
+            outlines.push(json!({
+                "uuid": poly.uuid(),
+                "layer": poly.layer().id(),
+                "path": views::path(poly.path()),
+            }));
+        } else {
+            polygons.push(json!({
+                "uuid": poly.uuid(),
+                "layer": poly.layer().id(),
+                "path": views::path(poly.path()),
+                "line_width": mm(poly.line_width()),
+                "filled": poly.is_filled(),
+            }));
+        }
+    }
+
+    let mut devices = Vec::new();
+    for d in b.devices().values() {
+        devices.push(device_json(p, b, d, include_pads)?);
+    }
+
+    let mut traces = Vec::new();
+    let mut vias = Vec::new();
+    for seg in b.net_segments().values() {
+        let net = seg.net().map(|n| resolve::net_name(p, n));
+        for t in seg.traces().values() {
+            let p1 = b.anchor_position(seg, t.p1(), p.library(), p.circuit());
+            let p2 = b.anchor_position(seg, t.p2(), p.library(), p.circuit());
+            traces.push(json!({
+                "uuid": t.uuid(),
+                "segment": seg.uuid(),
+                "net": net,
+                "layer": t.layer().id(),
+                "width": mm(t.width()),
+                "from": trace_anchor(p, b, p1, t.p1()),
+                "to": trace_anchor(p, b, p2, t.p2()),
+            }));
+        }
+        for v in seg.vias().values() {
+            let properties = b.via_properties(v, seg.net(), p.circuit());
+            vias.push(json!({
+                "uuid": v.uuid(),
+                "segment": seg.uuid(),
+                "net": net,
+                "position": views::point(v.position()),
+                "drill": v.drill_diameter().map(mm),
+                "size": v.size().map(mm),
+                "effective_drill": mm(properties.drill_diameter),
+                "effective_size": mm(properties.size),
+                "start_layer": v.start_layer().id(),
+                "end_layer": v.end_layer().id(),
+            }));
+        }
+    }
+
+    let fill = current_plane_fill(p, b)?;
+    let planes: Vec<Value> = b
+        .planes()
+        .values()
+        .map(|pl| {
+            json!({
+                "uuid": pl.uuid(),
+                "net": pl.net().map(|n| resolve::net_name(p, n)),
+                "layer": pl.layer().id(),
+                "outline": views::path(pl.outline()),
+                "min_width": mm(pl.min_width()),
+                "min_clearance": mm(pl.min_clearance_to_copper()),
+                "connect_style": pl.connect_style().to_str(),
+                "priority": pl.priority(),
+                "keep_islands": pl.keep_islands(),
+                "fragments": match &fill {
+                    Some(fill) => fill.planes.get(&pl.id()).map_or(0, Vec::len),
+                    None => b.derived().fragments_of(pl.id()).len(),
+                },
+            })
+        })
+        .collect();
+
+    let air_wires = air_wires_json_with_fill(p, b, fill.as_ref());
+
+    let summary = format!(
+        "Board {index} \"{}\": {} copper layers, {} device(s), {} trace(s), {} via(s), {} plane(s), \
+         {} unrouted connection(s).",
+        b.name().as_str(),
+        settings.inner_layer_count + 2,
+        devices.len(),
+        traces.len(),
+        vias.len(),
+        planes.len(),
+        air_wires.len()
+    );
+    ToolOutput::new(
+        summary,
+        json!({
+            "index": index,
+            "uuid": b.uuid(),
+            "name": b.name().as_str(),
+            "copper_layers": settings.inner_layer_count + 2,
+            "thickness": mm(settings.pcb_thickness),
+            "outlines": outlines,
+            "other_polygons": polygons.len(),
+            "polygons": polygons,
+            "devices": devices,
+            "traces": traces,
+            "vias": vias,
+            "planes": planes,
+            "air_wires": air_wires,
+            "zones": b.zones().len(),
+            "holes": b.holes().len(),
+            "stroke_texts": b.stroke_texts().len(),
+        }),
+    )
+}

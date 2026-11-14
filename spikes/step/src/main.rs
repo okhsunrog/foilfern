@@ -84,7 +84,7 @@ fn main() -> Result<()> {
             let text = save::CompleteStepDisplay::new(
                 save::StepModel::from(&solid),
                 save::StepHeaderDescriptor {
-                    organization_system: "librepcb-step-probe".into(),
+                    organization_system: "foilfern-step-probe".into(),
                     ..Default::default()
                 },
             )

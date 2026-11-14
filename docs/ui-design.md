@@ -1,7 +1,7 @@
 # UI design
 
-Design of the graphical application `crates/librepcb-app` (binary
-`librepcb`), reviewed 2026-11-11. The ported viewer, schematic/board editors,
+Design of the graphical application `crates/foilfern-app` (binary
+`foilfern`), reviewed 2026-11-11. The ported viewer, schematic/board editors,
 library editors and embedded MCP host are implemented. M2/M3 labels below record
 their delivery history, not the current work queue. Remaining differences are
 tracked in [COMPAT.md](../COMPAT.md); visual routing-candidate review is P5 in
@@ -27,7 +27,7 @@ is a backend behind a narrow API (`ui/api/*.slint`):
 
 The canvas protocol is exactly our architecture: the backend renders the
 scene into a `slint::Image` (upstream: tiny-skia via `SlintGraphicsView`;
-here: `librepcb-canvas` with vello_cpu) and receives pointer/key events.
+here: `foilfern-canvas` with vello_cpu) and receives pointer/key events.
 
 Slint has first-class Rust support, so the UI port is: **take upstream's
 `.slint` files and port the C++ backend to Rust.** The look, the layout
@@ -39,37 +39,37 @@ The port's upstream snapshot also had 72 Qt Widgets `.ui` dialogs (property
 dialogs, board setup, output jobs, BOM review, ...) and the 3D view. Those
 needed new Slint dialogs; the implemented forms and remaining gaps are listed
 below and in COMPAT.md. The board's 3D view now uses
-`librepcb-render3d` (Bevy) in the existing `Board3dTab` component.
+`foilfern-render3d` (Bevy) in the existing `Board3dTab` component.
 
 ## Decisions
 
 1. **UI sources:** copy `libs/librepcb/ui/**` at the pinned upstream
-   revision into `crates/librepcb-app/ui/` as ported source (GPL like the
+   revision into `crates/foilfern-app/ui/` as ported source (GPL like the
    rest), with a `PROVENANCE.md` naming the revision. Changes are allowed
    (they are our code from then on); keep a diff-friendly layout so later
    upstream UI changes can be merged by hand. Alternative rejected:
    compiling directly from the upstream checkout (the app would depend on
    an external checkout at build time and could not diverge).
 2. **Crate layout:**
-   - `crates/librepcb-app` (bin `librepcb`): the backend (`app.rs`:
+   - `crates/foilfern-app` (bin `librepcb`): the backend (`app.rs`:
      application and main window, `section.rs`, `tabs/`: home, schematic,
      board 2D/3D and library tabs), models, panels, and glue to the canvas.
-     The `.slint` files in `crates/librepcb-app/ui/` are compiled by the
-     separate crate `librepcb-app-ui` (`ui/Cargo.toml`, `build.rs` with
+     The `.slint` files in `crates/foilfern-app/ui/` are compiled by the
+     separate crate `foilfern-app-ui` (`ui/Cargo.toml`, `build.rs` with
      `slint-build`): the generated code is tens of MB of Rust, so keeping
      it apart means backend changes do not recompile it.
-   - Scene building stays in `librepcb-scene` (already used by render and
+   - Scene building stays in `foilfern-scene` (already used by render and
      graphics export); its **incremental updates** apply
      `project::Change` events to a built scene (update/insert/remove the
      items of one symbol, segment, device, ...) instead of rebuilding.
    - Interaction logic (editor state machines: select, draw wire, add
      component, draw trace, ...) is UI-toolkit independent and goes into
-     `librepcb-editor` (`fsm/` module, ported from
+     `foilfern-editor` (`fsm/` module, ported from
      `editor/project/{schematic,board}/fsm`) so it can be tested headless.
      The app only translates Slint events to FSM events and FSM outputs
      (overlays, cursor, tool bar data) to `Data`.
 3. **State and threading:** one UI thread owns the open projects as
-   `librepcb_editor::SharedProject` (`Arc<parking_lot::Mutex<OpenProject>>`,
+   `foilfern_editor::SharedProject` (`Arc<parking_lot::Mutex<OpenProject>>`,
    an `OpenProject` holds the `ProjectEditor` and the directory lock); the
    embedded MCP server gets the same handles via `McpState::set_project()`.
    Long jobs use worker threads and post UI results with
@@ -81,7 +81,7 @@ below and in COMPAT.md. The board's 3D view now uses
    `Project::changes_since(cursor)` and updates its scene (or rebuilds on
    `Resync`).
 4. **Embedded MCP ("watch the agent"):** the app can start the MCP server
-   (`librepcb-mcp` library, streamable HTTP on localhost, on a tokio
+   (`foilfern-mcp` library, streamable HTTP on localhost, on a tokio
    runtime in a background thread) sharing the same `ProjectEditor`
    mutex; every MCP write bumps the revision and wakes the UI, which
    applies the journal to the visible scenes. Agent edits appear live and
@@ -103,13 +103,13 @@ below and in COMPAT.md. The board's 3D view now uses
 - M2a skeleton: crate, copied `.slint` files compiling with slint-build,
   `Data`/`Backend` bound in Rust, main window, home tab (recent projects,
   open/new project), window sections and tabs, notifications, about
-  panel, themes, translations via `librepcb-i18n`.
+  panel, themes, translations via `foilfern-i18n`.
 - M2b project viewing: open a project (read-only first), documents panel,
-  schematic tab and board 2D tab rendering through `librepcb-scene`,
+  schematic tab and board 2D tab rendering through `foilfern-scene`,
   navigation (pan/zoom/fit like upstream), grid, layers panel with
   visibility, selection highlight and hover info (read-only select tool).
 - M2c live updates (**done**): incremental scene updates from the change
-  journal; embedded MCP server (`crates/librepcb-app/src/mcp.rs`) started
+  journal; embedded MCP server (`crates/foilfern-app/src/mcp.rs`) started
   with `--mcp[=ADDR]` or the "AI" button in the status bar (popup: enable
   the server, "show what the agent edits"; the status bar is where
   upstream shows global non-modal state); change notices update the
@@ -132,7 +132,7 @@ below and in COMPAT.md. The board's 3D view now uses
   implemented too. Printing remains missing.
 
 **M3 — schematic and board editors** (the FSMs are already ported in
-`librepcb-editor::fsm::{schematic, board}` and tested headless; the app wiring
+`foilfern-editor::fsm::{schematic, board}` and tested headless; the app wiring
 is implemented, with the exceptions listed below):
 - M3a editing in the tabs: `SchematicView`/`BoardView` adapters on the
   scenes, Slint pointer/key events → FSM, FSM outputs → `Data` (tool bar
@@ -190,7 +190,7 @@ is implemented, with the exceptions listed below):
 - M3d the missing FSM parts: buses, images, standalone board pads, DXF
   import, "find", segment simplification after edits (see COMPAT.md
   Part 1, "Schematic editor FSM" / "Board editor FSM"). **Done**: in
-  `librepcb-editor` and in the tabs (bus/bus label and image tools,
+  `foilfern-editor` and in the tabs (bus/bus label and image tools,
   bus member menu, board THT/SMT pad tools with their tool bar, DXF
   import dialog, "find" field with suggestions and zoom, plane visibility
   from the context menu, board cross-probing; see COMPAT.md "M3d tools in
@@ -200,7 +200,7 @@ is implemented, with the exceptions listed below):
 upstream: `library/{lib,cat,sym,pkg,cmp,dev,org}`, library tree, create
 and download library tabs, libraries panel):
 - M4a library management UI (**done**): libraries panel (installed and
-  online libraries from `librepcb-network`, install/update/remove with
+  online libraries from `foilfern-network`, install/update/remove with
   progress), download library tab, create library tab, library tab
   (metadata, dependencies, element tree per category, library checks
   with approvals and autofixes, save with undo). Test:
@@ -213,9 +213,9 @@ and download library tabs, libraries panel):
   (signals, symbol variants, gates, pin-signal mapping), device editor
   (pinout, parts), category and organization tabs; chooser dialogs
   (category, component, package, symbol); element checks with fixes.
-  **Done** (`crates/librepcb-app/src/tabs/{symbol,package,component,
+  **Done** (`crates/foilfern-app/src/tabs/{symbol,package,component,
   device,category,organization}.rs` on `element_core.rs` (the
-  `LibraryElementEditor` of `librepcb-editor`: undo stack, dirty state,
+  `LibraryElementEditor` of `foilfern-editor`: undo stack, dirty state,
   interface check, metadata, checks, wizard pages, saving into the
   library) and `base_element_core.rs` (categories and organizations: a
   snapshot undo stack over `BaseMetadata` and the kind specific
@@ -236,21 +236,21 @@ and download library tabs, libraries panel):
   COMPAT.md Part 2, app, "Library element editors".
 - M4c library import (**done**, `src/dialogs/library_import.rs`,
   `src/app/library_import_host.rs`): EAGLE and KiCad library import
-  wizards on `librepcb-import` (start, choose library, select elements
+  wizards on `foilfern-import` (start, choose library, select elements
   with dependency states, options, result) from the library tab's import
   page and the library menu; the import runs in a worker thread with
   progress and cancellation, followed by a library rescan. Test:
   `tests/app/library_import.rs` (screenshots `library_import_*.png`).
 
 **M5 — 3D board viewing:** `tabs/board_3d.rs` feeds owned physical snapshots and
-component STEP bytes to `librepcb-render3d` on a dedicated worker thread. Bevy
+component STEP bytes to `foilfern-render3d` on a dedicated worker thread. Bevy
 renders PBR material groups into an offscreen sRGB target; RGBA readback is
 presented through the existing `render-scene` callback, including on Slint's
 headless software platform. The board tab's `3D` button opens the existing
 `Board3dTab` component. Orbit/pan/zoom, top/bottom/fit, the material opacity
 sliders and return to `2D` are wired; edits and undo/redo replace snapshots
 without retaining the project lock during CAD/GPU work. CPU geometry tests and
-explicit GPU/UI tests cover these paths; see `crates/librepcb-render3d/README.md`.
+explicit GPU/UI tests cover these paths; see `crates/foilfern-render3d/README.md`.
 
 Remaining: shared Slint/Bevy GPU textures instead of readback, package-editor
 3D previews, broader STEP support, PCB ordering API integration, printing,
@@ -276,13 +276,13 @@ Two ways to look at and drive the running UI without a display.
 window with Slint's software renderer into a PNG and exits.
 
 ```sh
-cargo run -p librepcb-app -- --workspace /tmp/ws --project X.lpp \
+cargo run -p foilfern-app -- --workspace /tmp/ws --project X.lpp \
     --tab board --panel layers --screenshot out.png --size 1400x900
 ```
 
 `--tab home|schematic|board` and
 `--panel home|libraries|documents|layers|about|none`
-choose what is shown. The test `crates/librepcb-app/tests/app/screenshot.rs`
+choose what is shown. The test `crates/foilfern-app/tests/app/screenshot.rs`
 does the same with an upstream test project (copied to a temporary
 directory: opening a project locks its directory) and writes
 `app_home.png`, `app_board.png` and `app_schematic.png` to
@@ -294,7 +294,7 @@ and key events to the live application.
 
 ```sh
 SLINT_EMIT_DEBUG_INFO=1 SLINT_MCP_PORT=8765 SLINT_BACKEND=headless \
-    cargo run -p librepcb-app --features ui-debug-mcp -- \
+    cargo run -p foilfern-app --features ui-debug-mcp -- \
     --workspace /tmp/ws --project X.lpp &
 ```
 
@@ -302,7 +302,7 @@ SLINT_EMIT_DEBUG_INFO=1 SLINT_MCP_PORT=8765 SLINT_BACKEND=headless \
   enable `mcp` by default.
 - `SLINT_EMIT_DEBUG_INFO=1` is read by `slint-build` at build time (it
   embeds element type names and ids; without it the element tree is empty).
-  Changing it rebuilds the `librepcb-app-ui` crate.
+  Changing it rebuilds the `foilfern-app-ui` crate.
 - `SLINT_BACKEND=headless` is a windowless software-rendered backend.
 - Ports: 8765 for Slint's UI server, 8766 for LibrePCB's own MCP server
   (`--mcp`). With both, an agent edits the design through 8766 and
