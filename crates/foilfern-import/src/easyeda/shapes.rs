@@ -237,14 +237,22 @@ pub(super) fn convert(
                 let [path] = paths.as_slice() else {
                     return Err(Error::Source("Pin path must be continuous.".into()));
                 };
-                if path.len() != 2
-                    || libm::hypot(path[0].x - anchor.x, path[0].y - anchor.y) > 0.001
-                {
+                let [start, end] = path.as_slice() else {
                     return Err(Error::Source(
-                        "Pin path does not start at its declared connection point.".into(),
+                        "Pin path must be one straight segment.".into(),
                     ));
-                }
-                let delta = path[1] - path[0];
+                };
+                let at_anchor = |p: &Point| libm::hypot(p.x - anchor.x, p.y - anchor.y) <= 0.001;
+                let inner = if at_anchor(start) {
+                    end
+                } else if at_anchor(end) {
+                    start
+                } else {
+                    return Err(Error::Source(
+                        "Neither pin path endpoint matches its declared connection point.".into(),
+                    ));
+                };
+                let delta = *inner - anchor;
                 let length = positive(libm::hypot(delta.x, delta.y))?;
                 let rotation = libm::atan2(delta.y, delta.x).to_degrees().rem_euclid(360.0);
                 let pin_type = match field(&settings, 2)? {
@@ -298,12 +306,27 @@ pub(super) fn convert(
                     n(&fields, 3)? * UNIT
                 ));
             }
-            "A" => {
-                for path in svg(field(&fields, 1)?, symbol_origin, true)? {
+            "A" | "PT" => {
+                let paths = svg(field(&fields, 1)?, symbol_origin, true)?;
+                let filled = !matches!(field(&fields, 5)?, "" | "none");
+                if filled && paths.len() != 1 {
+                    return Err(Error::Source(
+                        "Filled compound SVG paths require hole-aware symbol conversion.".into(),
+                    ));
+                }
+                for mut path in paths {
+                    if filled && path.first() != path.last() {
+                        let first = path
+                            .first()
+                            .copied()
+                            .ok_or_else(|| Error::Source("Empty filled path.".into()))?;
+                        path.push(first);
+                    }
                     symbol.push_str(&format!(
-                        "(polyline(pts {})(stroke(width {})(type default))(fill(type none)))",
+                        "(polyline(pts {})(stroke(width {})(type default))(fill(type {})))",
                         pts(&path),
-                        n(&fields, 3)? * UNIT
+                        n(&fields, 3)? * UNIT,
+                        if filled { "outline" } else { "none" }
                     ));
                 }
             }

@@ -238,3 +238,21 @@ offline replay, conflicting selectors and native installation by MPN. The live
 registry acceptance also passed with `mpn:"STM32F103C8T6"`, acquired C8734 with its
 STEP and replayed offline by ID. Some other live index queries returned HTTP 500
 during corpus research; exact-ID acquisition remains independent of that index.
+
+### Corpus-driven symbol compatibility (A4)
+
+Actual supplier sources exposed reversed straight pin paths and filled SVG `PT`
+artwork. Pin direction now follows the declared electrical connection point at
+either endpoint, retaining length/rotation and rejecting paths with neither
+endpoint at that anchor. Simple filled SVG paths preserve LED arrows; compound
+filled paths remain explicitly unsupported instead of incorrectly filling holes.
+56 importer tests and all-target Clippy passed.
+
+The opt-in source conversion/install/native-reopen experiment now passes for
+CH340G C14267 (16 mappings), CP2102-GMR C6568 (29, including exposed pad),
+USB4105-GF-A-060 C3025063 (16), KT-0603R LED C2286 (2), 0603WAF1002T5E resistor
+C25804 (2) and CC0603KRX7R9BB104 capacitor C14663 (2). Combined with STM32 C8734,
+all seven initial part classes convert. These are source/native-reader checks:
+datasheet pin audits, preview inspection, model alignment and upstream CLI reopen
+remain separate acceptance gates. Raw experimental snapshots/logs are retained
+under `foilfern-parts/corpus` in the task artifact directory, not copied as fixtures.

@@ -103,6 +103,40 @@ fn malformed_geometry_and_incomplete_mapping_are_rejected() {
 }
 
 #[test]
+fn reversed_pin_paths_retain_connection_and_filled_svg_paths_retain_arrows() {
+    let baseline = easyeda::convert(&source(), "C123", &"a".repeat(64)).unwrap();
+    let mut raw = source();
+    raw["dataStr"]["shape"][0] =
+        json!("P~show~0~1~90.25~100~180~pin1~0^^90.25~100^^M95.25,100h-5~#000^^1~90~100~0~A~start");
+    raw["dataStr"]["shape"].as_array_mut().unwrap().push(json!(
+        "PT~M95,95L100,100L95,105Z~#880000~1~0~#880000~arrow~0"
+    ));
+    let converted = easyeda::convert(&raw, "C123", &"a".repeat(64)).unwrap();
+    for (old, new) in baseline
+        .symbol
+        .pins()
+        .iter()
+        .zip(converted.symbol.pins().iter())
+    {
+        assert_eq!(old.position(), new.position());
+        assert_eq!(old.length(), new.length());
+        assert_eq!(old.rotation(), new.rotation());
+    }
+    assert_eq!(
+        converted
+            .symbol
+            .polygons()
+            .iter()
+            .filter(|p| p.is_filled())
+            .count(),
+        1
+    );
+    raw["dataStr"]["shape"][0] =
+        json!("P~show~0~1~90.25~100~180~pin1~0^^90.25~100^^M95.25,100h-4~#000^^1~90~100~0~A~start");
+    assert!(easyeda::convert(&raw, "C123", &"a".repeat(64)).is_err());
+}
+
+#[test]
 #[ignore = "requires an externally cached real EasyEDA source file"]
 fn external_source_converts_to_native_library() {
     let path = std::env::var("FOILFERN_EASYEDA_SOURCE").expect("set FOILFERN_EASYEDA_SOURCE");
