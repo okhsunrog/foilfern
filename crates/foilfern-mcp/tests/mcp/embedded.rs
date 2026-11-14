@@ -407,7 +407,9 @@ async fn host_opens_project_itself() {
 #[cfg(feature = "http")]
 #[test]
 fn http_end_to_end_on_localhost() {
+    use rmcp::model::ProtocolVersion;
     use rmcp::transport::StreamableHttpClientTransport;
+    use rmcp::{ClientLifecycleMode, ClientServiceExt};
 
     let tmp = tempfile::tempdir().unwrap();
     let lpp = crate::common::copy_test_project("Project With Two Boards", tmp.path());
@@ -432,31 +434,48 @@ fn http_end_to_end_on_localhost() {
     assert!(server.url().ends_with("/mcp"));
 
     runtime.block_on(async {
-        let transport = StreamableHttpClientTransport::from_uri(server.url());
-        let client = ().serve(transport).await.unwrap();
-        let guides = client.list_all_resources().await.unwrap();
-        assert!(
-            guides
-                .iter()
-                .any(|r| r.uri == "librepcb://guides/board-design")
-        );
-        let guide = client
-            .read_resource(rmcp::model::ReadResourceRequestParams::new(
-                "librepcb://guides/board-design",
-            ))
-            .await
-            .unwrap();
-        assert!(!guide.contents.is_empty());
-        let tools = client.list_all_tools().await.unwrap();
-        assert!(tools.iter().any(|t| t.name == "schematic_add"));
-        let info = call_ok(&client, "server_info", json!({})).await;
-        assert_eq!(info["project"]["path"], lpp.to_string_lossy().as_ref());
-        call_ok(&client, "schematic_add", json!({ "name": "Over HTTP" })).await;
-        client.cancel().await.unwrap();
+        for (lifecycle, name, expected) in [
+            (
+                ClientLifecycleMode::Initialize,
+                "Over HTTP legacy",
+                ProtocolVersion::V_2025_11_25,
+            ),
+            (
+                ClientLifecycleMode::Discover {
+                    preferred_versions: vec![ProtocolVersion::V_2026_07_28],
+                },
+                "Over HTTP modern",
+                ProtocolVersion::V_2026_07_28,
+            ),
+        ] {
+            let transport = StreamableHttpClientTransport::from_uri(server.url());
+            let client = ().serve_with_lifecycle(transport, lifecycle).await.unwrap();
+            assert_eq!(client.peer_info().unwrap().protocol_version, expected);
+            let guides = client.list_all_resources().await.unwrap();
+            assert!(
+                guides
+                    .iter()
+                    .any(|r| r.uri == "librepcb://guides/board-design")
+            );
+            let guide = client
+                .read_resource(rmcp::model::ReadResourceRequestParams::new(
+                    "librepcb://guides/board-design",
+                ))
+                .await
+                .unwrap();
+            assert!(!guide.contents.is_empty());
+            let tools = client.list_all_tools().await.unwrap();
+            assert!(tools.iter().any(|t| t.name == "schematic_add"));
+            let info = call_ok(&client, "server_info", json!({})).await;
+            assert_eq!(info["project"]["path"], lpp.to_string_lossy().as_ref());
+            call_ok(&client, "schematic_add", json!({ "name": name })).await;
+            client.cancel().await.unwrap();
+        }
     });
-    assert!(schematic_names(&shared).contains(&"Over HTTP".to_owned()));
+    assert!(schematic_names(&shared).contains(&"Over HTTP legacy".to_owned()));
+    assert!(schematic_names(&shared).contains(&"Over HTTP modern".to_owned()));
     let notices = host.notices();
-    assert_eq!(notices.len(), 1);
+    assert_eq!(notices.len(), 2);
     assert_eq!(notices[0].tool, "schematic_add");
 
     // A second server on the same port fails immediately.

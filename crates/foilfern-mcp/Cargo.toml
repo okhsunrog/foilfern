@@ -37,7 +37,7 @@ foilfern-scene = { version = "0.1.0", path = "../foilfern-scene" }
 foilfern-step = { version = "0.1.0", path = "../foilfern-step" }
 log = "0.4.34"
 parking_lot = { version = "0.12.5", features = ["arc_lock"] }
-rmcp = { version = "3.4.1", features = ["server", "transport-io", "macros"] }
+rmcp = { version = "3.10.0", features = ["server", "transport-io", "macros"] }
 schemars = "1.2.2"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
@@ -50,7 +50,7 @@ tokio-util = { version = "0.7.19", optional = true }
 workspace = true
 
 [dev-dependencies]
-rmcp = { version = "3.4.1", features = ["client", "transport-child-process", "transport-streamable-http-client-reqwest"] }
+rmcp = { version = "3.10.0", features = ["client", "transport-child-process", "transport-streamable-http-client-reqwest"] }
 tempfile = "3.27.0"
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "process"] }
 wiremock = "0.6.5"

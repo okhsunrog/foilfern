@@ -1515,3 +1515,13 @@ checks and one undo group. `jobs_list` stays compact by default; `job` filters b
 exact name/UUID and `include_settings:true` returns complete native settings.
 Ambiguous names are rejected in listing, configuration and execution. Exporting
 files remains a separate `jobs_run` operation.
+
+The SDK is rmcp 3.10.0. Transport acceptance explicitly covers legacy
+`initialize` with MCP 2025-11-25 and modern `server/discover` with MCP 2026-07-28
+over stdio and HTTP. Both expose the same complete deterministic tool catalog.
+Application project handles remain shared across HTTP requests and clients.
+Local CLI calls still dispatch through the registry without a protocol handshake.
+Deferred insertion of tool definitions into a model's context is a client/host
+concern, as described in the official client best practices; no server tool
+profiles or session-based tool activation are provided. Schema or response
+reductions require a separate agreed change.

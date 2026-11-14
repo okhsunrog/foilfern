@@ -41,6 +41,64 @@ async fn call_ok(
 }
 
 #[tokio::test]
+async fn stdio_serves_modern_discovery_and_legacy_initialization() {
+    use rmcp::model::ProtocolVersion;
+    use rmcp::{ClientLifecycleMode, ClientServiceExt};
+    let mut catalogs = Vec::new();
+    for (lifecycle, expected) in [
+        (
+            ClientLifecycleMode::Initialize,
+            ProtocolVersion::V_2025_11_25,
+        ),
+        (
+            ClientLifecycleMode::Discover {
+                preferred_versions: vec![ProtocolVersion::V_2026_07_28],
+            },
+            ProtocolVersion::V_2026_07_28,
+        ),
+    ] {
+        let cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));
+        let client =
+            ().serve_with_lifecycle(TokioChildProcess::new(cmd).unwrap(), lifecycle)
+                .await
+                .unwrap();
+        assert_eq!(client.peer_info().unwrap().protocol_version, expected);
+        let tools = client.list_all_tools().await.unwrap();
+        assert!(tools.iter().any(|tool| tool.name == "jobs_configure"));
+        let bytes = serde_json::to_vec(&tools).unwrap();
+        let design_bytes = serde_json::to_vec(
+            tools
+                .iter()
+                .find(|tool| tool.name == "design_preview")
+                .unwrap(),
+        )
+        .unwrap()
+        .len();
+        eprintln!(
+            "protocol={expected}, tools={}, catalog_bytes={}, design_preview_bytes={design_bytes}",
+            tools.len(),
+            bytes.len()
+        );
+        if expected == ProtocolVersion::V_2026_07_28
+            && let Some(path) = std::env::var_os("FOILFERN_TOOL_CATALOG_FILE")
+        {
+            std::fs::write(path, &bytes).unwrap();
+        }
+        catalogs.push(bytes);
+        let info = call_ok(&client, "server_info", json!({})).await;
+        assert!(info["api_capability_version"].is_u64());
+        let invalid = call(&client, "server_info", json!({"unknown":true})).await;
+        assert_eq!(invalid.is_error, Some(true));
+        assert_eq!(
+            invalid.structured_content.unwrap()["error"]["kind"],
+            "invalid_argument"
+        );
+        client.cancel().await.unwrap();
+    }
+    assert_eq!(catalogs[0], catalogs[1]);
+}
+
+#[tokio::test]
 async fn stdio_configures_native_jobs_and_exports_a_fresh_project() {
     let tmp = tempfile::tempdir().unwrap();
     let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));

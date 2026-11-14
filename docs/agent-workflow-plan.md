@@ -18,7 +18,7 @@ preview/apply revision checks, undo and native LibrePCB interoperability.
 | A6 | Board placement review | Board-layout preview returns an image plus absolute pad positions after rotation/mirroring. Preview performs no mutation and preserves stale-source refusal. Connector orientation comes from explicit metadata or geometry with confidence, never a guessed direction. | Implemented: candidate images, absolute pads and explicitly declared connector axes; physical model alignment is a separate A4 gate |
 | A7 | Legend editing | Identify text by device instance plus footprint-text UUID; report transformed bbox. Bounded text placement tests mask/courtyard constraints and reports fresh DRC delta with undo. | Implemented: scoped targets, transformed ink bounds and bounded native-geometry search with fresh DRC review |
 | A8 | Output access and plane defaults | Create/update validated output jobs through MCP; fresh projects can export STEP and graphics. Default plane outline uses the actual board contour; test nonrectangular boards and holes. | Implemented: actual plane contours and native STEP/graphics job configuration |
-| A9 | Response and tool discovery cost | Measure current tools/list and representative preview/apply payloads. Add compact change summaries with detail retrieval. Investigate opt-in tool groups and client compatibility; preserve default discoverability. Budget tests catch payload regressions. | Planned; extend existing P0 |
+| A9 | Response and tool discovery cost | Measure current tools/list and representative preview/apply payloads. Add compact change summaries with detail retrieval. Preserve the full deterministic MCP catalog; clients handle deferred schema loading. No server profiles or session-based group activation. Budget tests catch payload regressions. | Planned; extend existing P0 |
 | A10 | Rules with diagnostic provenance | Identify footprint-internal versus placement-induced DRC findings. Versioned factory profiles record source/date and require explicit selection; no silent relaxation to pass a footprint. | Planned |
 | A11 | Reproducible design as code | CLI tool/batch execution reuses the same tool implementations and session. Commit a design document; CI checks idempotence, semantic diff, ERC/DRC, exports and upstream reopen. Reports have bounded output and deterministic failure status. | Local call/batch implemented; CI design-document workflow remains planned |
 | A12 | Rich review and electrical intent | Expose existing offscreen 3D through render. Group schematic layout by connectivity/function. Add opt-in power-source and decoupling constraints with explicit pin roles, thresholds and evidence; report unknown intent rather than invent electrical guarantees. | Planned; extend P2/P5 |
@@ -441,3 +441,40 @@ real STEP/PNG/PDF files, verifies idempotence and undo/redo, saves/reopens setti
 and passes upstream `librepcb-cli 2.1.1 open-project --strict`. The full MCP suite
 passed: 98 ordinary tests, two live-source tests opt-in; all-target Clippy passed.
 Model availability/alignment is independent of making the STEP job accessible.
+
+### A9 discovery correction and SDK audit
+
+The owner explicitly declined server tool profiles. No group/profile filtering
+or session-based tool activation will be added. The current MCP revision is
+2026-07-28. Its tools specification prohibits changing `tools/list` as a side
+effect of other requests on a connection and recommends deterministic catalogs.
+The client best practices place progressive schema loading in the host: fetch
+`tools/list`, search the catalog, inject selected definitions into model context.
+Pagination/caching of transport responses and model-context loading are distinct.
+
+References checked 2026-11-14:
+- https://modelcontextprotocol.io/specification/2026-07-28/server/tools
+- https://modelcontextprotocol.io/docs/2026-07-28/develop/clients/client-best-practices
+
+The checkout used rmcp 3.4.1, whose `LATEST` was 2025-11-25 even though it knew
+the 2026-07-28 version constant. The published SDK is 3.10.0 (2026-11-12).
+Upgrade validation explicitly exercises legacy initialization and modern
+`server/discover`; merely changing a version string would not demonstrate support.
+
+The owner subsequently required discussion before any reduction of MCP schemas
+or responses, including an optional compact mode. No such reduction is approved
+by the earlier A9 plan alone. A9 currently permits measurements and proposals;
+implementation of response/schema trimming must wait for explicit agreement.
+
+SDK 3.10.0 validation passed: 100 ordinary MCP tests with HTTP enabled (two
+live-source tests opt-in), plus focused modern/legacy stdio and HTTP checks and
+all-target HTTP-enabled Clippy. Both protocol eras expose the same 101 tools:
+187411 bytes for the serialized definitions, including 24870 bytes for
+`design_preview`. These are UTF-8 JSON byte counts, not tokenizer measurements.
+No tools, schemas, fields or response entries were removed.
+
+The `proc-macro-error2 2.0.1` future-incompatibility warning is independent:
+`foilfern-step -> monstertruck-io -> step-p21 -> step-p21-derive -> proc-macro-error2`.
+Cargo's report identifies a private `extern crate proc_macro` being publicly
+re-exported (E0365). The published latest version remains 2.0.1 at this check;
+the warning was traced, not suppressed or fixed by the MCP SDK update.
