@@ -26,7 +26,7 @@ use foilfern_core::library::{
     sym::Symbol,
 };
 use foilfern_core::serialization::{Mode, SExpression};
-use foilfern_core::types::SimpleString;
+use foilfern_core::types::{Length, Point, SimpleString};
 use foilfern_core::utils::message_logger::{LogLevel, MessageLogger};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -193,7 +193,52 @@ pub fn convert(raw: &Value, lcsc: &str, sha256: &str) -> Result<NativePart, Erro
     let [gate] = ki_symbol.gates.as_slice() else {
         return Err(Error::Source("Expected one source symbol unit.".into()));
     };
-    let symbol = converter.create_symbol(&source_path, &ki_symbol, gate, &key("symbol"), &log)?;
+    let mut symbol =
+        converter.create_symbol(&source_path, &ki_symbol, gate, &key("symbol"), &log)?;
+    // EasyEDA's fetched library symbols often omit instance reference/value
+    // positions. Place our generated native fields above the actual geometry,
+    // rather than leaving both placeholders on top of each other at the origin.
+    let mut positions = symbol
+        .pins()
+        .iter()
+        .map(|p| p.position())
+        .collect::<Vec<_>>();
+    positions.extend(
+        symbol
+            .polygons()
+            .iter()
+            .flat_map(|p| p.path().vertices().iter().map(|v| v.pos)),
+    );
+    positions.extend(
+        symbol
+            .circles()
+            .iter()
+            .map(|c| Point::new(c.center().x, c.center().y + *c.diameter() / 2)),
+    );
+    let top = positions
+        .iter()
+        .map(|p| p.y)
+        .max()
+        .unwrap_or(Length::new(0));
+    let left = positions
+        .iter()
+        .map(|p| p.x)
+        .min()
+        .unwrap_or(Length::new(0));
+    let right = positions
+        .iter()
+        .map(|p| p.x)
+        .max()
+        .unwrap_or(Length::new(0));
+    let center = left + (right - left) / 2;
+    for text in symbol.texts_mut().iter_mut() {
+        let offset = match text.text().as_str() {
+            "{{NAME}}" => 3_810_000,
+            "{{VALUE}}" => 1_905_000,
+            _ => continue,
+        };
+        text.set_position(Point::new(center, top + Length::new(offset)));
+    }
     let component = converter.create_component(
         &source_path,
         &ki_symbol,

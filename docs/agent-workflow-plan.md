@@ -256,3 +256,12 @@ all seven initial part classes convert. These are source/native-reader checks:
 datasheet pin audits, preview inspection, model alignment and upstream CLI reopen
 remain separate acceptance gates. Raw experimental snapshots/logs are retained
 under `foilfern-parts/corpus` in the task artifact directory, not copied as fixtures.
+
+### Generated supplier field corrections (A4)
+
+Visual inspection of the new STM32 preview exposed overlapping native symbol
+name/value fields and a literal `REF**` footprint text. Generated symbol fields
+are now separated above the imported geometry, and the footprint uses the native
+name placeholder through a KiCad reference property. Electrical/graphic source
+coordinates are retained. Focused importer tests cover separated fields and
+native placeholder substitution; importer all-target Clippy passed.

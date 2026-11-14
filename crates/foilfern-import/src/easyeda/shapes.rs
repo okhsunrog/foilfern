@@ -344,7 +344,7 @@ pub(super) fn convert(
         quote(name)?,
         quote(&description)?
     );
-    footprint.push_str("(fp_text reference \"REF**\" (at 0 0)(layer F.SilkS)(effects(font(size 1 1)(thickness 0.15))))");
+    footprint.push_str("(property \"Reference\" \"REF**\" (at 0 0 0)(layer F.SilkS)(effects(font(size 1 1)(thickness 0.15))))");
     let mut pad_numbers = BTreeSet::new();
     let mut omitted_projection = 0;
     let mut has_through_hole = false;

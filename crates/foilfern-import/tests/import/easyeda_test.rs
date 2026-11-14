@@ -35,6 +35,28 @@ fn native_mapping_preserves_fractional_geometry_and_source_identity() {
     assert_eq!(part.symbol.pins().len(), 2);
     assert_eq!(part.package.pads().len(), 2);
     assert_eq!(part.device.pad_signal_map().len(), 2);
+    let fields = part
+        .symbol
+        .texts()
+        .iter()
+        .map(|text| text.position())
+        .collect::<Vec<_>>();
+    assert_eq!(fields.len(), 2);
+    assert_ne!(fields[0], fields[1]);
+    assert!(fields.iter().all(|position| position.y.to_mm() > 1.27));
+    let footprint = part.package.footprints().get(0).unwrap();
+    assert!(
+        footprint
+            .stroke_texts()
+            .iter()
+            .any(|text| text.text() == "{{NAME}}")
+    );
+    assert!(
+        !footprint
+            .stroke_texts()
+            .iter()
+            .any(|text| text.text() == "REF**")
+    );
     assert!(
         part.symbol
             .pins()
