@@ -325,16 +325,17 @@ impl RegionalRoutingRequest {
         board_id: BoardId,
         cancelled: impl Fn() -> bool,
     ) -> std::result::Result<AutorouteResult, RoutingError> {
-        self.run_with_neighbor_bounds(editor, board_id, None, cancelled)
+        self.run_with_staging(editor, board_id, None, cancelled, |_| Ok(()))
     }
 
-    /// Verify the separate bound on newly routed neighbor copper in a joint pass.
-    pub(super) fn run_with_neighbor_bounds(
+    /// Stage optional target copper after removals and check it within the same bounds.
+    pub(super) fn run_with_staging(
         &self,
         editor: &mut ProjectEditor,
         board_id: BoardId,
         neighbor_bounds: Option<(NetSignalId, RoutingRegion)>,
         cancelled: impl Fn() -> bool,
+        stage: impl FnOnce(&mut ProjectEditor) -> std::result::Result<(), RoutingError>,
     ) -> std::result::Result<AutorouteResult, RoutingError> {
         let bounds = self
             .request
@@ -398,6 +399,10 @@ impl RegionalRoutingRequest {
                 board: board_id,
                 selection,
             })?;
+        }
+        let revision = editor.project().revision();
+        stage(editor)?;
+        if !selected.is_empty() || editor.project().revision() != revision {
             editor
                 .update_derived_data(|p| p.rebuild_planes(board_id, None))?
                 .map_err(Error::from_export)?;

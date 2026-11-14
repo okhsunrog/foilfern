@@ -46,7 +46,7 @@ fn serialize_length_mm<S: serde::Serializer>(
     length.map(Length::to_mm).serialize(serializer)
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TracePreferenceResult {
     pub length_mm: Option<f64>,
     pub layer_changes: Option<usize>,

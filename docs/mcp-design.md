@@ -167,7 +167,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `22`). Its `build` object contains
+`api_capability_version` (currently `23`). Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -840,6 +840,23 @@ Only complete checks, no new errors, no net connectivity
 regression, and fewer opens on the target produce a candidate. Candidates
 are ranked by target opens, new warnings, affected objects, board via count
 and board trace length. Use measured preview for pad-pair path costs.
+
+`target_launch` optionally adds a straight lead from a named footprint pad on
+the target net to one explicit through-via. Supply `from`, `layer`, the via
+`position` in board mm, the lead `width`, and optional `drill` and `size`.
+The lead and via are inside the target region. In the sequential pass the
+launch is staged after neighbor routing, before the target continuation.
+In the joint pass it is staged after rip-up and before both nets are routed.
+It stays fixed during routing and is previewed and applied as part of the
+same checked patch.
+
+`trace_requirements` adds up to 16 hard requirements measured on each
+fully checked repair. Each entry names a pad pair under `path` and may
+specify `max_length_mm` and `max_layer_changes`. The anchored path must
+exist even when limits are omitted. A trial that closes the target but
+misses a requirement is reported with its before and after measurements
+and does not publish a candidate. Preview includes those measurements
+for retained candidates. This is a per-search contract.
 
 Poll `routing_repair_status` with the returned `search` UUID. It reports
 the phase, budget, checked trials, failure samples and the retained candidate

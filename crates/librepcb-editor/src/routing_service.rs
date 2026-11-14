@@ -40,7 +40,7 @@ pub use placement::{
 };
 pub use region::{RegionalRepairProposal, RegionalRoutingRequest};
 pub use repair_search::{
-    RepairSearchJob, RepairSearchRequest, RepairSearchResults, RepairSearchStatus,
+    RepairLaunch, RepairSearchJob, RepairSearchRequest, RepairSearchResults, RepairSearchStatus,
 };
 pub use staged::StagedRoutingRequest;
 
@@ -172,6 +172,10 @@ impl RoutingCandidateDetails {
                 .is_none_or(|net| after.unrouted_for(net) < before.unrouted_for(net)),
             Self::Repair { repair } => {
                 after.unrouted_for(repair.target) < before.unrouted_for(repair.target)
+                    && repair
+                        .trace_requirements
+                        .iter()
+                        .all(|check| check.after.met)
             }
             _ => true,
         };

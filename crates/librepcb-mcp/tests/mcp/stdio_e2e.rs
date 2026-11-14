@@ -84,27 +84,53 @@ async fn stdio_repair_search_deduplicates_groups_and_publishes_a_checked_candida
     let id = &trace["traces"][0]["uuid"];
     let before = call_ok(&client, "board_get", json!({})).await;
     let history = call_ok(&client, "history", json!({})).await;
-    let request = json!({
+    let mut request = json!({
         "target":"A", "groups":[[id],[id]],
         "region":{"min":{"x":3,"y":7},"max":{"x":17,"y":13}},
         "rip_up_region":{"min":{"x":4,"y":10.5},"max":{"x":16,"y":12}},
         "route":{"layers":["top"]},"neighbor_route":{"layers":["top"]},
         "joint_route":{"layers":["top"]},
+        "trace_requirements":[
+            {"path":{"from":"R1.2","to":"R2.2"},"max_length_mm":10.1,"max_layer_changes":0},
+            {"path":{"from":"R1.1","to":"R2.1"}}
+        ],
     });
-    let started = call_ok(&client, "routing_repair_start", request.clone()).await;
-    assert_eq!(started["planned_trials"], 2);
-    let search = started["search"].clone();
-    let status = tokio::time::timeout(std::time::Duration::from_secs(10), async {
-        loop {
-            let status = call_ok(&client, "routing_repair_status", json!({"search":search})).await;
-            if status["phase"] == "finished" {
-                break status;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    let poll = |search: Value| {
+        let client = &client;
+        async move {
+            tokio::time::timeout(std::time::Duration::from_secs(10), async {
+                loop {
+                    let status =
+                        call_ok(client, "routing_repair_status", json!({"search":search})).await;
+                    if status["phase"] == "finished" {
+                        break status;
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .unwrap()
         }
-    })
-    .await
-    .unwrap();
+    };
+    request["trace_requirements"][0]["max_length_mm"] = json!(9.9);
+    let strict = call_ok(&client, "routing_repair_start", request.clone()).await;
+    let rejected = poll(strict["search"].clone()).await;
+    assert_eq!(rejected["candidates"], json!([]));
+    assert_eq!(rejected["trials"][0]["target_unrouted"], 0);
+    assert_eq!(rejected["trials"][0]["validation"]["acceptable"], false);
+    assert_eq!(
+        rejected["trials"][0]["trace_requirements"][0]["after"]["met"],
+        false
+    );
+    assert_eq!(
+        rejected["trials"][0]["trace_requirements"][1]["after"]["met"],
+        true
+    );
+
+    request["trace_requirements"][0]["max_length_mm"] = json!(10.1);
+    let started = call_ok(&client, "routing_repair_start", request).await;
+    assert_eq!(started["planned_trials"], 2);
+    let status = poll(started["search"].clone()).await;
     assert_eq!(status["stop_reason"], "completed", "{status:#}");
     assert_eq!(status["completed_trials"], 2);
     assert_eq!(status["trials"][0]["validation"]["acceptable"], true);
@@ -128,6 +154,12 @@ async fn stdio_repair_search_deduplicates_groups_and_publishes_a_checked_candida
     let preview = call_ok(&client, "routing_preview", json!({"candidate":candidate})).await;
     assert!(preview["mutation_count"].as_u64().unwrap() > 0);
     assert_eq!(preview["repair"]["strategy"], "joint");
+    let paths = &preview["repair"]["trace_requirements"];
+    assert_eq!(paths[0]["before"]["length_mm"], 10.0);
+    assert_eq!(paths[0]["after"]["length_mm"], 10.0);
+    assert_eq!(paths[0]["after"]["met"], true);
+    assert_eq!(paths[1]["before"]["met"], false);
+    assert_eq!(paths[1]["after"]["met"], true);
     assert_eq!(preview["repair"]["joint"]["rip_up"], json!([id]));
     assert_eq!(
         call_ok(&client, "routing_apply", json!({"candidate":candidate})).await["validation"]["after"]
@@ -146,7 +178,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 22);
+    assert_eq!(info["api_capability_version"], 23);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(

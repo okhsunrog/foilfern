@@ -4,12 +4,12 @@ use std::time::Duration;
 
 use librepcb_core::types::Uuid;
 use librepcb_editor::routing_service::{
-    RepairSearchJob, RepairSearchRequest, RepairSearchResults, RoutingError,
+    RepairLaunch, RepairSearchJob, RepairSearchRequest, RepairSearchResults, RoutingError,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use super::{RoutingEditRouteArgs, RoutingRegionArgs, routing_error};
+use super::{RoutingEditRouteArgs, RoutingRegionArgs, TracePreferenceArgs, routing_error};
 use crate::error::{ToolError, ToolResult};
 use crate::outcome::ToolOutput;
 use crate::session::Session;
@@ -45,7 +45,24 @@ pub struct RepairSearchArgs {
     pub max_candidates: Option<usize>,
     /// Cooperative time budget in ms, 1–300000. Default 120000.
     pub max_time_ms: Option<u64>,
+    /// Up to 16 hard pad-to-pad constraints for the completed repair.
+    #[serde(default)]
+    pub trace_requirements: Vec<TracePreferenceArgs>,
+    /// Add one explicit straight target pad-to-through-via lead before routing the target.
+    pub target_launch: Option<RepairLaunchArgs>,
     pub expected_revision: Option<u64>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RepairLaunchArgs {
+    /// Name of a target-net footprint pad, e.g. U1.12.
+    pub from: crate::tools::trace_path::PadAddress,
+    pub layer: String,
+    pub position: crate::units::PointMm,
+    pub width: f64,
+    pub drill: Option<f64>,
+    pub size: Option<f64>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -109,6 +126,40 @@ pub fn start(
                 .collect()
         })
         .collect::<ToolResult<_>>()?;
+    if args.trace_requirements.len() > 16 {
+        return Err(ToolError::invalid("Supply at most 16 trace requirements."));
+    }
+    let native_board = project
+        .board(board)
+        .ok_or_else(|| ToolError::not_found("Candidate board is missing."))?;
+    let trace_requirements = args
+        .trace_requirements
+        .iter()
+        .map(|path| path.resolve(project, native_board, false))
+        .collect::<ToolResult<_>>()?;
+    let target_launch = args
+        .target_launch
+        .map(|launch| -> ToolResult<_> {
+            Ok(RepairLaunch {
+                from: crate::tools::trace_path::footprint_pad_id(
+                    project,
+                    native_board,
+                    &launch.from,
+                )?,
+                layer: board_edit::copper_layer(&launch.layer)?,
+                position: launch.position.to_point()?,
+                width: board_edit::positive(launch.width, "width")?,
+                drill: launch
+                    .drill
+                    .map(|d| board_edit::positive(d, "drill"))
+                    .transpose()?,
+                size: launch
+                    .size
+                    .map(|s| board_edit::positive(s, "size"))
+                    .transpose()?,
+            })
+        })
+        .transpose()?;
     let (status, job) = open
         .routing
         .start_repair_search(
@@ -120,6 +171,8 @@ pub fn start(
                 joint_route,
                 rip_up_region: args.rip_up_region.bounds()?,
                 groups,
+                trace_requirements,
+                target_launch,
                 max_objects: args.max_objects.unwrap_or(12),
                 max_trials: args.max_trials.unwrap_or(24),
                 max_candidates: args.max_candidates.unwrap_or(2),

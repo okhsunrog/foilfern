@@ -11,11 +11,14 @@ use parking_lot::Mutex;
 use serde::Serialize;
 
 use super::{
-    RegionalRoutingRequest, RoutingCandidate, RoutingCandidateDetails, RoutingError,
-    RoutingService, RoutingSource, SourceContext, comparison::copper_cost, rebuild_connectivity,
+    CopperPlan, RegionalRoutingRequest, RoutingCandidate, RoutingCandidateDetails, RoutingError,
+    RoutingService, RoutingSource, SourceContext, TracePreference,
+    comparison::{TracePreferenceResult, copper_cost},
+    rebuild_connectivity,
 };
 use crate::commands::{
-    Autoroute, AutorouteResult, NetRef, RoutingBounds, UnroutedAirWire, net_name, resolve_board,
+    AddVia, Autoroute, AutorouteResult, NetRef, RoutingBounds, TraceEndpoint, UnroutedAirWire,
+    net_name, resolve_board,
 };
 use crate::routing_validation::{RoutingValidation, capture_routing_state_with_cancel};
 use crate::{Error, ProjectEditor};
@@ -33,6 +36,20 @@ pub struct RepairSearchRequest {
     pub max_trials: usize,
     pub max_candidates: usize,
     pub time_budget: Duration,
+    /// Hard pad-to-pad constraints checked on each complete trial.
+    pub trace_requirements: Vec<TracePreference>,
+    pub target_launch: Option<RepairLaunch>,
+}
+
+/// An authorized additive, straight pad-to-via lead on the target net.
+#[derive(Debug, Clone, Serialize)]
+pub struct RepairLaunch {
+    pub from: (librepcb_core::project::ComponentInstanceId, Uuid),
+    pub layer: librepcb_core::types::Layer,
+    pub position: librepcb_core::types::Point,
+    pub width: librepcb_core::types::PositiveLength,
+    pub drill: Option<librepcb_core::types::PositiveLength>,
+    pub size: Option<librepcb_core::types::PositiveLength>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -48,6 +65,17 @@ pub struct RepairCandidateDetails {
     pub neighbor_region: Option<RoutingBounds>,
     pub route: Autoroute,
     pub routing: AutorouteResult,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_launch: Option<RepairLaunch>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub trace_requirements: Vec<RepairTraceCheck>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RepairTraceCheck {
+    pub requirement: TracePreference,
+    pub before: TracePreferenceResult,
+    pub after: TracePreferenceResult,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -111,6 +139,8 @@ pub struct RepairTrial {
     pub failure: Option<String>,
     pub neighbor_failures: Vec<RepairFailure>,
     pub target_failures: Vec<RepairFailure>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub trace_requirements: Vec<RepairTraceCheck>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -408,6 +438,7 @@ impl RepairSearchRequest {
             || !(1..=16).contains(&self.max_objects)
             || !(1..=72).contains(&self.max_trials)
             || !(1..=3).contains(&self.max_candidates)
+            || self.trace_requirements.len() > 16
             || self.time_budget.is_zero()
             || self.time_budget > Duration::from_secs(300)
         {
@@ -434,6 +465,27 @@ impl RepairSearchRequest {
                 "rip_up_region must fit both routing regions.".into(),
             )
             .into());
+        }
+        if let Some(launch) = &self.target_launch {
+            let (component, pad) = launch.from;
+            let view = board
+                .device(component)
+                .ok_or_else(|| Error::not_found("Device", component))?
+                .pad(&pad, project.library(), project.circuit())
+                .map_err(Error::from)?
+                .ok_or_else(|| Error::not_found("Pad", pad))?;
+            let lead_radius = Length::new(launch.width.to_nm() / 2 + launch.width.to_nm() % 2);
+            if view.net() != Some(self.target)
+                || !board.copper_layers().contains(&launch.layer)
+                || !view.is_on_layer(launch.layer)
+                || !target_bounds.contains(view.position(), lead_radius)
+                || !target_bounds.contains(launch.position, lead_radius)
+            {
+                return Err(Error::InvalidArgument(
+                    "The launch pad and lead must be on the target net and inside region.".into(),
+                )
+                .into());
+            }
         }
         let copper = super::region::copper(project, board)?;
         let mut seen = BTreeSet::new();
@@ -485,7 +537,58 @@ impl RepairSearchRequest {
     }
 }
 
+impl RepairLaunch {
+    fn stage(
+        &self,
+        editor: &mut ProjectEditor,
+        board: BoardId,
+        net: NetSignalId,
+    ) -> Result<(), RoutingError> {
+        let plan = CopperPlan {
+            board,
+            remove_traces: BTreeSet::new(),
+            remove_vias: BTreeSet::new(),
+            placements: Vec::new(),
+            vias: vec![AddVia {
+                board: Some(board),
+                position: self.position,
+                net: Some(NetRef::Id(net)),
+                start_layer: None,
+                end_layer: None,
+                drill_diameter: self.drill,
+                size: self.size,
+                exposure: None,
+            }],
+            traces: vec![super::PlannedTrace {
+                start: super::CopperEndpoint::Existing(TraceEndpoint::FootprintPad {
+                    component: self.from.0,
+                    pad: self.from.1,
+                }),
+                end: super::CopperEndpoint::NewVia(0),
+                points: Vec::new(),
+                layer: Some(self.layer),
+                width: Some(self.width),
+                net: Some(NetRef::Id(net)),
+            }],
+        };
+        plan.run(editor)?;
+        Ok(())
+    }
+}
+
 impl RepairSearchJob {
+    fn stage_launch(
+        &self,
+        sandbox: &mut ProjectEditor,
+        board: BoardId,
+        target: NetSignalId,
+    ) -> Result<(), RoutingError> {
+        if let Some(launch) = &self.request.target_launch {
+            launch.stage(sandbox, board, target)?;
+        }
+        Ok(())
+    }
+
     fn run_trial(
         &self,
         sandbox: &mut ProjectEditor,
@@ -535,7 +638,10 @@ impl RepairSearchJob {
                     rip_up_region: None,
                     improve_net: Some(target),
                 };
-                let routing = request.run_with_cancel(sandbox, board, cancelled)?;
+                let routing =
+                    request.run_with_staging(sandbox, board, None, cancelled, |sandbox| {
+                        self.stage_launch(sandbox, board, target)
+                    })?;
                 (Some(neighbor), None, route, routing)
             }
             RepairStrategy::Joint => {
@@ -562,11 +668,12 @@ impl RepairSearchJob {
                     rip_up_region: Some(self.request.rip_up_region),
                     improve_net: Some(target),
                 };
-                let routing = request.run_with_neighbor_bounds(
+                let routing = request.run_with_staging(
                     sandbox,
                     board,
                     Some((target, neighbor_bounds.region()?)),
                     cancelled,
+                    |sandbox| self.stage_launch(sandbox, board, target),
                 )?;
                 report.neighbor_failures =
                     summarize_failures(&routing, |failure| failure.net != target);
@@ -583,6 +690,8 @@ impl RepairSearchJob {
             neighbor_region: (report.strategy == RepairStrategy::Joint).then_some(neighbor_bounds),
             route,
             routing,
+            trace_requirements: Vec::new(),
+            target_launch: self.request.target_launch.clone(),
         }))
     }
 
@@ -619,6 +728,12 @@ impl RepairSearchJob {
                 "The repair target has no open connections.".into(),
             ));
         }
+        let baseline_paths = self
+            .request
+            .trace_requirements
+            .iter()
+            .map(|path| path.measure(self.source.sandbox.project(), board))
+            .collect::<crate::Result<Vec<_>>>()?;
         let strategies = [RepairStrategy::Sequential, RepairStrategy::Joint];
         let strategies = &strategies[..1 + usize::from(self.request.joint_route.is_some())];
         let trials = self
@@ -653,16 +768,15 @@ impl RepairSearchJob {
                 failure: None,
                 neighbor_failures: Vec::new(),
                 target_failures: Vec::new(),
+                trace_requirements: Vec::new(),
             };
             let routed = self.run_trial(&mut source.sandbox, trial, &mut report);
             if let Some(reason) = self.state.stop() {
                 stop = reason;
                 break;
             }
-            let details = match routed {
-                Ok(Some(details)) => RoutingCandidateDetails::Repair {
-                    repair: Box::new(details),
-                },
+            let mut repair = match routed {
+                Ok(Some(details)) => details,
                 Ok(None) => {
                     // run_trial returns None only after observing cancellation.
                     stop = self.state.stop().unwrap_or(StopReason::Cancelled);
@@ -686,6 +800,27 @@ impl RepairSearchJob {
             }
             let target_unrouted = after.unrouted_for(target);
             report.target_unrouted = Some(target_unrouted);
+            if after.checks.complete {
+                report.trace_requirements = self
+                    .request
+                    .trace_requirements
+                    .iter()
+                    .zip(&baseline_paths)
+                    .map(|(&requirement, before)| {
+                        Ok(RepairTraceCheck {
+                            requirement,
+                            before: before.clone(),
+                            after: requirement.measure(source.sandbox.project(), board)?,
+                        })
+                    })
+                    .collect::<crate::Result<Vec<_>>>()?;
+            }
+            repair
+                .trace_requirements
+                .clone_from(&report.trace_requirements);
+            let details = RoutingCandidateDetails::Repair {
+                repair: Box::new(repair),
+            };
             let validation = details.validate(&before, &after);
             if validation.acceptable {
                 let (vias, trace_length_mm) = copper_cost(source.sandbox.project(), board)?;

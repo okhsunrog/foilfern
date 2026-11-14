@@ -127,6 +127,15 @@ fn endpoint(p: &Project, board: &Board, address: &PadAddress) -> ToolResult<Endp
     })
 }
 
+pub(super) fn footprint_pad_id(
+    project: &Project,
+    board: &Board,
+    address: &PadAddress,
+) -> ToolResult<(ComponentInstanceId, Uuid)> {
+    let resolved = endpoint(project, board, address)?;
+    Ok((resolved.component, resolved.pad))
+}
+
 pub fn trace_path_measure(session: &Session, args: TracePathArgs) -> ToolResult<ToolOutput> {
     let p = session.project()?.project();
     write::check_revision(p, args.expected_revision)?;
