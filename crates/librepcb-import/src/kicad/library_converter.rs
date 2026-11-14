@@ -569,7 +569,7 @@ impl<'a> KiCadLibraryConverter<'a> {
                     .push(ComponentPinSignalMapItem::new(
                         pin_uuid,
                         Some(signal_uuid),
-                        if ki_sym.hide_pin_names {
+                        if ki_sym.hide_pin_names || matches!(pin.name.as_str(), "" | "~") {
                             CmpSigPinDisplayType::None
                         } else {
                             CmpSigPinDisplayType::ComponentSignal

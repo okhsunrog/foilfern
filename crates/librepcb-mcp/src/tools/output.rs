@@ -21,6 +21,7 @@ use librepcb_core::project::{
 };
 use librepcb_core::rule_check::Severity;
 use librepcb_core::types::Point;
+use librepcb_editor::routing_validation::drc_objects;
 use librepcb_scene::{BoardSide, RenderOptions, RenderSize};
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -715,6 +716,7 @@ pub fn drc_run(session: &mut Session, args: DrcArgs) -> ToolResult<ToolOutput> {
             "description": msg.description(),
             "kind": format!("{:?}", m.kind()),
             "approved": is_approved,
+            "objects": drc_objects(m),
             "locations": msg.locations().iter().map(views::path).collect::<Vec<_>>(),
         }));
     }

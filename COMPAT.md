@@ -975,6 +975,8 @@ Rendering only; no file is affected.
   `QDir::Name` ordering (UTF-16 based; differs only for exotic names).
 - KiCad datasheet URLs are taken as written instead of being normalized
   by `QUrl` (and not checked with `QUrl::isValid()`).
+- Unnamed KiCad library pins retain their number-based signal identifiers.
+  Their pin-name legend is hidden when the source name is empty or `~`.
 - `MessageLogger` child loggers prefix messages with `"[group] "` and
   forward them synchronously (no Qt signals); scan, parse and import run
   on the caller's thread and report through `Progress` (percent, status,

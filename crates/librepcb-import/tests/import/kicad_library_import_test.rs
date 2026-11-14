@@ -103,6 +103,79 @@ fn test_wrong_state() {
 }
 
 #[test]
+fn unnamed_pins_keep_signal_ids_without_a_name_legend() {
+    use std::sync::Arc;
+
+    use librepcb_core::fileio::{TransactionalDirectory, TransactionalFileSystem};
+    use librepcb_core::library::LibraryBaseElement;
+    use librepcb_core::library::cmp::{CmpSigPinDisplayType, Component};
+
+    let tmp = TempDir::new();
+    let src = tmp.path().path_to("source");
+    let dst = tmp.path().path_to("library");
+    std::fs::create_dir(src.as_path()).unwrap();
+    std::fs::write(
+        src.path_to("passive.kicad_sym").as_path(),
+        r#"(kicad_symbol_lib (version 20231120) (generator test)
+            (symbol "Test"
+                (symbol "Test_1_1"
+                    (pin passive line (at -5 0 0) (length 2) (name "") (number "1"))
+                    (pin passive line (at 5 0 180) (length 2) (name "~") (number "2"))
+                    (pin passive line (at 0 5 270) (length 2) (name "3") (number "3")))))"#,
+    )
+    .unwrap();
+    let mut import = KiCadLibraryImport::new(dst.clone());
+    let log = MessageLogger::new();
+    let progress = Progress::new();
+    assert!(import.scan(&src, None, &log, &progress));
+    assert!(import.parse(&NoImportedElements, &log, &progress));
+    assert_eq!(
+        import
+            .import(&NoImportedElements, &log, &progress)
+            .unwrap()
+            .imported,
+        2
+    );
+    let entry = std::fs::read_dir(dst.path_to("cmp").as_path())
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap();
+    let fs = TransactionalFileSystem::open_ro(&FilePath::new(entry.path()).unwrap()).unwrap();
+    let component = Component::open(TransactionalDirectory::new(Arc::new(fs), "")).unwrap();
+    let item = component
+        .symbol_variants()
+        .iter()
+        .next()
+        .unwrap()
+        .symbol_items()
+        .iter()
+        .next()
+        .unwrap();
+    let displays = item
+        .pin_signal_map()
+        .iter()
+        .map(|pin| {
+            let signal = component
+                .signals()
+                .iter()
+                .find(|signal| Some(signal.uuid()) == pin.signal_uuid())
+                .unwrap();
+            (signal.name().as_str(), pin.display_type())
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
+    assert_eq!(
+        displays,
+        [
+            ("1", CmpSigPinDisplayType::None),
+            ("2", CmpSigPinDisplayType::None),
+            ("3", CmpSigPinDisplayType::ComponentSignal),
+        ]
+        .into()
+    );
+}
+
+#[test]
 fn test_import_into_library() {
     let tmp = TempDir::new();
     let lib = create_library(&tmp);

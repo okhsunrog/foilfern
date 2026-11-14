@@ -667,6 +667,11 @@ Checks and outputs:
 content; the target defaults to the board when `board` or `side` is
 given).
 
+`drc_run` includes an `objects` array on each finding. Copper-pair clearance
+findings identify both objects. Graphic width and silkscreen clearance
+findings identify the affected polygon, circle or stroke text. Footprint
+graphics include `device_uuid` to identify the placed instance.
+
 Escape hatch: `mutation_apply` (core `Mutation` JSON, full validation, one
 undo group), `mutation_schema`.
 

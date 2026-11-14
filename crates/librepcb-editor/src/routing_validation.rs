@@ -47,34 +47,48 @@ pub struct RoutingDrcFinding {
     pub layers: Vec<Layer>,
 }
 
-fn copper_pair_objects(message: &DrcMessage) -> Vec<RoutingObject> {
-    if message.kind() != DrcMessageKind::CopperCopperClearanceViolation {
-        return Vec::new();
-    }
-    // Use the native, canonical object identifiers already attached by DRC.
+/// Board objects with canonical identities in the native DRC approval.
+pub fn drc_objects(message: &DrcMessage) -> Vec<RoutingObject> {
     use RoutingObjectKind as Kind;
-    message
-        .approval()
-        .children_named("object")
-        .filter_map(|object| {
-            let (kind, uuid) = [
+    use librepcb_core::serialization::SExpression;
+    let graphics = [
+        ("polygon/@0", Kind::Polygon),
+        ("circle/@0", Kind::Circle),
+        ("stroke_text/@0", Kind::StrokeText),
+    ];
+    let parse = |object: &SExpression, kinds: &[(&str, Kind)]| {
+        let (kind, uuid) = kinds
+            .iter()
+            .copied()
+            .find_map(|(path, kind)| object.child_value(path).ok().map(|uuid| (kind, uuid)))?;
+        Some(RoutingObject {
+            kind,
+            uuid,
+            device_uuid: object.child_value("device/@0").ok(),
+            pad_uuid: None,
+        })
+    };
+    match message.kind() {
+        DrcMessageKind::CopperCopperClearanceViolation => {
+            let kinds = [
                 ("trace/@0", Kind::Trace),
                 ("via/@0", Kind::Via),
                 ("pad/@0", Kind::Pad),
-                ("polygon/@0", Kind::Polygon),
-                ("circle/@0", Kind::Circle),
-                ("stroke_text/@0", Kind::StrokeText),
-            ]
-            .into_iter()
-            .find_map(|(path, kind)| object.child_value(path).ok().map(|uuid| (kind, uuid)))?;
-            Some(RoutingObject {
-                kind,
-                uuid,
-                device_uuid: object.child_value("device/@0").ok(),
-                pad_uuid: None,
-            })
-        })
-        .collect()
+                graphics[0],
+                graphics[1],
+                graphics[2],
+            ];
+            message
+                .approval()
+                .children_named("object")
+                .filter_map(|object| parse(object, &kinds))
+                .collect()
+        }
+        DrcMessageKind::MinimumWidthViolation | DrcMessageKind::SilkscreenClearanceViolation => {
+            parse(message.approval(), &graphics).into_iter().collect()
+        }
+        _ => Vec::new(),
+    }
 }
 
 pub type RoutingError = RoutingDrcFinding;
@@ -299,7 +313,7 @@ fn capture_state(
                         message: message.message().message().to_owned(),
                         approval,
                         copper,
-                        objects: copper_pair_objects(&message),
+                        objects: drc_objects(&message),
                         layers: message.copper_layers().collect(),
                     },
                 );

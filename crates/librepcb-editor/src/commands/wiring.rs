@@ -26,8 +26,8 @@ use super::circuit::{
 };
 use super::component::MoveSymbol;
 use super::placement::{
-    Rect, is_frame, net_label_direction, net_label_length, net_label_rect, placed_symbol_rect,
-    schematic_obstacles,
+    Rect, is_frame, net_label_direction, net_label_length, net_label_rect, placed_symbol_obstacles,
+    placed_symbol_rect, schematic_obstacles, text_rect,
 };
 use super::resolve;
 use super::schematic::{
@@ -194,10 +194,26 @@ impl Clearance {
         let mut points = Vec::new();
         for (id, sym) in s.symbols() {
             if !is_frame(p, schematic, *id)? {
-                rects.push(placed_symbol_rect(p, schematic, *id, true)?);
+                let (body, texts) = placed_symbol_obstacles(p, schematic, *id, true)?;
+                rects.push(body);
+                rects.extend(texts);
             }
             points.extend(sym.pins(p.view())?.iter().map(|pin| pin.position()));
         }
+        rects.extend(
+            s.texts()
+                .values()
+                .filter(|text| !text.text().is_empty())
+                .map(|text| {
+                    text_rect(
+                        text.position(),
+                        *text.height(),
+                        text.align(),
+                        text.rotation(),
+                        text.text().chars().count(),
+                    )
+                }),
+        );
         let mut lines = Vec::new();
         for (id, segment) in s.net_segments() {
             points.extend(segment.junctions().values().map(|j| j.position()));
@@ -277,9 +293,9 @@ fn segments_cross(a: (Point, Point), b: (Point, Point)) -> bool {
 
 /// Returns the corner points and the end of a stub wire with a net label
 /// for `pin` (see [`stub_with_label()`]): the first clear variant of a
-/// straight stub (as long as the label, or 2.54 mm longer), or a stub with
-/// a jog of 2.54 to 7.62 mm to either side; the straight stub if none is
-/// clear.
+/// straight stub (long enough to hold the label), or a stub with
+/// a jog of up to 7.62 mm to either side. Shorter departures and side-facing
+/// labels fit tighter gaps. Use the straight stub if no clear route exists.
 fn label_stub_route(p: &Project, pin: &PlacedPin, chars: usize) -> Result<(Vec<Point>, Point)> {
     let clearance = Clearance::new(p, pin.schematic)?;
     let out = pin.stub_end();
@@ -289,31 +305,42 @@ fn label_stub_route(p: &Project, pin: &PlacedPin, chars: usize) -> Result<(Vec<P
     );
     let (dx, dy) = direction;
     let back = (-dx, -dy);
-    let g = DEFAULT_STUB_LENGTH;
+    let g = DEFAULT_STUB_LENGTH / 2;
     // Label length plus some wire, in grid units.
     let needed = (net_label_length(chars) + Length::new(1_000_000)).to_nm();
-    let label_units = ((needed + g.to_nm() - 1) / g.to_nm()).max(1);
+    let label_units = ((needed + g.to_nm() - 1) / g.to_nm()).max(2);
     let at = |from: Point, (x, y): (i64, i64), n: i64| {
         Point::new(from.x + g * x * n, from.y + g * y * n)
     };
     let perpendicular = (-dy, dx);
-    let mut candidates: Vec<Vec<Point>> = vec![
-        vec![pin.position, at(pin.position, direction, label_units)],
-        vec![pin.position, at(pin.position, direction, label_units + 1)],
-    ];
-    for k in [1, -1, 2, -2, 3, -3] {
-        let c1 = at(pin.position, direction, 1);
-        let c2 = at(c1, perpendicular, k);
-        let end = at(c2, direction, label_units);
-        candidates.push(vec![pin.position, c1, c2, end]);
-    }
-    for path in &candidates {
-        if clearance.is_clear(path, back, chars) {
-            let end = path[path.len() - 1];
-            return Ok((path[1..path.len() - 1].to_vec(), end));
+    let fallback = at(pin.position, direction, label_units);
+    for units in label_units..=label_units + 4 {
+        let end = at(pin.position, direction, units);
+        if clearance.is_clear(&[pin.position, end], back, chars) {
+            return Ok((Vec::new(), end));
         }
     }
-    Ok((Vec::new(), candidates[0][1]))
+    for departure in [g * 2, g, g * 3, g * 4, g / 2] {
+        let first = Point::new(
+            pin.position.x + departure * dx,
+            pin.position.y + departure * dy,
+        );
+        for jog in [2, -2, 1, -1, 3, -3, 4, -4, 5, -5, 6, -6] {
+            let second = at(first, perpendicular, jog);
+            let end = at(second, direction, label_units);
+            if clearance.is_clear(&[pin.position, first, second, end], back, chars) {
+                return Ok((vec![first, second], end));
+            }
+        }
+        for side in [1, -1] {
+            let end = at(first, perpendicular, side * label_units);
+            let label_back = (-perpendicular.0 * side, -perpendicular.1 * side);
+            if clearance.is_clear(&[pin.position, first, end], label_back, chars) {
+                return Ok((vec![first], end));
+            }
+        }
+    }
+    Ok((Vec::new(), fallback))
 }
 
 /// Connects component signals to one net (created if needed, other nets

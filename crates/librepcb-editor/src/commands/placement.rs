@@ -210,7 +210,7 @@ pub(crate) fn net_label_direction(rotation: Angle, mirrored: bool) -> (i64, i64)
 
 /// Estimated rectangle of a text of `chars` characters (height `height`,
 /// about 0.6 x height per character), aligned at `anchor`.
-fn text_rect(
+pub(crate) fn text_rect(
     anchor: Point,
     height: Length,
     align: Alignment,
@@ -245,6 +245,22 @@ pub(crate) fn placed_symbol_rect(
     symbol: SymbolId,
     with_texts: bool,
 ) -> Result<Rect> {
+    let (body, texts) = placed_symbol_obstacles(p, schematic, symbol, with_texts)?;
+    Ok(Rect::bounding(
+        [body.min, body.max]
+            .into_iter()
+            .chain(texts.into_iter().flat_map(|r| [r.min, r.max])),
+    )
+    .unwrap_or(body))
+}
+
+/// Keep the symbol graphics and each text separate for wire clearance checks.
+pub(crate) fn placed_symbol_obstacles(
+    p: &Project,
+    schematic: SchematicId,
+    symbol: SymbolId,
+    with_texts: bool,
+) -> Result<(Rect, Vec<Rect>)> {
     let s = p
         .schematic(schematic)
         .ok_or_else(|| Error::not_found("Schematic", schematic))?;
@@ -255,10 +271,10 @@ pub(crate) fn placed_symbol_rect(
     let resolved = sym.resolve(p.view())?;
     let body = library_symbol_rect(resolved.lib_symbol, false).mapped(&sym.transform());
     if !with_texts {
-        return Ok(body);
+        return Ok((body, Vec::new()));
     }
     let lookup = ProjectAttributeLookup::for_symbol(p, s, sym, None, None, None);
-    let mut points = vec![body.min, body.max];
+    let mut texts = Vec::new();
     for text in sym.texts().values() {
         let value = lookup.substitute(text.text());
         // Unresolved attributes: assume a typical value length.
@@ -270,16 +286,15 @@ pub(crate) fn placed_symbol_rect(
         if chars == 0 {
             continue;
         }
-        let r = text_rect(
+        texts.push(text_rect(
             text.position(),
             *text.height(),
             text.align(),
             text.rotation(),
             chars,
-        );
-        points.extend([r.min, r.max]);
+        ));
     }
-    Ok(Rect::bounding(points).unwrap_or(body))
+    Ok((body, texts))
 }
 
 /// The rectangle a placed symbol needs for readable wiring: the symbol

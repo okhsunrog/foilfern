@@ -3690,7 +3690,7 @@ async fn stdio_manufacturing_profile_preview_apply_and_reopen() {
         json!({"name":"Manufacturing profile"}),
     )
     .await;
-    call_ok(
+    let polygon = call_ok(
         &client,
         "board_polygon_add",
         json!({"layer":"top_legend","line_width":0.12,"vertices":[
@@ -3698,6 +3698,17 @@ async fn stdio_manufacturing_profile_preview_apply_and_reopen() {
         ]}),
     )
     .await;
+    let drc = call_ok(&client, "drc_run", json!({})).await;
+    let width = drc["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|warning| warning["kind"] == "MinimumWidthViolation")
+        .unwrap();
+    assert_eq!(
+        width["objects"],
+        json!([{"kind":"polygon","uuid":polygon["uuid"]}])
+    );
     call_ok(&client, "project_save", json!({})).await;
     let before = call_ok(&client, "design_rules_get", json!({})).await;
     let history = call_ok(&client, "history", json!({})).await;
