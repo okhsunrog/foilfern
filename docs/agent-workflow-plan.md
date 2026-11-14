@@ -265,3 +265,29 @@ are now separated above the imported geometry, and the footprint uses the native
 name placeholder through a KiCad reference property. Electrical/graphic source
 coordinates are retained. Focused importer tests cover separated fields and
 native placeholder substitution; importer all-target Clippy passed.
+
+### Reviewed supplier bundle acquisition (A4)
+
+`part_import dry_run:true` renders native symbol/footprint PNGs and returns the
+pad/signal map without installing a library. Its `install` request replays offline
+snapshots with expected source and (when present) STEP hashes; changed bytes are
+refused before installation. CAD conversion and preview rendering remain outside
+the session lock. Installed details explicitly use workspace objects, avoiding
+an older project-library copy with the same UUID. Capability version is 44.
+
+All 91 ordinary MCP tests passed; the live registry test performed STM32 MPN
+preview, hash-pinned installation and offline replay with STEP. The two generated
+images were inspected, including the field corrections above. Native pin-number
+labels in this generic library-symbol view are placeholders; the returned mapping
+contains the exact physical pad numbers. All-target MCP Clippy passed.
+
+The local CLI batch also acquired all seven pinned corpus parts with mandatory
+STEP models, using the dev binary for correctness (not a board timing run).
+LibrePCB CLI 2.1.1, file format 2, became available from the pinned Nix package;
+all seven converter outputs passed `open-library --all --strict`, including the
+STM32 package with the actual STEP. STM32's 48 source pin numbers/names also
+matched an independent STM32 chip-data physical pinout after explicitly removing
+oscillator/RTC/WKUP aliases and supply instance suffixes. Other datasheet audits
+and rendered model/footprint alignment remain pending; model acceptance stays
+explicitly `alignment_verified:false`. Experimental logs and images remain under
+the task's `foilfern-parts/corpus` and `foilfern-parts/previews` directories.

@@ -168,7 +168,8 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `43`). Its `build` object contains
+`api_capability_version` (currently `44`, including supplier part acquisition).
+Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
 (`clean`, `dirty` or `unknown`). The state covers staged and unstaged changes to
 tracked workspace files. Untracked files, external dependencies and build inputs
@@ -623,6 +624,12 @@ four elements and (when needed) containing library in one filesystem transaction
 MPN resolution uses the tscircuit JLC index, retains its source snapshot, refuses
 fuzzy/ambiguous/possibly truncated results, and independently checks the MPN in
 the authoritative CAD source. Candidate LCSC IDs are reported on ambiguity.
+`dry_run:true` converts and returns symbol/footprint PNGs and mappings without
+installing native elements; verified cache snapshots are retained. Its `install`
+object is a ready `part_import` request using offline snapshots and
+`expected_source_sha256` plus, when available, `expected_model_sha256`. Changed
+hashes fail before installation; a model hash implies mandatory validated STEP.
+The images are 2D geometry reviews; `model.alignment_verified` remains false.
 
 `library_rescan`, `library_import` (EAGLE `*.lbr` or KiCad libraries
 into a local workspace library or a library directory, like upstream's

@@ -26,6 +26,9 @@ fn args(cache: PartCache) -> PartImportArgs {
         mpn: None,
         cache,
         require_model: false,
+        dry_run: false,
+        expected_source_sha256: None,
+        expected_model_sha256: None,
     }
 }
 
@@ -79,7 +82,48 @@ async fn acquisition_installs_once_replays_offline_and_refuses_changed_sources()
         PartImportArgs {
             lcsc: None,
             mpn: Some("TEST-123".into()),
+            dry_run: true,
             ..args(PartCache::PreferCache)
+        },
+        provider.clone(),
+    )
+    .await
+    .unwrap();
+    let preview = part::finish(&session, target.clone(), acquired).unwrap();
+    assert_eq!(preview.images.len(), 2);
+    assert!(
+        preview
+            .images
+            .iter()
+            .all(|png| png.starts_with(b"\x89PNG\r\n\x1a\n"))
+    );
+    assert_eq!(preview.result["mapping"].as_array().unwrap().len(), 2);
+    assert!(
+        !session
+            .workspace()
+            .unwrap()
+            .local_libraries_path()
+            .path_to("SupplierParts.lplib")
+            .is_existing_dir()
+    );
+    let install: PartImportArgs =
+        serde_json::from_value(preview.result["install"].clone()).unwrap();
+    let error = part::acquire(
+        &target,
+        PartImportArgs {
+            expected_source_sha256: Some("0".repeat(64)),
+            ..args(PartCache::Offline)
+        },
+        provider.clone(),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Conflict);
+    let acquired = part::acquire(
+        &target,
+        PartImportArgs {
+            cache: PartCache::Offline,
+            ..install
         },
         provider.clone(),
     )
@@ -187,16 +231,49 @@ async fn c8734_imports_through_registry_with_step_and_replays_offline() {
         .await
         .unwrap();
     assert_ne!(created.is_error, Some(true), "{created:?}");
-    let imported = runner
+    let preview = runner
         .call(
             "part_import",
-            json!({"mpn":"STM32F103C8T6","require_model":true})
+            json!({"mpn":"STM32F103C8T6","require_model":true,"dry_run":true})
                 .as_object()
                 .unwrap()
                 .clone(),
         )
         .await
         .unwrap();
+    assert_ne!(preview.is_error, Some(true), "{preview:?}");
+    assert_eq!(
+        preview
+            .content
+            .iter()
+            .filter(|content| content.as_image().is_some())
+            .count(),
+        2
+    );
+    if let Ok(directory) = std::env::var("FOILFERN_PART_PREVIEW_DIR") {
+        use base64::Engine;
+        std::fs::create_dir_all(&directory).unwrap();
+        for (index, image) in preview
+            .content
+            .iter()
+            .filter_map(|content| content.as_image())
+            .enumerate()
+        {
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(&image.data)
+                .unwrap();
+            std::fs::write(
+                std::path::Path::new(&directory).join(format!("C8734-{index}.png")),
+                bytes,
+            )
+            .unwrap();
+        }
+    }
+    let install = preview.structured_content.unwrap()["result"]["install"]
+        .as_object()
+        .unwrap()
+        .clone();
+    let imported = runner.call("part_import", install).await.unwrap();
     assert_ne!(imported.is_error, Some(true), "{imported:?}");
     let envelope = imported.structured_content.unwrap();
     assert_eq!(

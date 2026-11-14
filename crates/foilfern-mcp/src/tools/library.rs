@@ -959,6 +959,25 @@ fn component_detail(src: &ElementSource<'_>, c: &Component, source: &str) -> Too
     Ok(v)
 }
 
+/// Details of an acquired workspace device, independent of an older project
+/// library copy with the same UUID. Acquisition never updates that project copy.
+pub(crate) fn workspace_device_details(
+    ws: &Workspace,
+    device: &Device,
+) -> ToolResult<(Value, Value)> {
+    let src = ElementSource {
+        project: None,
+        workspace: Some(ws),
+    };
+    let (component, source) = src
+        .component(device.component_uuid())?
+        .ok_or_else(|| ToolError::not_found("Acquired component missing from workspace."))?;
+    Ok((
+        device_detail(&src, device, "workspace")?,
+        component_detail(&src, &component, source)?,
+    ))
+}
+
 fn device_detail(src: &ElementSource<'_>, d: &Device, source: &str) -> ToolResult<Value> {
     let mut v = element_header(d, "device", source);
     let component = src.component(d.component_uuid())?;

@@ -17,10 +17,12 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::json;
 
-use super::library::{self, LibKind, LibraryElementArgs};
+use super::library;
 use crate::error::{ErrorKind, ToolError, ToolResult};
 use crate::outcome::ToolOutput;
 use crate::session::Session;
+
+mod preview;
 
 /// Supplier snapshot selection.
 #[derive(Debug, Clone, Copy, Default, Deserialize, JsonSchema)]
@@ -64,6 +66,17 @@ pub struct PartImportArgs {
     /// Refuse installation unless a referenced STEP model validates.
     #[serde(default)]
     pub require_model: bool,
+    /// Render the converted symbol/footprint and report mappings without
+    /// installing native elements. Verified source/model caches are retained.
+    #[serde(default)]
+    pub dry_run: bool,
+    /// Require the exact source snapshot inspected in a preceding dry run.
+    #[serde(default)]
+    pub expected_source_sha256: Option<String>,
+    /// Require the exact STEP asset inspected in a preceding dry run.
+    /// Implies require_model; missing/invalid assets cannot become partial.
+    #[serde(default)]
+    pub expected_model_sha256: Option<String>,
 }
 
 /// Snapshot of the workspace paths before downloading.
@@ -80,6 +93,7 @@ pub struct AcquiredPart {
     source: PartSource,
     native: NativePart,
     require_model: bool,
+    preview: Option<ToolOutput>,
 }
 
 /// Captures paths without holding the session during HTTP or CAD conversion.
@@ -124,6 +138,17 @@ pub async fn acquire(
     args: PartImportArgs,
     provider: EasyEdaProvider,
 ) -> ToolResult<AcquiredPart> {
+    for hash in [&args.expected_source_sha256, &args.expected_model_sha256]
+        .into_iter()
+        .flatten()
+    {
+        if hash.len() != 64 || !hash.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err(ToolError::invalid(
+                "Expected hashes must contain 64 hexadecimal digits.",
+            ));
+        }
+    }
+    let require_model = args.require_model || args.expected_model_sha256.is_some();
     let source = match (&args.lcsc, &args.mpn) {
         (Some(lcsc), None) => {
             provider
@@ -148,6 +173,16 @@ pub async fn acquire(
         _ => return Err(ToolError::invalid("Pass exactly one of lcsc or mpn.")),
     }
     .map_err(source_error)?;
+    if args
+        .expected_source_sha256
+        .as_ref()
+        .is_some_and(|hash| !hash.eq_ignore_ascii_case(&source.sha256))
+    {
+        return Err(ToolError::new(
+            ErrorKind::Conflict,
+            "Supplier source changed since preview; inspect the new snapshot before installation.",
+        ));
+    }
     let reference =
         easyeda::model_reference(&source.raw).map_err(|e| ToolError::invalid(e.to_string()))?;
     let mut warnings = Vec::new();
@@ -162,19 +197,29 @@ pub async fn acquire(
             .await
         {
             Ok(asset) => Some(asset),
-            Err(error) if !args.require_model => {
+            Err(error) if !require_model => {
                 warnings.push(format!("STEP asset unavailable: {error}"));
                 None
             }
             Err(error) => return Err(source_error(error)),
         }
-    } else if args.require_model {
+    } else if require_model {
         return Err(ToolError::not_found(
             "The supplier source has no STEP model reference.",
         ));
     } else {
         None
     };
+    if args.expected_model_sha256.as_ref().is_some_and(|hash| {
+        asset
+            .as_ref()
+            .is_none_or(|asset| !hash.eq_ignore_ascii_case(&asset.sha256))
+    }) {
+        return Err(ToolError::new(
+            ErrorKind::Conflict,
+            "Supplier STEP asset changed since preview; inspect it before installation.",
+        ));
+    }
     tokio::task::spawn_blocking(move || {
         let mut native = easyeda::convert(&source.raw, &source.lcsc, &source.sha256)
             .map_err(|e| ToolError::invalid(e.to_string()))?;
@@ -182,17 +227,23 @@ pub async fn acquire(
             let file = FilePath::new(&asset.file)
                 .ok_or_else(|| ToolError::invalid("Invalid STEP cache path."))?;
             if let Err(error) = native.attach_step(&source.lcsc, &reference, &file, &asset.sha256) {
-                if args.require_model {
+                if require_model {
                     return Err(ToolError::invalid(error.to_string()));
                 }
                 warnings.push(format!("STEP attachment failed: {error}"));
             }
         }
         native.warnings.extend(warnings);
+        let preview = if args.dry_run {
+            Some(preview::render(&source, &native)?)
+        } else {
+            None
+        };
         Ok(AcquiredPart {
             source,
             native,
-            require_model: args.require_model,
+            require_model,
+            preview,
         })
     })
     .await
@@ -212,6 +263,9 @@ pub fn finish(
             ErrorKind::Conflict,
             "Workspace changed during acquisition.",
         ));
+    }
+    if let Some(preview) = acquired.preview {
+        return Ok(preview);
     }
     library::rescan(ws)?;
     let generated = format!("FoilfernEasyEDA::{}::device", acquired.source.lcsc);
@@ -320,20 +374,7 @@ pub fn finish(
             "Existing native package has no model; replay preserved it. Review the package before adding a model.",
         ));
     }
-    let detail = library::library_element(
-        session,
-        LibraryElementArgs {
-            uuid: uuid.to_string(),
-            kind: Some(LibKind::Device),
-        },
-    )?;
-    let component = library::library_element(
-        session,
-        LibraryElementArgs {
-            uuid: dev.component_uuid().to_string(),
-            kind: Some(LibKind::Component),
-        },
-    )?;
+    let (detail, component) = library::workspace_device_details(ws, &dev)?;
     let part = dev.parts().iter().find(|p| {
         p.attributes()
             .iter()
@@ -341,7 +382,7 @@ pub fn finish(
     });
     let ready = part.map(|p| json!({"mpn":p.mpn().as_str(),"manufacturer":p.manufacturer().as_str(),"attributes":{"LCSC":acquired.source.lcsc}}));
     let mut output = ToolOutput::new(format!("{} {} ({uuid}).", if reused { "Reused" } else { "Imported" }, acquired.source.mpn), json!({
-        "device":detail.result,"component":component.result,"reused":reused,
+        "device":detail,"component":component,"reused":reused,
         "source":{"lcsc":acquired.source.lcsc,"mpn":acquired.source.mpn,"manufacturer":acquired.source.manufacturer,"url":acquired.source.source_url,"sha256":acquired.source.sha256,"snapshot":acquired.source.snapshot,"from_cache":acquired.source.from_cache,"attribution":acquired.source.attribution},
         "model":{"available":model_available,"alignment_verified":false},
         "add_component":{"device":uuid,"part":ready}
