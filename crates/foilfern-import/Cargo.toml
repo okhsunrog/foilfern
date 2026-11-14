@@ -22,6 +22,7 @@ sha2 = "0.11.1"
 svgtypes = "0.16.2"
 kurbo = "0.13.1"
 libm = "0.2.16"
+foilfern-step = { version = "0.1.0", path = "../foilfern-step" }
 
 [lints]
 workspace = true

@@ -16,6 +16,9 @@ use tokio_util::sync::CancellationToken;
 
 use crate::NetworkAccessManager;
 
+mod model;
+pub use model::StepAsset;
+
 const MAX_SOURCE_BYTES: usize = 32 * 1024 * 1024;
 
 /// Failure to acquire or validate a supplier snapshot.
@@ -92,6 +95,7 @@ pub struct PartSource {
 pub struct EasyEdaProvider {
     manager: NetworkAccessManager,
     base: reqwest::Url,
+    model_base: reqwest::Url,
 }
 
 impl EasyEdaProvider {
@@ -106,7 +110,12 @@ impl EasyEdaProvider {
         if !matches!(base.scheme(), "https" | "http") {
             return Err(Error::Invalid("Provider URL must use HTTP(S).".into()));
         }
-        Ok(Self { manager, base })
+        Ok(Self {
+            manager,
+            base,
+            model_base: reqwest::Url::parse("https://modules.easyeda.com/")
+                .map_err(|e| Error::Invalid(e.to_string()))?,
+        })
     }
 
     /// Fetches or replays a validated source. No library/project is modified.
@@ -122,7 +131,7 @@ impl EasyEdaProvider {
         }
         let lcsc = canonical_lcsc(lcsc)?;
         let directory = cache.join("easyeda-v1").join(&lcsc);
-        let cached = read_current(directory.clone()).await?;
+        let cached = read_current(directory.clone(), "json", MAX_SOURCE_BYTES).await?;
         if cancel.is_cancelled() {
             return Err(Error::Cancelled);
         }
@@ -143,35 +152,14 @@ impl EasyEdaProvider {
             }
         }
         let url = self.url(&lcsc)?;
-        let request = self
-            .manager
-            .client()
-            .get(url.clone())
-            .header("Referer", self.base.as_str())
-            .timeout(Duration::from_secs(30));
-        let fetch = async {
-            let response = request.send().await?.error_for_status()?;
-            if response
-                .content_length()
-                .is_some_and(|n| n > MAX_SOURCE_BYTES as u64)
-            {
-                return Err(Error::Invalid("Source exceeds the 32 MiB limit.".into()));
-            }
-            let mut stream = response.bytes_stream();
-            let mut bytes = Vec::new();
-            while let Some(chunk) = stream.next().await {
-                let chunk = chunk?;
-                if chunk.len() > MAX_SOURCE_BYTES.saturating_sub(bytes.len()) {
-                    return Err(Error::Invalid("Source exceeds the 32 MiB limit.".into()));
-                }
-                bytes.extend_from_slice(&chunk);
-            }
-            Ok::<_, Error>(bytes)
-        };
-        let bytes = tokio::select! {
-            _ = cancel.cancelled() => return Err(Error::Cancelled),
-            result = fetch => result?,
-        };
+        let bytes = fetch(
+            &self.manager,
+            url.clone(),
+            self.base.as_str(),
+            MAX_SOURCE_BYTES,
+            cancel.clone(),
+        )
+        .await?;
         let hash = hex::encode(Sha256::digest(&bytes));
         let changed_from = cached
             .as_ref()
@@ -189,17 +177,7 @@ impl EasyEdaProvider {
         if cancel.is_cancelled() {
             return Err(Error::Cancelled);
         }
-        tokio::task::spawn_blocking(move || {
-            let snapshot = FilePath::new(directory.join("snapshots").join(format!("{hash}.json")))
-                .ok_or_else(|| Error::Invalid("Invalid cache snapshot path.".into()))?;
-            file_utils::write_file(&snapshot, &bytes)?;
-            let current = FilePath::new(directory.join("current"))
-                .ok_or_else(|| Error::Invalid("Invalid cache index path.".into()))?;
-            file_utils::write_file(&current, hash.as_bytes())?;
-            Ok::<_, Error>(())
-        })
-        .await
-        .map_err(|e| Error::Worker(e.to_string()))??;
+        publish(directory, "json", hash, bytes).await?;
         Ok(result)
     }
 
@@ -231,7 +209,11 @@ pub fn canonical_lcsc(value: &str) -> Result<String, Error> {
     Ok(format!("C{number}"))
 }
 
-async fn read_current(directory: PathBuf) -> Result<Option<(String, Vec<u8>)>, Error> {
+async fn read_current(
+    directory: PathBuf,
+    extension: &'static str,
+    limit: usize,
+) -> Result<Option<(String, Vec<u8>)>, Error> {
     tokio::task::spawn_blocking(move || {
         let hash = match std::fs::read_to_string(directory.join("current")) {
             Ok(hash) => hash,
@@ -245,8 +227,10 @@ async fn read_current(directory: PathBuf) -> Result<Option<(String, Vec<u8>)>, E
         {
             return Err(Error::Invalid("Invalid cache snapshot hash.".into()));
         }
-        let path = directory.join("snapshots").join(format!("{hash}.json"));
-        if std::fs::metadata(&path)?.len() > MAX_SOURCE_BYTES as u64 {
+        let path = directory
+            .join("snapshots")
+            .join(format!("{hash}.{extension}"));
+        if std::fs::metadata(&path)?.len() > limit as u64 {
             return Err(Error::Invalid(
                 "Cached source exceeds the size limit.".into(),
             ));
@@ -319,4 +303,68 @@ fn source(
         from_cache,
         raw,
     })
+}
+
+async fn fetch(
+    manager: &NetworkAccessManager,
+    url: reqwest::Url,
+    referer: &str,
+    limit: usize,
+    cancel: CancellationToken,
+) -> Result<Vec<u8>, Error> {
+    if cancel.is_cancelled() {
+        return Err(Error::Cancelled);
+    }
+    let request = manager
+        .client()
+        .get(url)
+        .header("Referer", referer)
+        .timeout(Duration::from_secs(30));
+    let fetch = async {
+        let response = request.send().await?.error_for_status()?;
+        if response.content_length().is_some_and(|n| n > limit as u64) {
+            return Err(Error::Invalid(format!(
+                "Asset exceeds its {limit}-byte limit."
+            )));
+        }
+        let mut stream = response.bytes_stream();
+        let mut bytes = Vec::new();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            if chunk.len() > limit.saturating_sub(bytes.len()) {
+                return Err(Error::Invalid(format!(
+                    "Asset exceeds its {limit}-byte limit."
+                )));
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        Ok(bytes)
+    };
+    tokio::select! {
+        _ = cancel.cancelled() => Err(Error::Cancelled),
+        result = fetch => result,
+    }
+}
+
+async fn publish(
+    directory: PathBuf,
+    extension: &'static str,
+    hash: String,
+    bytes: Vec<u8>,
+) -> Result<(), Error> {
+    tokio::task::spawn_blocking(move || {
+        let snapshot = FilePath::new(
+            directory
+                .join("snapshots")
+                .join(format!("{hash}.{extension}")),
+        )
+        .ok_or_else(|| Error::Invalid("Invalid cache snapshot path.".into()))?;
+        file_utils::write_file(&snapshot, &bytes)?;
+        let current = FilePath::new(directory.join("current"))
+            .ok_or_else(|| Error::Invalid("Invalid cache index path.".into()))?;
+        file_utils::write_file(&current, hash.as_bytes())?;
+        Ok::<_, Error>(())
+    })
+    .await
+    .map_err(|e| Error::Worker(e.to_string()))?
 }

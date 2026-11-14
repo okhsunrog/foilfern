@@ -35,11 +35,16 @@ use crate::UuidGenerator;
 use crate::kicad::types::{KiCadFootprint, KiCadSymbol};
 use crate::kicad::{KiCadLibraryConverter, KiCadLibraryConverterSettings, NoImportedElements};
 
+mod model;
 mod shapes;
+pub use model::{ModelReference, model_reference};
 
 /// Invalid or unsupported source; conversion never substitutes zero geometry.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// STEP parsing/geometry validation failed.
+    #[error(transparent)]
+    Cad(#[from] foilfern_step::Error),
     /// Incomplete, non-finite or unsupported source geometry/mapping.
     #[error("EasyEDA import: {0}")]
     Source(String),

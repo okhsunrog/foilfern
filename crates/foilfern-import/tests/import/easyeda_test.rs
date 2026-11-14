@@ -117,6 +117,17 @@ fn external_source_converts_to_native_library() {
         .map(|b| format!("{b:02x}"))
         .collect();
     let mut part = easyeda::convert(raw, lcsc, &hash).unwrap();
+    if let Ok(file) = std::env::var("FOILFERN_EASYEDA_MODEL") {
+        let file = foilfern_core::fileio::FilePath::new(file).unwrap();
+        let bytes = std::fs::read(file.as_path()).unwrap();
+        let hash: String = Sha256::digest(&bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        let reference = easyeda::model_reference(raw).unwrap().unwrap();
+        part.attach_step(lcsc, &reference, &file, &hash).unwrap();
+        assert_eq!(part.package.models().len(), 1);
+    }
     let temporary = super::helpers::TempDir::new();
     let library = super::helpers::create_library(&temporary);
     part.install(&library).unwrap();
@@ -130,4 +141,66 @@ fn external_source_converts_to_native_library() {
     );
     super::helpers::open_all_elements(&library);
     super::helpers::check_library_with_upstream_cli(&library);
+}
+
+#[test]
+fn step_attachment_checks_geometry_hash_and_native_pose() {
+    let mut raw = source();
+    let node = json!({"attrs":{"uuid":"a4b96ad857dc48c08dab3d0efdf20aec","title":"Test model","c_origin":"201,202","c_rotation":"10,20,30","z":"100"}});
+    raw["packageDetail"]["dataStr"]["shape"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!(format!("SVGNODE~{node}")));
+    let reference = easyeda::model_reference(&raw).unwrap().unwrap();
+    assert_eq!(reference.position_mm, [0.254, -0.508, 2.54]);
+    assert_eq!(reference.rotation_deg, [10.0, 20.0, 30.0]);
+    let mut malformed = raw.clone();
+    let shapes = malformed["packageDetail"]["dataStr"]["shape"]
+        .as_array_mut()
+        .unwrap();
+    shapes.push(shapes.last().unwrap().clone());
+    assert!(easyeda::model_reference(&malformed).is_err());
+    let mut malformed = raw.clone();
+    let mut missing_origin = node.clone();
+    missing_origin["attrs"]
+        .as_object_mut()
+        .unwrap()
+        .remove("c_origin");
+    *malformed["packageDetail"]["dataStr"]["shape"]
+        .as_array_mut()
+        .unwrap()
+        .last_mut()
+        .unwrap() = json!(format!("SVGNODE~{missing_origin}"));
+    assert!(easyeda::model_reference(&malformed).is_err());
+    let mut part = easyeda::convert(&raw, "C123", &"a".repeat(64)).unwrap();
+    let file = foilfern_core::fileio::FilePath::new(
+        super::helpers::test_data_dir().join("unittests/librepcbcommon/OccModelTest/model.step"),
+    )
+    .unwrap();
+    let bytes = std::fs::read(file.as_path()).unwrap();
+    let hash: String = Sha256::digest(&bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    assert!(
+        part.attach_step("C123", &reference, &file, &"0".repeat(64))
+            .is_err()
+    );
+    assert!(part.package.models().is_empty());
+    part.attach_step("C123", &reference, &file, &hash).unwrap();
+    assert_eq!(part.package.models().len(), 1);
+    let fp = part.package.footprints().get(0).unwrap();
+    assert_eq!(fp.model_position().0.to_nm(), 254_000);
+    assert_eq!(fp.model_position().1.to_nm(), -508_000);
+    assert_eq!(fp.model_position().2.to_nm(), 2_540_000);
+    assert_eq!(fp.model_rotation().2.to_deg(), 30.0);
+    let model = part.package.models().get(0).unwrap();
+    assert_eq!(
+        part.package.directory().read(&model.file_name()).unwrap(),
+        bytes
+    );
+    let temporary = super::helpers::TempDir::new();
+    let library = super::helpers::create_library(&temporary);
+    part.install(&library).unwrap();
+    super::helpers::open_all_elements(&library);
 }

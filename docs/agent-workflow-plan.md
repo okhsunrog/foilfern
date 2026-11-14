@@ -188,3 +188,18 @@ direct solid items, below explicit solid/shell/face styles. Conflicting defaults
 and mapped representation styles are refused instead of guessing instance colors.
 All 19 STEP tests passed; the original C8734 asset also loaded successfully in
 the supplier conversion experiment. Model/footprint alignment remains unverified.
+
+### Delivered supplier STEP attachment foundation (A4)
+
+Exact provider model UUIDs now fetch bounded, cancellable STEP assets into a
+SHA-256 cache with offline replay and refresh history. Error pages cannot replace
+a good cached model. The native converter extracts explicit source origin,
+rotation and height, checks the asset checksum and STEP solids, and retains the
+original bytes plus model provenance. It refuses missing placement origins and
+multiple independently placed assets instead of inventing a shared transform.
+
+55 importer tests and 39 network tests passed, with existing live/external tests
+opt-in; all-target Clippy passed for both crates. The opt-in C8734 experiment
+converted 48 pins/pads/mappings and attached its actual STEP, then reopened all
+native library elements. Upstream CLI comparison and rendered alignment have not
+been verified; accepting a STEP file is not evidence of correct model alignment.

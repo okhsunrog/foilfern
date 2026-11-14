@@ -162,3 +162,83 @@ async fn invalid_sources_missing_cache_and_cancellation_do_not_publish_snapshots
     ));
     assert!(!cache.path().join("easyeda-v1/C8734/current").exists());
 }
+
+#[tokio::test]
+async fn step_assets_are_verified_cached_and_never_replaced_by_error_pages() {
+    let server = MockServer::start().await;
+    let id = "a4b96ad857dc48c08dab3d0efdf20aec";
+    let endpoint = format!("/qAxj6KHrDKw4blvCG8QJPs7Y/{id}");
+    Mock::given(path(endpoint.clone()))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string("ISO-10303-21;\nHEADER;ENDSEC;DATA;ENDSEC;END-ISO-10303-21;"),
+        )
+        .mount(&server)
+        .await;
+    let provider = EasyEdaProvider::with_base(super::nam(), &server.uri())
+        .unwrap()
+        .with_model_base(&server.uri())
+        .unwrap();
+    let cache = tempfile::tempdir().unwrap();
+    let asset = provider
+        .step_asset(
+            id,
+            cache.path(),
+            CachePolicy::PreferCache,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    assert!(asset.file.is_file());
+    let offline = provider
+        .step_asset(
+            id,
+            cache.path(),
+            CachePolicy::Offline,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    assert!(offline.from_cache);
+    assert_eq!(offline.sha256, asset.sha256);
+    assert_eq!(server.received_requests().await.unwrap().len(), 1);
+    server.reset().await;
+    Mock::given(path(endpoint))
+        .respond_with(ResponseTemplate::new(200).set_body_string("<html>error</html>"))
+        .mount(&server)
+        .await;
+    assert!(
+        provider
+            .step_asset(
+                id,
+                cache.path(),
+                CachePolicy::Refresh,
+                CancellationToken::new()
+            )
+            .await
+            .is_err()
+    );
+    let offline = provider
+        .step_asset(
+            id,
+            cache.path(),
+            CachePolicy::Offline,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(offline.sha256, asset.sha256);
+    for id in ["../bad", "http://wrong", "not-a-uuid"] {
+        assert!(
+            provider
+                .step_asset(
+                    id,
+                    cache.path(),
+                    CachePolicy::Refresh,
+                    CancellationToken::new()
+                )
+                .await
+                .is_err()
+        );
+    }
+}

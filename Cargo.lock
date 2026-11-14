@@ -3329,6 +3329,7 @@ dependencies = [
  "clipper",
  "foilfern-core",
  "foilfern-i18n",
+ "foilfern-step",
  "html-escape",
  "kurbo 0.13.1",
  "libm",
