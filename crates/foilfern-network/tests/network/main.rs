@@ -11,6 +11,7 @@ mod file_download_test;
 mod library_download_test;
 mod network_request_test;
 mod order_pcb_api_request_test;
+mod part_source_test;
 
 use std::path::{Path, PathBuf};
 

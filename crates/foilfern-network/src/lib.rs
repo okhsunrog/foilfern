@@ -30,6 +30,7 @@ pub mod library_installer;
 mod network_access_manager;
 mod network_request;
 mod order_pcb_api_request;
+pub mod part_source;
 
 pub use api_endpoint::{ApiEndpoint, Library, Part};
 pub use error::{Error, Result};

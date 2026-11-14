@@ -137,3 +137,19 @@ Crates evaluated: easyeda2kicad-rs 1.1.2 (MIT, library API), npnp 3.1.0
 The MIT converter silently defaults several malformed numeric fields and drops
 some primitives, so its output needs strict source/mapping/geometry validation
 before any import path is accepted. No converter dependency has been added yet.
+
+### Delivered source acquisition foundation (A4)
+
+`foilfern_network::part_source::EasyEdaProvider` acquires exact LCSC IDs, validates
+provider identity/required source fields and retains original response snapshots.
+The cache is content-addressed by SHA-256, supports offline replay and refresh,
+retains previous versions and detects tampering. Acquisition has a 30 s request
+timeout, 32 MiB response limit and cancellation; it does not modify native libraries.
+Provider provenance/attribution and original license metadata remain available.
+Network tests: 38 passed, 3 existing live tests ignored; focused cache/identity
+checks passed. The explicit live C8734 acquisition test also passed and returned
+STM32F103C8T6 (source SHA-256
+`a99b0a4abd493f08c20aa320d0332f6a14e50726b36d501e6268d1e1e68614c7`).
+This is source acquisition only; native geometry conversion and MCP acquisition
+remain pending. tscircuit/easyeda-converter source inspected at
+`9d377ea2d590de8d823718c50929ef7b2441a296` (MIT), including 3D origin/bounds helpers.
