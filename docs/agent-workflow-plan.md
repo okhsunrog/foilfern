@@ -153,3 +153,22 @@ STM32F103C8T6 (source SHA-256
 This is source acquisition only; native geometry conversion and MCP acquisition
 remain pending. tscircuit/easyeda-converter source inspected at
 `9d377ea2d590de8d823718c50929ef7b2441a296` (MIT), including 3D origin/bounds helpers.
+
+### Delivered native conversion foundation (A4)
+
+`foilfern_import::easyeda::convert` creates native symbol/component/package/device
+objects using strict source parsing plus the existing KiCad-to-native converter.
+Source pin numbers must match electrical package pads; malformed/unsupported
+primitives fail explicitly. Coordinates are not grid-snapped; native UUIDs are
+reproducible. Per-pad mask/paste expansions, native parts and original source JSON
+are retained. All four elements install in one transaction; existing directories
+are refused to protect manual edits. The supported initial primitive set is
+explicit in the adapter; multi-unit symbols, custom/non-cardinal pads and some
+mechanical primitives remain unsupported. 3D projection artwork is retained in
+provenance with warnings, not fabricated as copper. STEP attachment is next.
+
+54 importer integration tests passed (one external-source test ignored by default),
+plus all-target importer Clippy. The external C8734 snapshot was converted,
+installed and reopened with the native reader: 48 pins, 48 pads, 48 mappings.
+Upstream CLI verification was skipped because the oracle binary was absent.
+This does not yet constitute a complete MCP acquisition flow or 3D alignment check.

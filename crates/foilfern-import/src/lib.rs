@@ -16,6 +16,7 @@
 //! reproducible output.
 
 pub mod eagle;
+pub mod easyeda;
 mod html;
 pub mod kicad;
 mod library_writer;

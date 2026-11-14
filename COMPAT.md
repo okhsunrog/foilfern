@@ -953,6 +953,13 @@ Rendering only; no file is affected.
 
 ## import (crate foilfern-import)
 
+- **EasyEDA supplier parts** are an additional source format without an upstream
+  counterpart. Source coordinates are retained without grid snapping or invented
+  pin-1 artwork. SVG curves in imported artwork are flattened with a 0.001 mm
+  tolerance. Imported object UUIDs are reproducible, SHA-256-derived native
+  v4-shaped identifiers. Original source JSON and provenance remain attached to
+  the device; native file formats and pad/signal references are unchanged.
+
 - EAGLE XML (parseagle): numbers are parsed with `str::parse` after
   trimming instead of `QString::toDouble()`/`toInt()`, and XML is read
   with `roxmltree` (DTDs allowed) instead of `QDomDocument`; realistic

@@ -3330,11 +3330,15 @@ dependencies = [
  "foilfern-core",
  "foilfern-i18n",
  "html-escape",
+ "kurbo 0.13.1",
+ "libm",
  "log",
  "roxmltree 0.21.1",
  "serde",
  "serde_json",
+ "sha2",
  "static_assertions",
+ "svgtypes 0.16.2",
  "tempfile",
  "thiserror 2.0.21",
 ]
@@ -7615,7 +7619,7 @@ dependencies = [
  "log",
  "pico-args",
  "rgb",
- "svgtypes 0.16.1",
+ "svgtypes 0.16.2",
  "tiny-skia 0.12.0",
  "usvg 0.49.0",
  "zune-jpeg 0.5.15",
@@ -8260,9 +8264,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.11.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "446ba717509524cb3f22f17ecc096f10f4822d76ab5c0b9822c5f9c284e825f4"
+checksum = "47d7069beb7d6ac7b9acd1039986e73443f24234f41074da099d6f994ac9ad19"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -8814,9 +8818,9 @@ dependencies = [
 
 [[package]]
 name = "svgtypes"
-version = "0.16.1"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "695b5790b3131dafa99b3bbfd25a216edb3d216dad9ca208d4657bfb8f2abc3d"
+checksum = "9f12b12995e3638c70618c1facb1ce65302f6a6f706b675f07c58a5d7391120e"
 dependencies = [
  "kurbo 0.13.1",
  "siphasher",
@@ -9659,7 +9663,7 @@ dependencies = [
  "simplecss",
  "siphasher",
  "strict-num",
- "svgtypes 0.16.1",
+ "svgtypes 0.16.2",
  "tiny-skia-path 0.12.0",
 ]
 
@@ -9683,7 +9687,7 @@ dependencies = [
  "siphasher",
  "skrifa 0.44.0",
  "strict-num",
- "svgtypes 0.16.1",
+ "svgtypes 0.16.2",
  "tiny-skia-path 0.12.0",
  "unicode-bidi",
  "unicode-script",
