@@ -328,6 +328,96 @@ fn build_unrouted(editor: &mut ProjectEditor) -> BoardId {
 }
 
 #[test]
+fn repair_scope_budget_keeps_blockers_and_pad_attachments() {
+    use foilfern_editor::routing_service::RegionalRepairProposal;
+    use std::collections::BTreeSet;
+    let tmp = tempfile::tempdir().unwrap();
+    let mut editor = create_editor(&tmp.path().join("project"));
+    let board = build_unrouted(&mut editor);
+    let via = editor
+        .execute(AddVia {
+            board: Some(board),
+            position: mm(26.0, 12.0),
+            net: Some("MID".into()),
+            start_layer: None,
+            end_layer: None,
+            drill_diameter: Some(positive(0.3)),
+            size: Some(positive(0.6)),
+            exposure: None,
+        })
+        .unwrap();
+    let drawn = editor
+        .execute(AddTrace {
+            board: Some(board),
+            start: TraceEndpoint::Pad(PadRef::new("R1", "2")),
+            end: TraceEndpoint::Via(via.via),
+            points: vec![
+                mm(12.0, 6.0),
+                mm(12.0, 8.0),
+                mm(14.0, 8.0),
+                mm(14.0, 10.0),
+                mm(16.0, 10.0),
+                mm(16.0, 12.0),
+                mm(18.0, 12.0),
+            ],
+            layer: Some(Layer::TOP_COPPER),
+            width: Some(positive(0.2)),
+            net: None,
+        })
+        .unwrap();
+    let project = editor.project();
+    let native = project.board(board).unwrap();
+    let selected_net = drawn.net.unwrap();
+    let target = project.circuit().net_signal_by_name("VCC").unwrap().0;
+    let seed = autoroute::RoutingObject {
+        kind: autoroute::RoutingObjectKind::Trace,
+        uuid: drawn.traces[0],
+        device_uuid: None,
+        pad_uuid: None,
+    };
+    let proposals = RegionalRepairProposal::suggest(
+        project,
+        native,
+        target,
+        autoroute::RoutingBounds {
+            min: mm(0.0, 0.0),
+            max: mm(40.0, 20.0),
+        },
+        &[seed],
+        &BTreeSet::from([selected_net]),
+        16,
+    )
+    .unwrap();
+    let full = &proposals[0];
+    assert!(full.traces.len() >= 4);
+    let smaller = full
+        .fit_budget(project, native, full.traces.len() - 2)
+        .unwrap()
+        .unwrap();
+    assert_eq!(smaller.traces.len(), full.traces.len() - 2);
+    assert!(smaller.traces.contains(&seed.uuid));
+    assert!(smaller.traces.is_subset(&full.traces));
+    assert!(smaller.branch.is_some());
+    let pads = |p: &RegionalRepairProposal| {
+        p.anchors
+            .iter()
+            .filter_map(|(a, _)| {
+                matches!(a, foilfern_core::geometry::TraceAnchor::FootprintPad { .. }).then_some(*a)
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(pads(&smaller), pads(full));
+    let mut protected = full.clone();
+    protected.blockers = full.traces.iter().copied().collect();
+    assert!(
+        protected
+            .fit_budget(project, native, full.traces.len() - 1)
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
 fn test_autoroute_populated_library() {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path().join("project");

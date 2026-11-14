@@ -494,6 +494,23 @@ async fn stdio_repair_search_deduplicates_groups_and_publishes_a_checked_candida
         );
     }
     let choice = &status["candidates"][0];
+    let diagnosis = call_ok(
+        &client,
+        "routing_diagnose",
+        json!({
+            "net":"A", "repair":{
+                "region":{"min":{"x":3,"y":7},"max":{"x":17,"y":13}},
+                "rip_up_region":{"min":{"x":4,"y":8},"max":{"x":16,"y":12}},
+                "editable_nets":["B"],"evidence_search":started["search"],
+            }
+        }),
+    )
+    .await;
+    assert_eq!(
+        diagnosis["repair"]["next_actions"],
+        json!([]),
+        "{diagnosis:#}"
+    );
     let preview = call_ok(
         &client,
         "routing_preview",

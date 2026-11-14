@@ -30,7 +30,7 @@ use crate::routing_validation::{
 };
 use crate::{Error, ProjectEditor};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RepairSearchRequest {
     pub target: NetSignalId,
     pub route: Autoroute,
@@ -54,7 +54,7 @@ pub struct RepairSearchRequest {
 }
 
 /// Find candidate via sites near a footprint pad before repairing.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RepairLaunchSearch {
     pub from: (ComponentInstanceId, Uuid),
     pub layer: Layer,
@@ -225,6 +225,14 @@ pub struct RepairLaunchFailure {
     pub wire: UnroutedAirWire,
 }
 
+/// Evidence and original limits for planning a subsequent, explicitly authorized search.
+pub struct RepairSearchEvidence {
+    pub launches: Vec<RepairLaunchFailure>,
+    pub trials: Vec<RepairTrial>,
+    pub screenings: Vec<RepairScreeningFailure>,
+    pub request: RepairSearchRequest,
+}
+
 fn summarize_failures(
     result: &AutorouteResult,
     include: impl Fn(&UnroutedAirWire) -> bool,
@@ -323,6 +331,7 @@ pub(super) struct ActiveRepairSearch {
     target_name: String,
     revision: u64,
     context: SourceContext,
+    request: RepairSearchRequest,
     started: Instant,
     budget: Duration,
     reserved: usize,
@@ -429,6 +438,7 @@ impl RoutingService {
             target_name: net_name(project, Some(request.target)),
             revision: source.base_revision,
             context: source.source_context.clone(),
+            request: request.clone(),
             started: Instant::now(),
             budget: request.time_budget,
             reserved: request.max_candidates,
@@ -493,14 +503,7 @@ impl RoutingService {
         board: BoardId,
         target: NetSignalId,
         id: Uuid,
-    ) -> Result<
-        (
-            Vec<RepairLaunchFailure>,
-            Vec<RepairTrial>,
-            Vec<RepairScreeningFailure>,
-        ),
-        RoutingError,
-    > {
+    ) -> Result<RepairSearchEvidence, RoutingError> {
         let search = self
             .repair_search
             .as_ref()
@@ -527,11 +530,12 @@ impl RoutingService {
                 "Use a finished repair search with checked trials.".into(),
             ));
         }
-        Ok((
-            progress.launch_failures.clone(),
-            progress.trials.clone(),
-            progress.screening_failures.clone(),
-        ))
+        Ok(RepairSearchEvidence {
+            launches: progress.launch_failures.clone(),
+            trials: progress.trials.clone(),
+            screenings: progress.screening_failures.clone(),
+            request: search.request.clone(),
+        })
     }
 
     pub fn cancel_repair_search(&self) {

@@ -33,7 +33,7 @@ pub struct RegionalRoutingRequest {
 }
 
 /// One possible repair, anchored in the source copper. It must still be routed and checked.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RegionalRepairProposal {
     pub net: NetSignalId,
     pub blockers: Vec<Uuid>,
@@ -46,6 +46,72 @@ pub struct RegionalRepairProposal {
 }
 
 impl RegionalRepairProposal {
+    /// Keep a smaller connected branch when two suggested scopes compete for
+    /// one removal budget. Never discard a sampled blocker or a pad attachment.
+    /// Newly retained junctions remain attached to the original source copper.
+    pub fn fit_budget(
+        &self,
+        project: &Project,
+        board: &Board,
+        max_objects: usize,
+    ) -> Result<Option<Self>> {
+        if max_objects == 0 || self.branch.is_none() {
+            return Ok(None);
+        }
+        let items = copper(project, board)?;
+        let Some(segment) = self
+            .traces
+            .iter()
+            .next()
+            .and_then(|id| items.get(id))
+            .and_then(|item| board.net_segment(item.segment))
+        else {
+            return Ok(None);
+        };
+        if self
+            .traces
+            .iter()
+            .any(|id| !segment.traces().contains_key(id))
+            || self.vias.iter().any(|id| !segment.vias().contains_key(id))
+        {
+            return Ok(None);
+        }
+        let mut result = self.clone();
+        while result.traces.len() + result.vias.len() > max_objects {
+            let mut replacement = None;
+            for id in &result.traces {
+                if result.blockers.contains(id) {
+                    continue;
+                }
+                let trace = &segment.traces()[id];
+                if [trace.p1(), trace.p2()]
+                    .iter()
+                    .any(|a| matches!(a, TraceAnchor::FootprintPad { .. } | TraceAnchor::Pad(_)))
+                {
+                    continue;
+                }
+                let mut selected: BTreeSet<_> =
+                    result.traces.union(&result.vias).copied().collect();
+                selected.remove(id);
+                let anchors = branch_anchors(&items, segment, &selected);
+                if let [(a, _), (b, _)] = anchors.as_slice() {
+                    let pair = [*a, *b];
+                    if retained_branch(&items, board, &selected, pair).is_some() {
+                        replacement = Some((*id, anchors, pair));
+                        break;
+                    }
+                }
+            }
+            let Some((id, anchors, pair)) = replacement else {
+                return Ok(None);
+            };
+            result.traces.remove(&id);
+            result.anchors = anchors;
+            result.branch = Some(pair);
+        }
+        Ok(Some(result))
+    }
+
     /// Expand a sampled blocker along two-trace junctions inside the edit
     /// region. Pads, branching junctions and unselected vias remain anchors.
     pub fn suggest(

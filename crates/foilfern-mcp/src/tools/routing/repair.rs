@@ -23,6 +23,8 @@ use crate::tools::layout;
 
 const MAX_PROPOSALS: usize = 8;
 
+mod guidance;
+
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RepairArgs {
@@ -210,11 +212,22 @@ pub(super) fn suggest(
     let mut validation_blockers = Vec::new();
     let mut screening_failures = Vec::new();
     let mut routing_failures = Vec::new();
+    let mut repair_request = None;
     if let Some(id) = &args.evidence_search {
         let id = crate::resolve::required_uuid(id, "repair search")?;
-        let (failures, trials, screenings) = service
+        let evidence = service
             .repair_search_evidence(project, board.id(), net, id)
             .map_err(super::routing_error)?;
+        if !evidence
+            .trials
+            .iter()
+            .any(|trial| trial.validation.as_ref().is_some_and(|v| v.acceptable))
+        {
+            repair_request = Some(evidence.request);
+        }
+        let failures = evidence.launches;
+        let trials = evidence.trials;
+        let screenings = evidence.screenings;
         let segments = copper_segments(board, net);
         let same_branch = |a, b| {
             a == b
@@ -478,6 +491,19 @@ pub(super) fn suggest(
         });
     }
     let proposal_count = proposals.len();
+    let next_actions = if let Some(request) = &repair_request {
+        guidance::next_searches(
+            project,
+            board,
+            request,
+            &proposals,
+            max_objects,
+            args.region.bounds()?,
+            edits,
+        )?
+    } else {
+        Vec::new()
+    };
     let regional_request = |rip_up: &BTreeSet<Uuid>, nets: Vec<NetSignalId>| {
         json!({
             "board":board.id(),
@@ -582,6 +608,7 @@ pub(super) fn suggest(
         "proposal_count":proposal_count,
         "proposals":proposals,
         "combined_region_request":combined,
+        "next_actions":next_actions,
     });
     if evidence_board.is_some() {
         out["continuation_failures"] = json!(continuation_failures);

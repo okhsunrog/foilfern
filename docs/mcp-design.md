@@ -1267,6 +1267,23 @@ available even if no routing trial ran. `routing_failures` retains the
 failed endpoints and bounded frontier evidence from target and neighbor
 continuations, rather than only their net names and reason strings.
 
+For a failed paired escape search, diagnosis may return bounded `next_actions`.
+Each entry contains `tool: "routing_repair_start"` and ready-to-use `arguments`,
+bound to the unchanged project revision. Review the explicit removal groups
+before submitting them. Suggestions reuse the search's widths, via sizes,
+grid, launch parameters, path requirements and budgets. They do not run a
+search, edit the board, enlarge `editable_nets`, or bypass preview/apply.
+
+The planner combines eligible neighboring branches. If complete branches
+exceed the shared object budget, it can retain an earlier junction on an
+unblocked tail, preserving sampled blockers, pad attachments and continuous
+two-anchor branches. Alternatives that preserve more of the newly implicated
+branch appear first. `affected_objects` and `new_scope_objects` describe the
+suggested removal set. These are hypotheses, not checked candidates: use
+whole-board candidate validation before applying. Exact `neighbor_anchors`
+contracts are not rewritten by this planner. A search that already produced
+an acceptable checked trial needs no next-search suggestions.
+
 Search evidence includes bounded samples at multiple locations and layers
 along a failed frontier. Proposals supported by continuation samples appear
 before those based only on the original pad probes. The planner follows
