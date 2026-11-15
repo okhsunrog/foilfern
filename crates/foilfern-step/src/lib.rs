@@ -197,11 +197,17 @@ impl StepModel {
             for device in &data.devices {
                 let key = (device.package, device.model);
                 if let std::collections::btree_map::Entry::Vacant(entry) = cache.entry(key) {
-                    let bytes = read_model(device.package, device.model)?;
-                    entry.insert(import(&bytes).map_err(|error| Error::ComponentModel {
+                    let bytes = read_model(device.package, device.model).map_err(|error| {
+                        Error::ComponentModel {
+                            component: device.name.clone(),
+                            source: Box::new(error),
+                        }
+                    })?;
+                    let imported = import(&bytes).map_err(|error| Error::ComponentModel {
                         component: device.name.clone(),
                         source: Box::new(error),
-                    })?);
+                    })?;
+                    entry.insert(imported);
                 }
                 let matrix = board::device_matrix(device, data.thickness.to_mm());
                 for item in &cache[&key] {

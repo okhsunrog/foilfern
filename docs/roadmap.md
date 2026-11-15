@@ -51,7 +51,7 @@ A P5 overlay for existing candidates can ship before automatic P4 planning.
 These ten follow-ups come from recurring concrete observations in the retained
 agent feedback and targeted source inspection. They refine the existing P0–P6
 stages and A1–A12 workflow queue; they do not mark previously delivered features
-as missing. F1–F3, F5 and F6 are **delivered**; F4 and F7–F10 are **planned**.
+as missing. F1–F6 are **delivered**; F7–F10 are **planned**.
 The order below is the priority order, starting with acquisition, electrical metadata and review/output
 correctness. Where the cause is uncertain, reproduce and trace it before choosing
 a fix. Passing the small trial designs is not general electrical or mechanical
@@ -91,14 +91,14 @@ acceptance.
    separately. Detached preview checks and stale-apply protection are unchanged.
 
 4. **F4 — STEP assembly completeness and model-alignment status** (P5/P6;
-   A4/A8). STEP jobs succeeded without warning when C-0805 had no model.
-   Acquired models also explicitly had unverified alignment; misalignment itself
-   was not established. Done when export reports components represented by
-   models and components without them, and exposes unverified alignment rather
-   than equating file availability with mechanical verification. Test a mixed
-   assembly and preserve successful native STEP output while reporting its
-   limitations. A missing-model library fixture must not yield an unqualified
-   complete-assembly claim.
+   A4/A8). **Delivered, API 58.** Each successfully written STEP file reports
+   the selected assembly variant, represented components, fitted components
+   without a selected model, and components excluded by the variant or PCB-only
+   scope. Missing models and unverified alignment produce shared CLI/desktop/MCP
+   warnings; MCP returns `partial` with `step_exports` evidence. File availability
+   never certifies alignment or mechanical fit. Empty/unreadable model resources
+   fail before replacing an earlier output. Every requested variant is processed.
+   Mixed R-0805/C-0805 assembly, native reopen and board-only controls are tested.
 
 5. **F5 — Spurious derived-data revisions during DRC** (P1/P3; A6).
    **Delivered.** Forced air-wire rebuilds previously published every scheduled

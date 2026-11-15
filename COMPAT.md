@@ -1334,6 +1334,12 @@ upstream `librepcb-cli` 2.1.1 except for:
   output. A failed model leaves an earlier output intact; upstream can create
   a partial assembly before returning a component-export error. Invalid suffix
   errors identify the format as STEP instead of upstream's copied netlist label.
+- Successful STEP jobs additionally report model coverage and warn about fitted
+  components without models and unverified alignment. These are export evidence,
+  not native project checks or file-format changes. A selected component model
+  without exportable solids fails explicitly. PCB-only exports and non-fitted
+  components are distinguished from missing models; availability never certifies
+  mechanical fit. Upstream can silently omit components without selected models.
 - CLI, standalone/embedded MCP and desktop jobs install the same STEP
   exporter. Core retains output ownership, archives and cleanup without a
   CAD dependency. CPU mesh subdivision follows Monstertruck, so vertex counts

@@ -1,7 +1,10 @@
 //! Shared physical snapshot extraction over upstream project fixtures.
 use foilfern_core::{
     fileio::{FilePath, TransactionalDirectory, TransactionalFileSystem, ZipArchive},
-    project::{AssemblyVariantId, ProjectLoader, board::BoardPhysicalGeometry},
+    project::{
+        AssemblyVariantId, ProjectLoader,
+        board::{BoardPhysicalGeometry, ModelRepresentation, StepAssemblyCoverage},
+    },
 };
 use std::{collections::BTreeMap, path::Path, sync::Arc};
 fn contents(bytes: Vec<u8>) -> BTreeMap<String, Vec<u8>> {
@@ -37,6 +40,15 @@ fn physical_snapshots_are_owned_read_only_and_resolve_assembly_models() {
             assert_eq!(data.board, board.id());
             assert_eq!(data.thickness, board.settings().pcb_thickness);
             assert!(data.devices.is_empty());
+            let coverage = StepAssemblyCoverage::capture(&project, board, None).unwrap();
+            assert!(!coverage.model_coverage_complete);
+            assert_eq!(coverage.represented_count, 0);
+            assert!(
+                coverage
+                    .components
+                    .iter()
+                    .all(|e| e.representation == ModelRepresentation::BoardOnly)
+            );
             assert_eq!(data.project_revision, revision);
             if board.polygons().values().any(|polygon| {
                 polygon.layer() == foilfern_core::types::Layer::BOARD_OUTLINES
@@ -65,6 +77,33 @@ fn physical_snapshots_are_owned_read_only_and_resolve_assembly_models() {
                             )
                             .is_empty()
                     );
+                }
+                let coverage = StepAssemblyCoverage::capture(
+                    &project,
+                    board,
+                    Some(AssemblyVariantId(variant.uuid())),
+                )
+                .unwrap();
+                assert_eq!(coverage.represented_count, data.devices.len());
+                assert_eq!(coverage.components.len(), board.devices().len());
+                for entry in &coverage.components {
+                    assert_eq!(
+                        entry.representation == ModelRepresentation::Represented,
+                        data.devices
+                            .iter()
+                            .any(|device| device.component == entry.component)
+                    );
+                    let device = board.device(entry.component).unwrap();
+                    let component = project
+                        .circuit()
+                        .component_instance(entry.component)
+                        .unwrap();
+                    if device
+                        .parts(component, Some(AssemblyVariantId(variant.uuid())))
+                        .is_empty()
+                    {
+                        assert_eq!(entry.representation, ModelRepresentation::NotFitted);
+                    }
                 }
                 models += data.devices.len();
             }

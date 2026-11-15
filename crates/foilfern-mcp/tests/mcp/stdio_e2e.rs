@@ -870,7 +870,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 57);
+    assert_eq!(info["api_capability_version"], 58);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -4750,5 +4750,86 @@ async fn stdio_declarative_board_placement_reviews_and_replays_one_patch() {
         repeated["board_layout"]["repair"]["status"],
         "placement_unchanged"
     );
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn stdio_step_reports_mixed_assembly_and_unverified_alignment() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    let project = call_ok(
+        &client,
+        "project_create",
+        json!({"name":"Mixed assembly", "directory":tmp.path().join("native")}),
+    )
+    .await;
+    for (part, designator, x) in [("R-0805", "R1", 10), ("C-0805", "C1", 20)] {
+        call_ok(
+            &client,
+            "component_add",
+            json!({"part":part,"designator":designator}),
+        )
+        .await;
+        call_ok(
+            &client,
+            "device_place",
+            json!({"component":designator,"position":{"x":x,"y":10}}),
+        )
+        .await;
+    }
+    call_ok(
+        &client,
+        "jobs_configure",
+        json!({"preset":"step", "name":"Mechanical", "board":"0", "output_path":"assembly.step"}),
+    )
+    .await;
+    let args = json!({"jobs":["Mechanical"],"output_dir":tmp.path().join("output")});
+    let exported = call(&client, "jobs_run", args.clone()).await;
+    assert_ne!(exported.is_error, Some(true), "{exported:?}");
+    let envelope = exported.structured_content.unwrap();
+    assert_eq!(envelope["outcome"], "partial");
+    let report = &envelope["result"]["step_exports"][0];
+    assert_eq!(report["scope"], "assembly");
+    assert_eq!(report["mechanical_validation"], "not_performed");
+    let coverage = &report["coverage"];
+    assert_eq!(coverage["represented_count"], 1);
+    assert_eq!(coverage["missing_model_count"], 1);
+    assert_eq!(coverage["model_coverage_complete"], false);
+    assert_eq!(coverage["alignment"], "unverified");
+    assert_eq!(coverage["components"][0]["designator"], "C1");
+    assert_eq!(coverage["components"][0]["representation"], "missing_model");
+    assert_eq!(coverage["components"][1]["designator"], "R1");
+    assert_eq!(coverage["components"][1]["alignment"], "unverified");
+    let model = foilfern_step::StepModel::from_step(
+        &std::fs::read(report["file"].as_str().unwrap()).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        model.solid_count() > 1,
+        "PCB and resistor must both be present"
+    );
+    assert!(
+        envelope["warnings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|w| w.as_str().unwrap().contains("C1"))
+    );
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    call_ok(&client, "project_open", json!({"path":project["path"]})).await;
+    let replay = call(&client, "jobs_run", args)
+        .await
+        .structured_content
+        .unwrap();
+    assert_eq!(replay["outcome"], "partial");
+    assert_eq!(replay["result"]["step_exports"][0]["coverage"], *coverage);
     client.cancel().await.unwrap();
 }

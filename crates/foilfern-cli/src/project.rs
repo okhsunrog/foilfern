@@ -441,12 +441,12 @@ fn open_project_impl(a: &OpenProjectArgs) -> CliResult<bool> {
                             .entry(fp.clone())
                             .or_default() += 1;
                     }
-                    OutputJobEvent::Warning(message)
-                        if message.starts_with("STEP export approximated ") =>
-                    {
+                    OutputJobEvent::Warning(message) if message.starts_with("STEP ") => {
                         print_err(&format!("WARNING: {message}"));
                     }
-                    OutputJobEvent::AboutToRemoveFile(_) | OutputJobEvent::Warning(_) => {}
+                    OutputJobEvent::AboutToRemoveFile(_)
+                    | OutputJobEvent::Warning(_)
+                    | OutputJobEvent::StepExported { .. } => {}
                 })));
                 if let Some(dir) = a.outdir.as_deref().map(str::trim).filter(|d| !d.is_empty()) {
                     runner.set_output_directory(&absolute_path(dir));

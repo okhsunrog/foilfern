@@ -132,6 +132,17 @@ archives and cleanup; it has no CAD or renderer dependency. The standalone
 server's stdio integration test reads its STEP output back through the CAD
 backend and checks the realistic board PDF.
 
+`jobs_run.result.step_exports` describes each successfully written STEP file by
+job, board, concrete path and scope (`assembly` or `board_only`). Its `coverage`
+contains the assembly variant, represented/missing/excluded counts and named
+component entries, package/model identities, representation and alignment status.
+`model_coverage_complete` concerns model coverage only and is false for PCB-only
+exports. Included models have `alignment:unverified`; `mechanical_validation` is
+`not_performed`. Missing models or unverified alignment return `outcome:partial`
+with warnings while preserving successful STEP output. Failed model loading or
+empty solid geometry fails export before replacing the output. Not-fitted parts
+and intentional PCB-only omissions are distinguished from missing models.
+
 - Tools address entities by what the agent sees: designators (`"R1"`),
   pins as `"R1.1"` / `"U1.VCC"` (component designator + signal name, or pad
   name on the board) or a designator alone for single-pin components
@@ -168,7 +179,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `57`, including paired board previews, electrical import evidence
+`api_capability_version` (currently `58`, including STEP assembly coverage, paired board previews, electrical import evidence
 and explicit structural ERC coverage, named ERC subjects, scoped
 text-change events and reports, supplier acquisition,
 official KiCad imports, rendered board-placement reviews, declared connector axes, scoped legend targets and bounded legend placement).
@@ -461,6 +472,15 @@ component. On sheets with embedded images the planner also checks the export
 geometry and font used by the PNG preview.
 
 ### Declarative board placement
+
+Board-only `design_preview` documents accept `compare_images:true` and optional
+`image_region` in board coordinates without selecting a schematic. Board images
+are ordered after/before at a shared viewport; `board_layout.images` identifies
+attachment indices, target board, state, side, dimensions and shared region.
+`board_layout.image` remains the after-image metadata. In combined documents,
+board attachment indices include any preceding schematic images; the top-level
+`image_region` retains its schematic meaning.
+
 
 Supply `board_layout` in a version 1 design document. Omit `schematic` for
 a board-only update, or include the two sections to plan and apply them in
@@ -1624,11 +1644,3 @@ Deferred insertion of tool definitions into a model's context is a client/host
 concern, as described in the official client best practices; no server tool
 profiles or session-based tool activation are provided. Schema or response
 reductions require a separate agreed change.
-
-Board-only `design_preview` documents accept `compare_images:true` and optional
-`image_region` in board coordinates without selecting a schematic. Board images
-are ordered after/before at a shared viewport; `board_layout.images` identifies
-attachment indices, target board, state, side, dimensions and shared region.
-`board_layout.image` remains the after-image metadata. In combined documents,
-board attachment indices include any preceding schematic images; the top-level
-`image_region` retains its schematic meaning.

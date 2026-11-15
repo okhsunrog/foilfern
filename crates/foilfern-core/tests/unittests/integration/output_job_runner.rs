@@ -135,3 +135,50 @@ fn step_preparation_failure_preserves_existing_output() {
         Err(Error::UnsupportedStepFormat(_))
     ));
 }
+
+#[test]
+fn step_jobs_report_each_requested_variant_only_after_writing() {
+    use foilfern_core::project::{AssemblyVariantId, BoardStepOutput, OutputJobEvent};
+    let mut project = load("Project With Two Boards");
+    let variant = AssemblyVariantId(
+        project
+            .circuit()
+            .assembly_variants()
+            .iter()
+            .next()
+            .unwrap()
+            .uuid(),
+    );
+    let step = OutputJob::new(
+        Uuid::new_random(),
+        "STEP".parse().unwrap(),
+        Board3DOutputJob {
+            boards: ObjectSet::Default,
+            assembly_variants: ObjectSet::Custom(BTreeSet::from([None, Some(variant)])),
+            output_path: "mechanical_{{VARIANT}}.step".into(),
+        },
+    );
+    let temp = tempfile::tempdir().unwrap();
+    let mut runner = OutputJobRunner::new(&mut project, ExportInfo::now("test")).unwrap();
+    runner.set_output_directory(&out(&temp));
+    runner.set_step_exporter(Some(Box::new(|_, _, _| {
+        Ok(BoardStepOutput {
+            contents: b"STEP".to_vec(),
+            warnings: Vec::new(),
+        })
+    })));
+    let reports = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let captured = reports.clone();
+    runner.set_observer(Some(Box::new(move |event| {
+        if let OutputJobEvent::StepExported { file, coverage, .. } = event {
+            assert_eq!(std::fs::read(file.to_native()).unwrap(), b"STEP");
+            captured.lock().unwrap().push(coverage.clone());
+        }
+    })));
+    runner.run(&[step]).unwrap();
+    let reports = reports.lock().unwrap();
+    assert_eq!(reports.len(), 2);
+    assert_eq!(reports[0].assembly_variant, None);
+    assert!(!reports[0].model_coverage_complete);
+    assert_eq!(reports[1].assembly_variant, Some(variant));
+}

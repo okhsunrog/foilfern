@@ -175,6 +175,13 @@ pub enum OutputJobEvent<'a> {
     /// A (non-fatal) problem with the job configuration (upstream
     /// `warning()`).
     Warning(&'a str),
+    /// A successfully written STEP file with assembly coverage (Foilfern extension).
+    StepExported {
+        job: Uuid,
+        board: BoardId,
+        file: &'a FilePath,
+        coverage: &'a super::board::StepAssemblyCoverage,
+    },
 }
 
 /// What a page of a graphics export shows (upstream: the
@@ -834,35 +841,75 @@ impl<'a> OutputJobRunner<'a> {
 
             let project = &*self.project;
             let b = required_board(project, board)?;
-            // The first file fails, so only the first variant is reached.
-            let Some(av) = variants.first() else {
-                continue;
-            };
-            let variant = av.map(|av| required_variant(project, av)).transpose()?;
-            let lookup = ProjectAttributeLookup::for_board(project, b, variant);
-            let output = output_path(&lookup, &job.output_path);
-            let suffix = self
-                .writer
-                .directory_path()
-                .path_to(&output)
-                .suffix()
-                .to_lowercase();
-            if !matches!(suffix.as_str(), "step" | "stp") {
-                return Err(OutputJobError::UnsupportedStepFormat(suffix));
+            for av in &variants {
+                let variant = av.map(|av| required_variant(project, av)).transpose()?;
+                let lookup = ProjectAttributeLookup::for_board(project, b, variant);
+                let output = output_path(&lookup, &job.output_path);
+                let suffix = self
+                    .writer
+                    .directory_path()
+                    .path_to(&output)
+                    .suffix()
+                    .to_lowercase();
+                if !matches!(suffix.as_str(), "step" | "stp") {
+                    return Err(OutputJobError::UnsupportedStepFormat(suffix));
+                }
+                let exporter = self.step_exporter.as_ref().ok_or_else(|| {
+                    OutputJobError::Unsupported(
+                        <Board3DOutputJob as crate::job::OutputJobType>::TYPE_NAME.to_owned(),
+                    )
+                })?;
+                // Prepare before reserving/writing output, so a failed CAD import
+                // leaves both the previous file and output ownership intact.
+                let coverage = super::board::StepAssemblyCoverage::capture(project, b, *av)?;
+                let prepared = exporter(project, b, *av)?;
+                if coverage.missing_model_count > 0 {
+                    let names = coverage
+                        .components
+                        .iter()
+                        .filter(|entry| {
+                            entry.representation == super::board::ModelRepresentation::MissingModel
+                        })
+                        .map(|entry| entry.designator.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    notify(
+                        &self.observer,
+                        OutputJobEvent::Warning(&tr!(
+                            TR_CONTEXT,
+                            "STEP assembly on board '{0}' omits {1} fitted component(s) without a selected model: {2}.",
+                            b.name(),
+                            coverage.missing_model_count,
+                            names
+                        )),
+                    );
+                }
+                if coverage.represented_count > 0 {
+                    notify(
+                        &self.observer,
+                        OutputJobEvent::Warning(&tr!(
+                            TR_CONTEXT,
+                            "STEP assembly on board '{0}' includes {1} component model(s) with unverified alignment; mechanical fit was not checked.",
+                            b.name(),
+                            coverage.represented_count
+                        )),
+                    );
+                }
+                for warning in &prepared.warnings {
+                    notify(&self.observer, OutputJobEvent::Warning(warning));
+                }
+                let fp = self.writer.begin_writing_file(&uuid, &output)?;
+                file_utils::write_file(&fp, &prepared.contents)?;
+                notify(
+                    &self.observer,
+                    OutputJobEvent::StepExported {
+                        job: uuid,
+                        board,
+                        file: &fp,
+                        coverage: &coverage,
+                    },
+                );
             }
-            let exporter = self.step_exporter.as_ref().ok_or_else(|| {
-                OutputJobError::Unsupported(
-                    <Board3DOutputJob as crate::job::OutputJobType>::TYPE_NAME.to_owned(),
-                )
-            })?;
-            // Prepare before reserving/writing output, so a failed CAD import
-            // leaves both the previous file and output ownership intact.
-            let prepared = exporter(project, b, *av)?;
-            for warning in &prepared.warnings {
-                notify(&self.observer, OutputJobEvent::Warning(warning));
-            }
-            let fp = self.writer.begin_writing_file(&uuid, &output)?;
-            file_utils::write_file(&fp, &prepared.contents)?;
         }
         Ok(())
     }

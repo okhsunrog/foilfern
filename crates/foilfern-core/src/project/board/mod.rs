@@ -42,6 +42,7 @@ mod gerber_export;
 mod hole_data;
 mod interactive_html_bom_generator;
 pub(crate) mod keyed_map;
+mod model_coverage;
 mod net_segment;
 mod net_segment_splitter;
 mod pad_data;
@@ -75,6 +76,9 @@ pub use gerber_export::{
 };
 pub use hole_data::BoardHoleData;
 pub use interactive_html_bom_generator::BoardInteractiveHtmlBomGenerator;
+pub use model_coverage::{
+    AssemblyModelEntry, ModelAlignmentStatus, ModelRepresentation, StepAssemblyCoverage,
+};
 pub use net_segment::{BoardNetSegment, BoardSegmentElements, BoardViaProperties};
 pub use net_segment_splitter::{BoardNetSegmentParts, BoardNetSegmentSplitter};
 pub use pad_data::BoardPadData;

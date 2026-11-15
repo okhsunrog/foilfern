@@ -36,6 +36,46 @@ fn board_only_export_is_read_only() {
             .solid_count(),
         model.solid_count()
     );
+    // A selected but empty model cannot count as represented in an assembly.
+    let mut data = foilfern_core::project::board::BoardPhysicalGeometry::from_project(
+        &project,
+        &project.boards()[0],
+        None,
+    )
+    .unwrap();
+    data.devices
+        .push(foilfern_core::project::board::PhysicalDevice {
+            component: foilfern_core::project::ComponentInstanceId(
+                foilfern_core::types::Uuid::new_random(),
+            ),
+            name: "U-empty".into(),
+            package: foilfern_core::types::Uuid::new_random(),
+            model: foilfern_core::types::Uuid::new_random(),
+            transform: Default::default(),
+            model_position: Default::default(),
+            model_rotation: Default::default(),
+        });
+    let source = std::fs::read_to_string(
+        Path::new(env!("LIBREPCB_UPSTREAM_DIR"))
+            .join("tests/data/unittests/librepcbcommon/OccModelTest/model.step"),
+    )
+    .unwrap();
+    let header = source.split_once("DATA;").unwrap().0;
+    let empty = format!("{header}DATA;\n#1=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.));\n#2=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#1)) REPRESENTATION_CONTEXT('',''));\nENDSEC;\nEND-ISO-10303-21;").into_bytes();
+    assert!(StepModel::from_step(&empty).is_err());
+    let error = StepModel::from_component_source(&data, |_, _| Ok(empty.to_vec()))
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("U-empty"));
+    assert!(error.to_string().contains("no supported solids"));
+    let error = StepModel::from_component_source(&data, |_, _| {
+        Err(foilfern_step::Error::Geometry(
+            "unavailable resource".into(),
+        ))
+    })
+    .err()
+    .unwrap();
+    assert!(error.to_string().contains("U-empty"));
     assert_eq!(project.revision(), revision);
     assert_eq!(contents(fs.export_to_zip(None).unwrap()), before);
 }

@@ -94,6 +94,20 @@ the next task merely because their last paragraph once said "next".
 These subsystems were delivered under the historical M1–M5 porting labels.
 Their remaining polish and compatibility gaps do not reset those milestones.
 
+Board-only comparative previews (F3, API 57) now accept `compare_images` without
+requiring a schematic. Placement/legend images identify board, state and side,
+share old/new content bounds or an explicit board-coordinate crop, and preserve
+the detached candidate and guarded apply lifecycle. Focused stdio coverage tests
+paired board output, crop metadata, unchanged live board and stale refusal.
+
+STEP assembly evidence (F4, API 58) is emitted after each successful write by the
+shared output runner. Reports enumerate model coverage, fitted missing models and
+variant/PCB-only exclusions; alignment remains explicitly unverified. MCP returns
+partial for assembly limitations, while native STEP output remains available.
+The runner now processes every requested variant, matching upstream's nested
+board/variant loop. Missing resources and empty component models fail before
+replacing existing output; no mechanical-fit certification is performed.
+
 ## Routing and measurements available now
 
 The editor owns one `RoutingService` per open project; MCP is its transport.
@@ -251,9 +265,3 @@ full debugging, use `CARGO_PROFILE_DEV_DEBUG=full` and, if needed,
   `.slint` `@tr()` additions are not covered by the Rust `context_check` test.
 - Use the current branch's commit/push policy and dedicated temporary root from
   AGENTS.md. Historical porting waves do not prescribe how every task is staffed.
-
-Board-only comparative previews (F3, API 57) now accept `compare_images` without
-requiring a schematic. Placement/legend images identify board, state and side,
-share old/new content bounds or an explicit board-coordinate crop, and preserve
-the detached candidate and guarded apply lifecycle. Focused stdio coverage tests
-paired board output, crop metadata, unchanged live board and stale refusal.

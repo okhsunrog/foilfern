@@ -840,6 +840,8 @@ pub fn jobs_run(session: &mut Session, args: JobsRunArgs) -> ToolResult<ToolOutp
         std::sync::Arc::clone(&warnings),
         std::sync::Arc::clone(&written),
     );
+    let step_exports = std::sync::Arc::new(parking_lot::Mutex::new(Vec::<Value>::new()));
+    let reports = step_exports.clone();
     let result = open.editor.update_derived_data(move |project| {
         let mut runner = OutputJobRunner::new(project, info)?;
         runner.set_step_exporter(Some(foilfern_step::board_exporter()));
@@ -852,6 +854,7 @@ pub fn jobs_run(session: &mut Session, args: JobsRunArgs) -> ToolResult<ToolOutp
         runner.set_observer(Some(Box::new(move |event| match event {
             OutputJobEvent::AboutToWriteFile(fp) => w.lock().push(fp.to_native()),
             OutputJobEvent::Warning(msg) => warn.lock().push(msg.to_string()),
+            OutputJobEvent::StepExported {job, board, file, coverage} => reports.lock().push(json!({"job":job,"board":board,"file":file.to_native(),"scope":if coverage.assembly_variant.is_some() {"assembly"} else {"board_only"},"mechanical_validation":"not_performed","coverage":coverage})),
             _ => {}
         })));
         if let Some(dir) = &output_dir {
@@ -893,13 +896,29 @@ pub fn jobs_run(session: &mut Session, args: JobsRunArgs) -> ToolResult<ToolOutp
     files.dedup();
     let mut warnings = warnings.lock().clone();
     warnings.extend(skipped);
-    Ok(ToolOutput::new(
+    let step_exports = step_exports.lock().clone();
+    let limited_assembly = step_exports.iter().any(|report| {
+        report["coverage"]["missing_model_count"]
+            .as_u64()
+            .unwrap_or(0)
+            > 0
+            || report["coverage"]["alignment"] == "unverified"
+    });
+    let mut output = ToolOutput::new(
         format!(
-            "Ran {} output job(s) into {dir}: {} file(s).",
-            count,
-            files.len()
+            "Ran {count} output job(s) into {dir}: {} file(s).{}",
+            files.len(),
+            if limited_assembly {
+                " STEP assembly has model/verification limitations; see step_exports and warnings."
+            } else {
+                ""
+            }
         ),
-        json!({ "output_dir": dir, "files": files }),
+        json!({ "output_dir": dir, "files": files, "step_exports":step_exports }),
     )?
-    .warnings(warnings))
+    .warnings(warnings);
+    if limited_assembly {
+        output = output.partial();
+    }
+    Ok(output)
 }
