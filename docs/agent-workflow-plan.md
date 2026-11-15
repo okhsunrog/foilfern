@@ -26,7 +26,8 @@ writing, using shared native selection and numbering logic. Their
 [release evidence](benchmarks/render-output-review/REPORT.md) includes CPU limits,
 images and response costs. F10 delivers category-consistent routing-check
 accounting and explicit error/warning/incomplete status without hiding inherited
-findings or changing per-net connectivity gates.
+findings or changing per-net connectivity gates; see its
+[release evidence](benchmarks/routing-check-counters/REPORT.md).
 
 ## Delivery queue
 

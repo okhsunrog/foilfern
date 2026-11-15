@@ -138,7 +138,8 @@ Routing checks now report category-consistent native finding deltas (API 62),
 including missing connections separately from other errors. Explicit DRC status
 separates warnings-only from no-errors-or-warnings; `drc_clean` means no unapproved
 errors. Incomplete comparisons do not claim resolved findings. Existing
-non-connectivity counters and per-net regression gates retain their scope.
+non-connectivity counters and per-net regression gates retain their scope. See
+[release evidence and response costs](benchmarks/routing-check-counters/REPORT.md).
 
 ## Routing and measurements available now
 

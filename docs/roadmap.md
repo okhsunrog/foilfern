@@ -176,6 +176,7 @@ acceptance.
     Tests separate routed connections, repaired width errors, introduced
     clearance errors, inherited warnings and approval scope. Native rules and
     saved files are unchanged.
+    See [release evidence](benchmarks/routing-check-counters/REPORT.md).
 
 The observed blank BOM Value matching MPN is upstream-compatible deduplication,
 not an outstanding data-loss bug. Shared footprint-text UUIDs are valid when

@@ -1,0 +1,2075 @@
+{
+  "date": "2026-11-15",
+  "source_fixture_commit": "99ff973ac20f3753bdb30d4e29608aadc882674f",
+  "baseline_product_equivalent_master": "3cad908a7c37225e60bbde16a03d35a117f60b66",
+  "scope": "full-board unapproved DRC errors and warnings; raw air wires separately",
+  "resource_limits": {
+    "logical_cpus": [
+      0,
+      1
+    ],
+    "nice": 10,
+    "cargo_jobs": 2,
+    "rust_test_threads": 2,
+    "rayon_threads": 2,
+    "tokio_workers": 2,
+    "heavy_tasks_sequential": true
+  },
+  "verification": {
+    "all_six_final_normalized_geometries_identical": true,
+    "all_six_final_open_connections": 0,
+    "all_six_final_drc_errors": 0,
+    "all_six_final_drc_warnings": 1,
+    "new_delta_equations_checked_for_all_categories_and_eight_responses_per_run": true,
+    "model_or_agent_runs": false,
+    "token_counts_measured": false
+  },
+  "summary": {
+    "baseline": {
+      "median_seconds": 0.16070988692808896,
+      "calls": 13,
+      "response_bytes": 19879
+    },
+    "updated": {
+      "median_seconds": 0.16924749198369682,
+      "calls": 13,
+      "response_bytes": 24267
+    }
+  },
+  "runs": [
+    {
+      "label": "baseline-1",
+      "binary": "/home/okhsunrog/tmp_zfs/codex_tmp/routing-check-counters/baseline-mcp",
+      "binary_sha256": "41c4088d48cbf1d3ded1756e7159892460ec1203171cd9d9237725e62c451694",
+      "build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "0b5bb62a8615ea9dd3bf30d8835da76c1eafc479",
+        "tracked_source_state": "clean"
+      },
+      "api": 61,
+      "cpu_affinity": [
+        0,
+        1
+      ],
+      "nice": 10,
+      "seconds": 0.1721216100268066,
+      "calls": 13,
+      "response_bytes": 19879,
+      "responses": [
+        {
+          "tool": "server_info",
+          "bytes": 1139
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 1595
+        },
+        {
+          "tool": "routing_preview",
+          "bytes": 2233
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 1905
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 1436
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 1746
+        },
+        {
+          "tool": "via_add",
+          "bytes": 676
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 1288
+        },
+        {
+          "tool": "routing_preview",
+          "bytes": 1348
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 1355
+        },
+        {
+          "tool": "drc_run",
+          "bytes": 712
+        },
+        {
+          "tool": "board_get",
+          "bytes": 4076
+        },
+        {
+          "tool": "project_save",
+          "bytes": 370
+        }
+      ],
+      "first_route": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 1,
+          "ran": true,
+          "unrouted": 1,
+          "warnings": 0
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 2,
+          "ran": true,
+          "unrouted": 2,
+          "warnings": 0
+        },
+        "connectivity_progress": "improved",
+        "drc_clean": false,
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0,
+        "unrouted_improvements": [
+          {
+            "after": 0,
+            "before": 1,
+            "name": "A",
+            "net": "02253e8f-52d8-4b80-99b4-05821aabbc43"
+          }
+        ]
+      },
+      "second_route": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 0
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 1,
+          "ran": true,
+          "unrouted": 1,
+          "warnings": 0
+        },
+        "connectivity_progress": "improved",
+        "drc_clean": true,
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0,
+        "unrouted_improvements": [
+          {
+            "after": 0,
+            "before": 1,
+            "name": "B",
+            "net": "3654216a-7ff2-40f2-a846-120e88a2e025"
+          }
+        ]
+      },
+      "warning_only": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 1
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 1
+        },
+        "connectivity_progress": "unchanged",
+        "drc_clean": true,
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0
+      },
+      "final_drc": {
+        "approved": 0,
+        "check_errors": [],
+        "errors": 0,
+        "hints": 0,
+        "messages": [
+          {
+            "approved": false,
+            "description": "The via is connected on less than two layers, thus it seems to be useless.",
+            "kind": "UselessVia",
+            "locations": [
+              [
+                {
+                  "arc_deg": -180.0,
+                  "x": 5.35,
+                  "y": 9.025
+                },
+                {
+                  "arc_deg": -180.0,
+                  "x": 4.65,
+                  "y": 9.025
+                },
+                {
+                  "x": 5.35,
+                  "y": 9.025
+                }
+              ]
+            ],
+            "message": "Useless via in net 'A'",
+            "objects": [
+              {
+                "kind": "via",
+                "uuid": "66a35766-af4a-467c-bba4-d94c93e79183"
+              }
+            ],
+            "severity": "warning"
+          }
+        ],
+        "ran": true,
+        "warnings": 1
+      },
+      "final_geometry": {
+        "traces": [
+          {
+            "net": "B",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 15.0,
+                "y": 10.975
+              },
+              {
+                "x": 5.0,
+                "y": 10.975
+              }
+            ],
+            "layer": "top_cu"
+          },
+          {
+            "net": "A",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 15.0,
+                "y": 9.025
+              },
+              {
+                "x": 5.0,
+                "y": 9.025
+              }
+            ],
+            "layer": "top_cu"
+          },
+          {
+            "net": "A",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 5.0,
+                "y": 9.025
+              },
+              {
+                "x": 5.0,
+                "y": 9.025
+              }
+            ],
+            "layer": "top_cu"
+          }
+        ],
+        "vias": [
+          {
+            "net": "A",
+            "position": {
+              "x": 5.0,
+              "y": 9.025
+            },
+            "effective_drill": 0.3,
+            "effective_size": 0.7
+          }
+        ],
+        "air_wires": []
+      }
+    },
+    {
+      "label": "updated-1",
+      "binary": "/home/okhsunrog/code/rust/foilfern/target/release/foilfern-mcp",
+      "binary_sha256": "6d180edc2d06f2b646d2d184134f0b610c24a48afc3b66a11a6b10f1a73149f6",
+      "build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "df9c3c7796ba8c76ed469d0f0a2c67210b516b18",
+        "tracked_source_state": "clean"
+      },
+      "api": 62,
+      "cpu_affinity": [
+        0,
+        1
+      ],
+      "nice": 10,
+      "seconds": 0.1732710860669613,
+      "calls": 13,
+      "response_bytes": 24267,
+      "responses": [
+        {
+          "tool": "server_info",
+          "bytes": 1134
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 2143
+        },
+        {
+          "tool": "routing_preview",
+          "bytes": 2781
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 2453
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 1991
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 2301
+        },
+        {
+          "tool": "via_add",
+          "bytes": 676
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 1835
+        },
+        {
+          "tool": "routing_preview",
+          "bytes": 1895
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 1902
+        },
+        {
+          "tool": "drc_run",
+          "bytes": 712
+        },
+        {
+          "tool": "board_get",
+          "bytes": 4076
+        },
+        {
+          "tool": "project_save",
+          "bytes": 368
+        }
+      ],
+      "first_route": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 1,
+          "missing_connection_errors": 1,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 1,
+          "warnings": 0
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 2,
+          "missing_connection_errors": 2,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 2,
+          "warnings": 0
+        },
+        "connectivity_progress": "improved",
+        "drc_clean": false,
+        "drc_status": "errors_present",
+        "finding_delta": {
+          "copper_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "errors": {
+            "added": 0,
+            "after": 1,
+            "before": 2,
+            "resolved": 1,
+            "unchanged": 1
+          },
+          "missing_connections": {
+            "added": 0,
+            "after": 1,
+            "before": 2,
+            "resolved": 1,
+            "unchanged": 1
+          },
+          "non_connectivity_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "warnings": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          }
+        },
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0,
+        "unrouted_improvements": [
+          {
+            "after": 0,
+            "before": 1,
+            "name": "A",
+            "net": "a201dbc5-5b46-4e1d-91a1-555fd7e11b3a"
+          }
+        ]
+      },
+      "second_route": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "missing_connection_errors": 0,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 0
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 1,
+          "missing_connection_errors": 1,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 1,
+          "warnings": 0
+        },
+        "connectivity_progress": "improved",
+        "drc_clean": true,
+        "drc_status": "no_errors_or_warnings",
+        "finding_delta": {
+          "copper_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "errors": {
+            "added": 0,
+            "after": 0,
+            "before": 1,
+            "resolved": 1,
+            "unchanged": 0
+          },
+          "missing_connections": {
+            "added": 0,
+            "after": 0,
+            "before": 1,
+            "resolved": 1,
+            "unchanged": 0
+          },
+          "non_connectivity_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "warnings": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          }
+        },
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0,
+        "unrouted_improvements": [
+          {
+            "after": 0,
+            "before": 1,
+            "name": "B",
+            "net": "e6ebc0ff-56c5-4f98-8bca-b87b0e24e74a"
+          }
+        ]
+      },
+      "warning_only": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "missing_connection_errors": 0,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 1
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "missing_connection_errors": 0,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 1
+        },
+        "connectivity_progress": "unchanged",
+        "drc_clean": true,
+        "drc_status": "warnings_only",
+        "finding_delta": {
+          "copper_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "missing_connections": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "non_connectivity_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "warnings": {
+            "added": 0,
+            "after": 1,
+            "before": 1,
+            "resolved": 0,
+            "unchanged": 1
+          }
+        },
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0
+      },
+      "final_drc": {
+        "approved": 0,
+        "check_errors": [],
+        "errors": 0,
+        "hints": 0,
+        "messages": [
+          {
+            "approved": false,
+            "description": "The via is connected on less than two layers, thus it seems to be useless.",
+            "kind": "UselessVia",
+            "locations": [
+              [
+                {
+                  "arc_deg": -180.0,
+                  "x": 5.35,
+                  "y": 9.025
+                },
+                {
+                  "arc_deg": -180.0,
+                  "x": 4.65,
+                  "y": 9.025
+                },
+                {
+                  "x": 5.35,
+                  "y": 9.025
+                }
+              ]
+            ],
+            "message": "Useless via in net 'A'",
+            "objects": [
+              {
+                "kind": "via",
+                "uuid": "c668dd84-c1f2-46d1-85ee-716cf9c4c68a"
+              }
+            ],
+            "severity": "warning"
+          }
+        ],
+        "ran": true,
+        "warnings": 1
+      },
+      "final_geometry": {
+        "traces": [
+          {
+            "net": "B",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 15.0,
+                "y": 10.975
+              },
+              {
+                "x": 5.0,
+                "y": 10.975
+              }
+            ],
+            "layer": "top_cu"
+          },
+          {
+            "net": "A",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 15.0,
+                "y": 9.025
+              },
+              {
+                "x": 5.0,
+                "y": 9.025
+              }
+            ],
+            "layer": "top_cu"
+          },
+          {
+            "net": "A",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 5.0,
+                "y": 9.025
+              },
+              {
+                "x": 5.0,
+                "y": 9.025
+              }
+            ],
+            "layer": "top_cu"
+          }
+        ],
+        "vias": [
+          {
+            "net": "A",
+            "position": {
+              "x": 5.0,
+              "y": 9.025
+            },
+            "effective_drill": 0.3,
+            "effective_size": 0.7
+          }
+        ],
+        "air_wires": []
+      }
+    },
+    {
+      "label": "baseline-2",
+      "binary": "/home/okhsunrog/tmp_zfs/codex_tmp/routing-check-counters/baseline-mcp",
+      "binary_sha256": "41c4088d48cbf1d3ded1756e7159892460ec1203171cd9d9237725e62c451694",
+      "build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "0b5bb62a8615ea9dd3bf30d8835da76c1eafc479",
+        "tracked_source_state": "clean"
+      },
+      "api": 61,
+      "cpu_affinity": [
+        0,
+        1
+      ],
+      "nice": 10,
+      "seconds": 0.16070988692808896,
+      "calls": 13,
+      "response_bytes": 19879,
+      "responses": [
+        {
+          "tool": "server_info",
+          "bytes": 1139
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 1595
+        },
+        {
+          "tool": "routing_preview",
+          "bytes": 2233
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 1905
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 1436
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 1746
+        },
+        {
+          "tool": "via_add",
+          "bytes": 676
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 1288
+        },
+        {
+          "tool": "routing_preview",
+          "bytes": 1348
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 1355
+        },
+        {
+          "tool": "drc_run",
+          "bytes": 712
+        },
+        {
+          "tool": "board_get",
+          "bytes": 4076
+        },
+        {
+          "tool": "project_save",
+          "bytes": 370
+        }
+      ],
+      "first_route": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 1,
+          "ran": true,
+          "unrouted": 1,
+          "warnings": 0
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 2,
+          "ran": true,
+          "unrouted": 2,
+          "warnings": 0
+        },
+        "connectivity_progress": "improved",
+        "drc_clean": false,
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0,
+        "unrouted_improvements": [
+          {
+            "after": 0,
+            "before": 1,
+            "name": "A",
+            "net": "0af908c0-4c74-4fc3-b6e2-90ac87d7577a"
+          }
+        ]
+      },
+      "second_route": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 0
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 1,
+          "ran": true,
+          "unrouted": 1,
+          "warnings": 0
+        },
+        "connectivity_progress": "improved",
+        "drc_clean": true,
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0,
+        "unrouted_improvements": [
+          {
+            "after": 0,
+            "before": 1,
+            "name": "B",
+            "net": "dafba748-8bd8-4896-9e9d-d1feb3242a30"
+          }
+        ]
+      },
+      "warning_only": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 1
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 1
+        },
+        "connectivity_progress": "unchanged",
+        "drc_clean": true,
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0
+      },
+      "final_drc": {
+        "approved": 0,
+        "check_errors": [],
+        "errors": 0,
+        "hints": 0,
+        "messages": [
+          {
+            "approved": false,
+            "description": "The via is connected on less than two layers, thus it seems to be useless.",
+            "kind": "UselessVia",
+            "locations": [
+              [
+                {
+                  "arc_deg": -180.0,
+                  "x": 5.35,
+                  "y": 9.025
+                },
+                {
+                  "arc_deg": -180.0,
+                  "x": 4.65,
+                  "y": 9.025
+                },
+                {
+                  "x": 5.35,
+                  "y": 9.025
+                }
+              ]
+            ],
+            "message": "Useless via in net 'A'",
+            "objects": [
+              {
+                "kind": "via",
+                "uuid": "ae530c66-fdc0-461c-9074-41c6999b5b7b"
+              }
+            ],
+            "severity": "warning"
+          }
+        ],
+        "ran": true,
+        "warnings": 1
+      },
+      "final_geometry": {
+        "traces": [
+          {
+            "net": "B",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 15.0,
+                "y": 10.975
+              },
+              {
+                "x": 5.0,
+                "y": 10.975
+              }
+            ],
+            "layer": "top_cu"
+          },
+          {
+            "net": "A",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 15.0,
+                "y": 9.025
+              },
+              {
+                "x": 5.0,
+                "y": 9.025
+              }
+            ],
+            "layer": "top_cu"
+          },
+          {
+            "net": "A",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 5.0,
+                "y": 9.025
+              },
+              {
+                "x": 5.0,
+                "y": 9.025
+              }
+            ],
+            "layer": "top_cu"
+          }
+        ],
+        "vias": [
+          {
+            "net": "A",
+            "position": {
+              "x": 5.0,
+              "y": 9.025
+            },
+            "effective_drill": 0.3,
+            "effective_size": 0.7
+          }
+        ],
+        "air_wires": []
+      }
+    },
+    {
+      "label": "updated-2",
+      "binary": "/home/okhsunrog/code/rust/foilfern/target/release/foilfern-mcp",
+      "binary_sha256": "6d180edc2d06f2b646d2d184134f0b610c24a48afc3b66a11a6b10f1a73149f6",
+      "build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "df9c3c7796ba8c76ed469d0f0a2c67210b516b18",
+        "tracked_source_state": "clean"
+      },
+      "api": 62,
+      "cpu_affinity": [
+        0,
+        1
+      ],
+      "nice": 10,
+      "seconds": 0.16924749198369682,
+      "calls": 13,
+      "response_bytes": 24267,
+      "responses": [
+        {
+          "tool": "server_info",
+          "bytes": 1134
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 2143
+        },
+        {
+          "tool": "routing_preview",
+          "bytes": 2781
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 2453
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 1991
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 2301
+        },
+        {
+          "tool": "via_add",
+          "bytes": 676
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 1835
+        },
+        {
+          "tool": "routing_preview",
+          "bytes": 1895
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 1902
+        },
+        {
+          "tool": "drc_run",
+          "bytes": 712
+        },
+        {
+          "tool": "board_get",
+          "bytes": 4076
+        },
+        {
+          "tool": "project_save",
+          "bytes": 368
+        }
+      ],
+      "first_route": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 1,
+          "missing_connection_errors": 1,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 1,
+          "warnings": 0
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 2,
+          "missing_connection_errors": 2,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 2,
+          "warnings": 0
+        },
+        "connectivity_progress": "improved",
+        "drc_clean": false,
+        "drc_status": "errors_present",
+        "finding_delta": {
+          "copper_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "errors": {
+            "added": 0,
+            "after": 1,
+            "before": 2,
+            "resolved": 1,
+            "unchanged": 1
+          },
+          "missing_connections": {
+            "added": 0,
+            "after": 1,
+            "before": 2,
+            "resolved": 1,
+            "unchanged": 1
+          },
+          "non_connectivity_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "warnings": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          }
+        },
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0,
+        "unrouted_improvements": [
+          {
+            "after": 0,
+            "before": 1,
+            "name": "A",
+            "net": "5f5274d7-b0b4-4eea-98c6-25c5c276a074"
+          }
+        ]
+      },
+      "second_route": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "missing_connection_errors": 0,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 0
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 1,
+          "missing_connection_errors": 1,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 1,
+          "warnings": 0
+        },
+        "connectivity_progress": "improved",
+        "drc_clean": true,
+        "drc_status": "no_errors_or_warnings",
+        "finding_delta": {
+          "copper_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "errors": {
+            "added": 0,
+            "after": 0,
+            "before": 1,
+            "resolved": 1,
+            "unchanged": 0
+          },
+          "missing_connections": {
+            "added": 0,
+            "after": 0,
+            "before": 1,
+            "resolved": 1,
+            "unchanged": 0
+          },
+          "non_connectivity_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "warnings": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          }
+        },
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0,
+        "unrouted_improvements": [
+          {
+            "after": 0,
+            "before": 1,
+            "name": "B",
+            "net": "b38fc414-ef5b-42b7-b100-c5c41fa7ff71"
+          }
+        ]
+      },
+      "warning_only": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "missing_connection_errors": 0,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 1
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "missing_connection_errors": 0,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 1
+        },
+        "connectivity_progress": "unchanged",
+        "drc_clean": true,
+        "drc_status": "warnings_only",
+        "finding_delta": {
+          "copper_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "missing_connections": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "non_connectivity_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "warnings": {
+            "added": 0,
+            "after": 1,
+            "before": 1,
+            "resolved": 0,
+            "unchanged": 1
+          }
+        },
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0
+      },
+      "final_drc": {
+        "approved": 0,
+        "check_errors": [],
+        "errors": 0,
+        "hints": 0,
+        "messages": [
+          {
+            "approved": false,
+            "description": "The via is connected on less than two layers, thus it seems to be useless.",
+            "kind": "UselessVia",
+            "locations": [
+              [
+                {
+                  "arc_deg": -180.0,
+                  "x": 5.35,
+                  "y": 9.025
+                },
+                {
+                  "arc_deg": -180.0,
+                  "x": 4.65,
+                  "y": 9.025
+                },
+                {
+                  "x": 5.35,
+                  "y": 9.025
+                }
+              ]
+            ],
+            "message": "Useless via in net 'A'",
+            "objects": [
+              {
+                "kind": "via",
+                "uuid": "fb41d21a-f0b7-4945-9bcb-c38815712857"
+              }
+            ],
+            "severity": "warning"
+          }
+        ],
+        "ran": true,
+        "warnings": 1
+      },
+      "final_geometry": {
+        "traces": [
+          {
+            "net": "B",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 15.0,
+                "y": 10.975
+              },
+              {
+                "x": 5.0,
+                "y": 10.975
+              }
+            ],
+            "layer": "top_cu"
+          },
+          {
+            "net": "A",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 15.0,
+                "y": 9.025
+              },
+              {
+                "x": 5.0,
+                "y": 9.025
+              }
+            ],
+            "layer": "top_cu"
+          },
+          {
+            "net": "A",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 5.0,
+                "y": 9.025
+              },
+              {
+                "x": 5.0,
+                "y": 9.025
+              }
+            ],
+            "layer": "top_cu"
+          }
+        ],
+        "vias": [
+          {
+            "net": "A",
+            "position": {
+              "x": 5.0,
+              "y": 9.025
+            },
+            "effective_drill": 0.3,
+            "effective_size": 0.7
+          }
+        ],
+        "air_wires": []
+      }
+    },
+    {
+      "label": "baseline-3",
+      "binary": "/home/okhsunrog/tmp_zfs/codex_tmp/routing-check-counters/baseline-mcp",
+      "binary_sha256": "41c4088d48cbf1d3ded1756e7159892460ec1203171cd9d9237725e62c451694",
+      "build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "0b5bb62a8615ea9dd3bf30d8835da76c1eafc479",
+        "tracked_source_state": "clean"
+      },
+      "api": 61,
+      "cpu_affinity": [
+        0,
+        1
+      ],
+      "nice": 10,
+      "seconds": 0.158953167963773,
+      "calls": 13,
+      "response_bytes": 19879,
+      "responses": [
+        {
+          "tool": "server_info",
+          "bytes": 1139
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 1595
+        },
+        {
+          "tool": "routing_preview",
+          "bytes": 2233
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 1905
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 1436
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 1746
+        },
+        {
+          "tool": "via_add",
+          "bytes": 676
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 1288
+        },
+        {
+          "tool": "routing_preview",
+          "bytes": 1348
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 1355
+        },
+        {
+          "tool": "drc_run",
+          "bytes": 712
+        },
+        {
+          "tool": "board_get",
+          "bytes": 4076
+        },
+        {
+          "tool": "project_save",
+          "bytes": 370
+        }
+      ],
+      "first_route": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 1,
+          "ran": true,
+          "unrouted": 1,
+          "warnings": 0
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 2,
+          "ran": true,
+          "unrouted": 2,
+          "warnings": 0
+        },
+        "connectivity_progress": "improved",
+        "drc_clean": false,
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0,
+        "unrouted_improvements": [
+          {
+            "after": 0,
+            "before": 1,
+            "name": "A",
+            "net": "dc1d74b5-77a5-418b-a32a-35fb3e6de9f6"
+          }
+        ]
+      },
+      "second_route": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 0
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 1,
+          "ran": true,
+          "unrouted": 1,
+          "warnings": 0
+        },
+        "connectivity_progress": "improved",
+        "drc_clean": true,
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0,
+        "unrouted_improvements": [
+          {
+            "after": 0,
+            "before": 1,
+            "name": "B",
+            "net": "5b3dc1c4-5182-46dc-8281-1c70b70ca20d"
+          }
+        ]
+      },
+      "warning_only": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 1
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 1
+        },
+        "connectivity_progress": "unchanged",
+        "drc_clean": true,
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0
+      },
+      "final_drc": {
+        "approved": 0,
+        "check_errors": [],
+        "errors": 0,
+        "hints": 0,
+        "messages": [
+          {
+            "approved": false,
+            "description": "The via is connected on less than two layers, thus it seems to be useless.",
+            "kind": "UselessVia",
+            "locations": [
+              [
+                {
+                  "arc_deg": -180.0,
+                  "x": 5.35,
+                  "y": 9.025
+                },
+                {
+                  "arc_deg": -180.0,
+                  "x": 4.65,
+                  "y": 9.025
+                },
+                {
+                  "x": 5.35,
+                  "y": 9.025
+                }
+              ]
+            ],
+            "message": "Useless via in net 'A'",
+            "objects": [
+              {
+                "kind": "via",
+                "uuid": "ca8f6ff8-487c-412d-ba65-d6f72ec71c99"
+              }
+            ],
+            "severity": "warning"
+          }
+        ],
+        "ran": true,
+        "warnings": 1
+      },
+      "final_geometry": {
+        "traces": [
+          {
+            "net": "B",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 15.0,
+                "y": 10.975
+              },
+              {
+                "x": 5.0,
+                "y": 10.975
+              }
+            ],
+            "layer": "top_cu"
+          },
+          {
+            "net": "A",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 15.0,
+                "y": 9.025
+              },
+              {
+                "x": 5.0,
+                "y": 9.025
+              }
+            ],
+            "layer": "top_cu"
+          },
+          {
+            "net": "A",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 5.0,
+                "y": 9.025
+              },
+              {
+                "x": 5.0,
+                "y": 9.025
+              }
+            ],
+            "layer": "top_cu"
+          }
+        ],
+        "vias": [
+          {
+            "net": "A",
+            "position": {
+              "x": 5.0,
+              "y": 9.025
+            },
+            "effective_drill": 0.3,
+            "effective_size": 0.7
+          }
+        ],
+        "air_wires": []
+      }
+    },
+    {
+      "label": "updated-3",
+      "binary": "/home/okhsunrog/code/rust/foilfern/target/release/foilfern-mcp",
+      "binary_sha256": "6d180edc2d06f2b646d2d184134f0b610c24a48afc3b66a11a6b10f1a73149f6",
+      "build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "df9c3c7796ba8c76ed469d0f0a2c67210b516b18",
+        "tracked_source_state": "clean"
+      },
+      "api": 62,
+      "cpu_affinity": [
+        0,
+        1
+      ],
+      "nice": 10,
+      "seconds": 0.1547948810039088,
+      "calls": 13,
+      "response_bytes": 24267,
+      "responses": [
+        {
+          "tool": "server_info",
+          "bytes": 1134
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 2143
+        },
+        {
+          "tool": "routing_preview",
+          "bytes": 2781
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 2453
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 1991
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 2301
+        },
+        {
+          "tool": "via_add",
+          "bytes": 676
+        },
+        {
+          "tool": "routing_prepare",
+          "bytes": 1835
+        },
+        {
+          "tool": "routing_preview",
+          "bytes": 1895
+        },
+        {
+          "tool": "routing_apply",
+          "bytes": 1902
+        },
+        {
+          "tool": "drc_run",
+          "bytes": 712
+        },
+        {
+          "tool": "board_get",
+          "bytes": 4076
+        },
+        {
+          "tool": "project_save",
+          "bytes": 368
+        }
+      ],
+      "first_route": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 1,
+          "missing_connection_errors": 1,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 1,
+          "warnings": 0
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 2,
+          "missing_connection_errors": 2,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 2,
+          "warnings": 0
+        },
+        "connectivity_progress": "improved",
+        "drc_clean": false,
+        "drc_status": "errors_present",
+        "finding_delta": {
+          "copper_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "errors": {
+            "added": 0,
+            "after": 1,
+            "before": 2,
+            "resolved": 1,
+            "unchanged": 1
+          },
+          "missing_connections": {
+            "added": 0,
+            "after": 1,
+            "before": 2,
+            "resolved": 1,
+            "unchanged": 1
+          },
+          "non_connectivity_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "warnings": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          }
+        },
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0,
+        "unrouted_improvements": [
+          {
+            "after": 0,
+            "before": 1,
+            "name": "A",
+            "net": "95c629cd-f5ad-426d-b67d-68a528b0986a"
+          }
+        ]
+      },
+      "second_route": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "missing_connection_errors": 0,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 0
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 1,
+          "missing_connection_errors": 1,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 1,
+          "warnings": 0
+        },
+        "connectivity_progress": "improved",
+        "drc_clean": true,
+        "drc_status": "no_errors_or_warnings",
+        "finding_delta": {
+          "copper_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "errors": {
+            "added": 0,
+            "after": 0,
+            "before": 1,
+            "resolved": 1,
+            "unchanged": 0
+          },
+          "missing_connections": {
+            "added": 0,
+            "after": 0,
+            "before": 1,
+            "resolved": 1,
+            "unchanged": 0
+          },
+          "non_connectivity_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "warnings": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          }
+        },
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0,
+        "unrouted_improvements": [
+          {
+            "after": 0,
+            "before": 1,
+            "name": "B",
+            "net": "54efc6cc-8835-4fad-af96-30991b17b2ff"
+          }
+        ]
+      },
+      "warning_only": {
+        "acceptable": true,
+        "after": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "missing_connection_errors": 0,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 1
+        },
+        "before": {
+          "check_failures": [],
+          "complete": true,
+          "copper_errors": 0,
+          "errors": 0,
+          "missing_connection_errors": 0,
+          "non_connectivity_errors": 0,
+          "ran": true,
+          "unrouted": 0,
+          "warnings": 1
+        },
+        "connectivity_progress": "unchanged",
+        "drc_clean": true,
+        "drc_status": "warnings_only",
+        "finding_delta": {
+          "copper_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "missing_connections": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "non_connectivity_errors": {
+            "added": 0,
+            "after": 0,
+            "before": 0,
+            "resolved": 0,
+            "unchanged": 0
+          },
+          "warnings": {
+            "added": 0,
+            "after": 1,
+            "before": 1,
+            "resolved": 0,
+            "unchanged": 1
+          }
+        },
+        "netlist_preserved": true,
+        "new_copper_error_count": 0,
+        "new_error_count": 0,
+        "new_errors": [],
+        "resolved_error_count": 0
+      },
+      "final_drc": {
+        "approved": 0,
+        "check_errors": [],
+        "errors": 0,
+        "hints": 0,
+        "messages": [
+          {
+            "approved": false,
+            "description": "The via is connected on less than two layers, thus it seems to be useless.",
+            "kind": "UselessVia",
+            "locations": [
+              [
+                {
+                  "arc_deg": -180.0,
+                  "x": 5.35,
+                  "y": 9.025
+                },
+                {
+                  "arc_deg": -180.0,
+                  "x": 4.65,
+                  "y": 9.025
+                },
+                {
+                  "x": 5.35,
+                  "y": 9.025
+                }
+              ]
+            ],
+            "message": "Useless via in net 'A'",
+            "objects": [
+              {
+                "kind": "via",
+                "uuid": "e12f3118-bd4a-4b8b-ac38-df45d08b2eec"
+              }
+            ],
+            "severity": "warning"
+          }
+        ],
+        "ran": true,
+        "warnings": 1
+      },
+      "final_geometry": {
+        "traces": [
+          {
+            "net": "B",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 15.0,
+                "y": 10.975
+              },
+              {
+                "x": 5.0,
+                "y": 10.975
+              }
+            ],
+            "layer": "top_cu"
+          },
+          {
+            "net": "A",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 15.0,
+                "y": 9.025
+              },
+              {
+                "x": 5.0,
+                "y": 9.025
+              }
+            ],
+            "layer": "top_cu"
+          },
+          {
+            "net": "A",
+            "width": 0.25,
+            "ends": [
+              {
+                "x": 5.0,
+                "y": 9.025
+              },
+              {
+                "x": 5.0,
+                "y": 9.025
+              }
+            ],
+            "layer": "top_cu"
+          }
+        ],
+        "vias": [
+          {
+            "net": "A",
+            "position": {
+              "x": 5.0,
+              "y": 9.025
+            },
+            "effective_drill": 0.3,
+            "effective_size": 0.7
+          }
+        ],
+        "air_wires": []
+      }
+    }
+  ]
+}
