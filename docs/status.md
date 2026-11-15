@@ -120,6 +120,11 @@ native reopen and cancelled-search rollback have focused coverage. The
 [release replay](benchmarks/initial-legend/REPORT.md) confirms all eight C-0805
 side/rotation cases, documents extra checking time and reduced DRC response cost.
 
+Contextual preview labels (F8, API 60) replace the generic symbol-number placeholder
+in acquired-part previews with the selected device's package pad names, and add
+pad labels to the footprint image. Render metadata distinguishes a visible-layer
+overlay from viewing orientation; bottom views explicitly identify mirroring.
+
 ## Routing and measurements available now
 
 The editor owns one `RoutingService` per open project; MCP is its transport.

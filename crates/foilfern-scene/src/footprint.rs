@@ -73,6 +73,8 @@ impl FootprintScene {
     /// The canvas layer of the pad hole outlines (drawn in the
     /// `board_holes` color).
     pub const PAD_HOLES: LayerId = LayerId(1000);
+    /// Optional contextual preview labels, above all footprint geometry.
+    pub const PAD_NAMES: LayerId = LayerId(1002);
 
     /// Builds the scene of a footprint with a color scheme (e.g. the colors
     /// of a graphics export); stroke texts are drawn with `font` (none
@@ -109,6 +111,85 @@ impl FootprintScene {
     /// The canvas layer of the keepout zones (drawn in the `board_zones`
     /// color by [`Self::build_for_editor()`]).
     pub const ZONES: LayerId = LayerId(1001);
+
+    /// Device-context preview with readable package pad names over the copper.
+    /// The labels are preview annotations and never modify library geometry.
+    pub fn build_with_pad_names(
+        footprint: &Footprint,
+        package: &foilfern_core::library::pkg::Package,
+        font: Option<&StrokeFont>,
+        scheme: &ColorScheme,
+    ) -> Self {
+        use crate::text::{TextRenderer, TextStyle};
+        use foilfern_core::types::{Alignment, Angle, HAlign, VAlign};
+        let mut result = Self::build(footprint, font, scheme);
+        let layer = Self::PAD_NAMES;
+        result
+            .scene
+            .set_layer(layer, CanvasLayer::new(Color::WHITE).with_order(1002));
+        let mut renderer = TextRenderer::new(font);
+        let mut labels = Vec::new();
+        let mut scale = 1.0_f64;
+        for pad in footprint.pads().iter() {
+            let Some(name) = pad
+                .package_pad_uuid()
+                .and_then(|id| package.pads().by_uuid(&id))
+                .map(|pad| pad.name().as_str())
+            else {
+                continue;
+            };
+            let position = pad.pad().position();
+            if let Some(text) = renderer.text(
+                name,
+                position,
+                TextStyle {
+                    height: 0.7,
+                    align: Alignment::new(HAlign::Center, VAlign::Center),
+                    rotation: Angle::DEG0,
+                    auto_rotate: true,
+                    mirror_in_place: false,
+                    parse_overlines: false,
+                },
+            ) {
+                use foilfern_canvas::kurbo::Shape;
+                let bounds = text.path.bounding_box();
+                let span = bounds.width().max(bounds.height()) + text.stroke_width;
+                let spacing = footprint
+                    .pads()
+                    .iter()
+                    .filter(|other| other.uuid() != pad.uuid())
+                    .map(|other| {
+                        let delta = other.pad().position() - position;
+                        delta.x.to_mm().abs().max(delta.y.to_mm().abs())
+                    })
+                    .filter(|distance| *distance > 0.0)
+                    .reduce(f64::min);
+                if let Some(spacing) = spacing
+                    && span > 0.0
+                {
+                    scale = scale.min(0.8 * spacing / span);
+                }
+                labels.push((pad.uuid(), position, text));
+            }
+        }
+        // One shared font scale keeps long pad names complete and separates
+        // adjacent labels; individual numbers are never elided or guessed.
+        for (uuid, position, text) in labels {
+            let anchor = convert::point(position);
+            let transform = Affine::translate(anchor.to_vec2())
+                * Affine::scale(scale)
+                * Affine::translate((-anchor.x, -anchor.y));
+            let item = Item::new(
+                layer,
+                transform * text.path,
+                Style::stroke(text.stroke_width * scale),
+            )
+            .with_z(1002);
+            let id = result.scene.insert(item);
+            result.objects.insert(id, FootprintSceneObject::Pad(uuid));
+        }
+        result
+    }
 
     /// Like [`Self::build()`], but also draws the keepout zones (upstream
     /// `FootprintGraphicsItem` of the package editor), filled with the

@@ -76,6 +76,26 @@ impl SymbolScene {
     /// [`ColorScheme::SCHEMATIC_LIGHT`]); texts are drawn with `font` (none
     /// without a font, see [`crate::default_stroke_font()`]).
     pub fn build(symbol: &Symbol, font: Option<&StrokeFont>, scheme: &ColorScheme) -> Self {
+        Self::build_numbers(symbol, font, scheme, None)
+    }
+
+    /// Device-context preview: draw the complete mapped package pad names.
+    /// Missing entries stay blank, never receive guessed pin numbers.
+    pub fn build_with_pin_numbers(
+        symbol: &Symbol,
+        font: Option<&StrokeFont>,
+        scheme: &ColorScheme,
+        numbers: &std::collections::BTreeMap<Uuid, String>,
+    ) -> Self {
+        Self::build_numbers(symbol, font, scheme, Some(numbers))
+    }
+
+    fn build_numbers(
+        symbol: &Symbol,
+        font: Option<&StrokeFont>,
+        scheme: &ColorScheme,
+        numbers: Option<&std::collections::BTreeMap<Uuid, String>>,
+    ) -> Self {
         let mut scene = Scene::new();
         add_schematic_layers(&mut scene, scheme);
         let mut builder = Builder {
@@ -87,7 +107,7 @@ impl SymbolScene {
         };
         builder.add_shapes(symbol);
         builder.add_texts(symbol);
-        builder.add_pins(symbol);
+        builder.add_pins(symbol, numbers);
         Self {
             scene: builder.scene,
             scheme: scheme.clone(),
@@ -311,7 +331,11 @@ impl Builder<'_> {
         }
     }
 
-    fn add_pins(&mut self, symbol: &Symbol) {
+    fn add_pins(
+        &mut self,
+        symbol: &Symbol,
+        labels: Option<&std::collections::BTreeMap<Uuid, String>>,
+    ) {
         let lines = SchematicScene::layer_id("schematic_pin_lines");
         let names = SchematicScene::layer_id("schematic_pin_names");
         let numbers = SchematicScene::layer_id("schematic_pin_numbers");
@@ -342,7 +366,9 @@ impl Builder<'_> {
             if let Some(layer) = numbers {
                 let flipped = toolbox::is_text_upside_down(rotation);
                 let rendered = self.text.text(
-                    "1…",
+                    labels.map_or("1…", |labels| {
+                        labels.get(&pin.uuid()).map_or("", String::as_str)
+                    }),
                     pin.position()
                         + pin
                             .numbers_position(flipped)

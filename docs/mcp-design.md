@@ -179,7 +179,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `59`, including initial device legend placement, STEP assembly coverage, paired board previews, electrical import evidence
+`api_capability_version` (currently `60`, including contextual pin-number previews, explicit board-view metadata, initial device legend placement, STEP assembly coverage, paired board previews, electrical import evidence
 and explicit structural ERC coverage, named ERC subjects, scoped
 text-change events and reports, supplier acquisition,
 official KiCad imports, rendered board-placement reviews, declared connector axes, scoped legend targets and bounded legend placement).
@@ -1672,3 +1672,13 @@ Deferred insertion of tool definitions into a model's context is a client/host
 concern, as described in the official client best practices; no server tool
 profiles or session-based tool activation are provided. Schema or response
 reductions require a separate agreed change.
+
+`render.result.images` identifies each attachment and orientation. Board renders
+use the board's configured visible layers. `side:both` keeps one layer overlay
+viewed from top, with `view:layer_overlay` and `side:both`; it does not return two
+physical surface renders. Bottom views explicitly report mirroring. Acquired-part
+preview images show actual mapped pin numbers and package pad names, retain full
+labels, and identify rotation/mirroring. `symbol_pin_numbers` and
+`pin_number_mapping_complete` expose the mapping used; unmapped labels stay blank
+and yield a warning/partial result. Generic library previews without device
+context keep their upstream placeholder semantics.

@@ -130,7 +130,7 @@ pub struct ExportNetlistArgs {
 }
 
 /// What to render.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, serde::Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RenderTarget {
     /// A schematic page.
@@ -154,7 +154,7 @@ pub struct RenderArgs {
     /// Board name, index or UUID (default: first board).
     #[serde(default)]
     pub board: Option<String>,
-    /// Board side seen from ("top" default, or "bottom").
+    /// View from top (default), bottom (mirrored), or both (visible-layer overlay viewed from top).
     #[serde(default)]
     pub side: Option<SideArg>,
     /// Image width in pixels (default 1600, max 4096).
@@ -509,9 +509,13 @@ pub fn render(session: &Session, args: RenderArgs) -> ToolResult<ToolOutput> {
             "image_region requires a schematic target.",
         ));
     }
+    let mut image =
+        json!({"index":0,"target":target,"width":width,"height":height,"mime_type":"image/png"});
     let (png, what) = match target {
         RenderTarget::Schematic => {
-            let (index, _, s) = resolve::schematic(p, args.schematic.as_deref())?;
+            let (index, id, s) = resolve::schematic(p, args.schematic.as_deref())?;
+            image["schematic"] = json!(id);
+            image["view"] = json!("schematic");
             (
                 render_schematic_preview(p, s, width, height, region)?,
                 format!("schematic page {index} \"{}\"", s.name().as_str()),
@@ -523,22 +527,44 @@ pub fn render(session: &Session, args: RenderArgs) -> ToolResult<ToolOutput> {
                 SideArg::Bottom => BoardSide::Bottom,
                 _ => BoardSide::Top,
             };
+            let overlay = matches!(args.side, Some(SideArg::Both));
+            image["board"] = json!(id);
+            image["view"] = json!(if overlay {
+                "layer_overlay"
+            } else {
+                "board_view"
+            });
+            image["side"] = json!(if overlay {
+                "both"
+            } else if side == BoardSide::Top {
+                "top"
+            } else {
+                "bottom"
+            });
+            image["view_from"] = json!(if side == BoardSide::Top {
+                "top"
+            } else {
+                "bottom"
+            });
+            image["mirrored"] = json!(side == BoardSide::Bottom);
+            image["layer_selection"] = json!("board_visible_layers");
             (
                 foilfern_scene::render_board_png(p, id, side, &options)?,
                 format!(
-                    "board {index} \"{}\" ({} side)",
+                    "board {index} \"{}\" ({})",
                     b.name().as_str(),
-                    if side == BoardSide::Top {
-                        "top"
+                    if overlay {
+                        "visible-layer overlay viewed from top"
+                    } else if side == BoardSide::Top {
+                        "top view"
                     } else {
-                        "bottom"
+                        "bottom view, mirrored"
                     }
                 ),
             )
         }
     };
-    let mut result =
-        json!({ "width": width, "height": height, "bytes": png.len(), "mime_type": "image/png" });
+    let mut result = json!({ "width": width, "height": height, "bytes": png.len(), "mime_type": "image/png", "images":[image] });
     if let Some((min, max)) = region {
         result["image_region"] = json!({"min":views::point(min),"max":views::point(max)});
     }

@@ -99,6 +99,20 @@ async fn acquisition_installs_once_replays_offline_and_refuses_changed_sources()
             .all(|png| png.starts_with(b"\x89PNG\r\n\x1a\n"))
     );
     assert_eq!(preview.result["mapping"].as_array().unwrap().len(), 2);
+    let mut numbers = preview.result["symbol_pin_numbers"]
+        .as_object()
+        .unwrap()
+        .values()
+        .filter_map(Value::as_str)
+        .collect::<Vec<_>>();
+    numbers.sort();
+    assert_eq!(numbers, ["1", "2"]);
+    assert_eq!(
+        preview.result["images"][0]["pin_numbers"],
+        "device_package_mapping"
+    );
+    assert_eq!(preview.result["images"][1]["pad_names"], true);
+    assert_eq!(preview.result["images"][1]["view_from"], "top");
     assert!(
         !session
             .workspace()

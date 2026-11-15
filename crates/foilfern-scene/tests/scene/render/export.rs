@@ -188,3 +188,32 @@ fn library_elements() {
         assert_eq!(result.errors, Vec::<String>::new());
     }
 }
+
+#[test]
+fn contextual_pad_names_fit_without_eliding_long_names() {
+    let path = Path::new(env!("LIBREPCB_UPSTREAM_DIR")).join(
+        "tests/data/libraries/Populated Library.lplib/pkg/60b715fa-bd1d-4d96-b153-2a28208f32fb",
+    );
+    let fs = TransactionalFileSystem::open_ro(&fp(path)).unwrap();
+    let mut package = Package::open(TransactionalDirectory::new(Arc::new(fs), "")).unwrap();
+    for (i, pad) in package.pads_mut().iter_mut().enumerate() {
+        pad.set_name(format!("1234567890123456789{i}").parse().unwrap());
+    }
+    let font = foilfern_scene::default_stroke_font();
+    let footprint = package.footprints().iter().next().unwrap();
+    let scene = foilfern_scene::FootprintScene::build_with_pad_names(
+        footprint,
+        &package,
+        font.as_ref(),
+        &foilfern_scene::ColorScheme::BOARD_DARK,
+    );
+    let labels = scene
+        .scene()
+        .items()
+        .filter(|(_, item)| item.layer == foilfern_scene::FootprintScene::PAD_NAMES)
+        .map(|(_, item)| item.bounding_box())
+        .collect::<Vec<_>>();
+    assert_eq!(labels.len(), 2);
+    assert!(labels.iter().all(|r| r.width() > 0. && r.height() > 0.));
+    assert_eq!(labels[0].intersect(labels[1]).area(), 0.);
+}

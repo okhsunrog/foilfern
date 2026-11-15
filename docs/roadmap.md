@@ -51,7 +51,7 @@ A P5 overlay for existing candidates can ship before automatic P4 planning.
 These ten follow-ups come from recurring concrete observations in the retained
 agent feedback and targeted source inspection. They refine the existing P0–P6
 stages and A1–A12 workflow queue; they do not mark previously delivered features
-as missing. F1–F7 are **delivered**; F8–F10 are **planned**.
+as missing. F1–F8 are **delivered**; F9–F10 are **planned**.
 The order below is the priority order, starting with acquisition, electrical metadata and review/output
 correctness. Where the cause is uncertain, reproduce and trace it before choosing
 a fix. Passing the small trial designs is not general electrical or mechanical
@@ -137,12 +137,15 @@ acceptance.
    See [paired release evidence](benchmarks/initial-legend/REPORT.md).
 
 8. **F8 — Unambiguous board views and readable pin numbers** (P5; A4/A6/A12).
-   `render(side:"both")` was labelled `top side`; imported-symbol previews
-   repeatedly showed truncated pin numbers such as `1…`. Reproduce both display
-   cases. Done when captions/metadata distinguish an overlay from separate top
-   and bottom views, and requested symbol/footprint previews expose readable pin
-   numbers and orientation. Check the acquired MCU fixture and mirrored board
-   views; verify rendering rather than inferring readability from JSON mapping.
+   **Delivered, API 60.** `side:"both"` is explicitly a single configured-layer
+   overlay viewed from the top, not two isolated physical surfaces. Render
+   attachments identify board/schematic, view mode, orientation, mirroring and
+   board-layer selection. Top/bottom views retain their existing rendering.
+   Imported-part symbol previews now use actual component/device/package pad
+   mappings instead of the literal generic `1…` placeholder. Footprint previews
+   draw complete pad names, with explicit top orientation. Missing mapping is
+   reported, never replaced by guessed numbers. Generic library-editor/export
+   placeholders remain unchanged because bare symbols have no package context.
 
 9. **F9 — Concrete output filenames before writing** (P0/P6; A8).
    A configured `board.png` produced `board1.png` and `board2.png`; the concrete

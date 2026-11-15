@@ -870,7 +870,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 59);
+    assert_eq!(info["api_capability_version"], 60);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -5107,5 +5107,56 @@ async fn stdio_initial_legend_is_shared_by_declarative_and_automatic_placement()
         json!({"x":33.4125,"y":10.3175})
     );
     call_ok(&client, "project_save", json!({})).await;
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn stdio_render_distinguishes_layer_overlay_from_bottom_view() {
+    let tmp = tempfile::tempdir().unwrap();
+    let lpp = crate::common::copy_test_project("Project With Two Boards", tmp.path());
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));
+    cmd.arg("--project").arg(lpp);
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let mut images = Vec::new();
+    for side in ["top", "bottom", "both"] {
+        let response = call(
+            &client,
+            "render",
+            json!({"target":"board","side":side,"width":640,"height":480}),
+        )
+        .await;
+        let envelope = response.structured_content.as_ref().unwrap();
+        assert_eq!(envelope["outcome"], "complete");
+        let metadata = &envelope["result"]["images"][0];
+        assert_eq!(metadata["index"], 0);
+        assert_eq!(metadata["target"], "board");
+        assert_eq!(metadata["side"], side);
+        assert_eq!(metadata["mirrored"], side == "bottom");
+        assert_eq!(
+            metadata["view_from"],
+            if side == "bottom" { "bottom" } else { "top" }
+        );
+        let text = response.content[0].as_text().unwrap();
+        if side == "both" {
+            assert_eq!(metadata["view"], "layer_overlay");
+            assert!(text.text.contains("overlay"));
+            assert!(!text.text.contains("top side"));
+        }
+        let pngs = response
+            .content
+            .iter()
+            .filter_map(|c| c.as_image())
+            .collect::<Vec<_>>();
+        assert_eq!(pngs.len(), 1);
+        images.push(pngs[0].data.clone());
+    }
+    assert_eq!(
+        images[0], images[2],
+        "Both preserves the configured layer overlay"
+    );
+    assert_ne!(
+        images[0], images[1],
+        "Bottom has its own mirrored coordinate frame"
+    );
     client.cancel().await.unwrap();
 }

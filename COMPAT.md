@@ -514,6 +514,13 @@ differ between platforms/implementations:
 
 ## project/board
 
+- Acquired-part MCP previews render pin numbers from the selected component,
+  device and package mapping and annotate footprint pad names. Upstream's bare
+  symbol painter uses `1…` placeholders because a symbol has no package context.
+  Generic library editing/export retains that behavior; contextual preview
+  annotations never alter library data. MCP board `side:both` explicitly names
+  its single configured-layer overlay and viewing orientation.
+
 - Initial device placement through MCP/declarative/automatic tools and the final
   interactive editor drop can translate blocked library legend text to a nearby
   checked position. Upstream keeps the library positions. Existing/manual text,
