@@ -272,6 +272,12 @@ async fn stdio_legend_search_checks_obstacles_and_replays_one_patch() {
         "{validation:#}"
     );
     assert_eq!(report["applicable"], true, "{proposed:#}");
+    assert_eq!(report["edit"]["target"], target);
+    assert_eq!(report["edit"]["component"], "R1");
+    assert_eq!(report["edit"]["rendered_text"], "R1");
+    assert_eq!(report["edit"]["changed"], true);
+    assert!(report["edit"]["before"]["bbox"].is_object());
+    assert!(report["edit"]["after"]["bbox"].is_object());
     assert_eq!(
         report["attempts"].as_array().unwrap().len(),
         5,
@@ -851,7 +857,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 54);
+    assert_eq!(info["api_capability_version"], 55);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(

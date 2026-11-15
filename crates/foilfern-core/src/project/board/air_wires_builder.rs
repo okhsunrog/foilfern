@@ -240,7 +240,7 @@ impl<'a> BoardAirWiresBuilder<'a> {
 impl Project {
     /// Rebuilds the air wires of the nets scheduled for rebuild on a board
     /// (upstream `Board::triggerAirWiresRebuild()`); journals
-    /// [`BoardChange::AirWires`] if any net was rebuilt.
+    /// [`BoardChange::AirWires`] only for nets whose anchor/position data changed.
     pub fn rebuild_air_wires(&mut self, board: BoardId) -> Result<()> {
         let index = self.board_index(board).ok_or(Error::NotFound {
             kind: EntityKind::Board,
@@ -264,7 +264,12 @@ impl Project {
             results.push((*net, wires));
         }
         let derived = &mut self.boards[index].derived;
+        let mut changed = Vec::new();
         for (net, wires) in results {
+            if derived.air_wires.get(&net).map_or(&[][..], Vec::as_slice) == wires {
+                continue;
+            }
+            changed.push(net);
             if wires.is_empty() {
                 derived.air_wires.remove(&net);
             } else {
@@ -272,10 +277,12 @@ impl Project {
             }
         }
         derived.dirty_air_wire_nets.clear();
-        self.record(Change::Board {
-            id: board,
-            change: BoardChange::AirWires(nets),
-        });
+        if !changed.is_empty() {
+            self.record(Change::Board {
+                id: board,
+                change: BoardChange::AirWires(changed),
+            });
+        }
         Ok(())
     }
 

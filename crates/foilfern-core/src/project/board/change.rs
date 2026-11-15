@@ -108,6 +108,15 @@ pub enum BoardChange {
     /// Placement, library elements, attributes or stroke texts of a device
     /// changed (upstream `BI_Device::onEdited`, `attributesChanged()`).
     DeviceChanged(ComponentInstanceId),
+    /// Only the listed device stroke texts changed; device pose, library
+    /// references and other properties stayed the same. IDs are scoped by
+    /// component because footprint text UUIDs can be shared by many instances.
+    DeviceTextsChanged {
+        /// Owning component instance.
+        component: ComponentInstanceId,
+        /// Added, removed or edited text UUIDs.
+        texts: Vec<Uuid>,
+    },
     /// A net segment was added (upstream `netSegmentAdded()`).
     NetSegmentAdded(NetSegmentId),
     /// A net segment was removed (upstream `netSegmentRemoved()`).
@@ -171,7 +180,7 @@ pub enum BoardChange {
         /// UUID of the item.
         uuid: Uuid,
     },
-    /// The air wires of some nets were rebuilt (upstream
+    /// The air wires of some nets changed after rebuilding (upstream
     /// `airWireAdded()`/`airWireRemoved()`).
     AirWires(Vec<Option<NetSignalId>>),
     /// The calculated fragments of planes changed (not undoable, upstream

@@ -145,10 +145,14 @@ pub(super) fn apply(
         if let Some(text) = chosen {
             report["text"] =
                 crate::tools::board_edit::legend_json(project, board, &text, device.as_ref())?;
+            let before =
+                crate::tools::board_edit::legend_json(project, board, old, device.as_ref())?;
+            report["edit"] = crate::tools::board_edit::text_edit_json(&before, &report["text"]);
             if text != *old {
                 diff.push(json!({"field":"board_legend","board":id,"component":component,"uuid":uuid,
                     "before":{"position":views::point(old.position()),"rotation":old.rotation().to_deg()},
-                    "after":{"position":views::point(text.position()),"rotation":text.rotation().to_deg()}}));
+                    "after":{"position":views::point(text.position()),"rotation":text.rotation().to_deg()},
+                    "edit":report["edit"]}));
                 let mutation = if let Some(device) = device.as_mut() {
                     device.insert_stroke_text(text);
                     BoardMutation::UpdateDevice {

@@ -129,6 +129,45 @@ fn small_board() {
     );
 }
 
+#[test]
+fn rebuilding_unchanged_air_wires_preserves_revision() {
+    let mut f = Fixture::with_devices();
+    f.p.force_air_wires_rebuild(f.board).unwrap();
+    let before = f.board().derived().air_wires().clone();
+    let revision = f.p.revision();
+    for _ in 0..3 {
+        f.p.force_air_wires_rebuild(f.board).unwrap();
+        assert_eq!(f.p.revision(), revision);
+        assert_eq!(f.board().derived().air_wires(), &before);
+        assert!(f.board().derived().dirty_air_wire_nets().is_empty());
+    }
+
+    // The endpoints can move while the anchor identities stay the same.
+    let mut device = f.board().device(f.r2).unwrap().clone();
+    device.set_position(pt(20.0, 0.0));
+    f.p.apply(Mutation::Board(BoardMutation::UpdateDevice {
+        board: f.board,
+        device,
+    }))
+    .unwrap();
+    let revision = f.p.revision();
+    f.p.rebuild_air_wires(f.board).unwrap();
+    assert_ne!(f.board().derived().air_wires(), &before);
+    let ChangesSince::Changes(changes) = f.p.changes_since(revision) else {
+        panic!("resync");
+    };
+    assert_eq!(
+        changes,
+        &[Change::Board {
+            id: f.board,
+            change: BoardChange::AirWires(vec![Some(f.gnd)]),
+        }]
+    );
+    let revision = f.p.revision();
+    f.p.force_air_wires_rebuild(f.board).unwrap();
+    assert_eq!(f.p.revision(), revision);
+}
+
 fn open_test_project(dir: &str, file: &str) -> Project {
     let path = StdPath::new(env!("LIBREPCB_UPSTREAM_DIR"))
         .join("tests/data/projects")

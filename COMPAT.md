@@ -599,6 +599,10 @@ Rendering only; no file is affected.
   messages and approvals (`circuit/erc.lp`) are identical. Symbols whose
   pins cannot be computed from the project library are skipped (the loader
   rejects such projects, upstream cannot represent them at all).
+- Interactive ERC diagnostics can resolve a hidden pin label to its component
+  signal name. The canonical upstream message and approval node remain unchanged;
+  MCP exposes the canonical title when its readable title differs, together with
+  scoped pin/signal/pad references. This changes diagnostic presentation only.
 - `ProjectAttributeLookup` borrows the project and the objects (upstream:
   `QPointer`s which silently yield empty values after deletion). Built-in
   keys whose library element is missing from the project library
@@ -790,6 +794,11 @@ Rendering only; no file is affected.
   synchronous transaction after commit. A successful rollback restores the
   file overlay and preserves the previous revision. Undo, redo and cancellation
   of an interactive preview publish new changes.
+  Air-wire rebuilds publish only changed anchor/coordinate data, rather than
+  mirroring upstream removal/recreation signals for identical calculated wires.
+  Text-only device updates identify the owning component and changed texts in
+  `DeviceTextsChanged`; mixed device updates retain `DeviceChanged`. Neither
+  distinction changes native serialization or approval identities.
 - **Combining net segments** (`CmdCombineSchematicNetSegments`,
   `CmdCombineBoardNetSegments`, used when a wire or trace connects two
   segments) moves the elements with their UUIDs; upstream re-creates

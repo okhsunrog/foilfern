@@ -516,6 +516,9 @@ impl BoardScene {
                         dirty.units.insert(Unit::Device(*c));
                         dirty.moved_devices.insert(*c);
                     }
+                    B::DeviceTextsChanged { component, .. } => {
+                        dirty.units.insert(Unit::Device(*component));
+                    }
                     B::NetSegmentAdded(s)
                     | B::NetSegmentRemoved(s)
                     | B::NetSegmentNetChanged { segment: s, .. } => {

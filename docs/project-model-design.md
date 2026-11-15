@@ -142,6 +142,11 @@ Mutations invalidate these directly; correctness does not depend on a UI consume
 reading the journal. Plane and air-wire rebuilds are synchronous core operations
 or operate on extracted jobs on caller-provided workers. Consumers must rebuild
 what they need before claiming connectivity or reference coverage.
+Air-wire rebuilds clear dirty nets even when the result is unchanged; they
+publish only nets whose anchor IDs or integer endpoint positions changed.
+Footprint-text-only device updates publish `DeviceTextsChanged` with the owning
+component and changed text UUIDs. Device placement/property changes continue to
+publish `DeviceChanged`. These runtime distinctions do not alter native files.
 
 ERC reads the model. DRC runs on extracted board check data and rebuilt copper.
 Scenes consume the journal incrementally and handle `Resync`. MCP host notices

@@ -556,6 +556,11 @@ fn drc_preparation_accepts_background_derived_updates() {
         // The GUI can update derived data while the DRC worker calculates planes.
         // No model input has changed, so this must not cancel the requested check.
         project.force_air_wires_rebuild(board).unwrap();
+        assert_eq!(project.revision(), revision); // identical calculated wires
+        // Exercise a real background derived update as well, rather than
+        // relying on a redundant air-wire notification to advance the journal.
+        project.rebuild_planes(board, None).unwrap();
+        project.force_air_wires_rebuild(board).unwrap();
         assert!(project.revision() > revision);
         let data = prepared.apply(&mut project).unwrap();
         if !quick {

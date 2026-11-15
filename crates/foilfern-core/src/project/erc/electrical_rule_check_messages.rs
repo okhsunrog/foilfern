@@ -111,6 +111,34 @@ pub struct ErcMessage {
 }
 
 impl ErcMessage {
+    /// A readable title for interactive diagnostics. The canonical upstream
+    /// text in `message()` and the persisted approval identity stay unchanged.
+    /// Hidden schematic pin labels must not hide the pin's identity here.
+    pub fn diagnostic_title(&self, project: &crate::project::Project) -> String {
+        if let ErcMessageKind::ConnectedPinWithoutWire {
+            schematic,
+            symbol,
+            pin,
+        } = self.kind
+            && let Some(symbol) = project
+                .schematic(schematic)
+                .and_then(|s| s.symbols().get(&symbol))
+            && let Ok(pins) = symbol.pins(project.view())
+            && let Some(pin) = pins.iter().find(|p| p.uuid() == pin)
+            && pin.name().trim().is_empty()
+        {
+            return tr!(
+                "ErcMsgConnectedPinWithoutWire",
+                "Connected pin without wire: '{0}:{1}'",
+                symbol
+                    .name(project.view())
+                    .unwrap_or_else(|_| symbol.uuid().to_string()),
+                pin.lib_signal().name().as_str()
+            );
+        }
+        self.message.message().to_owned()
+    }
+
     /// Returns the kind and the affected items.
     pub fn kind(&self) -> ErcMessageKind {
         self.kind

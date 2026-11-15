@@ -168,7 +168,8 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `54`, including supplier acquisition,
+`api_capability_version` (currently `55`, including named ERC subjects, scoped
+text-change events and reports, supplier acquisition,
 official KiCad imports, rendered board-placement reviews, declared connector axes, scoped legend targets and bounded legend placement).
 Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
@@ -759,6 +760,21 @@ information. Projects without boards fall back to a generic schematic BOM.
 Use `schematic_only: true` explicitly for a generic BOM in a project with boards;
 it cannot be combined with `board`. The response identifies the selected board
 UUID (or null for the generic BOM).
+
+`erc_run` and design-preview ERC findings include an `objects` array with typed,
+stable object references. Pin/signal subjects include the component UUID and
+designator, signal UUID/name, net UUID/name, and matching placed board pads with
+board/component/pad IDs and pad names. Symbol-pin subjects also include schematic,
+symbol and pin IDs, the native pin name and the displayed name (which may be
+intentionally empty). When a connected pin's label is hidden, the readable
+`message` uses the component signal name; `canonical_message` preserves the
+upstream title in that case. Native ERC messages and approval nodes are unchanged.
+
+Full DRC still rebuilds planes and air wires. Air-wire publication compares exact
+anchor IDs and integer coordinates per net; only changed results advance the
+journal. Rechecking an unchanged board preserves revision and clean state after
+any necessary initial derived updates or obsolete-approval cleanup. Actual edits
+and changed derived results still invalidate revision-bound work.
 
 `drc_run` includes an `objects` array on each finding. Copper-pair clearance
 findings identify both objects. Graphic width and silkscreen clearance
@@ -1523,14 +1539,21 @@ cannot be mixed with `target`. `text` preserves the native attribute template;
 `bbox` is the transformed stroke envelope in board millimeters, including half
 the stroke width on each side; it is null for empty text. Rotated and mirrored
 instance texts are already in board coordinates and are not transformed twice.
+`board_text_move` also returns `edit`: the scoped target, component designator,
+rendered text, and before/after position, rotation and bbox. An unchanged pose
+reports `changed:false` without a journal event or undo entry. A footprint-text-only
+edit journals `DeviceTextsChanged {component,texts}` rather than `DeviceChanged`;
+mixed device/property edits still use `DeviceChanged`. Scene consumers refresh
+the owning device's text without treating it as a moved device.
 
 A board layout can contain `legend_placements` without device `placements`.
 Each entry contains a complete `target` from `board_legend_list` and `candidates`
 (an ordered list of `{position:{x,y}, rotation?}` in board mm). Up to 16 texts and
 32 poses per text are accepted. The first clear pose wins. The preview reports
 each attempted pose's mask, board-edge/cutout, courtyard and text-overlap checks,
-the chosen text and the existing full before/after DRC validation. Checks use
-native font strokes and exact DRC regions. Mask and board-edge clearance use the
+the chosen text and the existing full before/after DRC validation. A chosen pose
+includes the same scoped `edit` report, also attached to its semantic diff entry.
+Geometry checks use native font strokes and exact DRC regions. Mask and board-edge clearance use the
 configured silkscreen clearance. Courtyards fall back to package outlines with
 explicit component IDs; devices with neither geometry block the search. This
 checks the supplied library geometry, not whether it accurately models a body.

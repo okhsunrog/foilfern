@@ -801,6 +801,7 @@ fn update_device(p: &mut Project, id: BoardId, device: BoardDevice) -> Result<Bo
     let placement_changed = geometry_changed
         || (old.position() != device.position())
         || (old.rotation() != device.rotation());
+    let text_changes = old.text_only_changes(&device);
     let old = p.boards[index]
         .devices
         .insert(component, device)
@@ -808,7 +809,13 @@ fn update_device(p: &mut Project, id: BoardId, device: BoardDevice) -> Result<Bo
     if placement_changed {
         schedule_device(p, index, component);
     }
-    record(p, id, BoardChange::DeviceChanged(component));
+    match text_changes {
+        Some(texts) if !texts.is_empty() => {
+            record(p, id, BoardChange::DeviceTextsChanged { component, texts });
+        }
+        Some(_) => {}
+        None => record(p, id, BoardChange::DeviceChanged(component)),
+    }
     Ok(BoardMutation::UpdateDevice {
         board: id,
         device: old,

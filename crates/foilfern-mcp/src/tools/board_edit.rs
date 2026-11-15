@@ -368,6 +368,15 @@ pub(crate) fn legend_json(
     }))
 }
 
+/// Review the scoped text edit without reading and comparing the device again.
+pub(crate) fn text_edit_json(before: &Value, after: &Value) -> Value {
+    json!({"kind":"board_text","target":after["target"],
+        "component":after["component"],"rendered_text":after["rendered_text"],
+        "before":{"position":before["position"],"rotation":before["rotation"],"bbox":before["bbox"]},
+        "after":{"position":after["position"],"rotation":after["rotation"],"bbox":after["bbox"]},
+        "changed":before != after})
+}
+
 pub fn board_legend_list(session: &Session, args: BoardLegendArgs) -> ToolResult<ToolOutput> {
     let project = session.project()?.project();
     let (_, id, board) = resolve::board(project, args.board.as_deref())?;
@@ -454,11 +463,14 @@ pub fn board_text_move(session: &mut Session, args: BoardTextMoveArgs) -> ToolRe
     if text.locked() {
         return Err(ToolError::new(ErrorKind::Refused, "Board text is locked."));
     }
+    let before = legend_json(project, board, &text, device.as_ref())?;
     text.set_position(args.position.to_point()?);
     if let Some(rotation) = args.rotation {
         text.set_rotation(angle(rotation)?);
     }
-    let result = legend_json(project, board, &text, device.as_ref())?;
+    let mut result = legend_json(project, board, &text, device.as_ref())?;
+    let changed = before != result;
+    result["edit"] = text_edit_json(&before, &result);
     let mutation = match device.as_mut() {
         Some(device) => {
             device.insert_stroke_text(text);
@@ -473,9 +485,17 @@ pub fn board_text_move(session: &mut Session, args: BoardTextMoveArgs) -> ToolRe
         },
     };
     let done = write(session, "board_text_move", args.expected_revision, |tx| {
-        Ok(tx.apply(Mutation::Board(mutation))?)
+        if changed {
+            tx.apply(Mutation::Board(mutation))?;
+        }
+        Ok(())
     })?;
-    done.output(session.project()?, "Moved board text.", result)
+    let summary = if changed {
+        "Moved board text."
+    } else {
+        "Board text is already at the requested pose."
+    };
+    done.output(session.project()?, summary, result)
 }
 
 /// Board side of a device.

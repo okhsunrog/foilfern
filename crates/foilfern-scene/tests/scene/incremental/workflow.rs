@@ -17,6 +17,38 @@ fn ident(s: &str) -> CircuitIdentifier {
     CircuitIdentifier::new(s).unwrap()
 }
 
+#[test]
+fn device_text_changes_refresh_incremental_scenes() {
+    use foilfern_core::project::{BoardMutation, Mutation};
+    let tmp = tempfile::tempdir().unwrap();
+    let mut h = Harness::new(create_editor(tmp.path()));
+    let (_, board) = build_demo(&mut h);
+    let device = h
+        .project()
+        .board(board)
+        .unwrap()
+        .devices()
+        .values()
+        .next()
+        .unwrap();
+    let mut updated = device.clone();
+    let mut text = device.stroke_texts().values().next().unwrap().clone();
+    text.set_position(mm(23.0, 17.0));
+    updated.insert_stroke_text(text);
+    h.editor
+        .execute_atomic("Move footprint text", |tx| -> foilfern_editor::Result<()> {
+            tx.apply(Mutation::Board(BoardMutation::UpdateDevice {
+                board,
+                device: updated,
+            }))?;
+            Ok(())
+        })
+        .unwrap();
+    h.check("footprint text move");
+    assert!(h.undo());
+    assert!(h.redo());
+}
+
 /// Builds R1 and R2 in series between VCC and GND with the middle net MID
 /// and C1 between VCC and GND, placed and routed; every step is checked.
 /// Returns the schematic and the board.

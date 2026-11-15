@@ -173,6 +173,27 @@ impl BoardDevice {
         &self.stroke_texts
     }
 
+    /// Returns changed text IDs when every other device property is identical.
+    /// Compare the complete value with texts replaced so future properties also
+    /// participate in this distinction.
+    pub(crate) fn text_only_changes(&self, other: &Self) -> Option<Vec<Uuid>> {
+        let mut comparison = self.clone();
+        comparison.stroke_texts.clone_from(&other.stroke_texts);
+        if comparison != *other {
+            return None;
+        }
+        Some(
+            self.stroke_texts
+                .keys()
+                .chain(other.stroke_texts.keys())
+                .copied()
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .filter(|id| self.stroke_texts.get(id) != other.stroke_texts.get(id))
+                .collect(),
+        )
+    }
+
     /// Adds or replaces a stroke text, returns the replaced one.
     pub fn insert_stroke_text(&mut self, text: BoardStrokeTextData) -> Option<BoardStrokeTextData> {
         self.stroke_texts.insert(text.uuid(), text)

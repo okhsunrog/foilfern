@@ -197,9 +197,34 @@ fn board_legend_addresses_instances_and_reports_transformed_ink_bounds() {
     assert_ne!(first["component_uuid"], second["component_uuid"]);
     assert!(first["bbox"]["min"]["x"].is_number());
     let pos = &first["position"];
+    let board_before = session.project().unwrap().project().boards()[0].clone();
     let moved = board_edit::board_text_move(&mut session, serde_json::from_value(json!({
         "target":first["target"],"position":{"x":pos["x"].as_f64().unwrap()+7.0,"y":pos["y"].as_f64().unwrap()-3.0}
     })).unwrap()).unwrap();
+    assert_eq!(
+        moved.result["edit"]["before"]["position"],
+        first["position"]
+    );
+    assert_eq!(
+        moved.result["edit"]["after"]["position"],
+        moved.result["position"]
+    );
+    assert_eq!(moved.result["edit"]["target"], first["target"]);
+    assert_eq!(moved.result["edit"]["component"], "R1");
+    assert_eq!(moved.result["edit"]["changed"], true);
+    assert_eq!(
+        moved.result["changes"][0]["Board"]["change"]["DeviceTextsChanged"]["texts"],
+        json!([first["uuid"]])
+    );
+    let board_after = &session.project().unwrap().project().boards()[0];
+    assert_eq!(board_after.net_segments(), board_before.net_segments());
+    for (id, old) in board_before.devices() {
+        let mut after = board_after.device(*id).unwrap().clone();
+        for text in old.stroke_texts().values() {
+            after.insert_stroke_text(text.clone());
+        }
+        assert_eq!(&after, old);
+    }
     for (axis, delta) in [("x", 7.0), ("y", -3.0)] {
         for edge in ["min", "max"] {
             assert!(
@@ -249,6 +274,148 @@ fn board_legend_addresses_instances_and_reports_transformed_ink_bounds() {
     )
     .unwrap();
     assert_eq!(legacy.result["bbox"], second["bbox"]);
+    assert_eq!(legacy.result["edit"]["changed"], false);
+    assert_eq!(legacy.result["change_count"], 0);
+}
+
+#[test]
+fn erc_diagnostics_resolve_hidden_pins_without_changing_native_approvals() {
+    use foilfern_core::project::circuit::NetSignal;
+    use foilfern_core::project::erc::{ErcMessageKind, run_erc};
+    use foilfern_core::project::{Mutation, NetSignalId};
+    use foilfern_core::types::Uuid;
+    use foilfern_mcp::tools::{board_edit, schematic_edit};
+    let tmp = tempfile::tempdir().unwrap();
+    let mut session = Session::new();
+    let ws = project::workspace_open(
+        &mut session,
+        serde_json::from_value(json!({"path":tmp.path().join("workspace")})).unwrap(),
+        true,
+    )
+    .unwrap();
+    crate::common::install_populated_library(Path::new(
+        ws.result["libraries_path"].as_str().unwrap(),
+    ));
+    library::library_rescan(&session).unwrap();
+    project::project_create(
+        &mut session,
+        serde_json::from_value(json!({"name":"ERC subjects"})).unwrap(),
+    )
+    .unwrap();
+    schematic_edit::component_add(
+        &mut session,
+        serde_json::from_value(json!({"part":"R-0805","designator":"R1"})).unwrap(),
+    )
+    .unwrap();
+    board_edit::device_place(
+        &mut session,
+        serde_json::from_value(json!({"component":"R1","position":{"x":10,"y":10}})).unwrap(),
+    )
+    .unwrap();
+    let p = session.project().unwrap().project();
+    let schematic = &p.schematics()[0];
+    let symbol = schematic.symbols().values().next().unwrap();
+    let pins = symbol.pins(p.view()).unwrap();
+    let pin = pins
+        .iter()
+        .find(|p| p.name().is_empty())
+        .expect("resistor pin label is hidden");
+    let (signal, pin_id, symbol_id, schematic_id, signal_name) = (
+        pin.signal(),
+        pin.uuid(),
+        symbol.id(),
+        schematic.id(),
+        pin.lib_signal().name().as_str().to_owned(),
+    );
+    let net = NetSignal::new(
+        Uuid::new_random(),
+        *p.circuit().net_classes().keys().next().unwrap(),
+        "TEST".parse().unwrap(),
+        false,
+    );
+    let net_id = NetSignalId(net.uuid());
+    session
+        .project_mut()
+        .unwrap()
+        .editor
+        .execute_atomic("Connect hidden pin", |tx| -> foilfern_editor::Result<()> {
+            tx.apply(Mutation::AddNetSignal(net))?;
+            tx.apply(Mutation::SetComponentSignalNet {
+                signal,
+                net: Some(net_id),
+            })?;
+            Ok(())
+        })
+        .unwrap();
+    let kind = ErcMessageKind::ConnectedPinWithoutWire {
+        schematic: schematic_id,
+        symbol: symbol_id,
+        pin: pin_id,
+    };
+    let messages = run_erc(session.project().unwrap().project());
+    let canonical = messages.iter().find(|m| m.kind() == kind).unwrap();
+    assert_eq!(
+        canonical.message().message(),
+        "Connected pin without wire: 'R1:'"
+    );
+    let approval = canonical.approval().clone();
+    let output = output::erc_run(&mut session, Default::default()).unwrap();
+    let message = output.result["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["objects"][0]["pin"] == json!(pin_id))
+        .unwrap();
+    assert_eq!(message["canonical_message"], canonical.message().message());
+    assert_eq!(
+        message["message"],
+        format!("Connected pin without wire: 'R1:{signal_name}'")
+    );
+    let object = &message["objects"][0];
+    assert_eq!(object["designator"], "R1");
+    assert_eq!(object["component"], json!(signal.component));
+    assert_eq!(object["signal"], json!(signal.signal));
+    assert_eq!(object["signal_name"], signal_name);
+    assert_eq!(object["net_name"], "TEST");
+    assert!(!object["pads"].as_array().unwrap().is_empty());
+    session
+        .project_mut()
+        .unwrap()
+        .editor
+        .execute_atomic("Approve pin", |tx| -> foilfern_editor::Result<()> {
+            tx.apply(Mutation::SetErcApproval {
+                approval: approval.clone(),
+                approved: true,
+            })?;
+            Ok(())
+        })
+        .unwrap();
+    project::project_save(&mut session, Default::default()).unwrap();
+    let path = session.project().unwrap().file_path();
+    project::project_close(&mut session, Default::default()).unwrap();
+    project::project_open(&mut session, ProjectOpenArgs { path }).unwrap();
+    let output = output::erc_run(
+        &mut session,
+        ErcArgs {
+            include_approved: true,
+        },
+    )
+    .unwrap();
+    let message = output.result["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["objects"][0]["pin"] == json!(pin_id))
+        .unwrap();
+    assert_eq!(message["approved"], true);
+    assert!(
+        session
+            .project()
+            .unwrap()
+            .project()
+            .erc_approvals()
+            .contains(&approval)
+    );
 }
 
 #[test]
@@ -810,6 +977,62 @@ fn project_read_tools() {
 
     let out = output::jobs_list(&session).unwrap();
     assert!(out.result["jobs"].is_array());
+}
+
+#[test]
+fn repeated_drc_preserves_revision_clean_state_and_write_freshness() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (mut session, lpp) = open_project(tmp.path(), "Nested Planes");
+    // Initial check may legitimately prune obsolete stored approvals.
+    output::drc_run(&mut session, Default::default()).unwrap();
+    project::project_save(&mut session, Default::default()).unwrap();
+    for reopened in [false, true] {
+        if reopened {
+            project::project_save(&mut session, Default::default()).unwrap();
+            project::project_close(&mut session, Default::default()).unwrap();
+            project::project_open(
+                &mut session,
+                ProjectOpenArgs {
+                    path: lpp.to_string_lossy().into_owned(),
+                },
+            )
+            .unwrap();
+        }
+        let first = output::drc_run(&mut session, Default::default()).unwrap();
+        let revision = session.project().unwrap().project().revision();
+        assert!(!session.project().unwrap().has_unsaved_changes());
+        for _ in 0..2 {
+            let next = output::drc_run(&mut session, Default::default()).unwrap();
+            assert_eq!(first.result, next.result);
+            assert_eq!(session.project().unwrap().project().revision(), revision);
+            assert!(!session.project().unwrap().has_unsaved_changes());
+        }
+        // An actual guarded write succeeds with the revision from before DRC.
+        let mut metadata = session.project().unwrap().project().metadata().clone();
+        metadata.author.push('x');
+        let mutation = serde_json::to_value(foilfern_core::project::Mutation::SetProjectMetadata(
+            metadata,
+        ))
+        .unwrap();
+        mutation::mutation_apply(
+            &mut session,
+            MutationApplyArgs {
+                mutation: mutation.clone(),
+                expected_revision: Some(revision),
+            },
+        )
+        .unwrap();
+        assert!(session.project().unwrap().has_unsaved_changes());
+        let err = mutation::mutation_apply(
+            &mut session,
+            MutationApplyArgs {
+                mutation,
+                expected_revision: Some(revision),
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind, ErrorKind::StaleRevision);
+    }
 }
 
 #[test]

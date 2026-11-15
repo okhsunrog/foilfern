@@ -7,6 +7,7 @@
 //! `drc_run`, `export_fabrication` and `jobs_run` rebuild planes and air
 //! wires first (derived data outside the undo history, like upstream).
 
+mod erc;
 mod jobs;
 pub use jobs::{
     JobsConfigureArgs, JobsListArgs, configure as jobs_configure, list as jobs_list_with,
@@ -198,15 +199,21 @@ fn severity_str(s: Severity) -> &'static str {
 
 pub(super) fn erc_message_json(p: &Project, message: &ErcMessage) -> Value {
     let msg = message.message();
-    json!({
+    let title = message.diagnostic_title(p);
+    let mut output = json!({
         "severity": severity_str(msg.severity()),
-        "message": msg.message(),
+        "message": title,
+        "objects": erc::objects(p, message.kind()),
         "description": msg.description(),
         "kind": format!("{:?}", message.kind()),
         "schematic": message.schematic().and_then(|id| p.schematic(id)).map(|s| s.name().as_str()),
         "approved": p.erc_approvals().contains(message.approval()),
         "locations": msg.locations().iter().map(views::path).collect::<Vec<_>>(),
-    })
+    });
+    if title != msg.message() {
+        output["canonical_message"] = json!(msg.message());
+    }
+    output
 }
 
 /// `erc_run`.
