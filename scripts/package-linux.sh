@@ -67,7 +67,7 @@ chmod +x "$work/AppRun"
 # Winit loads these libraries at runtime; they are not all visible to ldd.
 # The graphics driver and Vulkan/OpenGL loader remain host responsibilities.
 libraries=()
-for library in libfontconfig.so.1 libfreetype.so.6 libxkbcommon.so.0 \
+for library in libfontconfig.so.1 libfreetype.so.6 libxkbcommon.so.0 libxkbcommon-x11.so.0 \
   libwayland-client.so.0 libwayland-cursor.so.0 libwayland-egl.so.1 \
   libX11.so.6 libXcursor.so.1 libXi.so.6 libXrandr.so.2 libxcb.so.1 \
   libXext.so.6 libXfixes.so.3; do
