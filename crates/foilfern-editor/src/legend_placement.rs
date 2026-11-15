@@ -226,3 +226,5 @@ impl LegendObstacles {
         })
     }
 }
+
+pub mod initial;

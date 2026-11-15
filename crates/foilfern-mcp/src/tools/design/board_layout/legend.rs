@@ -215,3 +215,15 @@ pub(super) fn review(
     }
     Ok(())
 }
+
+/// Explicit searches own the supplied device annotations in this document.
+pub(super) fn explicit_components(
+    requests: &[LegendPlacement],
+    project: &foilfern_core::project::Project,
+) -> ToolResult<BTreeSet<foilfern_core::project::ComponentInstanceId>> {
+    requests
+        .iter()
+        .filter_map(|request| request.target.component.as_deref())
+        .map(|key| resolve::component(project, key).map(|(id, _)| id))
+        .collect()
+}

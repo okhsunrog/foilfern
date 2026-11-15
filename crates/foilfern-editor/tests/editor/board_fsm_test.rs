@@ -1352,3 +1352,59 @@ fn selection_is_cross_probed() {
     h.click(mm(35.0, 18.0));
     assert!(h.fsm.cross_probe().is_empty());
 }
+
+#[test]
+fn initial_legend_is_checked_at_the_final_interactive_drop_pose() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut editor = create_editor(dir.path());
+    let board = editor
+        .execute(AddBoard::new(name("default")))
+        .unwrap()
+        .board;
+    editor
+        .execute(SetBoardOutline::rect(Some(board), mm(0., 0.), mm(40., 30.)))
+        .unwrap();
+    let component = editor
+        .execute(AddComponent {
+            device: Some(lib::c0805()),
+            ..AddComponent::new(lib::capacitor())
+        })
+        .unwrap()
+        .component;
+    let mut h = Harness::new(dir, editor, board);
+    h.move_to(mm(0., 0.));
+    h.input(BoardFsmInput::AddDevice {
+        component,
+        device: lib::c0805(),
+        footprint: None,
+    });
+    h.input(BoardFsmInput::Rotate(Angle::DEG90));
+    h.input(BoardFsmInput::Flip(Orientation::Horizontal));
+    h.move_to(mm(20.32, 15.24));
+    h.press(mm(20.32, 15.24));
+    let device = h.board().device(component).unwrap().clone();
+    assert!(device.mirrored());
+    assert_eq!(device.position(), mm(20.32, 15.24));
+    let text = device
+        .stroke_texts()
+        .values()
+        .find(|text| text.layer() == Layer::BOT_NAMES)
+        .unwrap();
+    let obstacles = foilfern_editor::legend_placement::LegendObstacles::new(
+        h.editor.project(),
+        h.board(),
+        text,
+        Some(&device),
+    )
+    .unwrap();
+    assert!(
+        obstacles
+            .check(h.editor.project(), h.board(), text, Some(&device))
+            .unwrap()
+            .clear()
+    );
+    assert!(h.editor.undo().unwrap());
+    assert!(h.board().device(component).is_none());
+    assert!(h.editor.redo().unwrap());
+    assert_eq!(h.board().device(component).unwrap(), &device);
+}

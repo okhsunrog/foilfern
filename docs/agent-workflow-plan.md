@@ -17,7 +17,9 @@ F2 now retains source electrical types and reports honest structural ERC coverag
 see [acceptance evidence](benchmarks/import-electrical-metadata/REPORT.md).
 F3/F4 deliver paired board-only previews and explicit STEP assembly coverage;
 see [acceptance evidence](benchmarks/board-preview-step/REPORT.md).
-F7–F10 remain planned; their acceptance requires reproduction and source tracing
+F7 now checks and adjusts initial device legend with bounded exact-geometry
+search, retaining no-fit findings and manual annotations.
+F8–F10 remain planned; their acceptance requires reproduction and source tracing
 where the reported cause is uncertain.
 
 ## Delivery queue

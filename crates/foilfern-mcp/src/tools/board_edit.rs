@@ -616,8 +616,18 @@ pub fn device_place(session: &mut Session, args: DevicePlaceArgs) -> ToolResult<
                 })?;
             }
         }
+        let legend = if existing.is_none() {
+            tx.run(
+                foilfern_editor::legend_placement::initial::PlaceInitialDeviceLegend {
+                    board,
+                    components: vec![component],
+                },
+            )?
+        } else {
+            Vec::new()
+        };
         guard.enforce(tx.project())?;
-        Ok(())
+        Ok(legend)
     })?;
     let open = session.project()?;
     let p = open.project();
@@ -625,8 +635,11 @@ pub fn device_place(session: &mut Session, args: DevicePlaceArgs) -> ToolResult<
     let device = b
         .device(component)
         .ok_or_else(|| ToolError::internal("the device is missing after placing it"))?;
-    let result = device_json(p, b, device, args.include_pads.unwrap_or(true))?;
-    done.output(
+    let mut result = device_json(p, b, device, args.include_pads.unwrap_or(true))?;
+    if existing.is_none() {
+        result["initial_legend"] = initial_legend_json(p, &done.value)?;
+    }
+    let output = done.output(
         open,
         format!(
             "Placed {} at ({}, {}) mm, {}°, {}.",
@@ -637,7 +650,8 @@ pub fn device_place(session: &mut Session, args: DevicePlaceArgs) -> ToolResult<
             if device.mirrored() { "bottom" } else { "top" }
         ),
         result,
-    )
+    )?;
+    Ok(initial_legend_outcome(output))
 }
 
 /// Arguments of `device_auto_place`.
@@ -678,12 +692,18 @@ pub fn device_auto_place(
             components: components.into_iter().map(Into::into).collect(),
             spacing,
         })?;
+        let legend = tx.run(
+            foilfern_editor::legend_placement::initial::PlaceInitialDeviceLegend {
+                board,
+                components: result.placed.iter().map(|(id, _)| *id).collect(),
+            },
+        )?;
         guard.enforce(tx.project())?;
-        Ok(result)
+        Ok((result, legend))
     })?;
     let open = session.project()?;
     let p = open.project();
-    let r = &done.value;
+    let (r, legend) = &done.value;
     let names = |ids: &[ComponentInstanceId]| -> Vec<String> {
         ids.iter().map(|id| resolve::designator(p, *id)).collect()
     };
@@ -693,6 +713,7 @@ pub fn device_auto_place(
         .map(|(id, _)| resolve::designator(p, *id))
         .collect();
     let mut result = board_overview(p, board)?;
+    result["initial_legend"] = initial_legend_json(p, legend)?;
     result["placed"] = json!(placed);
     result["outside"] = json!(names(&r.outside));
     result["skipped"] = json!(names(&r.skipped));
@@ -711,7 +732,7 @@ pub fn device_auto_place(
             ))
             .partial();
     }
-    Ok(out)
+    Ok(initial_legend_outcome(out))
 }
 
 /// A trace end: a pad "R1.1" (pad or signal name), a via or junction
@@ -2100,4 +2121,42 @@ pub fn unrouted(session: &Session, args: BoardArgs) -> ToolResult<ToolOutput> {
         summary,
         json!({ "air_wires": air_wires, "count": air_wires.len(), "unplaced_devices": unplaced }),
     )
+}
+
+/// Render domain checks and actual text edits in board units, with scoped targets.
+pub(crate) fn initial_legend_json(
+    project: &Project,
+    reports: &[foilfern_editor::legend_placement::initial::InitialLegendReport],
+) -> ToolResult<Value> {
+    let texts = reports.iter().map(|report| {
+        let board = project.board(report.board).ok_or_else(|| ToolError::not_found("Legend board is missing."))?;
+        let device = board.device(report.component).ok_or_else(|| ToolError::not_found("Legend device is missing."))?;
+        let text = device.stroke_texts().get(&report.text).ok_or_else(|| ToolError::not_found("Legend text is missing."))?;
+        let before = legend_json(project, board, &report.before, Some(device))?;
+        let after = legend_json(project, board, text, Some(device))?;
+        let mut edit = text_edit_json(&before, &after);
+        // Requested final locking is a separate device edit, not a text move.
+        edit["changed"] = json!(edit["before"] != edit["after"]);
+        Ok(json!({"status":report.status,"verified_clear":report.verified_clear(),
+            "attempts":report.attempts,"checks_before":report.before_checks,"checks_after":report.final_checks,
+            "unknown_devices":report.unknown_devices,"outline_fallbacks":report.outline_fallbacks,"error":report.error,
+            "edit":edit}))
+    }).collect::<ToolResult<Vec<_>>>()?;
+    Ok(json!({"scope":"legend_geometry","full_board_drc":false,
+        "has_unresolved":reports.iter().any(|r| r.has_unresolved()),
+        "has_unverified":reports.iter().any(|r| !r.verified_clear()),"texts":texts}))
+}
+
+pub(crate) fn initial_legend_outcome(output: ToolOutput) -> ToolOutput {
+    if output.result["initial_legend"]["has_unresolved"] == true
+        || output.result["board_layout"]["initial_legend"]["has_unresolved"] == true
+    {
+        output.warn("Some new-device legend text remains blocked or unverified. See initial_legend checks and run DRC.").partial()
+    } else if output.result["initial_legend"]["has_unverified"] == true
+        || output.result["board_layout"]["initial_legend"]["has_unverified"] == true
+    {
+        output.warn("Known legend clearance checks passed, but courtyard coverage is incomplete. See initial_legend; this is not a full board DRC result.")
+    } else {
+        output
+    }
 }

@@ -51,7 +51,7 @@ A P5 overlay for existing candidates can ship before automatic P4 planning.
 These ten follow-ups come from recurring concrete observations in the retained
 agent feedback and targeted source inspection. They refine the existing P0–P6
 stages and A1–A12 workflow queue; they do not mark previously delivered features
-as missing. F1–F6 are **delivered**; F7–F10 are **planned**.
+as missing. F1–F7 are **delivered**; F8–F10 are **planned**.
 The order below is the priority order, starting with acquisition, electrical metadata and review/output
 correctness. Where the cause is uncertain, reproduce and trace it before choosing
 a fix. Passing the small trial designs is not general electrical or mechanical
@@ -122,13 +122,18 @@ acceptance.
    See [acceptance evidence](benchmarks/check-diagnostics/REPORT.md).
 
 7. **F7 — Legend clearance at initial device placement** (P1/P4/P5; A6/A7).
-   Repeated RC trials began with a C1 name violating stop-mask clearance;
-   moving only that text fixed it. Reproduce top/bottom and rotation cases and
-   determine whether the source is library defaults or placement transforms.
-   Done when initial placement chooses or offers a bounded clear text position
-   where one exists, with a fresh clearance result, without moving unrelated
-   manual annotations, devices or copper. If no valid position is found, keep
-   the finding explicit rather than suppressing it or relaxing the rule.
+   **Delivered, API 59.** C-0805's library name at (-1.5875, 0.3175) mm
+   intersects mask at all four orthogonal rotations on both board sides; native
+   placement transforms are correct. Initial MCP/declarative/automatic placement
+   and the final interactive drop now try at most 32 nearby translations for
+   each of at most 16 configured legend texts per new device. Exact native-font
+   geometry checks board/cutouts, mask clearance, other text and known courtyards.
+   Existing/manual annotations and explicitly targeted new-device annotations
+   stay untouched. Text changes share the placement undo group. No fit/locked/
+   failed checks keep the original text and report the limitation; missing
+   courtyard coverage alone does not fail an otherwise valid placement.
+   Native checks, mirrored/rotated poses, final locks, preview isolation,
+   save/reopen and undo/redo are covered by focused integration tests.
 
 8. **F8 — Unambiguous board views and readable pin numbers** (P5; A4/A6/A12).
    `render(side:"both")` was labelled `top side`; imported-symbol previews

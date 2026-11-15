@@ -213,6 +213,27 @@ impl State for AddDeviceState {
                 self.translate_to(e.pos.mapped_to_grid(cx.grid()));
                 self.preview(cx);
                 let component = self.placing.take().map(|p| p.device.component());
+                if let Some(component) = component {
+                    let board = cx.board_id();
+                    match cx.exec(crate::legend_placement::initial::PlaceInitialDeviceLegend {
+                        board,
+                        components: vec![component],
+                    }) {
+                        Ok(reports) => {
+                            if reports.iter().any(|report| report.has_unresolved()) {
+                                cx.out.requests.push(BoardRequest::Message {
+                                    title:tr!("librepcb::editor::BoardEditorState_AddDevice", "Device legend"),
+                                    text:tr!("librepcb::editor::BoardEditorState_AddDevice", "No verified clear position was found for some device text. Check the legend and run DRC."), warning:true,
+                                });
+                            }
+                        }
+                        Err(error) => {
+                            cx.error(error);
+                            self.abort(cx);
+                            return true;
+                        }
+                    }
+                }
                 match cx.commit() {
                     Ok(_) => {
                         if let Some(c) = component {

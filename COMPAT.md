@@ -514,6 +514,15 @@ differ between platforms/implementations:
 
 ## project/board
 
+- Initial device placement through MCP/declarative/automatic tools and the final
+  interactive editor drop can translate blocked library legend text to a nearby
+  checked position. Upstream keeps the library positions. Existing/manual text,
+  explicit legend targets, style and device/copper geometry remain unchanged.
+  Search failure retains original text and findings. Coverage of missing device
+  courtyard/outline geometry is reported separately; it is not inferred from
+  a zero mask-clearance finding count. These are ordinary native stroke-text
+  position edits, with no additional native file-format fields.
+
 - Loading rejects duplicate item UUIDs first and then validates each board
   as a whole (upstream adds the empty board and then item by item); for a
   file with several errors, the reported error can differ. Messages are

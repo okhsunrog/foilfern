@@ -163,6 +163,7 @@ pub(super) struct AppliedLayout {
     regions: Vec<Value>,
     moved: bool,
     legend: Vec<Value>,
+    initial_legend: Vec<foilfern_editor::legend_placement::initial::InitialLegendReport>,
     repair: Option<repair::RepairInput>,
     /// For a combined schematic/board document, compare placement against
     /// the circuit and board after the explicitly requested schematic edits.
@@ -309,6 +310,7 @@ impl BoardLayout {
             }
         }
         let mut new_devices = BTreeSet::new();
+        let mut lock_new_devices = BTreeSet::new();
         let mut moved = false;
         let mut region_checks = Vec::new();
         while let Some(instance) = ready.pop_first() {
@@ -460,14 +462,7 @@ impl BoardLayout {
                     mirrored: desired.side == Side::Bottom,
                 })?;
                 if desired.locked {
-                    tx.run(MoveDevice {
-                        component: instance.into(),
-                        board: Some(id),
-                        position: None,
-                        rotation: None,
-                        mirrored: None,
-                        locked: Some(true),
-                    })?;
+                    lock_new_devices.insert(instance);
                 }
                 new_devices.insert(instance);
             }
@@ -476,10 +471,12 @@ impl BoardLayout {
                 let device = board(project, id)?.device(instance).ok_or_else(|| {
                     ToolError::not_found(format!("Placed device {instance} is missing."))
                 })?;
+                let mut after = PlacedDevice::from(device);
+                after.locked = desired.locked;
                 diff.push(
                     json!({"field":"board_placement","board":id,"component":instance,
                     "key":key,"designator":resolve::designator(project, instance),
-                    "before":before,"after":PlacedDevice::from(device)}),
+                    "before":before,"after":after}),
                 );
             }
             ready.extend(users.remove(&instance).into_iter().flatten());
@@ -492,7 +489,42 @@ impl BoardLayout {
             )));
         }
 
+        // Explicit text searches own their device annotations. Other newly
+        // created devices still receive bounded initial placement.
+        let explicit = legend::explicit_components(&self.legend_placements, tx.project())?;
+        let initial_legend = foilfern_editor::legend_placement::initial::place(
+            tx,
+            id,
+            new_devices
+                .iter()
+                .copied()
+                .filter(|id| !explicit.contains(id)),
+            &mut checkpoint,
+        )?;
+        let report = crate::tools::board_edit::initial_legend_json(tx.project(), &initial_legend)?;
+        for (report, text) in initial_legend
+            .iter()
+            .zip(report["texts"].as_array().into_iter().flatten())
+        {
+            if text["edit"]["changed"] == true {
+                diff.push(json!({"field":"board_legend","initial":true,"board":id,
+                    "component":report.component,"uuid":report.text,"before":text["edit"]["before"],
+                    "after":text["edit"]["after"],"edit":text["edit"]}));
+            }
+        }
         let legend = legend::apply(self.legend_placements, tx, id, diff, &mut checkpoint)?;
+        // A new device's requested final lock also locks its texts. Apply it
+        // after initial/explicit text placement, never unlock existing devices.
+        for component in lock_new_devices {
+            tx.run(MoveDevice {
+                component: component.into(),
+                board: Some(id),
+                position: None,
+                rotation: None,
+                mirrored: None,
+                locked: Some(true),
+            })?;
+        }
 
         let project = tx.project();
         let saved = Requirements::load(project).map_err(foilfern_editor::Error::from)?;
@@ -561,6 +593,7 @@ impl BoardLayout {
             regions: region_checks,
             moved,
             legend,
+            initial_legend,
             repair: self.repair,
             placement_baseline,
         })
@@ -666,6 +699,7 @@ impl AppliedLayout {
             validation.board_requirements_after = guard.findings_after(proposed)?;
         }
         legend::review(proposed, self.board, &mut self.legend, checkpoint)?;
+        foilfern_editor::legend_placement::initial::review(proposed, &mut self.initial_legend);
         let mut blockers = Vec::new();
         if self
             .legend
@@ -754,6 +788,8 @@ impl AppliedLayout {
             })
             .collect::<ToolResult<Vec<_>>>()?;
         evidence["devices"] = json!(devices);
+        evidence["initial_legend"] =
+            crate::tools::board_edit::initial_legend_json(proposed, &self.initial_legend)?;
         stage(Stage::Render)?;
         let side = if self.image_side == Side::Bottom {
             foilfern_scene::BoardSide::Bottom

@@ -539,7 +539,7 @@ pub(crate) fn prepare(
             source_project,
             source_library,
             preview,
-            output,
+            output: super::board_edit::initial_legend_outcome(output),
         });
     };
     let region = doc
@@ -1135,7 +1135,7 @@ pub(crate) fn prepare(
         source_project,
         source_library,
         preview,
-        output,
+        output: super::board_edit::initial_legend_outcome(output),
     })
 }
 

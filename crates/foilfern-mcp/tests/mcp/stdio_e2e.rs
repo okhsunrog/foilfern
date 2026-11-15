@@ -870,7 +870,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 58);
+    assert_eq!(info["api_capability_version"], 59);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -907,12 +907,25 @@ async fn stdio_connects_selected_device_pads_before_placement() {
         json!({"part":"PSMN5R8","designator":"Q1"}),
     )
     .await;
-    call_ok(
+    let placed_q1 = call_ok(
         &client,
         "device_place",
         json!({"component":"Q1","position":{"x":10,"y":10}}),
     )
     .await;
+    // This native footprint has neither courtyard nor package outline. Keep
+    // the existing mask-clear label, while exposing the coverage limitation.
+    assert_eq!(placed_q1["initial_legend"]["has_unresolved"], false);
+    assert_eq!(placed_q1["initial_legend"]["has_unverified"], true);
+    assert_eq!(
+        placed_q1["initial_legend"]["texts"][0]["verified_clear"],
+        false
+    );
+    assert_eq!(
+        placed_q1["initial_legend"]["texts"][0]["edit"]["changed"],
+        false
+    );
+
     let added = call_ok(
         &client,
         "component_add",
@@ -4831,5 +4844,268 @@ async fn stdio_step_reports_mixed_assembly_and_unverified_alignment() {
         .unwrap();
     assert_eq!(replay["outcome"], "partial");
     assert_eq!(replay["result"]["step_exports"][0]["coverage"], *coverage);
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn stdio_initial_legend_clears_new_capacitors_and_preserves_manual_work() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    for side in ["top", "bottom"] {
+        for rotation in [0, 90, 180, 270] {
+            let project = call_ok(&client, "project_create", json!({"name":format!("Initial {side} {rotation}"),"directory":tmp.path().join(format!("{side}-{rotation}"))})).await;
+            call_ok(
+                &client,
+                "component_add",
+                json!({"part":"C-0805","designator":"C1"}),
+            )
+            .await;
+            if side == "top" && rotation == 0 {
+                call_ok(
+                    &client,
+                    "component_add",
+                    json!({"part":"R-0805","designator":"R1"}),
+                )
+                .await;
+                call_ok(
+                    &client,
+                    "device_place",
+                    json!({"component":"R1","position":{"x":5,"y":5}}),
+                )
+                .await;
+                let labels = call_ok(&client, "board_legend_list", json!({})).await;
+                let target = labels["texts"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|text| text["rendered_text"] == "R1")
+                    .unwrap()["target"]
+                    .clone();
+                call_ok(
+                    &client,
+                    "board_text_move",
+                    json!({"target":target,"position":{"x":7,"y":8}}),
+                )
+                .await;
+                call_ok(&client, "board_polygon_add", json!({"layer":"top_cu","filled":true,"vertices":[{"x":35,"y":25},{"x":36,"y":25},{"x":36,"y":26},{"x":35,"y":26}]})).await;
+            }
+            let schematic = call_ok(&client, "schematic_get", json!({})).await;
+            let before = call_ok(&client, "board_get", json!({})).await;
+            let placed = call_ok(&client, "device_place", json!({"component":"C1","position":{"x":20,"y":20},"side":side,"rotation":rotation})).await;
+            let report = &placed["initial_legend"]["texts"][0];
+            assert_eq!(report["status"], "moved", "{placed:#}");
+            assert_eq!(report["verified_clear"], true);
+            assert_eq!(report["checks_before"]["mask_overlap"], true);
+            assert_eq!(report["checks_after"]["mask_overlap"], false);
+            assert_eq!(report["edit"]["rendered_text"], "C1");
+            assert_eq!(
+                report["edit"]["before"]["rotation"],
+                report["edit"]["after"]["rotation"]
+            );
+            assert!(report["attempts"].as_u64().unwrap() <= 32);
+            let after = call_ok(&client, "board_get", json!({})).await;
+            assert_eq!(
+                call_ok(&client, "schematic_get", json!({})).await,
+                schematic
+            );
+            assert_eq!(after["polygons"], before["polygons"]);
+            if side == "top" && rotation == 0 {
+                let old = before["devices"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|d| d["designator"] == "R1")
+                    .unwrap();
+                let new = after["devices"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|d| d["designator"] == "R1")
+                    .unwrap();
+                assert_eq!(old, new);
+            }
+            let drc = call_ok(&client, "drc_run", json!({})).await;
+            assert_eq!(drc["warnings"], 0, "{drc:#}");
+            call_ok(&client, "undo", json!({})).await;
+            assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
+            call_ok(&client, "redo", json!({})).await;
+            assert_eq!(call_ok(&client, "board_get", json!({})).await, after);
+            // A later device_place call must preserve manually chosen text offsets.
+            let target = report["edit"]["target"].clone();
+            call_ok(
+                &client,
+                "board_text_move",
+                json!({"target":target,"position":{"x":25,"y":25}}),
+            )
+            .await;
+            let manual = call_ok(&client, "board_legend_list", json!({})).await;
+            let repeated = call_ok(&client, "device_place", json!({"component":"C1"})).await;
+            assert!(repeated.get("initial_legend").is_none());
+            assert_eq!(
+                call_ok(&client, "board_legend_list", json!({})).await,
+                manual
+            );
+            call_ok(&client, "project_save", json!({})).await;
+            call_ok(&client, "project_close", json!({})).await;
+            call_ok(&client, "project_open", json!({"path":project["path"]})).await;
+            assert_eq!(
+                call_ok(&client, "board_legend_list", json!({})).await,
+                manual
+            );
+            call_ok(&client, "project_close", json!({})).await;
+        }
+    }
+    // A continuous mask opening leaves no admissible pose. Keep the default
+    // and its actual DRC warning, rather than relaxing/suppressing the rule.
+    call_ok(
+        &client,
+        "project_create",
+        json!({"name":"No clear legend","directory":tmp.path().join("no-fit")}),
+    )
+    .await;
+    call_ok(&client, "board_polygon_add", json!({"layer":"top_stop_mask","filled":true,"vertices":[{"x":0,"y":0},{"x":100,"y":0},{"x":100,"y":100},{"x":0,"y":100}]})).await;
+    call_ok(
+        &client,
+        "component_add",
+        json!({"part":"C-0805","designator":"C1"}),
+    )
+    .await;
+    let blocked = call(
+        &client,
+        "device_place",
+        json!({"component":"C1","position":{"x":20,"y":20}}),
+    )
+    .await;
+    let envelope = blocked.structured_content.unwrap();
+    assert_eq!(envelope["outcome"], "partial", "{envelope:#}");
+    let report = &envelope["result"]["initial_legend"]["texts"][0];
+    assert_eq!(report["status"], "no_fit");
+    assert_eq!(report["attempts"], 32);
+    assert_eq!(report["edit"]["changed"], false);
+    assert_eq!(report["verified_clear"], false);
+    let drc = call_ok(&client, "drc_run", json!({})).await;
+    assert!(
+        drc["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["kind"] == "SilkscreenClearanceViolation")
+    );
+    call_ok(&client, "project_save", json!({})).await;
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn stdio_initial_legend_is_shared_by_declarative_and_automatic_placement() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    call_ok(
+        &client,
+        "project_create",
+        json!({"name":"Declarative initial legend","directory":tmp.path().join("native")}),
+    )
+    .await;
+    call_ok(
+        &client,
+        "component_add",
+        json!({"part":"C-0805","designator":"C1"}),
+    )
+    .await;
+    let before = call_ok(&client, "board_get", json!({})).await;
+    let schematic = call_ok(&client, "schematic_get", json!({})).await;
+    let document = json!({"version":1,"compare_images":true,"board_layout":{"placements":{"C1":{"position":{"x":20,"y":20},"locked":true}}}});
+    let preview = call_ok(&client, "design_preview", document.clone()).await;
+    let report = &preview["board_layout"]["initial_legend"]["texts"][0];
+    assert_eq!(report["status"], "moved", "{preview:#}");
+    assert_eq!(report["verified_clear"], true);
+    assert!(
+        preview["diff"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|diff| diff["field"] == "board_legend"
+                && diff["edit"]["changed"] == true
+                && diff["edit"]["before"]["bbox"].is_object())
+    );
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
+    assert_eq!(
+        call_ok(&client, "schematic_get", json!({})).await,
+        schematic
+    );
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":preview["preview"]}),
+    )
+    .await;
+    let after = call_ok(&client, "board_get", json!({})).await;
+    assert_eq!(call_ok(&client, "drc_run", json!({})).await["warnings"], 0);
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, before);
+    call_ok(&client, "redo", json!({})).await;
+    assert_eq!(call_ok(&client, "board_get", json!({})).await, after);
+    let replay = call_ok(&client, "design_preview", document).await;
+    assert_eq!(replay["diff"], json!([]));
+    assert_eq!(replay["board_layout"]["initial_legend"]["texts"], json!([]));
+    let labels = call_ok(&client, "board_legend_list", json!({})).await;
+    call_ok(
+        &client,
+        "component_add",
+        json!({"part":"C-0805","designator":"C2"}),
+    )
+    .await;
+    let automatic = call_ok(&client, "device_auto_place", json!({"components":["C2"]})).await;
+    assert_eq!(
+        automatic["initial_legend"]["has_unresolved"], false,
+        "{automatic:#}"
+    );
+    assert_eq!(
+        automatic["initial_legend"]["texts"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    let now = call_ok(&client, "board_legend_list", json!({})).await;
+    let old_label = &labels["texts"][0];
+    assert!(now["texts"].as_array().unwrap().contains(old_label));
+    // Explicit targets on newly placed devices own their annotations.
+    call_ok(
+        &client,
+        "component_add",
+        json!({"part":"C-0805","designator":"C3"}),
+    )
+    .await;
+    let explicit = call_ok(&client, "design_preview", json!({"version":1,"board_layout":{
+        "placements":{"C3":{"position":{"x":35,"y":10}}},
+        "legend_placements":[{"target":{"board":report["edit"]["target"]["board"],"component":"C3","uuid":report["edit"]["target"]["uuid"]},"candidates":[{"position":{"x":40,"y":15}}]}]
+    }})).await;
+    assert_eq!(
+        explicit["board_layout"]["initial_legend"]["texts"],
+        json!([])
+    );
+    assert_eq!(
+        explicit["board_layout"]["legend_placements"][0]["applicable"], true,
+        "{explicit:#}"
+    );
+    assert_eq!(
+        explicit["board_layout"]["legend_placements"][0]["edit"]["before"]["position"],
+        json!({"x":33.4125,"y":10.3175})
+    );
+    call_ok(&client, "project_save", json!({})).await;
     client.cancel().await.unwrap();
 }

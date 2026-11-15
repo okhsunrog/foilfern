@@ -110,6 +110,14 @@ replacing existing output; no mechanical-fit certification is performed.
 The [paired release replay](benchmarks/board-preview-step/REPORT.md) records
 images, response costs and unchanged STEP geometry/native project data.
 
+Initial legend placement (F7, API 59) removes the inherited C-0805 mask collision
+at initial placement through a bounded editor service shared by MCP primitives,
+declarative/automatic placement and the final interactive drop. Native text styles,
+manual edits and copper remain intact. Reports distinguish unresolved findings
+from missing courtyard coverage; unchanged/native-clear text is not repositioned.
+Mirrored/rotated placement, explicit targets, final locks, no-fit fallback, undo,
+native reopen and cancelled-search rollback have focused coverage.
+
 ## Routing and measurements available now
 
 The editor owns one `RoutingService` per open project; MCP is its transport.

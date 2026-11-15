@@ -179,7 +179,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `58`, including STEP assembly coverage, paired board previews, electrical import evidence
+`api_capability_version` (currently `59`, including initial device legend placement, STEP assembly coverage, paired board previews, electrical import evidence
 and explicit structural ERC coverage, named ERC subjects, scoped
 text-change events and reports, supplier acquisition,
 official KiCad imports, rendered board-placement reviews, declared connector axes, scoped legend targets and bounded legend placement).
@@ -472,6 +472,34 @@ component. On sheets with embedded images the planner also checks the export
 geometry and font used by the PNG preview.
 
 ### Declarative board placement
+
+Initial device placement checks configured silkscreen text at its final device
+pose. `device_place` (new devices only), `device_auto_place` and new declarative
+placements share the editor's bounded search. A clear original is preserved;
+blocked text tries 32 translations without resizing, rotating or changing layers.
+Search steps are half the text height, clamped to 0.5–2 mm, at radii 1/2/4/8 steps
+in eight board-axis directions. At most 16 legend texts per new device are searched.
+Checks use native stroke geometry, board/cutouts, configured mask clearance,
+other text and courtyard/outline geometry. Missing device outlines prevent an
+unqualified clear claim and automatic movement under uncertain courtyard coverage.
+
+`initial_legend` reports scope `legend_geometry`, `full_board_drc:false`, scoped
+text edits/bboxes, attempts, checks before/after and missing geometry references.
+Statuses are `unchanged`, `moved`, `no_fit`, `locked`, `unverified` or
+`budget_exhausted`. `verified_clear` requires all checks and courtyard coverage.
+`has_unresolved` produces a warning and `partial` for real conflicts or failed
+mandatory checks. Missing optional courtyard coverage alone yields a warning
+without failing placement; `has_unverified` and `verified_clear:false` retain the
+limitation. This evidence does not certify a whole-board DRC result. Declarative
+review still runs its ordinary full before/after checks and rechecks legend after
+any local routing repair.
+
+The initial text edits belong to the same undo group as placement. Moving or
+replacing existing devices does not rerun this search. Explicit `legend_placements`
+own the annotations of their targeted device, including newly placed devices.
+For a new declarative device with `locked:true`, text placement runs before its
+requested final lock; existing locked text is never unlocked. The interactive
+editor runs the same search at final drop, after cursor movement/rotation/flip.
 
 Board-only `design_preview` documents accept `compare_images:true` and optional
 `image_region` in board coordinates without selecting a schematic. Board images
