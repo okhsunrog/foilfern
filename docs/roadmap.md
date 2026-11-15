@@ -51,21 +51,23 @@ A P5 overlay for existing candidates can ship before automatic P4 planning.
 These ten follow-ups come from recurring concrete observations in the retained
 agent feedback and targeted source inspection. They refine the existing P0–P6
 stages and A1–A12 workflow queue; they do not mark previously delivered features
-as missing. All ten are **planned**, not implemented. The order below is the
+as missing. F1 is **delivered**; F2–F10 are **planned**. The order below is the
 priority order, starting with acquisition, electrical metadata and review/output
 correctness. Where the cause is uncertain, reproduce and trace it before choosing
 a fix. Passing the small trial designs is not general electrical or mechanical
 acceptance.
 
 1. **F1 — Direct use of an acquired purchasing part** (P1; A2/A4).
-   `part_import` returns an exact device and procurement part, while
-   `component_add.part` is a library-element selector. Agents needed a larger
-   declarative document or raw mutations to select the acquired part.
-   Done when the acquisition result can be used through a straightforward
-   supported addition path, with only necessary instance choices, retaining the
-   exact device, MPN, manufacturer and supplier attributes. Verify selected part
-   identity, board BOM, undo/redo and native save/reopen. Existing declarative
-   part selection remains supported; no low-level mutation workaround is needed.
+   **Delivered, API 54.** `part_import.add_component` now contains executable
+   `component_add` arguments selecting the exact device and native purchasing
+   part, including manufacturer and supplier attributes. A sole purchasing part
+   is selected automatically; ambiguous alternatives require an explicit choice.
+   `component_update.selected_part` supports existing instances. Addition and
+   selection share one undo step; failed explicit selection rolls back the edit.
+   Integration tests cover ambiguity, undo/redo, board BOM and native save/reopen.
+   A bounded release-client trial completed the C8734 workflow in seven calls,
+   without declarative documents or raw mutations; saved files were independently
+   checked. See [acceptance evidence](benchmarks/part-acquisition/REPORT.md).
 
 2. **F2 — Electrical metadata and honest ERC coverage after import** (P1/P2;
    A4/A12). The acquired STM32 fixture had 48 passive, non-required signals,

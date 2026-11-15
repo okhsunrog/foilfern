@@ -8,10 +8,11 @@ preview/apply revision checks, undo and native LibrePCB interoperability.
 
 The later [F1–F10 follow-ups](roadmap.md#agent-trial-follow-ups-2026-11-15)
 record concrete remaining friction from the retained trials, in priority order.
-They refine the delivered scopes below: for example, declarative part identity
-is implemented, while the primitive acquisition-to-addition handoff is still a
-follow-up. All ten follow-ups are planned; their acceptance requires reproduction
-and source tracing where the reported cause is uncertain.
+They refine the delivered scopes below. F1 now also delivers the primitive
+acquisition-to-addition handoff with exact purchasing identity; see its
+[acceptance evidence](benchmarks/part-acquisition/REPORT.md). F2–F10 remain planned;
+their acceptance requires reproduction and source tracing where the reported
+cause is uncertain.
 
 ## Delivery queue
 

@@ -25,6 +25,14 @@ the next task merely because their last paragraph once said "next".
 
 ## Implemented foundation
 
+- **Acquired purchasing parts (2026-11-15, API 54):** `part_import` returns
+  executable `component_add` arguments carrying the exact native part and all
+  purchasing attributes. Single-part devices select that part automatically;
+  ambiguous choices stay explicit. Existing instances accept
+  `component_update.selected_part`. Undo/redo, failure rollback and native
+  save/reopen are covered; a release MCP trial independently verified C8734 in
+  the saved project and board BOM. See [evidence](benchmarks/part-acquisition/REPORT.md).
+
 - **Local tool execution:** `foilfern-mcp call TOOL JSON` and `batch FILE` use
   the same dispatcher as MCP without a client. Batches share a session, support
   prior-result references and stop on failure by default. Saving is explicit;
