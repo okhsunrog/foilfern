@@ -1067,3 +1067,155 @@ impl Command for MoveDevice {
         }))
     }
 }
+
+/// Exact lookup of an orderable part already stored in a native device.
+/// Headless selection policy; no upstream command counterpart.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct LibraryPartSelector {
+    pub mpn: String,
+    pub manufacturer: Option<String>,
+    pub attributes: std::collections::BTreeMap<String, String>,
+}
+
+/// Selects an explicit library part, or the sole available part when omitted.
+/// Does not alter shared library data or choose arbitrarily among alternatives.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SelectComponentPart {
+    pub component: ComponentInstanceId,
+    pub device: Uuid,
+    pub selector: Option<LibraryPartSelector>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ComponentPartSelection {
+    pub selected: Option<foilfern_core::library::dev::Part>,
+    pub candidates: Vec<foilfern_core::library::dev::Part>,
+}
+
+impl Command for SelectComponentPart {
+    type Output = ComponentPartSelection;
+    fn text(&self) -> String {
+        tr!("librepcb::editor::CmdComponentInstanceEdit", "Select part")
+    }
+    fn execute(self, tx: &mut Transaction<'_>) -> Result<Self::Output> {
+        let (library_component, candidates) =
+            if let Some(dev) = tx.project().library().device(&self.device) {
+                (
+                    dev.component_uuid(),
+                    dev.parts()
+                        .iter()
+                        .filter(|part| !part.mpn().as_str().trim().is_empty())
+                        .cloned()
+                        .collect::<Vec<_>>(),
+                )
+            } else {
+                let dir = tx
+                    .source()
+                    .element_directory(LibraryElementKind::Device, &self.device)
+                    .ok_or(Error::NotInLibrarySource {
+                        kind: LibraryElementKind::Device,
+                        uuid: self.device,
+                    })?;
+                let LibraryElement::Device(dev) = open_element(LibraryElementKind::Device, &dir)?
+                else {
+                    unreachable!("opened as device")
+                };
+                (
+                    dev.component_uuid(),
+                    dev.parts()
+                        .iter()
+                        .filter(|part| !part.mpn().as_str().trim().is_empty())
+                        .cloned()
+                        .collect(),
+                )
+            };
+        let instance = tx
+            .project()
+            .circuit()
+            .component_instance(self.component)
+            .ok_or_else(|| {
+                Error::InvalidArgument("Component not found for part selection".into())
+            })?;
+        if instance.lib_component() != library_component {
+            return Err(Error::InvalidArgument(
+                "Selected device belongs to another component".into(),
+            ));
+        }
+        let selected = if let Some(selector) = &self.selector {
+            if selector.mpn.trim().is_empty() {
+                return Err(Error::InvalidArgument(
+                    "selected_part.mpn must not be empty".into(),
+                ));
+            }
+            let matches: Vec<_> = candidates
+                .iter()
+                .filter(|part| {
+                    part.mpn().as_str() == selector.mpn
+                        && selector
+                            .manufacturer
+                            .as_ref()
+                            .is_none_or(|m| part.manufacturer().as_str() == m)
+                        && selector.attributes.iter().all(|(key, value)| {
+                            part.attributes()
+                                .by_name(key, true)
+                                .is_some_and(|a| a.value() == value)
+                        })
+                })
+                .collect();
+            if matches.len() != 1 {
+                let available = candidates
+                    .iter()
+                    .map(|p| {
+                        format!(
+                            "{} ({}) {:?}",
+                            p.mpn(),
+                            p.manufacturer(),
+                            p.attributes()
+                                .iter()
+                                .map(|a| (a.key().as_str(), a.value()))
+                                .collect::<Vec<_>>()
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                return Err(Error::InvalidArgument(format!(
+                    "selected_part matches {} library parts; expected exactly one. Available: {available}",
+                    matches.len()
+                )));
+            }
+            Some(matches[0].clone())
+        } else if candidates.len() == 1 {
+            candidates.first().cloned()
+        } else {
+            None
+        };
+        if let Some(part) = &selected {
+            let mut options = instance.assembly_options().clone();
+            let option = options
+                .iter_mut()
+                .find(|o| o.device() == self.device)
+                .ok_or_else(|| {
+                    Error::InvalidArgument(
+                        "Component has no assembly option for this device".into(),
+                    )
+                })?;
+            let mut parts = foilfern_core::library::dev::PartList::new();
+            parts.push(part.clone());
+            if option.parts() != &parts {
+                *option.parts_mut() = parts;
+                tx.run(EditComponent {
+                    component: self.component.into(),
+                    name: None,
+                    value: None,
+                    attributes: None,
+                    assembly_options: Some(options),
+                    lock_assembly: None,
+                })?;
+            }
+        }
+        Ok(ComponentPartSelection {
+            selected,
+            candidates,
+        })
+    }
+}

@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `52`, including supplier acquisition,
+`api_capability_version` (currently `54`, including supplier acquisition,
 official KiCad imports, rendered board-placement reviews, declared connector axes, scoped legend targets and bounded legend placement).
 Its `build` object contains
 `source_commit` (full Git commit ID or `null`) and `tracked_source_state`
@@ -643,11 +643,26 @@ must be checked before using it. A failed list fetch remains a tool error.
 `cache: prefer_cache|offline|refresh`, `require_model`)
 acquires an exact supplier part into `SupplierParts.lplib` in the workspace's
 local libraries. It returns full device/component details (including signal/pad
-mapping), a ready `add_component` device/part entry, source identity and hashes,
+mapping), an `orderable_part` identity and ready `add_component` arguments, source identity and hashes,
 and explicit model availability. Source JSON and STEP snapshots are retained for
 offline replay. Unsupported geometry or incomplete mapping fails; an unavailable
-or invalid STEP gives a partial result unless `require_model` is true. STEP
-acceptance does not imply verified footprint/model alignment. Existing native
+or invalid STEP gives a partial result unless `require_model` is true.
+
+The returned `add_component` object is executable as `component_add` arguments:
+`{"part":"<device UUID>","selected_part":{"mpn":"STM32F103C8T6","manufacturer":"...","attributes":{"LCSC":"C8734"}}}`.
+Add only optional instance choices such as `designator`, `schematic` and position.
+No design document, raw mutation or additional identity lookup is required.
+Omitting `selected_part` selects the device's sole native part automatically.
+Multiple candidates remain unselected with a partial result, warning and complete
+candidate identities. Explicit selectors must match exactly one native part;
+manufacturer and supplier attributes disambiguate identical MPNs. No-match or
+ambiguous explicit selection rolls back the entire addition. `component_update`
+accepts the same selector to choose a part on an existing instance. Native part
+attributes/types/units are cloned without reconstruction; library data is not edited.
+Import replay preserves native edits and reports them. If the requested supplier
+ID has no unique preserved native part, `add_component` is null and the result
+requires review rather than guessing an identity.
+STEP acceptance does not imply verified footprint/model alignment. Existing native
 elements, including manual edits, are retained on repeat; changed source/model
 snapshots cause a conflict rather than an overwrite. Downloads and CAD conversion
 run outside the session lock; installation rechecks the workspace and writes the

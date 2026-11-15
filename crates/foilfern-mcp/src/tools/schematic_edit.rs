@@ -19,8 +19,8 @@ use foilfern_core::types::{
 use foilfern_core::workspace::{ElementKind, SearchQuery};
 use foilfern_editor::commands::{
     AddComponent, AddNetClass, AddSchematic, ApplyMutations, AssignNet, AutoPlaceSymbols,
-    ConnectNet, DisconnectSignals, EditComponent, EditNet, EditNetClass, MoveSymbol, NetRef,
-    RemoveComponent, SymbolPlacement, TidySchematic,
+    ConnectNet, DisconnectSignals, EditComponent, EditNet, EditNetClass, LibraryPartSelector,
+    MoveSymbol, NetRef, RemoveComponent, SelectComponentPart, SymbolPlacement, TidySchematic,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -43,6 +43,11 @@ pub struct ComponentAddArgs {
     /// (e.g. "LED 3mm red", "Resistor", "GND") looked up like
     /// library_search: an exact name match wins, devices are preferred.
     pub part: String,
+    /// Exact purchasing part of the selected device. Omit to select its sole
+    /// library part automatically. Multiple alternatives remain unselected with
+    /// a warning; use this selector to disambiguate without raw mutations.
+    #[serde(default)]
+    pub selected_part: Option<SelectedPartArgs>,
     /// UUID of the device (footprint) if `part` is a component; default:
     /// the only (or first) device of the component in the libraries.
     #[serde(default)]
@@ -74,6 +79,27 @@ pub struct ComponentAddArgs {
     pub expected_revision: Option<u64>,
 }
 
+/// Select an existing native library part; its attributes are copied intact.
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SelectedPartArgs {
+    pub mpn: String,
+    #[serde(default)]
+    pub manufacturer: Option<String>,
+    /// Optional exact supplier attributes, for example {"LCSC":"C8734"}.
+    #[serde(default)]
+    pub attributes: BTreeMap<String, String>,
+}
+impl From<SelectedPartArgs> for LibraryPartSelector {
+    fn from(value: SelectedPartArgs) -> Self {
+        Self {
+            mpn: value.mpn,
+            manufacturer: value.manufacturer,
+            attributes: value.attributes,
+        }
+    }
+}
+
 /// Arguments of `component_remove`.
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -91,6 +117,9 @@ pub struct ComponentRemoveArgs {
 pub struct ComponentUpdateArgs {
     /// Designator or UUID.
     pub component: String,
+    /// Select an exact orderable part of this instance's selected device.
+    #[serde(default)]
+    pub selected_part: Option<SelectedPartArgs>,
     /// New designator.
     #[serde(default)]
     pub designator: Option<String>,
@@ -515,6 +544,9 @@ fn search_part(session: &Session, query: &str) -> ToolResult<(Uuid, Option<Uuid>
 /// `component_add`.
 pub fn component_add(session: &mut Session, args: ComponentAddArgs) -> ToolResult<ToolOutput> {
     let part = resolve_part(session, &args.part, args.device.as_deref())?;
+    if args.selected_part.is_some() && part.device.is_none() {
+        return Err(ToolError::invalid("selected_part requires a device"));
+    }
     let p = session.project()?.project();
     let schematic: SchematicId = resolve::schematic(p, args.schematic.as_deref())
         .map_err(|e| {
@@ -557,22 +589,47 @@ pub fn component_add(session: &mut Session, args: ComponentAddArgs) -> ToolResul
                 margin: None,
             })?;
         }
-        Ok(added)
+        let selection = part
+            .device
+            .map(|device| {
+                tx.run(SelectComponentPart {
+                    component: added.component,
+                    device,
+                    selector: args.selected_part.clone().map(Into::into),
+                })
+            })
+            .transpose()?;
+        Ok((added, selection))
     })?;
     let open = session.project()?;
-    let (summary, mut detail) = component_detail(open.project(), done.value.component)?;
+    let (summary, mut detail) = component_detail(open.project(), done.value.0.component)?;
     detail["part"] = json!(part.name);
     detail["devices_available"] = json!(part.devices_available);
     detail["library_elements_added"] = json!(
         done.value
+            .0
             .library_elements
             .iter()
             .map(|e| json!({ "kind": format!("{:?}", e.kind).to_lowercase(), "uuid": e.uuid }))
             .collect::<Vec<_>>()
     );
-    Ok(done
+    let mut warnings = part.warnings;
+    if let Some(selection) = &done.value.1 {
+        detail["part_selection"] = json!({"selected":selection.selected.as_ref().map(super::part::part_details),
+            "candidates":selection.candidates.iter().map(super::part::part_details).collect::<Vec<_>>()});
+        if selection.selected.is_none() && selection.candidates.len() > 1 {
+            warnings.push("Multiple orderable parts are available; no purchasing part was selected. Use selected_part to choose explicitly.".into());
+        }
+    }
+    let ambiguous = done
+        .value
+        .1
+        .as_ref()
+        .is_some_and(|s| s.selected.is_none() && s.candidates.len() > 1);
+    let output = done
         .output(open, format!("Added {summary}"), detail)?
-        .warnings(part.warnings))
+        .warnings(warnings);
+    Ok(if ambiguous { output.partial() } else { output })
 }
 
 /// `component_remove`.
@@ -643,15 +700,29 @@ pub fn component_update(
             Some(list)
         }
     };
+    let selected_device = c.default_device();
+    if args.selected_part.is_some() && selected_device.is_none() {
+        return Err(ToolError::invalid(
+            "selected_part requires a selected device",
+        ));
+    }
     let done = write(session, "component_update", args.expected_revision, |tx| {
-        Ok(tx.run(EditComponent {
+        let updated = tx.run(EditComponent {
             component: id.into(),
             name,
             value: args.value.clone(),
             attributes,
             assembly_options: None,
             lock_assembly: None,
-        })?)
+        })?;
+        if let (Some(selector), Some(device)) = (args.selected_part.clone(), selected_device) {
+            tx.run(SelectComponentPart {
+                component: id,
+                device,
+                selector: Some(selector.into()),
+            })?;
+        }
+        Ok(updated)
     })?;
     let open = session.project()?;
     let (summary, detail) = component_detail(open.project(), id)?;

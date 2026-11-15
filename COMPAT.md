@@ -771,6 +771,13 @@ Rendering only; no file is affected.
 
 ## editor (crate foilfern-editor)
 
+- MCP `component_add` selects a device's sole native orderable part automatically;
+  ambiguous alternatives require explicit selection. This headless convenience
+  copies existing native procurement data and does not change the upstream-like
+  `AddComponent` defaults used by the GUI. Native part/assembly serialization and
+  undo remain unchanged.
+
+
 - **Undo stack**: every change is recorded in a group (upstream `execCmd()`
   of a single command is a group with one operation). The redo history is
   discarded when a group is *committed*; upstream discards it when a group

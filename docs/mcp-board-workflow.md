@@ -49,7 +49,15 @@ against the schematic and reports conversions that need review.
 2. `library_search` accepts several words, such as `resistor 0805`.
    Inspect a candidate with `library_element`: signals, device pad mapping,
    footprints, and symbol variants with their gate and pin mappings.
-3. Pass the chosen device or component UUID to `component_add`. A name
+3. For an exact supplier part, call `part_import` with its LCSC ID or MPN.
+   Pass its returned `add_component` arguments directly to `component_add`, adding
+   a designator/position if desired. Purchasing data is copied into the instance
+   in the same undo step. Check the returned `part_selection.selected`; no raw
+   mutation or design document is needed. `selected_part` can disambiguate native
+   parts by MPN, manufacturer and supplier attributes. The same selector works in
+   `component_update` without recreating the instance. A device with only one
+   native part selects it automatically; multiple choices remain explicit.
+   For a generic device, pass its device or component UUID to `component_add`. A name
    search can be ambiguous. Set `device` explicitly when selecting among
    compatible devices; inspect the returned selection and warnings.
    Set `symbol_variant` to a UUID returned by `library_element` when a

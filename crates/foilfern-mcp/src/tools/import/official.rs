@@ -506,7 +506,7 @@ pub fn finish(
         match bundle::devices(session, &selected) {
             Ok(devices) => {
                 if let [device] = devices.as_slice() {
-                    output.result["add_component"] = json!({"device":device["uuid"]});
+                    output.result["add_component"] = json!({"part":device["uuid"]});
                 }
                 output.result["devices"] = json!(devices);
             }

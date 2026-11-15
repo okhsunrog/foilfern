@@ -851,7 +851,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 52);
+    assert_eq!(info["api_capability_version"], 54);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -1018,7 +1018,8 @@ async fn stdio_symbol_variants_and_multisheet_four_layer_board() {
             &client,
             "component_add",
             json!({
-                "part": part, "designator": name, "symbol_variant": variant["uuid"]
+                "part": part, "designator": name, "symbol_variant": variant["uuid"],
+                "selected_part": {"mpn":"DEMO1"}
             }),
         )
         .await;

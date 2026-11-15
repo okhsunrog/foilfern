@@ -27,6 +27,7 @@ fn add(session: &mut Session, part: &str) -> ToolOutput {
     schematic_edit::component_add(
         session,
         ComponentAddArgs {
+            selected_part: None,
             part: part.into(),
             device: None,
             symbol_variant: None,
@@ -163,6 +164,7 @@ fn design_rc_circuit_with_populated_library() {
     let err = schematic_edit::component_add(
         &mut session,
         ComponentAddArgs {
+            selected_part: None,
             part: "Diode".into(),
             device: None,
             symbol_variant: None,
@@ -189,6 +191,7 @@ fn design_rc_circuit_with_populated_library() {
     let err = schematic_edit::component_add(
         &mut session,
         ComponentAddArgs {
+            selected_part: None,
             part: "No Such Part".into(),
             device: None,
             symbol_variant: None,
@@ -257,6 +260,7 @@ fn design_rc_circuit_with_populated_library() {
     schematic_edit::component_update(
         &mut session,
         ComponentUpdateArgs {
+            selected_part: None,
             component: "R1".into(),
             designator: None,
             value: Some("1k".into()),

@@ -375,20 +375,37 @@ pub fn finish(
         ));
     }
     let (detail, component) = library::workspace_device_details(ws, &dev)?;
-    let part = dev.parts().iter().find(|p| {
-        p.attributes()
-            .iter()
-            .any(|a| a.key().as_str() == "LCSC" && a.value() == acquired.source.lcsc)
-    });
-    let ready = part.map(|p| json!({"mpn":p.mpn().as_str(),"manufacturer":p.manufacturer().as_str(),"attributes":{"LCSC":acquired.source.lcsc}}));
+    let parts: Vec<_> = dev
+        .parts()
+        .iter()
+        .filter(|p| {
+            p.attributes()
+                .iter()
+                .any(|a| a.key().as_str() == "LCSC" && a.value() == acquired.source.lcsc)
+        })
+        .collect();
+    let ready = (parts.len() == 1).then(|| part_details(parts[0]));
     let mut output = ToolOutput::new(format!("{} {} ({uuid}).", if reused { "Reused" } else { "Imported" }, acquired.source.mpn), json!({
         "device":detail,"component":component,"reused":reused,
         "source":{"lcsc":acquired.source.lcsc,"mpn":acquired.source.mpn,"manufacturer":acquired.source.manufacturer,"url":acquired.source.source_url,"sha256":acquired.source.sha256,"snapshot":acquired.source.snapshot,"from_cache":acquired.source.from_cache,"attribution":acquired.source.attribution},
         "model":{"available":model_available,"alignment_verified":false},
-        "add_component":{"device":uuid,"part":ready}
+        "orderable_part":ready,"add_component":ready.as_ref().map(|selection|json!({"part":uuid,"selected_part":selection}))
     }))?.warnings(acquired.native.warnings);
+    if ready.is_none() {
+        output = output.partial().warn("The preserved native device has no unique part matching the requested LCSC ID; purchasing data needs explicit review. No ready addition arguments were returned.");
+    } else if parts[0].mpn().as_str() != acquired.source.mpn
+        || parts[0].manufacturer().as_str() != acquired.source.manufacturer
+    {
+        output = output.warn("Existing native purchasing data differs from the supplier snapshot. Library edits were preserved; add_component selects the native part shown in orderable_part.");
+    }
     if !model_available {
         output = output.partial();
     }
     Ok(output)
+}
+
+/// A human-readable, exact native purchasing-part identity and attributes.
+pub(crate) fn part_details(part: &foilfern_core::library::dev::Part) -> serde_json::Value {
+    json!({"mpn":part.mpn().as_str(),"manufacturer":part.manufacturer().as_str(),
+        "attributes":part.attributes().iter().map(|a|(a.key().as_str(),a.value())).collect::<std::collections::BTreeMap<_,_>>()})
 }

@@ -562,7 +562,7 @@ impl FoilfernMcp {
     }
 
     #[tool(
-        description = "Import an exact LCSC ID (e.g. C8734) or unique exact MPN into a local workspace library: symbol, signal/pad mapping, footprint, MPN/manufacturer/LCSC and referenced STEP model. Returns complete device/component details and a ready add_component entry. Ambiguous MPNs fail with candidate LCSC IDs; source MPN is independently checked. Snapshots support offline replay; existing native elements are preserved. Missing/invalid models produce an explicit partial result unless require_model=true."
+        description = "Import an exact LCSC ID (e.g. C8734) or unique exact MPN into a local workspace library: symbol, signal/pad mapping, footprint, MPN/manufacturer/LCSC and referenced STEP model. Returns device/component details and add_component arguments usable directly with component_add (optional designator/position). Exact native purchasing identity is selected without a design document. Ambiguous MPNs fail with candidate LCSC IDs; source MPN is independently checked. Snapshots support offline replay; existing native elements are preserved. Missing/invalid models produce an explicit partial result unless require_model=true."
     )]
     async fn part_import(
         &self,
@@ -632,7 +632,7 @@ impl FoilfernMcp {
                        schematic page (free place if no position). `part`: device or \
                        component UUID or a name like \"Resistor\" / \"LED 3mm\" / \"GND\" \
                        (supply symbols). Library elements are copied into the project \
-                       library. Returns the designator and the pins."
+                       library. Selects the sole native purchasing part automatically; selected_part disambiguates alternatives. Returns pins and the actual purchasing selection."
     )]
     async fn component_add(
         &self,

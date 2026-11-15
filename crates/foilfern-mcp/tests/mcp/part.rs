@@ -132,9 +132,12 @@ async fn acquisition_installs_once_replays_offline_and_refuses_changed_sources()
     let out = part::finish(&session, target.clone(), acquired).unwrap();
     assert_eq!(out.result["reused"], false);
     assert_eq!(out.result["device"]["pads"].as_array().unwrap().len(), 2);
-    assert_eq!(out.result["add_component"]["part"]["mpn"], "TEST-123");
     assert_eq!(
-        out.result["add_component"]["part"]["attributes"]["LCSC"],
+        out.result["add_component"]["selected_part"]["mpn"],
+        "TEST-123"
+    );
+    assert_eq!(
+        out.result["add_component"]["selected_part"]["attributes"]["LCSC"],
         "C123"
     );
     assert_eq!(out.result["model"]["available"], false);
@@ -170,7 +173,10 @@ async fn acquisition_installs_once_replays_offline_and_refuses_changed_sources()
     let again = part::finish(&session, target.clone(), acquired).unwrap();
     assert_eq!(again.result["reused"], true);
     assert_eq!(again.result["device"]["uuid"], device);
-    assert_eq!(again.result["add_component"]["part"]["mpn"], "TEST-MANUAL");
+    assert_eq!(
+        again.result["add_component"]["selected_part"]["mpn"],
+        "TEST-MANUAL"
+    );
     assert!(server.received_requests().await.unwrap().is_empty());
     let invalid = part::acquire(
         &target,
@@ -285,7 +291,7 @@ async fn c8734_imports_through_registry_with_step_and_replays_offline() {
     );
     assert_eq!(envelope["result"]["model"]["available"], true);
     assert_eq!(
-        envelope["result"]["add_component"]["part"]["mpn"],
+        envelope["result"]["add_component"]["selected_part"]["mpn"],
         "STM32F103C8T6"
     );
     let replay = runner
@@ -306,4 +312,203 @@ async fn c8734_imports_through_registry_with_step_and_replays_offline() {
         envelope["result"]["device"]["uuid"]
     );
     runner.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn acquired_part_handoff_selects_identity_without_design_documents() {
+    use foilfern_core::fileio::{TransactionalDirectory, TransactionalFileSystem};
+    use foilfern_core::library::{LibraryBaseElement, dev::Device};
+    use foilfern_mcp::tools::{board_edit, output, schematic_edit, write};
+    let tmp = tempfile::tempdir().unwrap();
+    let mut session = Session::new();
+    project::workspace_open(
+        &mut session,
+        serde_json::from_value(json!({"path":tmp.path().join("ws")})).unwrap(),
+        true,
+    )
+    .unwrap();
+    let target = part::target(&session).unwrap();
+    let mock = MockServer::start().await;
+    mount(&mock, source()).await;
+    let provider = EasyEdaProvider::with_base(
+        foilfern_network::NetworkAccessManager::new(foilfern_network::ClientInfo {
+            app_version: "test".into(),
+            git_revision: String::new(),
+            file_format_version: foilfern_core::application::file_format_version(),
+            locale: "en_US".into(),
+        })
+        .unwrap(),
+        &mock.uri(),
+    )
+    .unwrap();
+    let acquired = part::acquire(&target, args(PartCache::PreferCache), provider)
+        .await
+        .unwrap();
+    let imported = part::finish(&session, target, acquired).unwrap();
+    let device = imported.result["device"]["uuid"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let created = project::project_create(
+        &mut session,
+        serde_json::from_value(
+            json!({"name":"Procurement","directory":tmp.path().join("project")}),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let project_path = created.result["path"].as_str().unwrap().to_owned();
+    // The import's advertised arguments are executable as-is, with only the
+    // optional instance name added by the caller.
+    let mut ready = imported.result["add_component"].clone();
+    ready["designator"] = json!("U1");
+    let added = schematic_edit::component_add(&mut session, serde_json::from_value(ready).unwrap())
+        .unwrap();
+    assert_eq!(
+        added.result["part_selection"]["selected"]["mpn"],
+        "TEST-123"
+    );
+    assert_eq!(
+        added.result["part_selection"]["selected"]["attributes"]["LCSC"],
+        "C123"
+    );
+    write::undo_redo(&mut session, Default::default(), false).unwrap();
+    assert!(
+        session
+            .project()
+            .unwrap()
+            .project()
+            .circuit()
+            .component_instances()
+            .is_empty()
+    );
+    write::undo_redo(&mut session, Default::default(), true).unwrap();
+    // One library part needs no explicit selector and still selects purchasing data.
+    let automatic = schematic_edit::component_add(
+        &mut session,
+        serde_json::from_value(json!({"part":device,"designator":"U2"})).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        automatic.result["part_selection"]["selected"],
+        added.result["part_selection"]["selected"]
+    );
+    // Another manufacturer with the same MPN must never be chosen arbitrarily.
+    let path = session
+        .workspace()
+        .unwrap()
+        .library_db()
+        .latest(
+            foilfern_core::workspace::ElementKind::Device,
+            device.parse().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+    let fs = std::sync::Arc::new(TransactionalFileSystem::open_rw(&path).unwrap());
+    let mut native = Device::open(TransactionalDirectory::new(fs.clone(), "")).unwrap();
+    let mut alternative = native.parts().get(0).unwrap().clone();
+    alternative.set_manufacturer(foilfern_core::types::SimpleString::new("Other maker").unwrap());
+    native.parts_mut().push(alternative);
+    native.save().unwrap();
+    fs.save().unwrap();
+    drop(native);
+    drop(fs);
+    let revision = session.project().unwrap().project().revision();
+    let failed = schematic_edit::component_add(
+        &mut session,
+        serde_json::from_value(
+            json!({"part":device,"designator":"U3","selected_part":{"mpn":"TEST-123"}}),
+        )
+        .unwrap(),
+    )
+    .unwrap_err();
+    assert_eq!(failed.kind, ErrorKind::InvalidArgument);
+    assert!(failed.message.contains("matches 2"));
+    assert_eq!(session.project().unwrap().project().revision(), revision);
+    assert!(
+        session
+            .project()
+            .unwrap()
+            .project()
+            .circuit()
+            .component_instance_by_name("U3")
+            .is_none()
+    );
+    let ambiguous = schematic_edit::component_add(
+        &mut session,
+        serde_json::from_value(json!({"part":device,"designator":"U3"})).unwrap(),
+    )
+    .unwrap();
+    assert!(ambiguous.result["part_selection"]["selected"].is_null());
+    assert_eq!(
+        ambiguous.result["part_selection"]["candidates"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert!(!ambiguous.warnings.is_empty());
+    schematic_edit::component_update(&mut session, serde_json::from_value(json!({"component":"U3","selected_part":{"mpn":"TEST-123","manufacturer":"Test maker"}})).unwrap()).unwrap();
+    let before_value = session
+        .project()
+        .unwrap()
+        .project()
+        .circuit()
+        .component_instance_by_name("U3")
+        .unwrap()
+        .1
+        .value()
+        .to_owned();
+    let revision = session.project().unwrap().project().revision();
+    let error = schematic_edit::component_update(
+        &mut session,
+        serde_json::from_value(
+            json!({"component":"U3","value":"must roll back","selected_part":{"mpn":"missing"}}),
+        )
+        .unwrap(),
+    )
+    .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::InvalidArgument);
+    assert_eq!(session.project().unwrap().project().revision(), revision);
+    assert_eq!(
+        session
+            .project()
+            .unwrap()
+            .project()
+            .circuit()
+            .component_instance_by_name("U3")
+            .unwrap()
+            .1
+            .value(),
+        &before_value
+    );
+    // Placement and board BOM preserve the exact selected native part.
+    board_edit::device_place(
+        &mut session,
+        serde_json::from_value(json!({"component":"U1","position":{"x":15,"y":15}})).unwrap(),
+    )
+    .unwrap();
+    let bom = output::export_bom(
+        &session,
+        serde_json::from_value(json!({"additional_attributes":["LCSC[]"]})).unwrap(),
+    )
+    .unwrap();
+    let csv = bom.result["csv"].as_str().unwrap();
+    assert!(
+        csv.contains("TEST-123") && csv.contains("Test maker") && csv.contains("C123"),
+        "{csv}"
+    );
+    project::project_save(&mut session, serde_json::from_value(json!({})).unwrap()).unwrap();
+    project::project_close(&mut session, serde_json::from_value(json!({})).unwrap()).unwrap();
+    project::project_open(
+        &mut session,
+        serde_json::from_value(json!({"path":project_path})).unwrap(),
+    )
+    .unwrap();
+    let bom = output::export_bom(
+        &session,
+        serde_json::from_value(json!({"additional_attributes":["LCSC[]"]})).unwrap(),
+    )
+    .unwrap();
+    assert!(bom.result["csv"].as_str().unwrap().contains("C123"));
 }
