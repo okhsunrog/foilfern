@@ -116,7 +116,9 @@ declarative/automatic placement and the final interactive drop. Native text styl
 manual edits and copper remain intact. Reports distinguish unresolved findings
 from missing courtyard coverage; unchanged/native-clear text is not repositioned.
 Mirrored/rotated placement, explicit targets, final locks, no-fit fallback, undo,
-native reopen and cancelled-search rollback have focused coverage.
+native reopen and cancelled-search rollback have focused coverage. The
+[release replay](benchmarks/initial-legend/REPORT.md) confirms all eight C-0805
+side/rotation cases, documents extra checking time and reduced DRC response cost.
 
 ## Routing and measurements available now
 

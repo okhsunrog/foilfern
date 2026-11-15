@@ -1,0 +1,843 @@
+{
+  "date": "2026-11-15",
+  "baseline_master": "f0f24773a7844b12ff88e6b3d9ec3bb1b4e3e436",
+  "upstream_fixture_commit": "99ff973ac20f3753bdb30d4e29608aadc882674f",
+  "method": "One release local CLI batch per binary. Eight isolated C-0805 projects: top/bottom at 0/90/180/270 degrees. Timing includes server startup and main 57-call flow, excludes workspace setup/rescan. Compact UTF-8 JSON response bytes exclude local batch framing; not token counts. No delegated/model runs.",
+  "baseline": {
+    "binary": "/home/okhsunrog/tmp_zfs/codex_tmp/initial-legend/baseline-mcp",
+    "binary_sha256": "b3935f79b2d3648159d72cc7eed838e3ead2cc604b7b3a164d3f6e468b981fd9",
+    "build": {
+      "cargo_opt_level": "3",
+      "cargo_profile": "release",
+      "source_commit": "d431f4be6d934ca297c041780c08ad26b7f2b33f",
+      "tracked_source_state": "clean"
+    },
+    "api": 58,
+    "elapsed_seconds": 0.7773947690147907,
+    "calls": 57,
+    "total_response_bytes": 85700,
+    "placement_response_bytes": 12904,
+    "trials": [
+      {
+        "side": "top",
+        "rotation": 0,
+        "drc_ran": true,
+        "drc_errors": 0,
+        "drc_warnings": 1,
+        "text_position": {
+          "x": 18.4125,
+          "y": 20.3175
+        },
+        "placement_response_bytes": 1602
+      },
+      {
+        "side": "top",
+        "rotation": 90,
+        "drc_ran": true,
+        "drc_errors": 0,
+        "drc_warnings": 1,
+        "text_position": {
+          "x": 19.6825,
+          "y": 18.4125
+        },
+        "placement_response_bytes": 1606
+      },
+      {
+        "side": "top",
+        "rotation": 180,
+        "drc_ran": true,
+        "drc_errors": 0,
+        "drc_warnings": 1,
+        "text_position": {
+          "x": 21.5875,
+          "y": 19.6825
+        },
+        "placement_response_bytes": 1610
+      },
+      {
+        "side": "top",
+        "rotation": 270,
+        "drc_ran": true,
+        "drc_errors": 0,
+        "drc_warnings": 1,
+        "text_position": {
+          "x": 20.3175,
+          "y": 21.5875
+        },
+        "placement_response_bytes": 1610
+      },
+      {
+        "side": "bottom",
+        "rotation": 0,
+        "drc_ran": true,
+        "drc_errors": 0,
+        "drc_warnings": 1,
+        "text_position": {
+          "x": 21.5875,
+          "y": 20.3175
+        },
+        "placement_response_bytes": 1614
+      },
+      {
+        "side": "bottom",
+        "rotation": 90,
+        "drc_ran": true,
+        "drc_errors": 0,
+        "drc_warnings": 1,
+        "text_position": {
+          "x": 19.6825,
+          "y": 21.5875
+        },
+        "placement_response_bytes": 1618
+      },
+      {
+        "side": "bottom",
+        "rotation": 180,
+        "drc_ran": true,
+        "drc_errors": 0,
+        "drc_warnings": 1,
+        "text_position": {
+          "x": 18.4125,
+          "y": 19.6825
+        },
+        "placement_response_bytes": 1622
+      },
+      {
+        "side": "bottom",
+        "rotation": 270,
+        "drc_ran": true,
+        "drc_errors": 0,
+        "drc_warnings": 1,
+        "text_position": {
+          "x": 20.3175,
+          "y": 18.4125
+        },
+        "placement_response_bytes": 1622
+      }
+    ]
+  },
+  "updated": {
+    "binary": "/home/okhsunrog/code/rust/foilfern/target/release/foilfern-mcp",
+    "binary_sha256": "5920cc898c9a95a6ebfd858e6cf70747754f47b2c9c55bd7a10169595fcc3d6c",
+    "build": {
+      "cargo_opt_level": "3",
+      "cargo_profile": "release",
+      "source_commit": "48f73299ca7a16a998579db14dd732cdfa58819b",
+      "tracked_source_state": "clean"
+    },
+    "api": 59,
+    "elapsed_seconds": 1.479149942053482,
+    "calls": 57,
+    "total_response_bytes": 73966,
+    "placement_response_bytes": 22774,
+    "trials": [
+      {
+        "side": "top",
+        "rotation": 0,
+        "drc_ran": true,
+        "drc_errors": 0,
+        "drc_warnings": 0,
+        "text_position": {
+          "x": 18.4125,
+          "y": 21.3175
+        },
+        "placement_response_bytes": 2838,
+        "initial_legend": {
+          "full_board_drc": false,
+          "has_unresolved": false,
+          "has_unverified": false,
+          "scope": "legend_geometry",
+          "texts": [
+            {
+              "attempts": 9,
+              "checks_after": {
+                "courtyard_overlaps": [],
+                "mask_overlap": false,
+                "outside_board": false,
+                "text_overlap": false
+              },
+              "checks_before": {
+                "courtyard_overlaps": [
+                  "e04a7c1b-c99b-41d9-a5d5-19ce62e320e1"
+                ],
+                "mask_overlap": true,
+                "outside_board": false,
+                "text_overlap": false
+              },
+              "edit": {
+                "after": {
+                  "bbox": {
+                    "max": {
+                      "x": 20.102500000000003,
+                      "y": 22.417500000000004
+                    },
+                    "min": {
+                      "x": 18.3125,
+                      "y": 21.2175
+                    }
+                  },
+                  "position": {
+                    "x": 18.4125,
+                    "y": 21.3175
+                  },
+                  "rotation": 0.0
+                },
+                "before": {
+                  "bbox": {
+                    "max": {
+                      "x": 20.102500000000003,
+                      "y": 21.417500000000004
+                    },
+                    "min": {
+                      "x": 18.3125,
+                      "y": 20.217499999999998
+                    }
+                  },
+                  "position": {
+                    "x": 18.4125,
+                    "y": 20.3175
+                  },
+                  "rotation": 0.0
+                },
+                "changed": true,
+                "component": "C1",
+                "kind": "board_text",
+                "rendered_text": "C1",
+                "target": {
+                  "board": "82811384-4ba5-4d11-b4d9-8c022ac5ae9e",
+                  "component": "e04a7c1b-c99b-41d9-a5d5-19ce62e320e1",
+                  "uuid": "3b78de84-5247-4ec3-8ff6-721708c7019c"
+                }
+              },
+              "error": null,
+              "outline_fallbacks": [],
+              "status": "moved",
+              "unknown_devices": [],
+              "verified_clear": true
+            }
+          ]
+        }
+      },
+      {
+        "side": "top",
+        "rotation": 90,
+        "drc_ran": true,
+        "drc_errors": 0,
+        "drc_warnings": 0,
+        "text_position": {
+          "x": 18.6825,
+          "y": 18.4125
+        },
+        "placement_response_bytes": 2834,
+        "initial_legend": {
+          "full_board_drc": false,
+          "has_unresolved": false,
+          "has_unverified": false,
+          "scope": "legend_geometry",
+          "texts": [
+            {
+              "attempts": 12,
+              "checks_after": {
+                "courtyard_overlaps": [],
+                "mask_overlap": false,
+                "outside_board": false,
+                "text_overlap": false
+              },
+              "checks_before": {
+                "courtyard_overlaps": [
+                  "7254fb4e-4d8e-495b-8333-972f3b666fd3"
+                ],
+                "mask_overlap": true,
+                "outside_board": false,
+                "text_overlap": false
+              },
+              "edit": {
+                "after": {
+                  "bbox": {
+                    "max": {
+                      "x": 18.782500000000002,
+                      "y": 20.102500000000003
+                    },
+                    "min": {
+                      "x": 17.5825,
+                      "y": 18.3125
+                    }
+                  },
+                  "position": {
+                    "x": 18.6825,
+                    "y": 18.4125
+                  },
+                  "rotation": 90.0
+                },
+                "before": {
+                  "bbox": {
+                    "max": {
+                      "x": 19.782500000000002,
+                      "y": 20.102500000000003
+                    },
+                    "min": {
+                      "x": 18.5825,
+                      "y": 18.3125
+                    }
+                  },
+                  "position": {
+                    "x": 19.6825,
+                    "y": 18.4125
+                  },
+                  "rotation": 90.0
+                },
+                "changed": true,
+                "component": "C1",
+                "kind": "board_text",
+                "rendered_text": "C1",
+                "target": {
+                  "board": "49c1b7b9-82a3-40e1-84d3-78f55beaa9d8",
+                  "component": "7254fb4e-4d8e-495b-8333-972f3b666fd3",
+                  "uuid": "3b78de84-5247-4ec3-8ff6-721708c7019c"
+                }
+              },
+              "error": null,
+              "outline_fallbacks": [],
+              "status": "moved",
+              "unknown_devices": [],
+              "verified_clear": true
+            }
+          ]
+        }
+      },
+      {
+        "side": "top",
+        "rotation": 180,
+        "drc_ran": true,
+        "drc_errors": 0,
+        "drc_warnings": 0,
+        "text_position": {
+          "x": 21.5875,
+          "y": 18.6825
+        },
+        "placement_response_bytes": 2840,
+        "initial_legend": {
+          "full_board_drc": false,
+          "has_unresolved": false,
+          "has_unverified": false,
+          "scope": "legend_geometry",
+          "texts": [
+            {
+              "attempts": 10,
+              "checks_after": {
+                "courtyard_overlaps": [],
+                "mask_overlap": false,
+                "outside_board": false,
+                "text_overlap": false
+              },
+              "checks_before": {
+                "courtyard_overlaps": [
+                  "35ec1bb8-6143-4622-a1c5-63b200afa9f7"
+                ],
+                "mask_overlap": true,
+                "outside_board": false,
+                "text_overlap": false
+              },
+              "edit": {
+                "after": {
+                  "bbox": {
+                    "max": {
+                      "x": 21.687500000000004,
+                      "y": 18.782500000000002
+                    },
+                    "min": {
+                      "x": 19.8975,
+                      "y": 17.5825
+                    }
+                  },
+                  "position": {
+                    "x": 21.5875,
+                    "y": 18.6825
+                  },
+                  "rotation": 180.0
+                },
+                "before": {
+                  "bbox": {
+                    "max": {
+                      "x": 21.687500000000004,
+                      "y": 19.782500000000002
+                    },
+                    "min": {
+                      "x": 19.8975,
+                      "y": 18.5825
+                    }
+                  },
+                  "position": {
+                    "x": 21.5875,
+                    "y": 19.6825
+                  },
+                  "rotation": 180.0
+                },
+                "changed": true,
+                "component": "C1",
+                "kind": "board_text",
+                "rendered_text": "C1",
+                "target": {
+                  "board": "48697ef9-4a87-4dad-b9bf-72e2e3c012e4",
+                  "component": "35ec1bb8-6143-4622-a1c5-63b200afa9f7",
+                  "uuid": "3b78de84-5247-4ec3-8ff6-721708c7019c"
+                }
+              },
+              "error": null,
+              "outline_fallbacks": [],
+              "status": "moved",
+              "unknown_devices": [],
+              "verified_clear": true
+            }
+          ]
+        }
+      },
+      {
+        "side": "top",
+        "rotation": 270,
+        "drc_ran": true,
+        "drc_errors": 0,
+        "drc_warnings": 0,
+        "text_position": {
+          "x": 21.3175,
+          "y": 21.5875
+        },
+        "placement_response_bytes": 2851,
+        "initial_legend": {
+          "full_board_drc": false,
+          "has_unresolved": false,
+          "has_unverified": false,
+          "scope": "legend_geometry",
+          "texts": [
+            {
+              "attempts": 11,
+              "checks_after": {
+                "courtyard_overlaps": [],
+                "mask_overlap": false,
+                "outside_board": false,
+                "text_overlap": false
+              },
+              "checks_before": {
+                "courtyard_overlaps": [
+                  "e92ac890-daf2-4234-b1ed-c1da6ebcd495"
+                ],
+                "mask_overlap": true,
+                "outside_board": false,
+                "text_overlap": false
+              },
+              "edit": {
+                "after": {
+                  "bbox": {
+                    "max": {
+                      "x": 22.417500000000004,
+                      "y": 21.687500000000004
+                    },
+                    "min": {
+                      "x": 21.2175,
+                      "y": 19.8975
+                    }
+                  },
+                  "position": {
+                    "x": 21.3175,
+                    "y": 21.5875
+                  },
+                  "rotation": 270.0
+                },
+                "before": {
+                  "bbox": {
+                    "max": {
+                      "x": 21.417500000000004,
+                      "y": 21.687500000000004
+                    },
+                    "min": {
+                      "x": 20.217499999999998,
+                      "y": 19.8975
+                    }
+                  },
+                  "position": {
+                    "x": 20.3175,
+                    "y": 21.5875
+                  },
+                  "rotation": 270.0
+                },
+                "changed": true,
+                "component": "C1",
+                "kind": "board_text",
+                "rendered_text": "C1",
+                "target": {
+                  "board": "abd7ad27-95af-4f54-99ad-df652def6c89",
+                  "component": "e92ac890-daf2-4234-b1ed-c1da6ebcd495",
+                  "uuid": "3b78de84-5247-4ec3-8ff6-721708c7019c"
+                }
+              },
+              "error": null,
+              "outline_fallbacks": [],
+              "status": "moved",
+              "unknown_devices": [],
+              "verified_clear": true
+            }
+          ]
+        }
+      },
+      {
+        "side": "bottom",
+        "rotation": 0,
+        "drc_ran": true,
+        "drc_errors": 0,
+        "drc_warnings": 0,
+        "text_position": {
+          "x": 21.5875,
+          "y": 21.3175
+        },
+        "placement_response_bytes": 2850,
+        "initial_legend": {
+          "full_board_drc": false,
+          "has_unresolved": false,
+          "has_unverified": false,
+          "scope": "legend_geometry",
+          "texts": [
+            {
+              "attempts": 9,
+              "checks_after": {
+                "courtyard_overlaps": [],
+                "mask_overlap": false,
+                "outside_board": false,
+                "text_overlap": false
+              },
+              "checks_before": {
+                "courtyard_overlaps": [
+                  "65b7f3b9-d4e7-49a9-91a9-0892d9a88902"
+                ],
+                "mask_overlap": true,
+                "outside_board": false,
+                "text_overlap": false
+              },
+              "edit": {
+                "after": {
+                  "bbox": {
+                    "max": {
+                      "x": 21.687500000000004,
+                      "y": 22.417500000000004
+                    },
+                    "min": {
+                      "x": 19.8975,
+                      "y": 21.2175
+                    }
+                  },
+                  "position": {
+                    "x": 21.5875,
+                    "y": 21.3175
+                  },
+                  "rotation": 0.0
+                },
+                "before": {
+                  "bbox": {
+                    "max": {
+                      "x": 21.687500000000004,
+                      "y": 21.417500000000004
+                    },
+                    "min": {
+                      "x": 19.8975,
+                      "y": 20.217499999999998
+                    }
+                  },
+                  "position": {
+                    "x": 21.5875,
+                    "y": 20.3175
+                  },
+                  "rotation": 0.0
+                },
+                "changed": true,
+                "component": "C1",
+                "kind": "board_text",
+                "rendered_text": "C1",
+                "target": {
+                  "board": "94ca4f0f-abdb-4f8f-8a80-3ffc323d828d",
+                  "component": "65b7f3b9-d4e7-49a9-91a9-0892d9a88902",
+                  "uuid": "3b78de84-5247-4ec3-8ff6-721708c7019c"
+                }
+              },
+              "error": null,
+              "outline_fallbacks": [],
+              "status": "moved",
+              "unknown_devices": [],
+              "verified_clear": true
+            }
+          ]
+        }
+      },
+      {
+        "side": "bottom",
+        "rotation": 90,
+        "drc_ran": true,
+        "drc_errors": 0,
+        "drc_warnings": 0,
+        "text_position": {
+          "x": 18.6825,
+          "y": 21.5875
+        },
+        "placement_response_bytes": 2846,
+        "initial_legend": {
+          "full_board_drc": false,
+          "has_unresolved": false,
+          "has_unverified": false,
+          "scope": "legend_geometry",
+          "texts": [
+            {
+              "attempts": 12,
+              "checks_after": {
+                "courtyard_overlaps": [],
+                "mask_overlap": false,
+                "outside_board": false,
+                "text_overlap": false
+              },
+              "checks_before": {
+                "courtyard_overlaps": [
+                  "9949997c-e744-4b1f-ad13-e15bc71893c6"
+                ],
+                "mask_overlap": true,
+                "outside_board": false,
+                "text_overlap": false
+              },
+              "edit": {
+                "after": {
+                  "bbox": {
+                    "max": {
+                      "x": 18.782500000000002,
+                      "y": 21.687500000000004
+                    },
+                    "min": {
+                      "x": 17.5825,
+                      "y": 19.8975
+                    }
+                  },
+                  "position": {
+                    "x": 18.6825,
+                    "y": 21.5875
+                  },
+                  "rotation": 90.0
+                },
+                "before": {
+                  "bbox": {
+                    "max": {
+                      "x": 19.782500000000002,
+                      "y": 21.687500000000004
+                    },
+                    "min": {
+                      "x": 18.5825,
+                      "y": 19.8975
+                    }
+                  },
+                  "position": {
+                    "x": 19.6825,
+                    "y": 21.5875
+                  },
+                  "rotation": 90.0
+                },
+                "changed": true,
+                "component": "C1",
+                "kind": "board_text",
+                "rendered_text": "C1",
+                "target": {
+                  "board": "8ca0735e-41ec-496e-9bda-43b0fd0383e3",
+                  "component": "9949997c-e744-4b1f-ad13-e15bc71893c6",
+                  "uuid": "3b78de84-5247-4ec3-8ff6-721708c7019c"
+                }
+              },
+              "error": null,
+              "outline_fallbacks": [],
+              "status": "moved",
+              "unknown_devices": [],
+              "verified_clear": true
+            }
+          ]
+        }
+      },
+      {
+        "side": "bottom",
+        "rotation": 180,
+        "drc_ran": true,
+        "drc_errors": 0,
+        "drc_warnings": 0,
+        "text_position": {
+          "x": 18.4125,
+          "y": 18.6825
+        },
+        "placement_response_bytes": 2852,
+        "initial_legend": {
+          "full_board_drc": false,
+          "has_unresolved": false,
+          "has_unverified": false,
+          "scope": "legend_geometry",
+          "texts": [
+            {
+              "attempts": 10,
+              "checks_after": {
+                "courtyard_overlaps": [],
+                "mask_overlap": false,
+                "outside_board": false,
+                "text_overlap": false
+              },
+              "checks_before": {
+                "courtyard_overlaps": [
+                  "1b4f6e9a-26cc-47b7-ad5c-31dace129ed4"
+                ],
+                "mask_overlap": true,
+                "outside_board": false,
+                "text_overlap": false
+              },
+              "edit": {
+                "after": {
+                  "bbox": {
+                    "max": {
+                      "x": 20.102500000000003,
+                      "y": 18.782500000000002
+                    },
+                    "min": {
+                      "x": 18.3125,
+                      "y": 17.5825
+                    }
+                  },
+                  "position": {
+                    "x": 18.4125,
+                    "y": 18.6825
+                  },
+                  "rotation": 180.0
+                },
+                "before": {
+                  "bbox": {
+                    "max": {
+                      "x": 20.102500000000003,
+                      "y": 19.782500000000002
+                    },
+                    "min": {
+                      "x": 18.3125,
+                      "y": 18.5825
+                    }
+                  },
+                  "position": {
+                    "x": 18.4125,
+                    "y": 19.6825
+                  },
+                  "rotation": 180.0
+                },
+                "changed": true,
+                "component": "C1",
+                "kind": "board_text",
+                "rendered_text": "C1",
+                "target": {
+                  "board": "5f41b70d-ae5e-4e82-bc13-2b59052da5e4",
+                  "component": "1b4f6e9a-26cc-47b7-ad5c-31dace129ed4",
+                  "uuid": "3b78de84-5247-4ec3-8ff6-721708c7019c"
+                }
+              },
+              "error": null,
+              "outline_fallbacks": [],
+              "status": "moved",
+              "unknown_devices": [],
+              "verified_clear": true
+            }
+          ]
+        }
+      },
+      {
+        "side": "bottom",
+        "rotation": 270,
+        "drc_ran": true,
+        "drc_errors": 0,
+        "drc_warnings": 0,
+        "text_position": {
+          "x": 21.3175,
+          "y": 18.4125
+        },
+        "placement_response_bytes": 2863,
+        "initial_legend": {
+          "full_board_drc": false,
+          "has_unresolved": false,
+          "has_unverified": false,
+          "scope": "legend_geometry",
+          "texts": [
+            {
+              "attempts": 11,
+              "checks_after": {
+                "courtyard_overlaps": [],
+                "mask_overlap": false,
+                "outside_board": false,
+                "text_overlap": false
+              },
+              "checks_before": {
+                "courtyard_overlaps": [
+                  "41c559a2-9179-42fd-8836-0f4daa6a2af4"
+                ],
+                "mask_overlap": true,
+                "outside_board": false,
+                "text_overlap": false
+              },
+              "edit": {
+                "after": {
+                  "bbox": {
+                    "max": {
+                      "x": 22.417500000000004,
+                      "y": 20.102500000000003
+                    },
+                    "min": {
+                      "x": 21.2175,
+                      "y": 18.3125
+                    }
+                  },
+                  "position": {
+                    "x": 21.3175,
+                    "y": 18.4125
+                  },
+                  "rotation": 270.0
+                },
+                "before": {
+                  "bbox": {
+                    "max": {
+                      "x": 21.417500000000004,
+                      "y": 20.102500000000003
+                    },
+                    "min": {
+                      "x": 20.217499999999998,
+                      "y": 18.3125
+                    }
+                  },
+                  "position": {
+                    "x": 20.3175,
+                    "y": 18.4125
+                  },
+                  "rotation": 270.0
+                },
+                "changed": true,
+                "component": "C1",
+                "kind": "board_text",
+                "rendered_text": "C1",
+                "target": {
+                  "board": "ca09088d-5bad-47f3-bd31-75c092c5d505",
+                  "component": "41c559a2-9179-42fd-8836-0f4daa6a2af4",
+                  "uuid": "3b78de84-5247-4ec3-8ff6-721708c7019c"
+                }
+              },
+              "error": null,
+              "outline_fallbacks": [],
+              "status": "moved",
+              "unknown_devices": [],
+              "verified_clear": true
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "verification": {
+    "saved_native_text_positions_match_reports": true,
+    "device_pose_and_pads_unchanged": true,
+    "text_style_rotation_mirroring_unchanged": true,
+    "embedded_libraries_byte_identical": true
+  },
+  "tests": {
+    "mcp_http_passed": 106,
+    "mcp_ignored_live_source": 2,
+    "editor_passed": 110
+  }
+}

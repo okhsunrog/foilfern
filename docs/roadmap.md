@@ -134,6 +134,7 @@ acceptance.
    courtyard coverage alone does not fail an otherwise valid placement.
    Native checks, mirrored/rotated poses, final locks, preview isolation,
    save/reopen and undo/redo are covered by focused integration tests.
+   See [paired release evidence](benchmarks/initial-legend/REPORT.md).
 
 8. **F8 — Unambiguous board views and readable pin numbers** (P5; A4/A6/A12).
    `render(side:"both")` was labelled `top side`; imported-symbol previews
