@@ -74,8 +74,9 @@ pub use loader::ProjectLoader;
 pub use mutation::{BoardMutation, Mutation, SchematicMutation, SymbolArtwork};
 pub use output_job_runner::{
     BoardStepExporter, BoardStepOutput, GraphicsExportResult, GraphicsExporter, GraphicsJobFile,
-    GraphicsPage, GraphicsPageContent, OutputJobError, OutputJobEvent, OutputJobObserver,
-    OutputJobResult, OutputJobRunner, select_job_boards, select_job_variants,
+    GraphicsJobPlan, GraphicsPage, GraphicsPageContent, OutputJobError, OutputJobEvent,
+    OutputJobObserver, OutputJobResult, OutputJobRunner, StepJobDestination, graphics_job_pages,
+    plan_graphics_job, plan_step_job, select_job_boards, select_job_variants,
 };
 pub use project::{Project, ProjectMetadata, ProjectSettings, ProjectView};
 pub use ref_index::{ComponentUses, NetUse, Reference};

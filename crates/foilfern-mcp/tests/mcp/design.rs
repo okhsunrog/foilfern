@@ -565,6 +565,8 @@ fn jobs_run_writes_the_output_job_files() {
     let jobs = output::jobs_run(
         &mut session,
         JobsRunArgs {
+            dry_run: false,
+            expected_revision: None,
             jobs: Vec::new(),
             output_dir: Some(out_dir.to_string_lossy().into_owned()),
         },
@@ -611,6 +613,8 @@ fn jobs_run_writes_the_output_job_files() {
     let err = output::jobs_run(
         &mut session,
         JobsRunArgs {
+            dry_run: false,
+            expected_revision: None,
             jobs: vec!["No Such Job".into()],
             output_dir: None,
         },

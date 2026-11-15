@@ -70,6 +70,8 @@ pub struct JobsListArgs {
     /// Include complete native settings for inspection (default false).
     #[serde(default)]
     pub include_settings: bool,
+    /// Resolve filenames against this directory instead of the native output directory.
+    pub output_dir: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -117,12 +119,18 @@ fn output_path(job: &OutputJob) -> Option<&str> {
     }
 }
 
-fn job_json(job: &OutputJob, settings: bool) -> Value {
+fn job_json(
+    project: &Project,
+    job: &OutputJob,
+    settings: bool,
+    directory: Option<&foilfern_core::fileio::FilePath>,
+) -> Value {
     let mut value =
         json!({"uuid":job.uuid(),"name":job.name().as_str(),"type":super::job_type(job.kind())});
     if let Some(path) = output_path(job) {
         value["output_path"] = json!(path);
     }
+    value["output_plan"] = super::plan::job(project, job, directory);
     if settings {
         value["settings"] = json!(job.kind());
     }
@@ -131,12 +139,22 @@ fn job_json(job: &OutputJob, settings: bool) -> Value {
 
 pub fn list(session: &Session, args: JobsListArgs) -> ToolResult<ToolOutput> {
     let project = session.project()?.project();
+    let directory = args
+        .output_dir
+        .as_deref()
+        .map(crate::session::absolute_path)
+        .transpose()?;
     let jobs: Vec<_> = match args.job {
-        Some(key) => vec![job_json(resolve_job(project, &key)?, args.include_settings)],
+        Some(key) => vec![job_json(
+            project,
+            resolve_job(project, &key)?,
+            args.include_settings,
+            directory.as_ref(),
+        )],
         None => project
             .output_jobs()
             .iter()
-            .map(|job| job_json(job, args.include_settings))
+            .map(|job| job_json(project, job, args.include_settings, directory.as_ref()))
             .collect(),
     };
     ToolOutput::new(
@@ -269,7 +287,7 @@ pub fn configure(session: &mut Session, args: JobsConfigureArgs) -> ToolResult<T
         })
         .chain(existing.is_none().then_some(job.clone()))
         .collect();
-    let result = job_json(&job, false);
+    let result = job_json(project, &job, false, None);
     let done = write(session, "jobs_configure", args.expected_revision, |tx| {
         if changed {
             tx.apply(Mutation::SetOutputJobs(jobs))?;

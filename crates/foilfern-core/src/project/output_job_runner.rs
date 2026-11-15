@@ -201,6 +201,9 @@ pub enum GraphicsPageContent {
 pub struct GraphicsPage {
     /// What to paint.
     pub content: GraphicsPageContent,
+    /// Native job selection context (also identifies repeated schematic pages).
+    pub board_context: Option<BoardId>,
+    pub assembly_variant: Option<AssemblyVariantId>,
     /// Page layout and colors.
     pub settings: GraphicsExportSettings,
 }
@@ -464,83 +467,29 @@ impl<'a> OutputJobRunner<'a> {
         job: &GraphicsOutputJob,
         rebuild_planes: bool,
     ) -> OutputJobResult<Vec<GraphicsPage>> {
-        let mut pages = Vec::new();
-        for content in &job.content {
-            let page_size = match &content.page_size {
-                None => None,
-                Some(key) if PageSize::is_known_key(key) => Some(key.clone()),
-                Some(key) => return Err(OutputJobError::UnsupportedPageSize(key.clone())),
-            };
-            let mut settings = GraphicsExportSettings {
-                page_size,
-                orientation: content.orientation,
-                margin_left: content.margin_left,
-                margin_top: content.margin_top,
-                margin_right: content.margin_right,
-                margin_bottom: content.margin_bottom,
-                rotate: content.rotate,
-                mirror: content.mirror,
-                scale: content.scale,
-                pixmap_dpi: content.pixmap_dpi,
-                black_white: content.monochrome,
-                background_color: content.background_color,
-                min_line_width: content.min_line_width,
-                ..GraphicsExportSettings::default()
-            };
-            if content.content_type == GraphicsContentType::BoardRendering {
-                settings.load_board_rendering_colors(crate::types::Layer::INNER_COPPER_COUNT);
-            }
-            settings.colors = settings
-                .colors
-                .iter()
-                .filter_map(|(role, _)| {
-                    content.layers.get(role).map(|color| (role.clone(), *color))
-                })
-                .collect();
-            let boards = self.optional_boards(&content.boards, false)?;
-            let variants = self.optional_assembly_variants(&content.assembly_variants, false)?;
-            match content.content_type {
-                GraphicsContentType::Schematic => {
-                    // Upstream does not consider boards and assembly variants
-                    // yet (TODO), but they multiply the pages.
-                    for _ in &variants {
-                        for _ in &boards {
-                            for schematic in self.project.schematics() {
-                                pages.push(GraphicsPage {
-                                    content: GraphicsPageContent::Schematic(schematic.id()),
-                                    settings: settings.clone(),
-                                });
-                            }
-                        }
-                    }
-                }
-                GraphicsContentType::Board | GraphicsContentType::BoardRendering => {
-                    // Upstream would dereference a null board for "no
-                    // board"; skip it.
-                    for board in boards.into_iter().flatten() {
-                        if rebuild_planes {
-                            self.rebuild_outdated_planes(board)?;
-                        }
-                        let content = if content.content_type == GraphicsContentType::BoardRendering
-                        {
-                            GraphicsPageContent::BoardRendering(board)
-                        } else {
-                            GraphicsPageContent::Board(board)
-                        };
-                        for _ in &variants {
-                            pages.push(GraphicsPage {
-                                content,
-                                settings: settings.clone(),
-                            });
-                        }
-                    }
-                }
-                GraphicsContentType::AssemblyGuide => {
-                    return Err(OutputJobError::AssemblyGuideUnsupported);
-                }
-            }
+        let pages = graphics_job_pages(self.project, job)?;
+        if rebuild_planes {
+            self.rebuild_graphics_pages(&pages)?;
         }
         Ok(pages)
+    }
+
+    fn rebuild_graphics_pages(&mut self, pages: &[GraphicsPage]) -> OutputJobResult<()> {
+        let mut rebuilt = BTreeSet::new();
+        for page in pages {
+            let board = match page.content {
+                GraphicsPageContent::Board(id) | GraphicsPageContent::BoardRendering(id) => {
+                    Some(id)
+                }
+                GraphicsPageContent::Schematic(_) => None,
+            };
+            if let Some(board) = board
+                && rebuilt.insert(board)
+            {
+                self.rebuild_outdated_planes(board)?;
+            }
+        }
+        Ok(())
     }
 
     fn run_graphics(
@@ -549,45 +498,13 @@ impl<'a> OutputJobRunner<'a> {
         job: &GraphicsOutputJob,
         exporter: &dyn GraphicsExporter,
     ) -> OutputJobResult<()> {
-        // Build pages.
-        let pages = self.build_pages(job, true)?;
-
-        // Determine lookup objects.
-        let mut all_boards: BTreeSet<Option<BoardId>> = BTreeSet::new();
-        let mut all_variants: BTreeSet<Option<AssemblyVariantId>> = BTreeSet::new();
-        for content in &job.content {
-            all_boards.extend(self.optional_boards(&content.boards, false)?);
-            all_variants
-                .extend(self.optional_assembly_variants(&content.assembly_variants, false)?);
-        }
-
-        // Determine output path.
-        let project = &*self.project;
-        let variant = match all_variants.iter().collect::<Vec<_>>().as_slice() {
-            [Some(av)] => Some(required_variant(project, *av)?),
-            _ => None,
-        };
-        let board = match all_boards.iter().collect::<Vec<_>>().as_slice() {
-            [Some(b)] => Some(required_board(project, *b)?),
-            _ => None,
-        };
-        let lookup = match board {
-            Some(b) => ProjectAttributeLookup::for_board(project, b, variant),
-            None => ProjectAttributeLookup::for_project(project, variant),
-        };
-        let output = output_path(&lookup, &job.output_path);
+        let plan = plan_graphics_job(self.project, job)?;
+        self.rebuild_graphics_pages(&plan.pages)?;
+        let output = plan.output_path;
         let fp = self.writer.directory_path().path_to(&output);
-
-        // Determine document name (`QString::simplified()`).
-        let mut doc_name = job.document_title.as_str().to_owned();
-        if doc_name.is_empty() {
-            doc_name = "{{PROJECT}} {{VERSION}}".to_owned();
-        }
-        let doc_name = lookup
-            .substitute(&doc_name)
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ");
+        let pages = plan.pages;
+        let doc_name = plan.document_name;
+        let project = &*self.project;
 
         // Reserve all prepared files before the first write, including page
         // suffixes, so a collision cannot overwrite another job's output.
@@ -833,83 +750,80 @@ impl<'a> OutputJobRunner<'a> {
 
     /// Upstream `runImpl(const Board3DOutputJob&)`, with an injected CAD kernel.
     fn run_board_3d(&mut self, uuid: Uuid, job: &Board3DOutputJob) -> OutputJobResult<()> {
-        let boards = self.boards(&job.boards)?;
-        let variants = self.optional_assembly_variants(&job.assembly_variants, false)?;
-        for board in boards {
-            // Rebuild planes to be sure no outdated planes are exported!
-            self.rebuild_outdated_planes(board)?;
-
+        let mut rebuilt = BTreeSet::new();
+        for destination in plan_step_job(self.project, job)? {
+            let board = destination.board;
+            if rebuilt.insert(board) {
+                self.rebuild_outdated_planes(board)?;
+            }
             let project = &*self.project;
             let b = required_board(project, board)?;
-            for av in &variants {
-                let variant = av.map(|av| required_variant(project, av)).transpose()?;
-                let lookup = ProjectAttributeLookup::for_board(project, b, variant);
-                let output = output_path(&lookup, &job.output_path);
-                let suffix = self
-                    .writer
-                    .directory_path()
-                    .path_to(&output)
-                    .suffix()
-                    .to_lowercase();
-                if !matches!(suffix.as_str(), "step" | "stp") {
-                    return Err(OutputJobError::UnsupportedStepFormat(suffix));
-                }
-                let exporter = self.step_exporter.as_ref().ok_or_else(|| {
-                    OutputJobError::Unsupported(
-                        <Board3DOutputJob as crate::job::OutputJobType>::TYPE_NAME.to_owned(),
-                    )
-                })?;
-                // Prepare before reserving/writing output, so a failed CAD import
-                // leaves both the previous file and output ownership intact.
-                let coverage = super::board::StepAssemblyCoverage::capture(project, b, *av)?;
-                let prepared = exporter(project, b, *av)?;
-                if coverage.missing_model_count > 0 {
-                    let names = coverage
-                        .components
-                        .iter()
-                        .filter(|entry| {
-                            entry.representation == super::board::ModelRepresentation::MissingModel
-                        })
-                        .map(|entry| entry.designator.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    notify(
-                        &self.observer,
-                        OutputJobEvent::Warning(&tr!(
-                            TR_CONTEXT,
-                            "STEP assembly on board '{0}' omits {1} fitted component(s) without a selected model: {2}.",
-                            b.name(),
-                            coverage.missing_model_count,
-                            names
-                        )),
-                    );
-                }
-                if coverage.represented_count > 0 {
-                    notify(
-                        &self.observer,
-                        OutputJobEvent::Warning(&tr!(
-                            TR_CONTEXT,
-                            "STEP assembly on board '{0}' includes {1} component model(s) with unverified alignment; mechanical fit was not checked.",
-                            b.name(),
-                            coverage.represented_count
-                        )),
-                    );
-                }
-                for warning in &prepared.warnings {
-                    notify(&self.observer, OutputJobEvent::Warning(warning));
-                }
-                let fp = self.writer.begin_writing_file(&uuid, &output)?;
-                file_utils::write_file(&fp, &prepared.contents)?;
+            let av = destination.assembly_variant;
+            let output = destination.output_path;
+            let suffix = self
+                .writer
+                .directory_path()
+                .path_to(&output)
+                .suffix()
+                .to_lowercase();
+            if !matches!(suffix.as_str(), "step" | "stp") {
+                return Err(OutputJobError::UnsupportedStepFormat(suffix));
+            }
+            let exporter = self.step_exporter.as_ref().ok_or_else(|| {
+                OutputJobError::Unsupported(
+                    <Board3DOutputJob as crate::job::OutputJobType>::TYPE_NAME.to_owned(),
+                )
+            })?;
+            // Prepare before reserving/writing output, so a failed CAD import
+            // leaves both the previous file and output ownership intact.
+            let coverage = super::board::StepAssemblyCoverage::capture(project, b, av)?;
+            let prepared = exporter(project, b, av)?;
+            if coverage.missing_model_count > 0 {
+                let names = coverage
+                    .components
+                    .iter()
+                    .filter(|entry| {
+                        entry.representation == super::board::ModelRepresentation::MissingModel
+                    })
+                    .map(|entry| entry.designator.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 notify(
                     &self.observer,
-                    OutputJobEvent::StepExported {
-                        job: uuid,
-                        board,
-                        file: &fp,
-                        coverage: &coverage,
-                    },
+                    OutputJobEvent::Warning(&tr!(
+                        TR_CONTEXT,
+                        "STEP assembly on board '{0}' omits {1} fitted component(s) without a selected model: {2}.",
+                        b.name(),
+                        coverage.missing_model_count,
+                        names
+                    )),
                 );
             }
+            if coverage.represented_count > 0 {
+                notify(
+                    &self.observer,
+                    OutputJobEvent::Warning(&tr!(
+                        TR_CONTEXT,
+                        "STEP assembly on board '{0}' includes {1} component model(s) with unverified alignment; mechanical fit was not checked.",
+                        b.name(),
+                        coverage.represented_count
+                    )),
+                );
+            }
+            for warning in &prepared.warnings {
+                notify(&self.observer, OutputJobEvent::Warning(warning));
+            }
+            let fp = self.writer.begin_writing_file(&uuid, &output)?;
+            file_utils::write_file(&fp, &prepared.contents)?;
+            notify(
+                &self.observer,
+                OutputJobEvent::StepExported {
+                    job: uuid,
+                    board,
+                    file: &fp,
+                    coverage: &coverage,
+                },
+            );
         }
         Ok(())
     }
@@ -1086,18 +1000,7 @@ impl<'a> OutputJobRunner<'a> {
 
     /// Upstream `getBoards(ObjectSet<Uuid>)`.
     fn boards(&self, set: &ObjectSet<BoardId>) -> OutputJobResult<Vec<BoardId>> {
-        let all = self.project.boards().iter().map(|b| b.id());
-        Ok(match set {
-            ObjectSet::All => all.collect(),
-            ObjectSet::Default => all.take(1).collect(),
-            ObjectSet::Custom(uuids) => {
-                let result: Vec<BoardId> = all.filter(|b| uuids.contains(b)).collect();
-                if let Some(missing) = uuids.iter().find(|u| !result.contains(u)) {
-                    return Err(OutputJobError::BoardNotFound(missing.0));
-                }
-                result
-            }
-        })
+        select_boards(self.project, set)
     }
 
     /// Upstream `getBoards(ObjectSet<std::optional<Uuid>>, bool)`; `None`
@@ -1156,6 +1059,184 @@ impl<'a> OutputJobRunner<'a> {
         self.project.rebuild_planes(board, Some(&layers))?;
         Ok(())
     }
+}
+
+/// Graphics selection and destination without rendering, rebuilding or writing.
+#[derive(Debug, Clone)]
+pub struct GraphicsJobPlan {
+    pub pages: Vec<GraphicsPage>,
+    pub output_path: String,
+    pub document_name: String,
+}
+
+pub fn graphics_job_pages(
+    project: &Project,
+    job: &GraphicsOutputJob,
+) -> OutputJobResult<Vec<GraphicsPage>> {
+    let mut pages = Vec::new();
+    for content in &job.content {
+        let page_size = match &content.page_size {
+            None => None,
+            Some(key) if PageSize::is_known_key(key) => Some(key.clone()),
+            Some(key) => return Err(OutputJobError::UnsupportedPageSize(key.clone())),
+        };
+        let mut settings = GraphicsExportSettings {
+            page_size,
+            orientation: content.orientation,
+            margin_left: content.margin_left,
+            margin_top: content.margin_top,
+            margin_right: content.margin_right,
+            margin_bottom: content.margin_bottom,
+            rotate: content.rotate,
+            mirror: content.mirror,
+            scale: content.scale,
+            pixmap_dpi: content.pixmap_dpi,
+            black_white: content.monochrome,
+            background_color: content.background_color,
+            min_line_width: content.min_line_width,
+            ..GraphicsExportSettings::default()
+        };
+        if content.content_type == GraphicsContentType::BoardRendering {
+            settings.load_board_rendering_colors(crate::types::Layer::INNER_COPPER_COUNT);
+        }
+        settings.colors = settings
+            .colors
+            .iter()
+            .filter_map(|(role, _)| content.layers.get(role).map(|color| (role.clone(), *color)))
+            .collect();
+        let boards = select_job_boards(project, &content.boards)?;
+        let variants = select_job_variants(project, &content.assembly_variants)?;
+        match content.content_type {
+            GraphicsContentType::Schematic => {
+                // Upstream does not consider boards and assembly variants
+                // yet (TODO), but they multiply the pages.
+                for variant in &variants {
+                    for board in &boards {
+                        for schematic in project.schematics() {
+                            pages.push(GraphicsPage {
+                                content: GraphicsPageContent::Schematic(schematic.id()),
+                                board_context: *board,
+                                assembly_variant: *variant,
+                                settings: settings.clone(),
+                            });
+                        }
+                    }
+                }
+            }
+            GraphicsContentType::Board | GraphicsContentType::BoardRendering => {
+                // Upstream would dereference a null board for "no
+                // board"; skip it.
+                for board in boards.into_iter().flatten() {
+                    let content = if content.content_type == GraphicsContentType::BoardRendering {
+                        GraphicsPageContent::BoardRendering(board)
+                    } else {
+                        GraphicsPageContent::Board(board)
+                    };
+                    for variant in &variants {
+                        pages.push(GraphicsPage {
+                            content,
+                            board_context: Some(board),
+                            assembly_variant: *variant,
+                            settings: settings.clone(),
+                        });
+                    }
+                }
+            }
+            GraphicsContentType::AssemblyGuide => {
+                return Err(OutputJobError::AssemblyGuideUnsupported);
+            }
+        }
+    }
+    Ok(pages)
+}
+
+pub fn plan_graphics_job(
+    project: &Project,
+    job: &GraphicsOutputJob,
+) -> OutputJobResult<GraphicsJobPlan> {
+    let pages = graphics_job_pages(project, job)?;
+    // Determine lookup objects.
+    let mut all_boards: BTreeSet<Option<BoardId>> = BTreeSet::new();
+    let mut all_variants: BTreeSet<Option<AssemblyVariantId>> = BTreeSet::new();
+    for content in &job.content {
+        all_boards.extend(select_job_boards(project, &content.boards)?);
+        all_variants.extend(select_job_variants(project, &content.assembly_variants)?);
+    }
+
+    // Determine output path.
+    let variant = match all_variants.iter().collect::<Vec<_>>().as_slice() {
+        [Some(av)] => Some(required_variant(project, *av)?),
+        _ => None,
+    };
+    let board = match all_boards.iter().collect::<Vec<_>>().as_slice() {
+        [Some(b)] => Some(required_board(project, *b)?),
+        _ => None,
+    };
+    let lookup = match board {
+        Some(b) => ProjectAttributeLookup::for_board(project, b, variant),
+        None => ProjectAttributeLookup::for_project(project, variant),
+    };
+    let output = output_path(&lookup, &job.output_path);
+
+    // Determine document name (`QString::simplified()`).
+    let mut doc_name = job.document_title.as_str().to_owned();
+    if doc_name.is_empty() {
+        doc_name = "{{PROJECT}} {{VERSION}}".to_owned();
+    }
+    let doc_name = lookup
+        .substitute(&doc_name)
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    Ok(GraphicsJobPlan {
+        pages,
+        output_path: output,
+        document_name: doc_name,
+    })
+}
+
+fn select_boards(project: &Project, set: &ObjectSet<BoardId>) -> OutputJobResult<Vec<BoardId>> {
+    let all = project.boards().iter().map(|b| b.id());
+    Ok(match set {
+        ObjectSet::All => all.collect(),
+        ObjectSet::Default => all.take(1).collect(),
+        ObjectSet::Custom(uuids) => {
+            let result: Vec<BoardId> = all.filter(|b| uuids.contains(b)).collect();
+            if let Some(missing) = uuids.iter().find(|u| !result.contains(u)) {
+                return Err(OutputJobError::BoardNotFound(missing.0));
+            }
+            result
+        }
+    })
+}
+
+#[derive(Debug, Clone)]
+pub struct StepJobDestination {
+    pub board: BoardId,
+    pub assembly_variant: Option<AssemblyVariantId>,
+    pub output_path: String,
+}
+
+/// Resolve native STEP board/variant paths without loading any model geometry.
+pub fn plan_step_job(
+    project: &Project,
+    job: &Board3DOutputJob,
+) -> OutputJobResult<Vec<StepJobDestination>> {
+    let mut files = Vec::new();
+    for board in select_boards(project, &job.boards)? {
+        let b = required_board(project, board)?;
+        for av in select_job_variants(project, &job.assembly_variants)? {
+            let variant = av.map(|id| required_variant(project, id)).transpose()?;
+            let lookup = ProjectAttributeLookup::for_board(project, b, variant);
+            files.push(StepJobDestination {
+                board,
+                assembly_variant: av,
+                output_path: output_path(&lookup, &job.output_path),
+            });
+        }
+    }
+    Ok(files)
 }
 
 /// Resolve graphics-job boards in project order, with the primary board as default.

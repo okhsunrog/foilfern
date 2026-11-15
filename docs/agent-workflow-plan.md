@@ -20,8 +20,9 @@ see [acceptance evidence](benchmarks/board-preview-step/REPORT.md).
 F7 now checks and adjusts initial device legend with bounded exact-geometry
 search, retaining no-fit findings and manual annotations; see its
 [release evidence](benchmarks/initial-legend/REPORT.md).
-F8–F10 remain planned; their acceptance requires reproduction and source tracing
-where the reported cause is uncertain.
+F8 delivers contextual pin/pad numbers and explicit board overlay orientation.
+F9 delivers read-only resolved STEP/graphics paths and page identities before
+writing, using shared native selection and numbering logic. F10 remains planned.
 
 ## Delivery queue
 

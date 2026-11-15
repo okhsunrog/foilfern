@@ -262,3 +262,44 @@ fn zero_length_polygon_is_a_filled_dot_with_its_original_width() {
         "{w} x {h}"
     );
 }
+
+#[test]
+fn reviewed_file_names_follow_native_page_numbering() {
+    for extension in ["png", "SVG", "jpg", "jpeg", "bmp"] {
+        assert_eq!(
+            GraphicsExport::output_file_names(2, &format!("folder/board.{extension}")).unwrap(),
+            [
+                format!("folder/board1.{extension}"),
+                format!("folder/board2.{extension}")
+            ]
+        );
+        assert_eq!(
+            GraphicsExport::output_file_names(1, &format!("folder/board.{extension}")).unwrap(),
+            [format!("folder/board.{extension}")]
+        );
+        assert!(
+            GraphicsExport::output_file_names(0, &format!("folder/board.{extension}"))
+                .unwrap()
+                .is_empty()
+        );
+    }
+    assert_eq!(
+        GraphicsExport::output_file_names(3, "merged.pdf").unwrap(),
+        ["merged.pdf"]
+    );
+    assert!(matches!(
+        GraphicsExport::output_file_names(0, "merged.pdf"),
+        Err(Error::NoPages)
+    ));
+    let pages = vec![page(), page()];
+    let names = GraphicsExport::output_file_names(pages.len(), "board.SVG").unwrap();
+    assert_eq!(
+        GraphicsExport::default()
+            .generate(&pages, "board.SVG")
+            .unwrap()
+            .into_iter()
+            .map(|file| file.name)
+            .collect::<Vec<_>>(),
+        names
+    );
+}

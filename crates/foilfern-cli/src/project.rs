@@ -476,6 +476,8 @@ fn open_project_impl(a: &OpenProjectArgs) -> CliResult<bool> {
             .schematics()
             .iter()
             .map(|s| GraphicsPage {
+                board_context: None,
+                assembly_variant: None,
                 content: GraphicsPageContent::Schematic(s.id()),
                 settings: settings.clone(),
             })

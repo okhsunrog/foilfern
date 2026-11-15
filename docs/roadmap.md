@@ -51,7 +51,7 @@ A P5 overlay for existing candidates can ship before automatic P4 planning.
 These ten follow-ups come from recurring concrete observations in the retained
 agent feedback and targeted source inspection. They refine the existing P0–P6
 stages and A1–A12 workflow queue; they do not mark previously delivered features
-as missing. F1–F8 are **delivered**; F9–F10 are **planned**.
+as missing. F1–F9 are **delivered**; F10 is **planned**.
 The order below is the priority order, starting with acquisition, electrical metadata and review/output
 correctness. Where the cause is uncertain, reproduce and trace it before choosing
 a fix. Passing the small trial designs is not general electrical or mechanical
@@ -148,12 +148,17 @@ acceptance.
    placeholders remain unchanged because bare symbols have no package context.
 
 9. **F9 — Concrete output filenames before writing** (P0/P6; A8).
-   A configured `board.png` produced `board1.png` and `board2.png`; the concrete
-   names were clear only after execution. Done when configuration/review exposes
-   resolved paths, page/side identity and output count before writing, and the
-   export result matches that list. Cover multi-image jobs and native path
-   placeholders. Preserve upstream-compatible filename expansion rather than
-   renaming files to conceal the mismatch.
+   **Delivered, API 61.** STEP/graphics job configuration and listing expose
+   concrete output paths, counts and per-file page/board/variant/view identities.
+   Native page selection, attribute substitution and image page numbering are
+   shared with execution; `board.png` remains the template and expands to
+   `board1.png`/`board2.png` as upstream does. `jobs_run.dry_run` reviews a chosen
+   output directory without rendering, plane rebuild, file/index writes or model
+   changes; `expected_revision` refuses stale reviews. Execution reports whether
+   its file list matches the resolved plan. Unsupported native job types are
+   explicitly marked unplanned, while their existing execution remains available.
+   Numbered images, merged PDFs, STEP contexts, native placeholders, save/reopen,
+   read-only review and collision/ownership preservation have integration coverage.
 
 10. **F10 — Consistent routing-check counters and clean-state semantics**
     (P0/P2/P4; A10). A trial reported errors decreasing from one to zero while

@@ -125,6 +125,13 @@ in acquired-part previews with the selected device's package pad names, and add
 pad labels to the footprint image. Render metadata distinguishes a visible-layer
 overlay from viewing orientation; bottom views explicitly identify mirroring.
 
+Output path review (F9, API 61) exposes exact numbered image, merged PDF and STEP
+paths before writing, with page and board/variant/view identity. Configuration
+returns the plan directly; listing/explicit dry-run can review a different output
+directory. Review is read-only and guarded exports reject stale revisions. Native
+job types outside STEP/graphics explicitly report incomplete planning while
+retaining their existing execution paths.
+
 ## Routing and measurements available now
 
 The editor owns one `RoutingService` per open project; MCP is its transport.

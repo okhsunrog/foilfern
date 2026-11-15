@@ -182,3 +182,36 @@ fn step_jobs_report_each_requested_variant_only_after_writing() {
     assert!(!reports[0].model_coverage_complete);
     assert_eq!(reports[1].assembly_variant, Some(variant));
 }
+
+#[test]
+fn output_review_preserves_native_page_context_without_rebuilding() {
+    use foilfern_core::job::{GraphicsOutputJob, OutputJobKind};
+    use foilfern_core::project::{GraphicsPageContent, plan_graphics_job, plan_step_job};
+    let project = load("Project With Two Boards");
+    let revision = project.revision();
+    let job = GraphicsOutputJob::board_rendering_pdf();
+    let OutputJobKind::Graphics(settings) = job.kind() else {
+        panic!("graphics preset")
+    };
+    let plan = plan_graphics_job(&project, settings).unwrap();
+    assert_eq!(plan.pages.len(), 2);
+    assert!(!plan.pages[0].settings.mirror);
+    assert!(plan.pages[1].settings.mirror);
+    assert!(plan.pages.iter().all(
+        |p| matches!(p.content, GraphicsPageContent::BoardRendering(_))
+            && p.board_context == Some(project.boards()[0].id())
+    ));
+    let step = Board3DOutputJob {
+        boards: ObjectSet::All,
+        assembly_variants: ObjectSet::Default,
+        output_path: "{{BOARD}}_{{VARIANT}}.step".into(),
+    };
+    let paths = plan_step_job(&project, &step).unwrap();
+    assert_eq!(paths.len(), 2);
+    for (file, board) in paths.iter().zip(project.boards()) {
+        assert_eq!(file.board, board.id());
+        assert!(file.output_path.starts_with(board.name().as_str()));
+        assert!(!file.output_path.contains("{{"));
+    }
+    assert_eq!(project.revision(), revision);
+}

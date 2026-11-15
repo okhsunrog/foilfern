@@ -138,7 +138,8 @@ impl GraphicsExport {
             .map_err(|error| Error::Image(error.to_string()))
     }
 
-    pub fn generate(&self, pages: &[GraphicsPage], name: &str) -> Result<Vec<GraphicsFile>> {
+    /// Native output names, resolved before any drawing or filesystem access.
+    pub fn output_file_names(page_count: usize, name: &str) -> Result<Vec<String>> {
         let ext = Path::new(name)
             .extension()
             .and_then(|e| e.to_str())
@@ -147,9 +148,43 @@ impl GraphicsExport {
         if !["svg", "png", "pdf", "jpg", "jpeg", "bmp"].contains(&ext.as_str()) {
             return Err(Error::UnsupportedFormat(name.into()));
         }
-        if ext == "pdf" && pages.is_empty() {
+        if ext == "pdf" && page_count == 0 {
             return Err(Error::NoPages);
         }
+        if ext == "pdf" {
+            return Ok(vec![name.into()]);
+        }
+        Ok((0..page_count)
+            .map(|i| {
+                if page_count > 1 {
+                    let path = Path::new(name);
+                    let stem = path
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or_default();
+                    path.with_file_name(format!(
+                        "{stem}{}.{}",
+                        i + 1,
+                        path.extension()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or_default()
+                    ))
+                    .to_string_lossy()
+                    .into_owned()
+                } else {
+                    name.into()
+                }
+            })
+            .collect())
+    }
+
+    pub fn generate(&self, pages: &[GraphicsPage], name: &str) -> Result<Vec<GraphicsFile>> {
+        let names = Self::output_file_names(pages.len(), name)?;
+        let ext = Path::new(name)
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
         let mut result = Vec::new();
         let mut pdf_pages = Vec::new();
         for (i, page) in pages.iter().enumerate() {
@@ -159,24 +194,7 @@ impl GraphicsExport {
                 height,
                 transform: page_transform,
             } = self.page_layout(&page.drawing, &page.settings, None)?;
-            let out = if ext != "pdf" && pages.len() > 1 {
-                let path = Path::new(name);
-                let stem = path
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or_default();
-                path.with_file_name(format!(
-                    "{stem}{}.{}",
-                    i + 1,
-                    path.extension()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or_default()
-                ))
-                .to_string_lossy()
-                .into_owned()
-            } else {
-                name.into()
-            };
+            let out = names[if ext == "pdf" { 0 } else { i }].clone();
             let contents = match ext.as_str() {
                 "svg" => svg.into_bytes(),
                 "png" | "jpg" | "jpeg" | "bmp" => {

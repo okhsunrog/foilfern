@@ -1434,7 +1434,7 @@ impl FoilfernMcp {
     }
 
     #[tool(
-        description = "Create or update a native STEP or graphics output job. Omit job to upsert by name; new jobs require a preset. Preserves existing UUIDs and settings. Run it with jobs_run."
+        description = "Create or update a native STEP or graphics output job. Omit job to upsert by name; new jobs require a preset. Preserves existing UUIDs and settings. Returns resolved STEP/graphics filenames and pages; run with jobs_run."
     )]
     async fn jobs_configure(
         &self,
@@ -1445,7 +1445,7 @@ impl FoilfernMcp {
 
     #[tool(
         description = "Run output jobs of the project (default: all; Gerber, BOM, pick&place, \
-                       ...) like upstream's output jobs dialog; returns the written files."
+                       ...) like upstream's output jobs dialog; returns the written files. dry_run resolves STEP/graphics paths/pages without writing."
     )]
     async fn jobs_run(
         &self,

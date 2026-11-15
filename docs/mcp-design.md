@@ -124,6 +124,29 @@ The desktop app starts the server in-process ("watch the agent",
 
 ## Tool conventions
 
+STEP and graphics entries in `jobs_configure`/`jobs_list` include `output_plan`
+with exact paths, output count and page/board/assembly-variant/view identities.
+`output_path` remains the native template. Image pages acquire numbered suffixes
+when there is more than one page; PDFs keep one filename with multiple page
+identities. Page selection and attribute substitution live in core; output naming
+is shared by graphics generation and review. Native variant contexts identify
+selections and repeated pages; they do not add component filtering absent upstream.
+
+`jobs_list.output_dir` reviews paths under an override directory. Alternatively,
+`jobs_run.dry_run:true` reviews the selected jobs and directory without rendering,
+rebuilding planes or creating output directories/index/files. Its `output_plan`
+reports coverage, resolved files and conflicts. Unsupported native job types are
+explicitly unplanned (`complete:false`), not given guessed filenames; their normal
+execution remains available. Exact review covers all current configurable presets
+(STEP/graphics). Native path ownership/collision rules are unchanged.
+
+`jobs_run.expected_revision` refuses stale review/export requests before doing
+work. Normal execution includes `output_plan_matches` (or null for an incomplete
+plan) and the actual file list. A mismatch is explicitly partial. Plans reflect
+the currently open project's native attribute context, including DATE/TIME;
+changing/reopening the context requires another review when those values matter.
+Configuration returns its plan directly, so ordinary use needs no extra call.
+
 Output jobs install the same `foilfern-graphics::ProjectGraphicsExporter` and
 `foilfern-step::board_exporter()` adapters as the desktop application and CLI.
 `jobs_run` executes mechanical STEP and realistic 2D graphics alongside the
@@ -179,7 +202,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `60`, including contextual pin-number previews, explicit board-view metadata, initial device legend placement, STEP assembly coverage, paired board previews, electrical import evidence
+`api_capability_version` (currently `61`, including read-only STEP/graphics output plans, contextual pin-number previews, explicit board-view metadata, initial device legend placement, STEP assembly coverage, paired board previews, electrical import evidence
 and explicit structural ERC coverage, named ERC subjects, scoped
 text-change events and reports, supplier acquisition,
 official KiCad imports, rendered board-placement reviews, declared connector axes, scoped legend targets and bounded legend placement).

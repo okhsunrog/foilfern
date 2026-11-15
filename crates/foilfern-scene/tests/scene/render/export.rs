@@ -38,6 +38,8 @@ fn schematic_export_formats() {
         .schematics()
         .iter()
         .map(|s| GraphicsPage {
+            board_context: None,
+            assembly_variant: None,
             content: GraphicsPageContent::Schematic(s.id()),
             settings: GraphicsExportSettings {
                 pixmap_dpi: 100,
@@ -75,6 +77,8 @@ fn schematic_export_formats() {
 fn several_pages_get_numbered_files() {
     let (project, _) = open(&projects_dir().join("DRC"));
     let page = GraphicsPage {
+        board_context: None,
+        assembly_variant: None,
         content: GraphicsPageContent::Schematic(project.schematics()[0].id()),
         settings: GraphicsExportSettings {
             pixmap_dpi: 50,
@@ -122,6 +126,8 @@ fn board_pages_of_default_jobs() {
                 .retain(|(role, _)| content.layers.contains_key(role));
             settings.mirror = content.mirror;
             let page = GraphicsPage {
+                board_context: None,
+                assembly_variant: None,
                 content: match content.content_type {
                     foilfern_core::job::GraphicsContentType::BoardRendering => {
                         GraphicsPageContent::BoardRendering(board)

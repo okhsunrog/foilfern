@@ -870,7 +870,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 60);
+    assert_eq!(info["api_capability_version"], 61);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -5158,5 +5158,170 @@ async fn stdio_render_distinguishes_layer_overlay_from_bottom_view() {
         images[0], images[1],
         "Bottom has its own mirrored coordinate frame"
     );
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn stdio_output_plans_match_numbered_files_and_do_not_write() {
+    let tmp = tempfile::tempdir().unwrap();
+    let lpp = crate::common::copy_test_project("Project With Two Boards", tmp.path());
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));
+    cmd.arg("--project").arg(&lpp);
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let image = call_ok(&client,"jobs_configure",json!({"preset":"board_rendering_png","name":"Reviewed image","output_path":"board.png","board":"0"})).await;
+    let plan = &image["job"]["output_plan"];
+    assert_eq!(plan["complete"], true);
+    assert_eq!(plan["output_count"], 2);
+    assert!(
+        plan["files"][0]["path"]
+            .as_str()
+            .unwrap()
+            .ends_with("/board1.png")
+    );
+    assert!(
+        plan["files"][1]["path"]
+            .as_str()
+            .unwrap()
+            .ends_with("/board2.png")
+    );
+    assert_eq!(plan["files"][0]["pages"][0]["view_from"], "top");
+    assert_eq!(plan["files"][1]["pages"][0]["view_from"], "bottom");
+    assert_eq!(plan["files"][1]["pages"][0]["mirrored"], true);
+    call_ok(&client,"jobs_configure",json!({"preset":"step","name":"Reviewed mechanical","output_path":"model_{{BOARD}}_{{VARIANT}}.step","board":"0"})).await;
+    let pdf = call_ok(&client,"jobs_configure",json!({"preset":"board_assembly_pdf","name":"Reviewed PDF","output_path":"assembly.pdf","board":"0"})).await;
+    assert_eq!(pdf["job"]["output_plan"]["output_count"], 1);
+    assert_eq!(
+        pdf["job"]["output_plan"]["files"][0]["pages"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    let directory = tmp.path().join("reviewed-output");
+    assert!(!directory.exists());
+    let before = call(&client, "project_summary", json!({}))
+        .await
+        .structured_content
+        .unwrap();
+    let history = call_ok(&client, "history", json!({})).await;
+    let board = call_ok(&client, "board_get", json!({})).await;
+    let jobs = json!(["Reviewed image", "Reviewed mechanical", "Reviewed PDF"]);
+    let dry = call_ok(
+        &client,
+        "jobs_run",
+        json!({"jobs":jobs,"output_dir":directory,"dry_run":true}),
+    )
+    .await;
+    assert_eq!(dry["dry_run"], true);
+    assert_eq!(dry["output_plan"]["complete"], true);
+    assert_eq!(dry["output_plan"]["writes"], false);
+    assert_eq!(dry["output_plan"]["output_count"], 4);
+    assert_eq!(dry["output_plan"]["conflicts"], json!([]));
+    assert!(
+        !directory.exists(),
+        "Review must not create an output directory/index"
+    );
+    let after = call(&client, "project_summary", json!({}))
+        .await
+        .structured_content
+        .unwrap();
+    assert_eq!(before["revision"], after["revision"]);
+    assert_eq!(history, call_ok(&client, "history", json!({})).await);
+    assert_eq!(board, call_ok(&client, "board_get", json!({})).await);
+    let list = call_ok(
+        &client,
+        "jobs_list",
+        json!({"job":"Reviewed image","output_dir":directory}),
+    )
+    .await;
+    assert_eq!(
+        list["jobs"][0]["output_plan"],
+        dry["output_plan"]["jobs"][0]
+    );
+    call_ok(
+        &client,
+        "jobs_configure",
+        json!({"job":"Reviewed image","output_path":"changed.png"}),
+    )
+    .await;
+    let stale = call(
+        &client,
+        "jobs_run",
+        json!({"jobs":jobs,"output_dir":directory,"expected_revision":before["revision"]}),
+    )
+    .await
+    .structured_content
+    .unwrap();
+    assert_eq!(stale["error"]["kind"], "stale_revision");
+    assert!(!directory.exists());
+    call_ok(
+        &client,
+        "jobs_configure",
+        json!({"job":"Reviewed image","output_path":"board.png"}),
+    )
+    .await;
+    let fresh = call(
+        &client,
+        "jobs_run",
+        json!({"jobs":jobs,"output_dir":directory,"dry_run":true}),
+    )
+    .await
+    .structured_content
+    .unwrap();
+    assert_eq!(fresh["result"]["files"], dry["files"]);
+    let written = call_ok(
+        &client,
+        "jobs_run",
+        json!({"jobs":jobs,"output_dir":directory,"expected_revision":fresh["revision"]}),
+    )
+    .await;
+    assert_eq!(written["files"], dry["files"]);
+    assert_eq!(written["output_plan_matches"], true);
+    for path in written["files"].as_array().unwrap() {
+        assert!(Path::new(path.as_str().unwrap()).is_file());
+    }
+    call_ok(&client, "project_save", json!({})).await;
+    call_ok(&client, "project_close", json!({})).await;
+    call_ok(&client, "project_open", json!({"path":lpp})).await;
+    let reopened = call_ok(
+        &client,
+        "jobs_list",
+        json!({"job":"Reviewed image","output_dir":directory}),
+    )
+    .await;
+    assert_eq!(reopened, list);
+    // Unsupported planning is explicit, not a claim to know every native job.
+    let all = call(
+        &client,
+        "jobs_run",
+        json!({"dry_run":true,"output_dir":tmp.path().join("all-review")}),
+    )
+    .await
+    .structured_content
+    .unwrap();
+    assert_eq!(all["outcome"], "partial");
+    assert_eq!(all["result"]["output_plan"]["complete"], false);
+    assert!(!tmp.path().join("all-review").exists());
+    call_ok(&client,"jobs_configure",json!({"preset":"board_rendering_png","name":"Collision","output_path":"board.png","board":"0"})).await;
+    let conflict_dir = tmp.path().join("conflicting-review");
+    let conflicts = call(
+        &client,
+        "jobs_run",
+        json!({"jobs":["Reviewed image","Collision"],"output_dir":conflict_dir,"dry_run":true}),
+    )
+    .await
+    .structured_content
+    .unwrap();
+    assert_eq!(conflicts["outcome"], "partial");
+    assert_eq!(conflicts["result"]["output_plan"]["complete"], true);
+    assert_eq!(
+        conflicts["result"]["output_plan"]["conflicts"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert!(!conflict_dir.exists());
+    call_ok(&client, "project_save", json!({})).await;
     client.cancel().await.unwrap();
 }

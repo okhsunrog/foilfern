@@ -9,6 +9,7 @@
 
 mod erc;
 mod jobs;
+mod plan;
 pub use jobs::{
     JobsConfigureArgs, JobsListArgs, configure as jobs_configure, list as jobs_list_with,
 };
@@ -834,11 +835,17 @@ pub struct JobsRunArgs {
     /// Output directory (default: `<project>/output/<version>`).
     #[serde(default)]
     pub output_dir: Option<String>,
+    /// Resolve output filenames/pages without rendering, rebuilding or writing.
+    #[serde(default)]
+    pub dry_run: bool,
+    /// Refuse an export/review if the project changed since the reviewed revision.
+    pub expected_revision: Option<u64>,
 }
 
 /// `jobs_run`.
 pub fn jobs_run(session: &mut Session, args: JobsRunArgs) -> ToolResult<ToolOutput> {
     let open = session.project_mut()?;
+    super::write::check_revision(open.project(), args.expected_revision)?;
     let all = open.project().output_jobs().clone();
     let skip_unsupported = args.jobs.is_empty();
     let jobs: Vec<_> = if args.jobs.is_empty() {
@@ -858,6 +865,24 @@ pub fn jobs_run(session: &mut Session, args: JobsRunArgs) -> ToolResult<ToolOutp
         .warn("The project has no output jobs."));
     }
     let output_dir = args.output_dir.as_deref().map(absolute_path).transpose()?;
+    let output_plan = plan::batch(open.project(), &jobs, output_dir.as_ref());
+    if args.dry_run {
+        let output = ToolOutput::new(
+            "Resolved output paths without writing files.",
+            json!({"files":output_plan["files"],"output_plan":output_plan,"dry_run":true}),
+        )?;
+        return Ok(
+            if output.result["output_plan"]["complete"] != true
+                || output.result["output_plan"]["conflicts"]
+                    .as_array()
+                    .is_some_and(|conflicts| !conflicts.is_empty())
+            {
+                output.partial().warn("Output planning is incomplete or contains path conflicts; inspect output_plan. No files were written.")
+            } else {
+                output
+            },
+        );
+    }
     let info = ExportInfo::now(env!("CARGO_PKG_VERSION"));
     let written = std::sync::Arc::new(parking_lot::Mutex::new(Vec::<String>::new()));
     let warnings = std::sync::Arc::new(parking_lot::Mutex::new(Vec::<String>::new()));
@@ -940,11 +965,18 @@ pub fn jobs_run(session: &mut Session, args: JobsRunArgs) -> ToolResult<ToolOutp
                 ""
             }
         ),
-        json!({ "output_dir": dir, "files": files, "step_exports":step_exports }),
+        json!({ "output_dir": dir, "files": files, "step_exports":step_exports,
+            "output_plan_matches":if output_plan["complete"]==true {json!(output_plan["files"]==json!(files))} else {Value::Null},
+            "output_plan":output_plan }),
     )?
     .warnings(warnings);
     if limited_assembly {
         output = output.partial();
+    }
+    if output.result["output_plan_matches"] == false {
+        output = output.partial().warn(
+            "Written files differ from the resolved output plan; inspect files and output_plan.",
+        );
     }
     Ok(output)
 }
