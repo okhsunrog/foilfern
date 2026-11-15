@@ -1,0 +1,138 @@
+{
+  "verified": true,
+  "updated_build": {
+    "cargo_opt_level": "3",
+    "cargo_profile": "release",
+    "source_commit": "f0c53d470c3cf0d32ce4f2592c1e193156fb4aa5",
+    "tracked_source_state": "clean"
+  },
+  "binary_sha256": {
+    "baseline": "5c097aeafa69c1b77c193631791cbb9d0a3ad04903bc9124f5e3e8a4ef453047",
+    "updated": "b79c7b3b9d5bf43d601eb51dee3ee93598f3eb8fc7085f6d78c60d5bb0ac8246"
+  },
+  "drc": {
+    "revisions_before": [
+      3,
+      4,
+      5
+    ],
+    "revisions_after": [
+      3,
+      3,
+      3
+    ],
+    "findings_identical": true,
+    "guarded_write_before": "stale_revision",
+    "guarded_write_after": "complete",
+    "calls_per_run": 9,
+    "paired_wall_seconds": {
+      "baseline": 1.283461530925706,
+      "updated": 1.7554870520252734
+    },
+    "response_bytes_per_drc": 65033,
+    "unsaved_changes": {
+      "on_open": false,
+      "after_initial_check": true,
+      "after_identical_checks": true
+    }
+  },
+  "diagnostics": {
+    "message_before": "Connected pin without wire: 'R1:'",
+    "message_after": "Connected pin without wire: 'R1:1'",
+    "native_title_and_subject_ids_preserved": true,
+    "subject": {
+      "component": "8b210229-c37a-4839-ada9-db6be489df68",
+      "designator": "R1",
+      "displayed_pin_name": "",
+      "kind": "symbol_pin",
+      "net": "53d820b9-6303-4d4f-bad3-0e29c8b82651",
+      "net_name": "TEST",
+      "pads": [
+        {
+          "board": "b02ce88a-7690-4a71-9230-f1a7a422e526",
+          "component": "8b210229-c37a-4839-ada9-db6be489df68",
+          "name": "1",
+          "pad": "af8c5acf-1aca-4567-90cf-1de3ecb6f642"
+        }
+      ],
+      "pin": "2e4f8b10-ad5a-443e-b408-e183efaa4758",
+      "pin_name": "1",
+      "schematic": "df4802fc-908a-4359-90ab-dfacf7f4f4d8",
+      "signal": "3452d36e-1ce8-4b7c-8e5b-90c2e4929ed8",
+      "signal_name": "1",
+      "symbol": "71e7d3a0-6b04-4b54-948a-62232870b55a"
+    },
+    "text_edit": {
+      "after": {
+        "bbox": {
+          "max": {
+            "x": 50.10000000000001,
+            "y": 50.871111000000006
+          },
+          "min": {
+            "x": 48.9,
+            "y": 49.128889
+          }
+        },
+        "position": {
+          "x": 50.0,
+          "y": 50.0
+        },
+        "rotation": 90.0
+      },
+      "before": {
+        "bbox": {
+          "max": {
+            "x": 10.871111,
+            "y": 12.525
+          },
+          "min": {
+            "x": 9.128889000000001,
+            "y": 11.325000000000001
+          }
+        },
+        "position": {
+          "x": 10.0,
+          "y": 11.425
+        },
+        "rotation": 0.0
+      },
+      "changed": true,
+      "component": "R1",
+      "kind": "board_text",
+      "rendered_text": "R1",
+      "target": {
+        "board": "b02ce88a-7690-4a71-9230-f1a7a422e526",
+        "component": "8b210229-c37a-4839-ada9-db6be489df68",
+        "uuid": "4950b973-32f3-4283-a608-5ba302ece963"
+      }
+    },
+    "event": {
+      "component": "8b210229-c37a-4839-ada9-db6be489df68",
+      "texts": [
+        "4950b973-32f3-4283-a608-5ba302ece963"
+      ]
+    },
+    "calls_per_run": 4,
+    "paired_wall_seconds": {
+      "baseline": 0.06488058099057525,
+      "updated": 0.0341259699780494
+    },
+    "response_bytes": {
+      "baseline": {
+        "project_open": 1328,
+        "erc_run": 2179,
+        "board_text_move": 957,
+        "project_close": 417
+      },
+      "updated": {
+        "project_open": 1326,
+        "erc_run": 3338,
+        "board_text_move": 1623,
+        "project_close": 415
+      }
+    }
+  },
+  "model_token_measurement": null,
+  "timing_limits": "One final pair per workflow, nonisolated host, no statistical speed claim; old DRC workflow refuses the write while updated workflow executes it."
+}

@@ -51,8 +51,8 @@ A P5 overlay for existing candidates can ship before automatic P4 planning.
 These ten follow-ups come from recurring concrete observations in the retained
 agent feedback and targeted source inspection. They refine the existing P0–P6
 stages and A1–A12 workflow queue; they do not mark previously delivered features
-as missing. F1 is **delivered**; F2–F10 are **planned**. The order below is the
-priority order, starting with acquisition, electrical metadata and review/output
+as missing. F1, F5 and F6 are **delivered**; F2–F4 and F7–F10 are **planned**.
+The order below is the priority order, starting with acquisition, electrical metadata and review/output
 correctness. Where the cause is uncertain, reproduce and trace it before choosing
 a fix. Passing the small trial designs is not general electrical or mechanical
 acceptance.
@@ -98,21 +98,23 @@ acceptance.
    complete-assembly claim.
 
 5. **F5 — Spurious derived-data revisions during DRC** (P1/P3; A6).
-   Repeated DRC runs reported `AirWires` changes with unchanged visible data,
-   advancing revisions and provoking subsequent `stale_revision` failures.
-   Trace equality and publication of derived state. Done when identical derived
-   results do not emit redundant change events/revisions, while actual changes
-   still invalidate stale work correctly. Exercise repeated checks, save/reopen,
-   dirty state and a genuine intervening edit; do not weaken freshness guards.
+   **Delivered.** Forced air-wire rebuilds previously published every scheduled
+   net unconditionally. They now compare anchor IDs and exact endpoint positions
+   and publish only changed nets. Dirty schedules are still cleared. Tests cover
+   repeated full DRC, save/reopen, clean state, successful guarded writes after
+   identical checks and rejection after real edits. A paired release replay
+   reproduces the old revision churn and confirms stable revisions with unchanged
+   findings. See [acceptance evidence](benchmarks/check-diagnostics/REPORT.md).
 
 6. **F6 — Actionable pin diagnostics and text-edit reports** (P0/P2/P5; A3/A7).
-   ERC messages such as `R1:` lacked useful pin names, and a text-only edit was
-   described by the broad `DeviceChanged` event. Done when diagnostics identify
-   the component and pin/signal/pad as applicable, with stable object references;
-   text-edit results clearly identify the scoped text and positions changed.
-   Test that the reported edit leaves device pose and copper intact. Preserve
-   canonical native check/approval identities; improve display/report context
-   without silently changing upstream-compatible approvals.
+   **Delivered, API 55.** MCP ERC titles resolve intentionally hidden pin labels
+   to signal names and include scoped component/pin/signal/net/pad references.
+   Canonical upstream messages and native approval identities stay unchanged;
+   approval save/reopen is tested. Text-only device updates publish
+   `DeviceTextsChanged` with component and text IDs. Primitive and declarative
+   text edits report the target, rendered label and before/after pose and bbox.
+   Tests verify unchanged device properties/copper, undo/redo and scene updates.
+   See [acceptance evidence](benchmarks/check-diagnostics/REPORT.md).
 
 7. **F7 — Legend clearance at initial device placement** (P1/P4/P5; A6/A7).
    Repeated RC trials began with a C1 name violating stop-mask clearance;

@@ -25,6 +25,15 @@ the next task merely because their last paragraph once said "next".
 
 ## Implemented foundation
 
+- **Repeated checks and diagnostic subjects (2026-11-15, API 55):** identical
+  air-wire rebuilds no longer publish events or advance revision. Full checks
+  still rebuild required data and preserve freshness rejection for real edits.
+  MCP ERC reports resolve hidden pin names and expose scoped subject identities
+  without altering canonical messages/approvals. Text-only device edits identify
+  their texts and report before/after pose and bbox. Native save/reopen, guarded
+  writes, undo/redo and scene refresh are covered; see
+  [release replay and validation](benchmarks/check-diagnostics/REPORT.md).
+
 - **Acquired purchasing parts (2026-11-15, API 54):** `part_import` returns
   executable `component_add` arguments carrying the exact native part and all
   purchasing attributes. Single-part devices select that part automatically;
