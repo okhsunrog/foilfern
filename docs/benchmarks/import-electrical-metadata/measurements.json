@@ -1,0 +1,140 @@
+{
+  "verified": true,
+  "baseline_build": {
+    "cargo_opt_level": "3",
+    "cargo_profile": "release",
+    "source_commit": "f0c53d470c3cf0d32ce4f2592c1e193156fb4aa5",
+    "tracked_source_state": "clean"
+  },
+  "updated_build": {
+    "cargo_opt_level": "3",
+    "cargo_profile": "release",
+    "source_commit": "d96dfcf50836a33f20c4d9f9fac2078a79a41083",
+    "tracked_source_state": "clean"
+  },
+  "binary_sha256": {
+    "baseline": "b79c7b3b9d5bf43d601eb51dee3ee93598f3eb8fc7085f6d78c60d5bb0ac8246",
+    "updated": "3a92db54d6e1fece0880aecf68497d261e61d7519d784b8633e57c18c4445485"
+  },
+  "source": {
+    "lcsc": "C8734",
+    "mpn": "STM32F103C8T6",
+    "sha256": "a99b0a4abd493f08c20aa320d0332f6a14e50726b36d501e6268d1e1e68614c7",
+    "from_cache": true
+  },
+  "native_element_files_identical": {
+    "cmp/92cb5fae-ddf6-4bd0-865d-ba1e786564de/component.lp": "ec766c086416e5e0dcb48a4f82897692125e5fb18bc50559028dbb2d3ed93526",
+    "sym/d9cbf29d-1c17-4ada-99cf-173350c9e8d4/symbol.lp": "2bef0737f169e380419ea034702103ddeea8f0f7de5e276d3f8ddeef4ed2440a",
+    "dev/a82a425c-796e-45ff-aca7-f67743163c03/device.lp": "8de4689f2cc0c42de7347275d4bb3a09ea7483bf77f0918235ffec28cee1bb35",
+    "pkg/17a62ab7-304d-4c49-b745-714a32d78d08/package.lp": "98b33281ac336430aeebbf49a37e9394a3caa6794c73f46b5b6cab2e44637626"
+  },
+  "mcu": {
+    "calls_per_build": 11,
+    "baseline_erc_outcome": "complete",
+    "updated_erc_outcome": "partial",
+    "native_errors": 0,
+    "native_warnings": 0,
+    "metadata": {
+      "approximated_pins": 0,
+      "error": null,
+      "has_gaps": true,
+      "modified_signals": [],
+      "native_roles": {
+        "passive": 48
+      },
+      "signal_count": 48,
+      "source_format": "easyeda_std",
+      "source_required_connections": "not_provided",
+      "source_sha256": "a99b0a4abd493f08c20aa320d0332f6a14e50726b36d501e6268d1e1e68614c7",
+      "status": "recorded",
+      "unrecorded_signals": 0,
+      "unspecified_pins": 48,
+      "unsupported_pins": 0
+    },
+    "after_reopen_recorded": true,
+    "elapsed_seconds": {
+      "baseline": 2.1398576400242746,
+      "updated": 2.610864524031058
+    },
+    "compact_response_bytes": {
+      "baseline": {
+        "0_server_info": 950,
+        "1_project_create": 1254,
+        "2_part_import": 53727,
+        "3_component_add": 16350,
+        "4_erc_run": 290,
+        "5_project_save": 404,
+        "6_project_close": 387,
+        "7_project_open": 1218,
+        "8_erc_run": 289,
+        "9_project_summary": 1155,
+        "10_project_close": 387
+      },
+      "updated": {
+        "0_server_info": 947,
+        "1_project_create": 1252,
+        "2_part_import": 66707,
+        "3_component_add": 29346,
+        "4_erc_run": 1566,
+        "5_project_save": 402,
+        "6_project_close": 385,
+        "7_project_open": 1216,
+        "8_erc_run": 1565,
+        "9_project_summary": 1154,
+        "10_project_close": 385
+      }
+    },
+    "original_pin_names_numbers_types_match": true
+  },
+  "passive": {
+    "calls_per_build": 9,
+    "unwired_required_findings": 2,
+    "wired_errors": 0,
+    "wired_warnings": 0,
+    "outcome": "complete",
+    "metadata": {
+      "approximated_pins": 0,
+      "error": null,
+      "has_gaps": false,
+      "modified_signals": [],
+      "native_roles": {
+        "passive": 2
+      },
+      "signal_count": 2,
+      "source_format": null,
+      "source_required_connections": "native_flags_only",
+      "source_sha256": null,
+      "status": "native",
+      "unrecorded_signals": 0,
+      "unspecified_pins": 0,
+      "unsupported_pins": 0
+    },
+    "elapsed_seconds": {
+      "baseline": 0.1381727809784934,
+      "updated": 0.13873917097225785
+    }
+  },
+  "existing_project": {
+    "outcome": "partial",
+    "metadata": {
+      "approximated_pins": 0,
+      "error": null,
+      "has_gaps": true,
+      "modified_signals": [],
+      "native_roles": {
+        "passive": 48
+      },
+      "signal_count": 48,
+      "source_format": null,
+      "source_required_connections": "unknown",
+      "source_sha256": null,
+      "status": "missing",
+      "unrecorded_signals": 48,
+      "unspecified_pins": 0,
+      "unsupported_pins": 0
+    },
+    "native_files_unchanged": true,
+    "unsaved_changes": false
+  },
+  "model_token_measurement": null
+}

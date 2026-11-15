@@ -25,6 +25,16 @@ the next task merely because their last paragraph once said "next".
 
 ## Implemented foundation
 
+- **Electrical import evidence (2026-11-15, API 56):** KiCad/EasyEDA source pin
+  types and mapping fidelity survive native library/project save/reopen. Native
+  passive roles are distinguished from unspecified source fallbacks. Required
+  connections are not guessed from types or names. MCP ERC and preview reports
+  expose structural scope, unavailable electrical/datasheet checks and gaps in
+  source evidence; zero findings with such gaps return `partial` from `erc_run`.
+  Pinned C8734 and passive controls, native required flags, older projects and
+  byte-identical native MCU element files are verified; see
+  [acceptance evidence](benchmarks/import-electrical-metadata/REPORT.md).
+
 - **Repeated checks and diagnostic subjects (2026-11-15, API 55):** identical
   air-wire rebuilds no longer publish events or advance revision. Full checks
   still rebuild required data and preserve freshness rejection for real edits.

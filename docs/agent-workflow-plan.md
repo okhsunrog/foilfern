@@ -13,8 +13,10 @@ acquisition-to-addition handoff with exact purchasing identity; see its
 [acceptance evidence](benchmarks/part-acquisition/REPORT.md). F5/F6 also deliver
 stable repeated-check revisions and resolved diagnostic/text subjects; see their
 [acceptance evidence](benchmarks/check-diagnostics/REPORT.md).
-F2–F4 and F7–F10 remain planned; their acceptance requires reproduction and source tracing where the reported
-cause is uncertain.
+F2 now retains source electrical types and reports honest structural ERC coverage;
+see [acceptance evidence](benchmarks/import-electrical-metadata/REPORT.md).
+F3–F4 and F7–F10 remain planned; their acceptance requires reproduction and source
+tracing where the reported cause is uncertain.
 
 ## Delivery queue
 

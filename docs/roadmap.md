@@ -51,7 +51,7 @@ A P5 overlay for existing candidates can ship before automatic P4 planning.
 These ten follow-ups come from recurring concrete observations in the retained
 agent feedback and targeted source inspection. They refine the existing P0–P6
 stages and A1–A12 workflow queue; they do not mark previously delivered features
-as missing. F1, F5 and F6 are **delivered**; F2–F4 and F7–F10 are **planned**.
+as missing. F1, F2, F5 and F6 are **delivered**; F3–F4 and F7–F10 are **planned**.
 The order below is the priority order, starting with acquisition, electrical metadata and review/output
 correctness. Where the cause is uncertain, reproduce and trace it before choosing
 a fix. Passing the small trial designs is not general electrical or mechanical
@@ -70,14 +70,17 @@ acceptance.
    checked. See [acceptance evidence](benchmarks/part-acquisition/REPORT.md).
 
 2. **F2 — Electrical metadata and honest ERC coverage after import** (P1/P2;
-   A4/A12). The acquired STM32 fixture had 48 passive, non-required signals,
-   including power, and an unwired instance produced no ERC findings.
-   Trace whether source metadata is absent or lost during conversion. Preserve
-   available electrical roles/requirements and explicitly report missing or
-   unverified metadata. Done when the MCU case cannot silently appear
-   electrically verified because those properties are absent. Include valid
-   passive components to avoid treating ordinary resistor pins as bad data;
-   never invent datasheet semantics to obtain more ERC findings.
+   A4/A12). **Delivered, API 56.** The pinned C8734 source declares all 48 pin
+   types Undefined; native Passive was an unmarked fallback, not known passive
+   intent. Import now retains source pin types/mapping fidelity separately from
+   native roles, including unknown and unrepresentable types. Required intent
+   is explicitly unprovided, without guesses from names or electrical types.
+   MCP ERC reports structural scope and returns `partial` for import evidence
+   gaps even with zero findings. Fresh/reopened MCU, older missing-evidence
+   projects, known passive controls, preserved required flags and unchanged
+   native MCU element bytes are verified. Datasheet validation and richer
+   electrical checks remain separate A4/A12 gates. See
+   [acceptance evidence](benchmarks/import-electrical-metadata/REPORT.md).
 
 3. **F3 — Board-only comparative previews** (P1/P5; A6/A7).
    `compare_images:true` currently makes a board-only document require a
