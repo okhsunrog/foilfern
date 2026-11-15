@@ -1,6 +1,6 @@
 # Foilfern roadmap
 
-Updated 2026-11-13. The original capability baseline was reviewed against
+Updated 2026-11-15. The original capability baseline was reviewed against
 `f3c3fda`, including the merged `work` branch.
 This is the delivery order for new work. [Status](status.md) describes what
 exists; [routing service design](routing-service-design.md) owns the routing
@@ -45,6 +45,114 @@ because its tools exist or one board has zero air wires.
 Start with P0, then P1. P2 and P3 can be developed independently once their
 contracts are defined. Select and freeze the P6 corpus before tuning P4.
 A P5 overlay for existing candidates can ship before automatic P4 planning.
+
+## Agent-trial follow-ups (2026-11-15)
+
+These ten follow-ups come from recurring concrete observations in the retained
+agent feedback and targeted source inspection. They refine the existing P0–P6
+stages and A1–A12 workflow queue; they do not mark previously delivered features
+as missing. All ten are **planned**, not implemented. The order below is the
+priority order, starting with acquisition, electrical metadata and review/output
+correctness. Where the cause is uncertain, reproduce and trace it before choosing
+a fix. Passing the small trial designs is not general electrical or mechanical
+acceptance.
+
+1. **F1 — Direct use of an acquired purchasing part** (P1; A2/A4).
+   `part_import` returns an exact device and procurement part, while
+   `component_add.part` is a library-element selector. Agents needed a larger
+   declarative document or raw mutations to select the acquired part.
+   Done when the acquisition result can be used through a straightforward
+   supported addition path, with only necessary instance choices, retaining the
+   exact device, MPN, manufacturer and supplier attributes. Verify selected part
+   identity, board BOM, undo/redo and native save/reopen. Existing declarative
+   part selection remains supported; no low-level mutation workaround is needed.
+
+2. **F2 — Electrical metadata and honest ERC coverage after import** (P1/P2;
+   A4/A12). The acquired STM32 fixture had 48 passive, non-required signals,
+   including power, and an unwired instance produced no ERC findings.
+   Trace whether source metadata is absent or lost during conversion. Preserve
+   available electrical roles/requirements and explicitly report missing or
+   unverified metadata. Done when the MCU case cannot silently appear
+   electrically verified because those properties are absent. Include valid
+   passive components to avoid treating ordinary resistor pins as bad data;
+   never invent datasheet semantics to obtain more ERC findings.
+
+3. **F3 — Board-only comparative previews** (P1/P5; A6/A7).
+   `compare_images:true` currently makes a board-only document require a
+   schematic selector; supplying one can produce schematic images before the
+   board image. Done when a board-only legend/placement review accepts the flag
+   without a schematic and returns clearly identified board before/after images
+   at matching scale and region. Preserve preview isolation, accurate attachment
+   metadata, stale-preview refusal and unchanged schematic data.
+
+4. **F4 — STEP assembly completeness and model-alignment status** (P5/P6;
+   A4/A8). STEP jobs succeeded without warning when C-0805 had no model.
+   Acquired models also explicitly had unverified alignment; misalignment itself
+   was not established. Done when export reports components represented by
+   models and components without them, and exposes unverified alignment rather
+   than equating file availability with mechanical verification. Test a mixed
+   assembly and preserve successful native STEP output while reporting its
+   limitations. A missing-model library fixture must not yield an unqualified
+   complete-assembly claim.
+
+5. **F5 — Spurious derived-data revisions during DRC** (P1/P3; A6).
+   Repeated DRC runs reported `AirWires` changes with unchanged visible data,
+   advancing revisions and provoking subsequent `stale_revision` failures.
+   Trace equality and publication of derived state. Done when identical derived
+   results do not emit redundant change events/revisions, while actual changes
+   still invalidate stale work correctly. Exercise repeated checks, save/reopen,
+   dirty state and a genuine intervening edit; do not weaken freshness guards.
+
+6. **F6 — Actionable pin diagnostics and text-edit reports** (P0/P2/P5; A3/A7).
+   ERC messages such as `R1:` lacked useful pin names, and a text-only edit was
+   described by the broad `DeviceChanged` event. Done when diagnostics identify
+   the component and pin/signal/pad as applicable, with stable object references;
+   text-edit results clearly identify the scoped text and positions changed.
+   Test that the reported edit leaves device pose and copper intact. Preserve
+   canonical native check/approval identities; improve display/report context
+   without silently changing upstream-compatible approvals.
+
+7. **F7 — Legend clearance at initial device placement** (P1/P4/P5; A6/A7).
+   Repeated RC trials began with a C1 name violating stop-mask clearance;
+   moving only that text fixed it. Reproduce top/bottom and rotation cases and
+   determine whether the source is library defaults or placement transforms.
+   Done when initial placement chooses or offers a bounded clear text position
+   where one exists, with a fresh clearance result, without moving unrelated
+   manual annotations, devices or copper. If no valid position is found, keep
+   the finding explicit rather than suppressing it or relaxing the rule.
+
+8. **F8 — Unambiguous board views and readable pin numbers** (P5; A4/A6/A12).
+   `render(side:"both")` was labelled `top side`; imported-symbol previews
+   repeatedly showed truncated pin numbers such as `1…`. Reproduce both display
+   cases. Done when captions/metadata distinguish an overlay from separate top
+   and bottom views, and requested symbol/footprint previews expose readable pin
+   numbers and orientation. Check the acquired MCU fixture and mirrored board
+   views; verify rendering rather than inferring readability from JSON mapping.
+
+9. **F9 — Concrete output filenames before writing** (P0/P6; A8).
+   A configured `board.png` produced `board1.png` and `board2.png`; the concrete
+   names were clear only after execution. Done when configuration/review exposes
+   resolved paths, page/side identity and output count before writing, and the
+   export result matches that list. Cover multi-image jobs and native path
+   placeholders. Preserve upstream-compatible filename expansion rather than
+   renaming files to conceal the mismatch.
+
+10. **F10 — Consistent routing-check counters and clean-state semantics**
+    (P0/P2/P4; A10). A trial reported errors decreasing from one to zero while
+    `resolved_error_count` remained zero; `drc_clean:true` also accompanied
+    warnings. First establish whether the counters use different finding
+    categories/coverage or contain an implementation error. Done when before,
+    after, added, resolved and unchanged counts are consistent within each
+    category, with clear error/warning/coverage semantics. A clean-state label
+    must make clear whether it means no errors or no findings. Test removal of
+    an unrouted connection separately from clearance errors and warnings;
+    preserve inherited findings and do not suppress them to improve counters.
+
+The observed blank BOM Value matching MPN is upstream-compatible deduplication,
+not an outstanding data-loss bug. Shared footprint-text UUIDs are valid when
+scoped by instance. Unknown nested schema types in the client require a separate
+server/client trace before attributing a defect to Foilfern. Those observations
+do not expand F1–F10 into another MCP-interface redesign.
 
 ## P0 — build identity, response size and operation costs
 

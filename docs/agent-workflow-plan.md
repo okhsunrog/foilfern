@@ -6,6 +6,13 @@ Only completed, validated and pushed changes count as delivered. Real-board
 measurements use release binaries and record source identity. Keep the existing
 preview/apply revision checks, undo and native LibrePCB interoperability.
 
+The later [F1–F10 follow-ups](roadmap.md#agent-trial-follow-ups-2026-11-15)
+record concrete remaining friction from the retained trials, in priority order.
+They refine the delivered scopes below: for example, declarative part identity
+is implemented, while the primitive acquisition-to-addition handoff is still a
+follow-up. All ten follow-ups are planned; their acceptance requires reproduction
+and source tracing where the reported cause is uncertain.
+
 ## Delivery queue
 
 | Order | Scope | Acceptance | State |
