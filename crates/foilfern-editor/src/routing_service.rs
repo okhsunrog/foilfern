@@ -816,11 +816,7 @@ impl RoutingService {
             Err(error) => {
                 // Copper has committed. Report the incomplete post-check honestly
                 // instead of returning an error that suggests no write occurred.
-                info.validation.acceptable = false;
-                info.validation.drc_clean = false;
-                info.validation.after.ran = false;
-                info.validation.after.complete = false;
-                info.validation.after.check_failures.push(error.to_string());
+                info.validation.fail_after_check(error.to_string());
             }
         }
         Ok(info)

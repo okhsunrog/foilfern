@@ -96,6 +96,18 @@ fn explicit_escape_and_builtin_continuation_share_one_candidate() {
     assert_eq!(candidate["validation"]["acceptable"], true, "{candidate:#}");
     assert_eq!(candidate["validation"]["after"]["unrouted"], 1);
     assert_eq!(
+        candidate["validation"]["finding_delta"]["errors"],
+        json!({
+            "before":2,"after":1,"added":0,"resolved":1,"unchanged":1
+        })
+    );
+    assert_eq!(
+        candidate["validation"]["finding_delta"]["missing_connections"],
+        candidate["validation"]["finding_delta"]["errors"]
+    );
+    assert_eq!(candidate["validation"]["resolved_error_count"], 0);
+    assert_eq!(candidate["validation"]["drc_status"], "errors_present");
+    assert_eq!(
         board_get(&session, Default::default()).unwrap().result,
         before
     );

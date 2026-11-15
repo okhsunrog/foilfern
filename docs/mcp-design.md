@@ -202,7 +202,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `61`, including read-only STEP/graphics output plans, contextual pin-number previews, explicit board-view metadata, initial device legend placement, STEP assembly coverage, paired board previews, electrical import evidence
+`api_capability_version` (currently `62`, including categorized routing-check deltas and explicit check status, read-only STEP/graphics output plans, contextual pin-number previews, explicit board-view metadata, initial device legend placement, STEP assembly coverage, paired board previews, electrical import evidence
 and explicit structural ERC coverage, named ERC subjects, scoped
 text-change events and reports, supplier acquisition,
 official KiCad imports, rendered board-placement reviews, declared connector axes, scoped legend targets and bounded legend placement).
@@ -1705,3 +1705,43 @@ labels, and identify rotation/mirroring. `symbol_pin_numbers` and
 `pin_number_mapping_complete` expose the mapping used; unmapped labels stay blank
 and yield a warning/partial result. Generic library previews without device
 context keep their upstream placeholder semantics.
+
+
+### Routing check categories and status
+
+`validation.before` and `after` cover full-board **unapproved** DRC messages,
+not only the edited nets. `errors = non_connectivity_errors +
+missing_connection_errors`; `copper_errors` is a subset of non-connectivity
+errors. `warnings` are separate. `unrouted` counts all physical air wires,
+including approved missing-connection findings; placement may separately exclude
+new unwired devices from the per-net regression comparison.
+
+`finding_delta` contains `errors`, `non_connectivity_errors`, `copper_errors`,
+`missing_connections` and `warnings`. Every category reports `before`, `after`,
+`added`, `resolved` and `unchanged`: `before = resolved + unchanged` and
+`after = added + unchanged`. Matching uses native approval identities and retains
+message multiplicity, independent of translated text. Missing-connection identity
+tracks edges of the rebuilt air-wire tree: a different tree can replace an edge
+without worsening connectivity. Per-net `connectivity_progress`, improvements
+and regressions remain the evidence for that question. Changing an approval can
+remove a finding from this unapproved scope without removing physical geometry.
+
+The existing `new_error_count`, `resolved_error_count`, and sampled `new_errors`
+refer to **non-connectivity** errors. For example, routing one open connection
+can yield `errors: 1 -> 0`, `resolved_error_count: 0`, and
+`finding_delta.errors.resolved: 1`, with the latter resolution identified in
+`finding_delta.missing_connections`. `new_warning_count` and the error counts
+are not truncated; lists contain at most 50 distinct identities. A repeated
+identity can represent more than one counted DRC message.
+
+`drc_status` is `incomplete`, `errors_present`, `warnings_only`, or
+`no_errors_or_warnings`. It describes the after-check's unapproved errors and
+warnings, excluding hints. `drc_clean` explicitly means a completed after-check
+with **no unapproved errors**; warnings may remain. `acceptable` separately
+means the patch passed its applicable mutation/netlist/requirement/connectivity
+gates; an inherited error does not automatically make a local patch unacceptable.
+Neither flag establishes manufacturing readiness or electrical intent coverage.
+If either check is incomplete, `finding_delta` is `null` and
+`resolved_error_count` is zero, since absent evidence cannot prove resolution.
+Observed new findings remain available; inspect `ran`, `complete` and
+`check_failures` on both checks before relying on a comparison.

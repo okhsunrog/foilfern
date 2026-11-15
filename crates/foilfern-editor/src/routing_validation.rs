@@ -3,7 +3,8 @@
 //!
 //! Each snapshot runs full DRC, including rebuilt planes and air wires.
 //! Finding identities use the upstream approval expressions; missing connections
-//! are tracked separately because their air-wire tree can change after routing.
+//! have their own category because their air-wire tree can change after routing.
+//! Comparison counts retain duplicate identities; samples use distinct findings.
 //! The netlist comparison checks signal assignments, not physical connectivity;
 //! shorts and copper geometry are checked by DRC.
 
@@ -29,9 +30,125 @@ pub struct RoutingCheckSummary {
     pub complete: bool,
     pub unrouted: usize,
     pub errors: usize,
+    pub non_connectivity_errors: usize,
+    pub missing_connection_errors: usize,
     pub copper_errors: usize,
     pub warnings: usize,
     pub check_failures: Vec<String>,
+}
+
+/// Multiset difference of native approval identities, including repeated messages.
+/// `before = resolved + unchanged`; `after = added + unchanged`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RoutingFindingDelta {
+    pub before: usize,
+    pub after: usize,
+    pub added: usize,
+    pub resolved: usize,
+    pub unchanged: usize,
+}
+
+impl RoutingFindingDelta {
+    fn compare(before: &BTreeMap<String, usize>, after: &BTreeMap<String, usize>) -> Self {
+        let unchanged = before
+            .iter()
+            .map(|(key, count)| (*count).min(after.get(key).copied().unwrap_or(0)))
+            .sum::<usize>();
+        let before = before.values().sum::<usize>();
+        let after = after.values().sum::<usize>();
+        Self {
+            before,
+            after,
+            added: after - unchanged,
+            resolved: before - unchanged,
+            unchanged,
+        }
+    }
+}
+
+/// Full-board unapproved findings. Copper and missing connections are subsets
+/// of errors; warnings are separate. Missing-connection identities describe the
+/// rebuilt air-wire tree, not a persistent edge topology.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RoutingFindingDeltas {
+    pub errors: RoutingFindingDelta,
+    pub non_connectivity_errors: RoutingFindingDelta,
+    pub copper_errors: RoutingFindingDelta,
+    pub missing_connections: RoutingFindingDelta,
+    pub warnings: RoutingFindingDelta,
+}
+
+#[derive(Debug, Clone, Default)]
+struct FindingCounts {
+    errors: BTreeMap<String, usize>,
+    non_connectivity_errors: BTreeMap<String, usize>,
+    copper_errors: BTreeMap<String, usize>,
+    missing_connections: BTreeMap<String, usize>,
+    warnings: BTreeMap<String, usize>,
+}
+
+impl FindingCounts {
+    fn record(&mut self, key: &str, severity: Severity, missing: bool, copper: bool) {
+        let increment = |counts: &mut BTreeMap<String, usize>| {
+            *counts.entry(key.to_owned()).or_default() += 1;
+        };
+        match severity {
+            Severity::Error => {
+                increment(&mut self.errors);
+                if missing {
+                    increment(&mut self.missing_connections);
+                } else {
+                    increment(&mut self.non_connectivity_errors);
+                }
+                if copper {
+                    increment(&mut self.copper_errors);
+                }
+            }
+            Severity::Warning => increment(&mut self.warnings),
+            Severity::Hint => {}
+        }
+    }
+
+    fn compare(&self, after: &Self) -> RoutingFindingDeltas {
+        RoutingFindingDeltas {
+            errors: RoutingFindingDelta::compare(&self.errors, &after.errors),
+            non_connectivity_errors: RoutingFindingDelta::compare(
+                &self.non_connectivity_errors,
+                &after.non_connectivity_errors,
+            ),
+            copper_errors: RoutingFindingDelta::compare(&self.copper_errors, &after.copper_errors),
+            missing_connections: RoutingFindingDelta::compare(
+                &self.missing_connections,
+                &after.missing_connections,
+            ),
+            warnings: RoutingFindingDelta::compare(&self.warnings, &after.warnings),
+        }
+    }
+}
+
+/// Status of the full-board unapproved error/warning check, independent of
+/// whether a local change is acceptable. Hints and approved findings are excluded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RoutingDrcStatus {
+    Incomplete,
+    ErrorsPresent,
+    WarningsOnly,
+    NoErrorsOrWarnings,
+}
+
+impl RoutingDrcStatus {
+    fn from_checks(checks: &RoutingCheckSummary) -> Self {
+        if !checks.ran || !checks.complete {
+            Self::Incomplete
+        } else if checks.errors > 0 {
+            Self::ErrorsPresent
+        } else if checks.warnings > 0 {
+            Self::WarningsOnly
+        } else {
+            Self::NoErrorsOrWarnings
+        }
+    }
 }
 
 /// A non-connectivity DRC finding, identified independently of translated text.
@@ -101,6 +218,7 @@ pub type RoutingError = RoutingDrcFinding;
 pub struct RoutingSnapshot {
     pub checks: RoutingCheckSummary,
     requirements: State,
+    finding_counts: FindingCounts,
     errors: BTreeMap<String, RoutingError>,
     warnings: BTreeMap<String, RoutingDrcFinding>,
     unrouted_by_net: BTreeMap<NetSignalId, usize>,
@@ -152,14 +270,15 @@ pub struct RoutingImprovement {
 
 impl RoutingSnapshot {
     pub(crate) fn non_connectivity_errors(&self) -> usize {
-        self.errors.len()
+        self.checks.non_connectivity_errors
     }
 
     pub(crate) fn has_new_warning(&self, before: &Self, kind: DrcMessageKind) -> bool {
         let kind = format!("{kind:?}");
-        self.warnings
-            .iter()
-            .any(|(key, finding)| finding.kind == kind && !before.warnings.contains_key(key))
+        self.warnings.iter().any(|(key, finding)| {
+            finding.kind == kind
+                && self.finding_counts.warnings.get(key) > before.finding_counts.warnings.get(key)
+        })
     }
 
     pub(crate) fn unrouted_on(&self, nets: &BTreeSet<NetSignalId>) -> usize {
@@ -180,7 +299,14 @@ pub struct RoutingValidation {
     /// All checks completed, the netlist stayed intact and no new
     /// non-connectivity errors appeared. This does not mean all nets are routed.
     pub acceptable: bool,
+    /// All after-checks completed with no unapproved errors, including missing
+    /// connections. Warnings may remain; inspect `drc_status`.
     pub drc_clean: bool,
+    pub drc_status: RoutingDrcStatus,
+    /// None if either check is incomplete: absence cannot prove resolution.
+    pub finding_delta: Option<RoutingFindingDeltas>,
+    /// Newly observed non-connectivity errors only; missing connections are in
+    /// `finding_delta.missing_connections` and per-net connectivity progress.
     pub new_error_count: usize,
     pub new_copper_error_count: usize,
     /// A regression on any net takes precedence over gains elsewhere.
@@ -196,6 +322,8 @@ pub struct RoutingValidation {
     /// These are samples of the rebuilt tree, not an edge-by-edge diff.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub unrouted_regression_details: Vec<RoutingRegression>,
+    /// Resolved non-connectivity errors only; zero when either check is
+    /// incomplete. See `finding_delta.errors` for all errors.
     pub resolved_error_count: usize,
     /// At most 50 newly reported errors (the count above is never truncated).
     pub new_errors: Vec<RoutingError>,
@@ -278,10 +406,13 @@ fn capture_state(
         complete: false,
         unrouted: routing_stats(p, board).air_wires,
         errors: 0,
+        non_connectivity_errors: 0,
+        missing_connection_errors: 0,
         copper_errors: 0,
         warnings: 0,
         check_failures: Vec::new(),
     };
+    let mut finding_counts = FindingCounts::default();
     let mut errors = BTreeMap::new();
     let mut warnings = BTreeMap::new();
     match result {
@@ -293,6 +424,9 @@ fn capture_state(
                     continue;
                 }
                 let copper = is_copper_error(message.kind());
+                let missing = message.kind() == DrcMessageKind::MissingConnection;
+                let approval = message.approval().to_string_with_mode(Default::default())?;
+                finding_counts.record(&approval, message.message().severity(), missing, copper);
                 let findings = match message.message().severity() {
                     Severity::Warning => {
                         checks.warnings += 1;
@@ -301,14 +435,15 @@ fn capture_state(
                     Severity::Error => {
                         checks.errors += 1;
                         checks.copper_errors += usize::from(copper);
-                        if message.kind() == DrcMessageKind::MissingConnection {
+                        if missing {
+                            checks.missing_connection_errors += 1;
                             continue;
                         }
+                        checks.non_connectivity_errors += 1;
                         &mut errors
                     }
                     Severity::Hint => continue,
                 };
-                let approval = message.approval().to_string_with_mode(Default::default())?;
                 findings.insert(
                     approval.clone(),
                     RoutingDrcFinding {
@@ -384,6 +519,7 @@ fn capture_state(
         .collect();
     Ok(RoutingSnapshot {
         checks,
+        finding_counts,
         requirements: State::capture(p, board, &Requirements::load(p)?)?,
         unrouted_by_net,
         unrouted_examples,
@@ -418,17 +554,20 @@ impl RoutingValidation {
         let new_errors: Vec<_> = after
             .errors
             .iter()
-            .filter(|(key, _)| !before.errors.contains_key(*key))
+            .filter(|(key, _)| {
+                after.finding_counts.non_connectivity_errors.get(*key)
+                    > before.finding_counts.non_connectivity_errors.get(*key)
+            })
             .map(|(_, error)| error.clone())
             .collect();
         let mut new_warnings = Vec::new();
-        let mut new_warning_count = 0;
+        let deltas = before.finding_counts.compare(&after.finding_counts);
+        let new_warning_count = deltas.warnings.added;
         for (key, warning) in &after.warnings {
-            if !before.warnings.contains_key(key) {
-                new_warning_count += 1;
-                if new_warnings.len() < 50 {
-                    new_warnings.push(warning.clone());
-                }
+            if after.finding_counts.warnings.get(key) > before.finding_counts.warnings.get(key)
+                && new_warnings.len() < 50
+            {
+                new_warnings.push(warning.clone());
             }
         }
         let netlist_preserved = before.signals == after.signals && before.nets == after.nets;
@@ -486,25 +625,34 @@ impl RoutingValidation {
             .requirements
             .findings_after(&before.requirements)
             .collect();
+        let complete = before.checks.ran
+            && before.checks.complete
+            && after.checks.ran
+            && after.checks.complete;
+        let new_error_count = deltas.non_connectivity_errors.added;
+        let new_copper_error_count = deltas.copper_errors.added;
+        let resolved_error_count = if complete {
+            deltas.non_connectivity_errors.resolved
+        } else {
+            0
+        };
         Self {
             acceptable: before.checks.complete
                 && after.checks.complete
                 && netlist_preserved
-                && new_errors.is_empty()
+                && new_error_count == 0
                 && !board_requirements_after.iter().any(Finding::blocks_routing),
-            drc_clean: after.checks.complete && after.checks.errors == 0,
+            drc_clean: after.checks.ran && after.checks.complete && after.checks.errors == 0,
+            drc_status: RoutingDrcStatus::from_checks(&after.checks),
+            finding_delta: complete.then_some(deltas),
             netlist_preserved,
-            new_error_count: new_errors.len(),
-            new_copper_error_count: new_errors.iter().filter(|e| e.copper).count(),
+            new_error_count,
+            new_copper_error_count,
             connectivity_progress,
             unrouted_improvements,
             unrouted_regressions,
             unrouted_regression_details,
-            resolved_error_count: before
-                .errors
-                .keys()
-                .filter(|key| !after.errors.contains_key(*key))
-                .count(),
+            resolved_error_count,
             new_errors: new_errors.into_iter().take(50).collect(),
             new_warning_count,
             new_warnings,
@@ -515,10 +663,23 @@ impl RoutingValidation {
         }
     }
 
+    /// Copper may already have committed when its final check fails. Invalidate
+    /// comparison evidence rather than leaving the candidate's successful check.
+    pub(crate) fn fail_after_check(&mut self, error: String) {
+        self.acceptable = false;
+        self.drc_clean = false;
+        self.drc_status = RoutingDrcStatus::Incomplete;
+        self.finding_delta = None;
+        self.resolved_error_count = 0;
+        self.after.ran = false;
+        self.after.complete = false;
+        self.after.check_failures.push(error);
+    }
+
     /// Human-readable evidence for an operation response.
     pub fn summary(&self) -> String {
         format!(
-            "Validation: {} -> {} unrouted; {} -> {} DRC errors ({} new); {} -> {} copper errors; netlist {}; checks {}.",
+            "Validation: {} -> {} unrouted; {} -> {} DRC errors ({} new non-connectivity); {} -> {} copper errors; {} -> {} warnings; DRC {:?} (unapproved errors/warnings); netlist {}; checks {}.",
             self.before.unrouted,
             self.after.unrouted,
             self.before.errors,
@@ -526,6 +687,9 @@ impl RoutingValidation {
             self.new_error_count,
             self.before.copper_errors,
             self.after.copper_errors,
+            self.before.warnings,
+            self.after.warnings,
+            self.drc_status,
             if self.netlist_preserved {
                 "preserved"
             } else {
@@ -537,5 +701,67 @@ impl RoutingValidation {
                 "INCOMPLETE"
             }
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finding_multisets_preserve_duplicate_messages_and_category_identities() {
+        let mut before = FindingCounts::default();
+        let mut after = FindingCounts::default();
+        before.record("missing-a", Severity::Error, true, false);
+        before.record("clearance-a", Severity::Error, false, true);
+        before.record("clearance-a", Severity::Error, false, true);
+        before.record("warning-a", Severity::Warning, false, false);
+        before.record("warning-b", Severity::Warning, false, false);
+        after.record("clearance-a", Severity::Error, false, true);
+        after.record("clearance-b", Severity::Error, false, true);
+        after.record("warning-a", Severity::Warning, false, false);
+        after.record("warning-a", Severity::Warning, false, false);
+        let delta = before.compare(&after);
+        assert_eq!(
+            delta.errors,
+            RoutingFindingDelta {
+                before: 3,
+                after: 2,
+                added: 1,
+                resolved: 2,
+                unchanged: 1,
+            }
+        );
+        assert_eq!(
+            delta.missing_connections,
+            RoutingFindingDelta {
+                before: 1,
+                after: 0,
+                added: 0,
+                resolved: 1,
+                unchanged: 0,
+            }
+        );
+        assert_eq!(delta.copper_errors, delta.non_connectivity_errors);
+        assert_eq!(
+            delta.copper_errors,
+            RoutingFindingDelta {
+                before: 2,
+                after: 2,
+                added: 1,
+                resolved: 1,
+                unchanged: 1,
+            }
+        );
+        assert_eq!(
+            delta.warnings,
+            RoutingFindingDelta {
+                before: 2,
+                after: 2,
+                added: 1,
+                resolved: 1,
+                unchanged: 1,
+            }
+        );
     }
 }

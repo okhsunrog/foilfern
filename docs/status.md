@@ -134,6 +134,12 @@ retaining their existing execution paths. The
 [resource-limited release replay](benchmarks/render-output-review/REPORT.md)
 records pin-preview images, filename matching, byte costs and CPU limits.
 
+Routing checks now report category-consistent native finding deltas (API 62),
+including missing connections separately from other errors. Explicit DRC status
+separates warnings-only from no-errors-or-warnings; `drc_clean` means no unapproved
+errors. Incomplete comparisons do not claim resolved findings. Existing
+non-connectivity counters and per-net regression gates retain their scope.
+
 ## Routing and measurements available now
 
 The editor owns one `RoutingService` per open project; MCP is its transport.

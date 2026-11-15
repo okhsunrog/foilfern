@@ -163,15 +163,19 @@ acceptance.
    See [release evidence](benchmarks/render-output-review/REPORT.md).
 
 10. **F10 — Consistent routing-check counters and clean-state semantics**
-    (P0/P2/P4; A10). A trial reported errors decreasing from one to zero while
-    `resolved_error_count` remained zero; `drc_clean:true` also accompanied
-    warnings. First establish whether the counters use different finding
-    categories/coverage or contain an implementation error. Done when before,
-    after, added, resolved and unchanged counts are consistent within each
-    category, with clear error/warning/coverage semantics. A clean-state label
-    must make clear whether it means no errors or no findings. Test removal of
-    an unrouted connection separately from clearance errors and warnings;
-    preserve inherited findings and do not suppress them to improve counters.
+    (P0/P2/P4; A10). **Delivered, API 62.** The trial compared different
+    categories: summary errors include missing connections, while the existing
+    new/resolved error counters concern non-connectivity errors. `finding_delta`
+    now reports before/after/added/resolved/unchanged for all errors,
+    non-connectivity errors, copper errors, missing connections and warnings.
+    Matching retains repeated native approval identities. Incomplete checks
+    cannot establish resolution. `drc_status` distinguishes incomplete,
+    errors-present, warnings-only and no-errors-or-warnings states; `drc_clean`
+    explicitly remains no unapproved errors, not no warnings. Per-net rebuilt
+    connectivity still governs regressions even if the air-wire tree changes.
+    Tests separate routed connections, repaired width errors, introduced
+    clearance errors, inherited warnings and approval scope. Native rules and
+    saved files are unchanged.
 
 The observed blank BOM Value matching MPN is upstream-compatible deduplication,
 not an outstanding data-loss bug. Shared footprint-text UUIDs are valid when

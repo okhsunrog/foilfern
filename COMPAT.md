@@ -23,6 +23,15 @@ into Part 2. An entry that mixes both is split.
 
 # Part 1: Intentional differences
 
+### Routing-check reports
+
+Foilfern's routing validation is an editor/MCP extension. It reports full-board
+unapproved error/warning deltas by native approval identity, retaining duplicate
+message counts. Missing connections have a separate category because rebuilt
+air-wire edges can change. Error-free and warning-only states are explicit;
+incomplete checks cannot establish resolved findings. This changes runtime
+reports only, not native approvals, routing rules or project serialization.
+
 ## General
 
 - **Whitespace**: `char::is_whitespace()` / `str::trim()` /
