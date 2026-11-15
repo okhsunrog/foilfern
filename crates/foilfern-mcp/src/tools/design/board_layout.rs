@@ -172,7 +172,7 @@ pub(super) struct AppliedLayout {
 pub(super) struct LayoutReview {
     pub(super) evidence: Value,
     pub(super) blocked: bool,
-    pub(super) image: Vec<u8>,
+    pub(super) images: Vec<Vec<u8>>,
 }
 
 fn component(
@@ -617,6 +617,8 @@ impl AppliedLayout {
         preview: &mut DesignPreview,
         source: &Project,
         proposed: &Project,
+        comparison: bool,
+        region: Option<(Point, Point)>,
         stage: impl Fn(Stage) -> ToolResult<()> + Sync,
     ) -> ToolResult<LayoutReview> {
         let checkpoint = || stage(Stage::Check);
@@ -758,21 +760,34 @@ impl AppliedLayout {
         } else {
             foilfern_scene::BoardSide::Top
         };
-        let image = foilfern_scene::render_board_png(
-            project,
-            self.board,
-            side,
-            &foilfern_scene::RenderOptions::default(),
-        )?;
+        let mut image = json!({"index":0,"target":"board","board":self.board,"state":"after","side":self.image_side,"width":1600,"height":1200,"mime_type":"image/png","pad_coordinate_system":"board"});
+        let images = if comparison || region.is_some() {
+            let (images, bounds) =
+                foilfern_scene::render_board_comparison(source, project, self.board, side, region)?;
+            image["region"] =
+                json!({"min":{"x":bounds[0],"y":bounds[1]},"max":{"x":bounds[2],"y":bounds[3]}});
+            let mut before_image = image.clone();
+            before_image["index"] = json!(1);
+            before_image["state"] = json!("before");
+            evidence["images"] = json!([image.clone(), before_image]);
+            images
+        } else {
+            vec![foilfern_scene::render_board_png(
+                project,
+                self.board,
+                side,
+                &foilfern_scene::RenderOptions::default(),
+            )?]
+        };
         stage(Stage::Render)?;
-        evidence["image"] = json!({"index":0,"side":self.image_side,"width":1600,"height":1200,"mime_type":"image/png","pad_coordinate_system":"board"});
+        evidence["image"] = image;
         if let Some(trial) = trial {
             preview.append_board_routing(trial.mutations);
         }
         Ok(LayoutReview {
             evidence,
             blocked,
-            image,
+            images,
         })
     }
 }

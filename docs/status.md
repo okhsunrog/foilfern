@@ -251,3 +251,9 @@ full debugging, use `CARGO_PROFILE_DEV_DEBUG=full` and, if needed,
   `.slint` `@tr()` additions are not covered by the Rust `context_check` test.
 - Use the current branch's commit/push policy and dedicated temporary root from
   AGENTS.md. Historical porting waves do not prescribe how every task is staffed.
+
+Board-only comparative previews (F3, API 57) now accept `compare_images` without
+requiring a schematic. Placement/legend images identify board, state and side,
+share old/new content bounds or an explicit board-coordinate crop, and preserve
+the detached candidate and guarded apply lifecycle. Focused stdio coverage tests
+paired board output, crop metadata, unchanged live board and stale refusal.

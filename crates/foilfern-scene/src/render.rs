@@ -280,3 +280,39 @@ pub fn render_board_scene(scene: &mut BoardScene, options: &RenderOptions) -> Re
         options,
     )
 }
+
+/// Render board candidates against one common board-coordinate viewport.
+/// Images are ordered after, before; bounds include both states unless cropped.
+pub fn render_board_comparison(
+    before: &Project,
+    after: &Project,
+    board: BoardId,
+    side: BoardSide,
+    region: Option<(Point, Point)>,
+) -> Result<(Vec<Vec<u8>>, [f64; 4])> {
+    let old = BoardScene::build(before, board, side, &ColorScheme::BOARD_DARK)?;
+    let new = BoardScene::build(after, board, side, &ColorScheme::BOARD_DARK)?;
+    let bounds = region
+        .map(|(min, max)| Rect::new(min.x.to_mm(), min.y.to_mm(), max.x.to_mm(), max.y.to_mm()))
+        .or_else(|| {
+            old.content_bounds()
+                .into_iter()
+                .chain(new.content_bounds())
+                .reduce(|a, b| a.union(b))
+        })
+        .unwrap_or(Rect::new(-5., -5., 5., 5.));
+    let mut images = Vec::new();
+    for scene in [&new, &old] {
+        images.push(
+            render_scene(
+                scene.scene(),
+                Some(bounds),
+                side == BoardSide::Bottom,
+                scene.background(),
+                &RenderOptions::default(),
+            )?
+            .to_png()?,
+        );
+    }
+    Ok((images, [bounds.x0, bounds.y0, bounds.x1, bounds.y1]))
+}

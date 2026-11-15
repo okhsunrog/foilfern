@@ -123,7 +123,7 @@ pub struct DesignDocument {
     /// Include before and after PNGs at a shared scale and origin.
     #[serde(default)]
     compare_images: bool,
-    /// Optional crop for the paired preview images, in sheet millimeters.
+    /// Optional crop for the paired preview images, in sheet millimeters, or board coordinates for a board-only document.
     image_region: Option<super::output::SchematicRegion>,
     /// Stable document keys bound to existing components by UUID or designator.
     #[serde(default)]
@@ -480,8 +480,6 @@ pub(crate) fn prepare(
             ToolError::invalid("Supply schematic or board_layout in the design document.")
         })?;
         if doc.create_schematic
-            || doc.compare_images
-            || doc.image_region.is_some()
             || !doc.components.is_empty()
             || !doc.add_components.is_empty()
             || !doc.add_nets.is_empty()
@@ -501,6 +499,10 @@ pub(crate) fn prepare(
                 "Schematic edits require a schematic selector. For board-only placement use designators or component UUIDs.",
             ));
         }
+        let region = doc
+            .image_region
+            .map(super::output::SchematicRegion::points)
+            .transpose()?;
         let mut diff = Vec::new();
         let (mut preview, before, after, placement) = snapshot.prepare(|tx| {
             layout.apply(tx, &BTreeMap::new(), false, &mut diff, || {
@@ -508,13 +510,28 @@ pub(crate) fn prepare(
             })
         })?;
         checkpoint(Stage::Check)?;
-        let review = placement.review(&mut preview, &before, &after, &checkpoint)?;
+        let review = placement.review(
+            &mut preview,
+            &before,
+            &after,
+            doc.compare_images,
+            region,
+            &checkpoint,
+        )?;
         let mut output = ToolOutput::new(
-            format!("{} board design changes.", diff.len()),
+            format!(
+                "{} board design changes. PNGs show {}.",
+                diff.len(),
+                if doc.compare_images || region.is_some() {
+                    "board after, before"
+                } else {
+                    "board after"
+                }
+            ),
             json!({"preview":preview.id,"base_revision":preview.revision,"diff":diff,
                 "board_layout":review.evidence}),
-        )?
-        .image(review.image);
+        )?;
+        output.images = review.images;
         if review.blocked {
             output = output.warn("Board placement checks block apply.");
         }
@@ -1061,14 +1078,21 @@ pub(crate) fn prepare(
             " {blockers} schematic requirement(s) block apply."
         ));
     }
-    let mut board_image = None;
+    let mut board_images = None;
     if let Some(placement) = placement {
-        let review = placement.review(&mut preview, &before, &project, &checkpoint)?;
+        let review = placement.review(
+            &mut preview,
+            &before,
+            &project,
+            doc.compare_images,
+            None,
+            &checkpoint,
+        )?;
         if review.blocked {
             summary.push_str(" Board placement checks block apply.");
         }
         payload["board_layout"] = review.evidence;
-        board_image = Some(review.image);
+        board_images = Some(review.images);
     }
     checkpoint(Stage::Render)?;
     let mut output = if doc.compare_images || region.is_some() {
@@ -1094,9 +1118,15 @@ pub(crate) fn prepare(
         let image = super::output::render_schematic_preview(&project, schematic, 1600, 1200, None)?;
         ToolOutput::new(summary, payload)?.image(image)
     };
-    if let Some(image) = board_image {
+    if let Some(images) = board_images {
         output.result["board_layout"]["image"]["index"] = json!(output.images.len());
-        output.images.push(image);
+        if let Some(metadata) = output.result["board_layout"]["images"].as_array_mut() {
+            for entry in metadata {
+                entry["index"] =
+                    json!(entry["index"].as_u64().unwrap_or(0) + output.images.len() as u64);
+            }
+        }
+        output.images.extend(images);
     }
     if output.result["erc"]["coverage"]["after"]["has_metadata_gaps"] == true {
         output = output.warn(super::output::ERC_METADATA_WARNING);

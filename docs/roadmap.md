@@ -51,7 +51,7 @@ A P5 overlay for existing candidates can ship before automatic P4 planning.
 These ten follow-ups come from recurring concrete observations in the retained
 agent feedback and targeted source inspection. They refine the existing P0–P6
 stages and A1–A12 workflow queue; they do not mark previously delivered features
-as missing. F1, F2, F5 and F6 are **delivered**; F3–F4 and F7–F10 are **planned**.
+as missing. F1–F3, F5 and F6 are **delivered**; F4 and F7–F10 are **planned**.
 The order below is the priority order, starting with acquisition, electrical metadata and review/output
 correctness. Where the cause is uncertain, reproduce and trace it before choosing
 a fix. Passing the small trial designs is not general electrical or mechanical
@@ -83,12 +83,12 @@ acceptance.
    [acceptance evidence](benchmarks/import-electrical-metadata/REPORT.md).
 
 3. **F3 — Board-only comparative previews** (P1/P5; A6/A7).
-   `compare_images:true` currently makes a board-only document require a
-   schematic selector; supplying one can produce schematic images before the
-   board image. Done when a board-only legend/placement review accepts the flag
-   without a schematic and returns clearly identified board before/after images
-   at matching scale and region. Preserve preview isolation, accurate attachment
-   metadata, stale-preview refusal and unchanged schematic data.
+   **Delivered, API 57.** Board-only placement and legend documents accept
+   `compare_images:true` without a schematic. The paired board PNGs are ordered
+   after/before and carry explicit target, state, side and attachment indices.
+   Both fit the union of old/new visible content, or the same `image_region`
+   in board coordinates. Combined documents identify their board attachments
+   separately. Detached preview checks and stale-apply protection are unchanged.
 
 4. **F4 — STEP assembly completeness and model-alignment status** (P5/P6;
    A4/A8). STEP jobs succeeded without warning when C-0805 had no model.

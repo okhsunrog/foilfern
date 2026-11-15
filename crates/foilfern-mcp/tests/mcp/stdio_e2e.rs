@@ -260,10 +260,23 @@ async fn stdio_legend_search_checks_obstacles_and_replays_one_patch() {
     )
     .await;
     before = call_ok(&client, "board_legend_list", json!({})).await;
-    let request = json!({"version":1,"board_layout":{"legend_placements":[{"target":target,"candidates":[
+    let request = json!({"version":1,"compare_images":true,"board_layout":{"legend_placements":[{"target":target,"candidates":[
         {"position":{"x":-10,"y":10}}, {"position":pad}, {"position":{"x":10,"y":10}}, {"position":{"x":5,"y":15}}, {"position":{"x":25,"y":15},"rotation":0}
     ]}]}});
-    let proposed = call_ok(&client, "design_preview", request.clone()).await;
+    let schematic_before = call_ok(&client, "schematic_get", json!({})).await;
+    let preview_reply = call(&client, "design_preview", request.clone()).await;
+    let images: Vec<_> = preview_reply
+        .content
+        .iter()
+        .filter_map(|item| item.as_image())
+        .collect();
+    assert_eq!(images.len(), 2);
+    assert_ne!(images[0].data, images[1].data);
+    assert_eq!(
+        call_ok(&client, "schematic_get", json!({})).await,
+        schematic_before
+    );
+    let proposed = preview_reply.structured_content.unwrap()["result"].clone();
     let report = &proposed["board_layout"]["legend_placements"][0];
     let validation = &proposed["board_layout"]["validation"];
     assert!(
@@ -857,7 +870,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 56);
+    assert_eq!(info["api_capability_version"], 57);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -4449,7 +4462,8 @@ async fn stdio_declarative_board_placement_reviews_and_replays_one_patch() {
     let region_reply = call(
         &client,
         "design_preview",
-        json!({"version":1,"board_layout":{
+        json!({"version":1,"compare_images":true,
+            "image_region":{"min":{"x":0,"y":0},"max":{"x":30,"y":25}},"board_layout":{
             "placements":{"R2":{"region":"outside"}},
             "regions":{"outside":{"min":{"x":1,"y":1},"max":{"x":2,"y":2}}}
         }}),
@@ -4461,11 +4475,17 @@ async fn stdio_declarative_board_placement_reviews_and_replays_one_patch() {
             .iter()
             .filter(|content| content.as_image().is_some())
             .count(),
-        1
+        2
     );
     let region = region_reply.structured_content.unwrap()["result"].clone();
     assert_eq!(region["board_layout"]["image"]["index"], 0);
     assert_eq!(region["board_layout"]["applicable"], false);
+    let metadata = &region["board_layout"]["images"];
+    assert_eq!(metadata[0]["state"], "after");
+    assert_eq!(metadata[1]["state"], "before");
+    assert_eq!(metadata[1]["index"], 1);
+    assert_eq!(metadata[0]["region"], metadata[1]["region"]);
+    assert_eq!(metadata[0]["region"]["max"], json!({"x":30.0,"y":25.0}));
     let rejected = call(
         &client,
         "design_apply",
@@ -4540,7 +4560,7 @@ async fn stdio_declarative_board_placement_reviews_and_replays_one_patch() {
         1
     );
     let position = json!({"x":x-0.1,"y":current["y"]});
-    let mut move_doc = json!({"version":1,"board_layout":{"placements":{
+    let mut move_doc = json!({"version":1,"compare_images":true,"board_layout":{"placements":{
         "R2":{"position":position}
     }}});
     let conflict = call(&client, "design_preview", move_doc.clone()).await;
@@ -4549,7 +4569,15 @@ async fn stdio_declarative_board_placement_reviews_and_replays_one_patch() {
         "conflict"
     );
     move_doc["board_layout"]["placements"]["R2"]["expected"] = json!({"position":current});
-    let movement = call_ok(&client, "design_preview", move_doc).await;
+    let movement_reply = call(&client, "design_preview", move_doc).await;
+    let images: Vec<_> = movement_reply
+        .content
+        .iter()
+        .filter_map(|item| item.as_image())
+        .collect();
+    assert_eq!(images.len(), 2);
+    assert_ne!(images[0].data, images[1].data);
+    let movement = movement_reply.structured_content.unwrap()["result"].clone();
     let layout = &movement["board_layout"];
     assert_eq!(layout["applicable"], true, "{layout:#}");
     let changed = layout["changed_traces"].as_array().unwrap();
@@ -4585,7 +4613,7 @@ async fn stdio_declarative_board_placement_reviews_and_replays_one_patch() {
         "refused"
     );
     assert_eq!(call_ok(&client, "board_get", json!({})).await, routed);
-    let movement = json!({"version":1,"board_layout":{"placements":{
+    let movement = json!({"version":1,"compare_images":true,"board_layout":{"placements":{
         "R2":{"position":position,"expected":{"position":current}}
     }}});
     let stale = call_ok(&client, "design_preview", movement.clone()).await;

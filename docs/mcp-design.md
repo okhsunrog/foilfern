@@ -168,7 +168,7 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `56`, including electrical import evidence
+`api_capability_version` (currently `57`, including paired board previews, electrical import evidence
 and explicit structural ERC coverage, named ERC subjects, scoped
 text-change events and reports, supplier acquisition,
 official KiCad imports, rendered board-placement reviews, declared connector axes, scoped legend targets and bounded legend placement).
@@ -1624,3 +1624,11 @@ Deferred insertion of tool definitions into a model's context is a client/host
 concern, as described in the official client best practices; no server tool
 profiles or session-based tool activation are provided. Schema or response
 reductions require a separate agreed change.
+
+Board-only `design_preview` documents accept `compare_images:true` and optional
+`image_region` in board coordinates without selecting a schematic. Board images
+are ordered after/before at a shared viewport; `board_layout.images` identifies
+attachment indices, target board, state, side, dimensions and shared region.
+`board_layout.image` remains the after-image metadata. In combined documents,
+board attachment indices include any preceding schematic images; the top-level
+`image_region` retains its schematic meaning.
