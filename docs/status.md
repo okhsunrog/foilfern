@@ -107,6 +107,8 @@ partial for assembly limitations, while native STEP output remains available.
 The runner now processes every requested variant, matching upstream's nested
 board/variant loop. Missing resources and empty component models fail before
 replacing existing output; no mechanical-fit certification is performed.
+The [paired release replay](benchmarks/board-preview-step/REPORT.md) records
+images, response costs and unchanged STEP geometry/native project data.
 
 ## Routing and measurements available now
 

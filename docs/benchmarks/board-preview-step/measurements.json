@@ -1,0 +1,307 @@
+{
+  "date": "2026-11-15",
+  "baseline_master": "3d6eb84059ae82688e0a698975342297688b1024",
+  "baseline_note": "Binary source d96dfcf is product-code-equivalent to pre-task master 3d6eb84 (documentation-only later commit).",
+  "upstream_fixture_commit": "99ff973ac20f3753bdb30d4e29608aadc882674f",
+  "method": "Single release CLI batch per operation; elapsed includes process startup; preview batch includes server_info. No LLM or delegated-agent runs. Response bytes are compact UTF-8 JSON, include text and base64 images, exclude local batch row framing. They are not token counts.",
+  "baseline": {
+    "saved_project_files_sha256": {
+      "Board_comparison_and_STEP.lpp": "58f2886f94d623671338c772f87402efe86f4d5ab06ebd4d51e219b204834398",
+      ".librepcb-project": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "circuit/circuit.lp": "221737b9e7e4528954c99c99ee8fe0f97e465b3adcd547ea9b6cb50d91024ce6",
+      "circuit/erc.lp": "7ba706768d214a1087a1921a95d4ce5eec1eb525246bd1d3367f5afba276492c",
+      "project/settings.lp": "cc9aa09d7bb9c0001989bccff5d87dd51e3ff2d9303c1e4c3e3c1c5a39ad12e0",
+      "project/jobs.lp": "61e765675893c5d713605686f8d175b97a1a4292e281b9218a20383b1352d39c",
+      "project/metadata.lp": "c504c5c241c6128e5bcadf638f0ea2aba030bde62cbb2e498dfc18acc54f2a30",
+      "project/settings.user.lp": "7e4cd8649db7988fb666e0b972bb2cba7e95209c6f2b01468761fb40f1532018",
+      "schematics/schematics.lp": "61cef6ea8fbe56a379194d17ff18c0deaf5e0d01d0cd44b86651d5541ab1dc7f",
+      "boards/boards.lp": "55a1a955285889653b16c12bb7298b9389e854472749f12305b2f6ca23d4b459",
+      "boards/default/board.lp": "76091225f999239d37ae168dbac8db464be1681642bb5b442b2eb99a3a1a3836",
+      "boards/default/settings.user.lp": "7632a5df206461c80dbfb7ac80bcf37f68960122cd718c95b6d40a4a1c988742",
+      "schematics/main/schematic.lp": "1d7c21de3803c610e85f7cec1b22308ce68eee1564f6d8e3af7ec49aacf843dd",
+      "schematics/main/settings.user.lp": "68751aadb5a6e54daf84d4963372d1b145ab7d5fc432fe20dfd4b14633d5ad66",
+      "library/pkg/2d00d07c-bfc1-4a96-a1cb-195c5ff93db9/.librepcb-pkg": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "library/pkg/2d00d07c-bfc1-4a96-a1cb-195c5ff93db9/package.lp": "68e88a49224bf83f0f5676c82b6008cd54bbfbcbaa77ad9e9d8d9a3f1395b253",
+      "library/pkg/2d00d07c-bfc1-4a96-a1cb-195c5ff93db9/70a52ef3-ce4d-480a-a79b-5929f52ddf44.step": "a74f5ec4070db52078646dec500ddcab6703e6d338f44776cddc9df01970e367",
+      "library/pkg/60b715fa-bd1d-4d96-b153-2a28208f32fb/.librepcb-pkg": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "library/pkg/60b715fa-bd1d-4d96-b153-2a28208f32fb/package.lp": "c478edc669344afe208a7712711e33a214a34881f830e832afd60c22085910ec",
+      "library/sym/75372c18-3ba4-42e8-b3b2-2eb5039d441e/.librepcb-sym": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "library/sym/75372c18-3ba4-42e8-b3b2-2eb5039d441e/symbol.lp": "3bd581d1589cfbf5add7a9e06c430dc46ac1001cfce313b74ff9cac292c0115d",
+      "library/sym/eaa5837a-a451-40ae-8620-d21e9af42151/.librepcb-sym": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "library/sym/eaa5837a-a451-40ae-8620-d21e9af42151/symbol.lp": "f464b22f86974ebc97c5eefa4cb656f74d656cb07d2ff091a0ff36ed34955dd9",
+      "library/dev/c139e505-592b-46ba-bdf2-acb7383ea0cd/device.lp": "d4067d01fed58d4fad54ab922972491f3953a0d3ef9648e191bcf570ea532400",
+      "library/dev/c139e505-592b-46ba-bdf2-acb7383ea0cd/.librepcb-dev": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "library/dev/078650d3-483c-4b9e-a848-b14f1aad2edc/.librepcb-dev": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "library/dev/078650d3-483c-4b9e-a848-b14f1aad2edc/device.lp": "f36aa6b2b2325fd6797573b4077ede5e1689848f13d7505689ddfcf20e558415",
+      "library/cmp/d167e0e3-6a92-4b76-b013-77b9c230e5f1/.librepcb-cmp": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "library/cmp/d167e0e3-6a92-4b76-b013-77b9c230e5f1/component.lp": "ef30581520c378d90fb806f09cc06a696e89da22d445b7ffb94416046dc4f84c",
+      "library/cmp/ef80cd5e-2689-47ee-8888-31d04fc99174/component.lp": "850b9e936f4c21f4daa2f064de911f629405072776344a03f2b87d9d9d33a3ce",
+      "library/cmp/ef80cd5e-2689-47ee-8888-31d04fc99174/.librepcb-cmp": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "resources/fontobene/newstroke.bene": "b1541d76a23fffeb19be0d5ce061a103df2651d1d359945e4611946c8917d779"
+    },
+    "binary": "/home/okhsunrog/tmp_zfs/codex_tmp/board-preview-step/baseline-mcp",
+    "binary_sha256": "3a92db54d6e1fece0880aecf68497d261e61d7519d784b8633e57c18c4445485",
+    "operations": {
+      "top": {
+        "seconds_including_startup_and_info": 0.08384226099587977,
+        "calls": 2,
+        "outcome": "failed",
+        "error": {
+          "kind": "invalid_argument",
+          "message": "Schematic edits require a schematic selector. For board-only placement use designators or component UUIDs."
+        },
+        "images": 0,
+        "response_bytes": 419,
+        "structured_bytes": 188,
+        "metadata": null
+      },
+      "bottom": {
+        "seconds_including_startup_and_info": 0.03819350304547697,
+        "calls": 2,
+        "outcome": "failed",
+        "error": {
+          "kind": "invalid_argument",
+          "message": "Schematic edits require a schematic selector. For board-only placement use designators or component UUIDs."
+        },
+        "images": 0,
+        "response_bytes": 419,
+        "structured_bytes": 188,
+        "metadata": null
+      },
+      "step": {
+        "seconds_including_startup": 0.11321378697175533,
+        "calls": 1,
+        "outcome": "complete",
+        "warnings": [],
+        "step_exports": null,
+        "response_bytes": 462
+      }
+    },
+    "build": {
+      "cargo_opt_level": "3",
+      "cargo_profile": "release",
+      "source_commit": "d96dfcf50836a33f20c4d9f9fac2078a79a41083",
+      "tracked_source_state": "clean"
+    },
+    "api": 56
+  },
+  "updated": {
+    "saved_project_files_sha256": {
+      "Board_comparison_and_STEP.lpp": "58f2886f94d623671338c772f87402efe86f4d5ab06ebd4d51e219b204834398",
+      ".librepcb-project": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "circuit/circuit.lp": "221737b9e7e4528954c99c99ee8fe0f97e465b3adcd547ea9b6cb50d91024ce6",
+      "circuit/erc.lp": "7ba706768d214a1087a1921a95d4ce5eec1eb525246bd1d3367f5afba276492c",
+      "schematics/schematics.lp": "61cef6ea8fbe56a379194d17ff18c0deaf5e0d01d0cd44b86651d5541ab1dc7f",
+      "boards/boards.lp": "55a1a955285889653b16c12bb7298b9389e854472749f12305b2f6ca23d4b459",
+      "project/settings.lp": "cc9aa09d7bb9c0001989bccff5d87dd51e3ff2d9303c1e4c3e3c1c5a39ad12e0",
+      "project/jobs.lp": "61e765675893c5d713605686f8d175b97a1a4292e281b9218a20383b1352d39c",
+      "project/metadata.lp": "c504c5c241c6128e5bcadf638f0ea2aba030bde62cbb2e498dfc18acc54f2a30",
+      "project/settings.user.lp": "7e4cd8649db7988fb666e0b972bb2cba7e95209c6f2b01468761fb40f1532018",
+      "boards/default/settings.user.lp": "7632a5df206461c80dbfb7ac80bcf37f68960122cd718c95b6d40a4a1c988742",
+      "boards/default/board.lp": "76091225f999239d37ae168dbac8db464be1681642bb5b442b2eb99a3a1a3836",
+      "library/dev/c139e505-592b-46ba-bdf2-acb7383ea0cd/device.lp": "d4067d01fed58d4fad54ab922972491f3953a0d3ef9648e191bcf570ea532400",
+      "library/dev/c139e505-592b-46ba-bdf2-acb7383ea0cd/.librepcb-dev": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "library/dev/078650d3-483c-4b9e-a848-b14f1aad2edc/.librepcb-dev": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "library/dev/078650d3-483c-4b9e-a848-b14f1aad2edc/device.lp": "f36aa6b2b2325fd6797573b4077ede5e1689848f13d7505689ddfcf20e558415",
+      "library/cmp/d167e0e3-6a92-4b76-b013-77b9c230e5f1/.librepcb-cmp": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "library/cmp/d167e0e3-6a92-4b76-b013-77b9c230e5f1/component.lp": "ef30581520c378d90fb806f09cc06a696e89da22d445b7ffb94416046dc4f84c",
+      "library/cmp/ef80cd5e-2689-47ee-8888-31d04fc99174/component.lp": "850b9e936f4c21f4daa2f064de911f629405072776344a03f2b87d9d9d33a3ce",
+      "library/cmp/ef80cd5e-2689-47ee-8888-31d04fc99174/.librepcb-cmp": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "library/sym/eaa5837a-a451-40ae-8620-d21e9af42151/symbol.lp": "f464b22f86974ebc97c5eefa4cb656f74d656cb07d2ff091a0ff36ed34955dd9",
+      "library/sym/eaa5837a-a451-40ae-8620-d21e9af42151/.librepcb-sym": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "library/sym/75372c18-3ba4-42e8-b3b2-2eb5039d441e/.librepcb-sym": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "library/sym/75372c18-3ba4-42e8-b3b2-2eb5039d441e/symbol.lp": "3bd581d1589cfbf5add7a9e06c430dc46ac1001cfce313b74ff9cac292c0115d",
+      "library/pkg/2d00d07c-bfc1-4a96-a1cb-195c5ff93db9/70a52ef3-ce4d-480a-a79b-5929f52ddf44.step": "a74f5ec4070db52078646dec500ddcab6703e6d338f44776cddc9df01970e367",
+      "library/pkg/2d00d07c-bfc1-4a96-a1cb-195c5ff93db9/package.lp": "68e88a49224bf83f0f5676c82b6008cd54bbfbcbaa77ad9e9d8d9a3f1395b253",
+      "library/pkg/2d00d07c-bfc1-4a96-a1cb-195c5ff93db9/.librepcb-pkg": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "library/pkg/60b715fa-bd1d-4d96-b153-2a28208f32fb/package.lp": "c478edc669344afe208a7712711e33a214a34881f830e832afd60c22085910ec",
+      "library/pkg/60b715fa-bd1d-4d96-b153-2a28208f32fb/.librepcb-pkg": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "schematics/main/schematic.lp": "1d7c21de3803c610e85f7cec1b22308ce68eee1564f6d8e3af7ec49aacf843dd",
+      "schematics/main/settings.user.lp": "68751aadb5a6e54daf84d4963372d1b145ab7d5fc432fe20dfd4b14633d5ad66",
+      "resources/fontobene/newstroke.bene": "b1541d76a23fffeb19be0d5ce061a103df2651d1d359945e4611946c8917d779"
+    },
+    "binary": "/home/okhsunrog/code/rust/foilfern/target/release/foilfern-mcp",
+    "binary_sha256": "b3935f79b2d3648159d72cc7eed838e3ead2cc604b7b3a164d3f6e468b981fd9",
+    "operations": {
+      "top": {
+        "seconds_including_startup_and_info": 0.1076393200783059,
+        "calls": 2,
+        "outcome": "complete",
+        "error": null,
+        "images": 2,
+        "response_bytes": 53882,
+        "structured_bytes": 3108,
+        "metadata": [
+          {
+            "board": "ebbea2ac-615a-4989-bd82-2b9d9d575c9c",
+            "height": 1200,
+            "index": 0,
+            "mime_type": "image/png",
+            "pad_coordinate_system": "board",
+            "region": {
+              "max": {
+                "x": 40.0,
+                "y": 30.0
+              },
+              "min": {
+                "x": 0.0,
+                "y": 0.0
+              }
+            },
+            "side": "top",
+            "state": "after",
+            "target": "board",
+            "width": 1600
+          },
+          {
+            "board": "ebbea2ac-615a-4989-bd82-2b9d9d575c9c",
+            "height": 1200,
+            "index": 1,
+            "mime_type": "image/png",
+            "pad_coordinate_system": "board",
+            "region": {
+              "max": {
+                "x": 40.0,
+                "y": 30.0
+              },
+              "min": {
+                "x": 0.0,
+                "y": 0.0
+              }
+            },
+            "side": "top",
+            "state": "before",
+            "target": "board",
+            "width": 1600
+          }
+        ]
+      },
+      "bottom": {
+        "seconds_including_startup_and_info": 0.0805833040503785,
+        "calls": 2,
+        "outcome": "complete",
+        "error": null,
+        "images": 2,
+        "response_bytes": 53899,
+        "structured_bytes": 3129,
+        "metadata": [
+          {
+            "board": "ebbea2ac-615a-4989-bd82-2b9d9d575c9c",
+            "height": 1200,
+            "index": 0,
+            "mime_type": "image/png",
+            "pad_coordinate_system": "board",
+            "region": {
+              "max": {
+                "x": 40.0,
+                "y": 30.0
+              },
+              "min": {
+                "x": 0.0,
+                "y": 0.0
+              }
+            },
+            "side": "bottom",
+            "state": "after",
+            "target": "board",
+            "width": 1600
+          },
+          {
+            "board": "ebbea2ac-615a-4989-bd82-2b9d9d575c9c",
+            "height": 1200,
+            "index": 1,
+            "mime_type": "image/png",
+            "pad_coordinate_system": "board",
+            "region": {
+              "max": {
+                "x": 40.0,
+                "y": 30.0
+              },
+              "min": {
+                "x": 0.0,
+                "y": 0.0
+              }
+            },
+            "side": "bottom",
+            "state": "before",
+            "target": "board",
+            "width": 1600
+          }
+        ]
+      },
+      "step": {
+        "seconds_including_startup": 0.04350005695596337,
+        "calls": 1,
+        "outcome": "partial",
+        "warnings": [
+          "STEP assembly on board 'default' omits 1 fitted component(s) without a selected model: C1.",
+          "STEP assembly on board 'default' includes 1 component model(s) with unverified alignment; mechanical fit was not checked."
+        ],
+        "step_exports": [
+          {
+            "board": "ebbea2ac-615a-4989-bd82-2b9d9d575c9c",
+            "coverage": {
+              "alignment": "unverified",
+              "assembly_variant": "48788ddd-0b9e-466f-af27-c29842863a36",
+              "components": [
+                {
+                  "alignment": "not_applicable",
+                  "component": "2f8ef9a1-07d0-4eec-bfc8-9aa6b30674e6",
+                  "designator": "C1",
+                  "model": null,
+                  "package": "60b715fa-bd1d-4d96-b153-2a28208f32fb",
+                  "representation": "missing_model"
+                },
+                {
+                  "alignment": "unverified",
+                  "component": "f1879d44-fa0c-4a86-b617-6ccb8f807b75",
+                  "designator": "R1",
+                  "model": "70a52ef3-ce4d-480a-a79b-5929f52ddf44",
+                  "package": "2d00d07c-bfc1-4a96-a1cb-195c5ff93db9",
+                  "representation": "represented"
+                }
+              ],
+              "excluded_count": 0,
+              "missing_model_count": 1,
+              "model_coverage_complete": false,
+              "represented_count": 1
+            },
+            "file": "/home/okhsunrog/tmp_zfs/codex_tmp/board-preview-step/updated/output/assembly.step",
+            "job": "93e12f1e-2a70-456a-a02a-33f1d58dc8e1",
+            "mechanical_validation": "not_performed",
+            "scope": "assembly"
+          }
+        ],
+        "response_bytes": 1857
+      }
+    },
+    "build": {
+      "cargo_opt_level": "3",
+      "cargo_profile": "release",
+      "source_commit": "d431f4be6d934ca297c041780c08ad26b7f2b33f",
+      "tracked_source_state": "clean"
+    },
+    "api": 58
+  },
+  "saved_native_files_identical": true,
+  "step": {
+    "baseline_sha256": "12a3bbaf9cd3e2b626ac4ea3727bdb124dcdc1a3e91173ff75d161b931dd34aa",
+    "updated_sha256": "32ebc82e8d9fcbe8c124e2597f68dc1da268c95b925224119ad99f0dbedafdc6",
+    "bytes": 66174,
+    "data_section_equal": true,
+    "data_section_sha256": "c02b71923c70b77a39a00b71ac48ccf148b8ed7541c499afc59fc06daf02b862",
+    "only_difference": "FILE_NAME timestamp"
+  },
+  "checks": {
+    "mcp_integration": {
+      "passed": 103,
+      "ignored_live_source": 2
+    },
+    "core_step_jobs": 2,
+    "core_physical_snapshot_corpus": 1,
+    "step_unit_and_integration": {
+      "unit_passed": 17,
+      "integration_passed": 2
+    }
+  }
+}

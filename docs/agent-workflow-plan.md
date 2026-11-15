@@ -15,8 +15,10 @@ stable repeated-check revisions and resolved diagnostic/text subjects; see their
 [acceptance evidence](benchmarks/check-diagnostics/REPORT.md).
 F2 now retains source electrical types and reports honest structural ERC coverage;
 see [acceptance evidence](benchmarks/import-electrical-metadata/REPORT.md).
-F3–F4 and F7–F10 remain planned; their acceptance requires reproduction and source
-tracing where the reported cause is uncertain.
+F3/F4 deliver paired board-only previews and explicit STEP assembly coverage;
+see [acceptance evidence](benchmarks/board-preview-step/REPORT.md).
+F7–F10 remain planned; their acceptance requires reproduction and source tracing
+where the reported cause is uncertain.
 
 ## Delivery queue
 

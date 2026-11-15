@@ -89,6 +89,7 @@ acceptance.
    Both fit the union of old/new visible content, or the same `image_region`
    in board coordinates. Combined documents identify their board attachments
    separately. Detached preview checks and stale-apply protection are unchanged.
+   See [acceptance evidence](benchmarks/board-preview-step/REPORT.md).
 
 4. **F4 — STEP assembly completeness and model-alignment status** (P5/P6;
    A4/A8). **Delivered, API 58.** Each successfully written STEP file reports
@@ -99,6 +100,7 @@ acceptance.
    never certifies alignment or mechanical fit. Empty/unreadable model resources
    fail before replacing an earlier output. Every requested variant is processed.
    Mixed R-0805/C-0805 assembly, native reopen and board-only controls are tested.
+   See [acceptance evidence](benchmarks/board-preview-step/REPORT.md).
 
 5. **F5 — Spurious derived-data revisions during DRC** (P1/P3; A6).
    **Delivered.** Forced air-wire rebuilds previously published every scheduled
