@@ -90,6 +90,7 @@ async fn acquisition_installs_once_replays_offline_and_refuses_changed_sources()
     .await
     .unwrap();
     let preview = part::finish(&session, target.clone(), acquired).unwrap();
+    assert_eq!(preview.result["electrical_metadata"]["unspecified_pins"], 2);
     assert_eq!(preview.images.len(), 2);
     assert!(
         preview
@@ -345,6 +346,14 @@ async fn acquired_part_handoff_selects_identity_without_design_documents() {
         .await
         .unwrap();
     let imported = part::finish(&session, target, acquired).unwrap();
+    assert_eq!(
+        imported.result["component"]["electrical_metadata"]["source_format"],
+        "easyeda_std"
+    );
+    assert_eq!(
+        imported.result["component"]["electrical_metadata"]["unspecified_pins"],
+        2
+    );
     let device = imported.result["device"]["uuid"]
         .as_str()
         .unwrap()
@@ -364,6 +373,23 @@ async fn acquired_part_handoff_selects_identity_without_design_documents() {
     ready["designator"] = json!("U1");
     let added = schematic_edit::component_add(&mut session, serde_json::from_value(ready).unwrap())
         .unwrap();
+    assert_eq!(added.result["electrical_metadata"]["status"], "recorded");
+    assert_eq!(
+        added.result["signals"][0]["source_pins"][0]["source_type"],
+        "0"
+    );
+    assert!(!added.warnings.is_empty());
+    let erc = output::erc_run(&mut session, Default::default()).unwrap();
+    assert_eq!(erc.result["errors"], 0);
+    assert_eq!(erc.result["warnings"], 0);
+    assert_eq!(erc.outcome, foilfern_mcp::outcome::Outcome::Partial);
+    assert!(!erc.warnings.is_empty());
+    assert_eq!(erc.result["coverage"]["has_metadata_gaps"], true);
+    assert_eq!(
+        erc.result["coverage"]["pin_role_compatibility_checked"],
+        false
+    );
+    assert_eq!(erc.result["coverage"]["datasheet_verified"], false);
     assert_eq!(
         added.result["part_selection"]["selected"]["mpn"],
         "TEST-123"
@@ -511,4 +537,35 @@ async fn acquired_part_handoff_selects_identity_without_design_documents() {
     )
     .unwrap();
     assert!(bom.result["csv"].as_str().unwrap().contains("C123"));
+    let revision = session.project().unwrap().project().revision();
+    let erc = output::erc_run(&mut session, Default::default()).unwrap();
+    assert_eq!(erc.outcome, foilfern_mcp::outcome::Outcome::Partial);
+    assert_eq!(
+        erc.result["coverage"]["import_metadata"][0]["metadata"]["status"],
+        "recorded"
+    );
+    assert_eq!(
+        erc.result["coverage"]["import_metadata"][0]["metadata"]["unspecified_pins"],
+        2
+    );
+    assert_eq!(session.project().unwrap().project().revision(), revision);
+    assert!(!session.project().unwrap().has_unsaved_changes());
+    let schematic = session.project().unwrap().project().schematics()[0]
+        .name()
+        .as_str()
+        .to_owned();
+    let preview = foilfern_mcp::tools::design::preview(
+        &mut session,
+        serde_json::from_value(json!({"version":1,"schematic":schematic})).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        preview.result["erc"]["coverage"]["after"]["has_metadata_gaps"],
+        true
+    );
+    assert_eq!(
+        preview.result["erc"]["coverage"]["after"]["import_metadata"][0]["metadata"]["status"],
+        "recorded"
+    );
+    assert!(!preview.warnings.is_empty());
 }

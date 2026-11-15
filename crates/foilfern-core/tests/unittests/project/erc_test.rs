@@ -20,6 +20,14 @@ fn open_net_and_unconnected_signals() {
     add_component(&mut p, "R1", Some(net));
     let open = add_net(&mut p, "N2");
     let msgs = run_erc(&p);
+    let coverage = foilfern_core::project::erc::erc_coverage(&p);
+    assert!(
+        !coverage.has_metadata_gaps,
+        "Native passive components are not unknown imported data"
+    );
+    assert!(!coverage.pin_role_compatibility_checked);
+    assert!(!coverage.datasheet_verified);
+    assert_eq!(coverage.required_connections, "native_flags_only");
     let kinds: Vec<_> = msgs.iter().map(|m| m.kind()).collect();
     assert!(kinds.contains(&ErcMessageKind::OpenNet(open)));
     assert!(!kinds.contains(&ErcMessageKind::OpenNet(net)));

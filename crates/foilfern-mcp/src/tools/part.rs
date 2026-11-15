@@ -375,6 +375,9 @@ pub fn finish(
         ));
     }
     let (detail, component) = library::workspace_device_details(ws, &dev)?;
+    if reused && component["electrical_metadata"]["has_gaps"] == true {
+        acquired.native.warnings.push("The installed component has incomplete electrical import metadata. Native passive fallback roles do not establish pin intent; inspect component.electrical_metadata and each signal's source_pins. Datasheet-required connections were not verified.".into());
+    }
     let parts: Vec<_> = dev
         .parts()
         .iter()

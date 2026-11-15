@@ -721,6 +721,8 @@ pub struct KiCadSymbolText {
 pub struct KiCadSymbolPin {
     /// Electrical type.
     pub pin_type: KiCadPinType,
+    /// Original electrical type token, including values unknown to this parser.
+    pub source_type: String,
     /// Graphical style.
     pub shape: KiCadPinStyle,
     /// Position.
@@ -882,6 +884,7 @@ impl KiCadSymbolGate {
                     let shape = KiCadPinStyle::parse(raw_child(child, 1)?, log)?;
                     obj.pins.push(KiCadSymbolPin {
                         pin_type,
+                        source_type: raw_child(child, 0)?.value()?.to_owned(),
                         shape,
                         position: point(child.required_child("at")?)?,
                         rotation: opt_f64(child, "at/@2")?.unwrap_or(0.0),

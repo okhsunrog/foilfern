@@ -142,6 +142,7 @@ pub fn component_detail(p: &Project, id: ComponentInstanceId) -> ToolResult<(Str
             .collect(),
     );
     let ctx = p.view();
+    views::component_electrical(lib, &mut v);
     let mut symbols = Vec::new();
     for (index, schematic) in p.schematics().iter().enumerate() {
         for sym in schematic.symbols().values().filter(|s| s.component() == id) {

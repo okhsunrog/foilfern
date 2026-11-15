@@ -5,6 +5,9 @@
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// Optional electrical import evidence could not be written.
+    #[error(transparent)]
+    ElectricalMetadata(#[from] foilfern_core::library::electrical_metadata::Error),
     /// A KiCad project construct cannot be imported without losing meaning.
     #[error("{0}")]
     ProjectImport(String),

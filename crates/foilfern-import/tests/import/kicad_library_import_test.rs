@@ -15,6 +15,103 @@ fn total_symbols(result: &ScanResult) -> usize {
     result.symbol_libs.iter().map(|l| l.symbols.len()).sum()
 }
 
+fn electrical_component(types: &[&str]) -> foilfern_core::library::cmp::Component {
+    use foilfern_core::serialization::{Mode, SExpression};
+    use foilfern_import::kicad::types::KiCadSymbol;
+    use foilfern_import::kicad::{KiCadLibraryConverter, KiCadLibraryConverterSettings};
+    let pins:String = types.iter().enumerate().map(|(i,kind)|format!(
+        "(pin {kind} line (at 0 {} 0)(length 2.54)(name P{} (effects(font(size 1.27 1.27))))(number {} (effects(font(size 1.27 1.27)))))",i*5,i+1,i+1)).collect();
+    let text = format!("(symbol Electrical (symbol Electrical_1_1 {pins}))");
+    let log = MessageLogger::new();
+    let symbol = KiCadSymbol::parse(
+        &SExpression::parse(text.as_bytes(), None, Mode::Permissive).unwrap(),
+        &log,
+    )
+    .unwrap();
+    let mut converter = KiCadLibraryConverter::new(
+        &NoImportedElements,
+        KiCadLibraryConverterSettings::default(),
+    );
+    let path = FilePath::new(
+        std::env::current_dir()
+            .unwrap()
+            .join("Electrical.kicad_sym"),
+    )
+    .unwrap();
+    converter
+        .create_symbol(
+            &path,
+            &symbol,
+            &symbol.gates[0],
+            "KiCadImport::Test::symbol",
+            &log,
+        )
+        .unwrap();
+    converter
+        .create_component(
+            &path,
+            &symbol,
+            &symbol.gates,
+            "KiCadImport::Test::component",
+            &["KiCadImport::Test::symbol".into()],
+            &log,
+        )
+        .unwrap()
+}
+
+#[test]
+fn electrical_pin_types_preserve_known_unknown_and_reduced_semantics() {
+    use foilfern_core::library::electrical_metadata::{self, ElectricalMetadata, RoleMapping};
+    let cases = [
+        ("input", "input", RoleMapping::Exact),
+        ("output", "output", RoleMapping::Exact),
+        ("bidirectional", "inout", RoleMapping::Exact),
+        ("tri_state", "output", RoleMapping::Approximate),
+        ("passive", "passive", RoleMapping::Exact),
+        ("free", "passive", RoleMapping::Approximate),
+        ("unspecified", "passive", RoleMapping::Unspecified),
+        ("power_in", "power", RoleMapping::Approximate),
+        ("power_out", "power", RoleMapping::Approximate),
+        ("open_collector", "opendrain", RoleMapping::Exact),
+        ("open_emitter", "passive", RoleMapping::Unsupported),
+        ("no_connect", "passive", RoleMapping::Unsupported),
+        ("vendor_custom", "passive", RoleMapping::Unsupported),
+    ];
+    let component = electrical_component(&cases.iter().map(|c| c.0).collect::<Vec<_>>());
+    let metadata = ElectricalMetadata::read(&component).unwrap().unwrap();
+    assert_eq!(metadata.pins.len(), cases.len());
+    for (pin, (source, role, mapping)) in metadata.pins.iter().zip(cases) {
+        assert_eq!(pin.source_type, source);
+        assert_eq!(pin.mapping, mapping);
+        let signal = component.signals().by_uuid(&pin.signal).unwrap();
+        assert_eq!(signal.role().to_str(), role);
+        assert!(
+            !signal.is_required(),
+            "Electrical type is not datasheet-required connection intent"
+        );
+    }
+    let summary = electrical_metadata::review(&component).summary;
+    assert!(summary.has_gaps);
+    assert_eq!(summary.unspecified_pins, 1);
+    assert_eq!(summary.approximated_pins, 4);
+    assert_eq!(summary.unsupported_pins, 3);
+    assert_eq!(summary.unrecorded_signals, 0);
+}
+
+#[test]
+fn explicit_passive_pins_are_known_not_missing_metadata() {
+    use foilfern_core::library::electrical_metadata;
+    let component = electrical_component(&["passive", "passive"]);
+    let summary = electrical_metadata::review(&component).summary;
+    assert_eq!(
+        summary.status,
+        foilfern_core::library::electrical_metadata::ReviewStatus::Recorded
+    );
+    assert!(!summary.has_gaps);
+    assert_eq!(summary.native_roles["passive"], 2);
+    assert_eq!(summary.unspecified_pins, 0);
+}
+
 fn total_footprint_files(result: &ScanResult) -> usize {
     result.footprint_libs.iter().map(|l| l.files.len()).sum()
 }
@@ -82,10 +179,18 @@ fn test_import() {
     assert_eq!(ImportState::Imported, import.state());
     assert_eq!(summary.total, summary.imported);
 
-    // Verify that files have been written (2 files per element).
+    // Two native files per element, plus source evidence for each component.
     let mut files = Vec::new();
     files_recursive(dst.as_path(), &mut files);
-    assert_eq!(22, files.len());
+    let sidecars = files
+        .iter()
+        .filter(|p| {
+            p.file_name()
+                .is_some_and(|n| n == foilfern_core::library::electrical_metadata::FILE)
+        })
+        .count();
+    assert_eq!(sidecars, 3);
+    assert_eq!(22, files.len() - sidecars);
 }
 
 #[test]

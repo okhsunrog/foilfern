@@ -68,5 +68,7 @@ pub(super) fn compare(before: &Project, after: &Project) -> Value {
         .flatten()
         .map(|message| erc_message_json(before, &message))
         .collect::<Vec<_>>();
-    json!({"introduced": introduced, "inherited": inherited, "resolved": resolved})
+    json!({"introduced": introduced, "inherited": inherited, "resolved": resolved,
+        "coverage":{"before":foilfern_core::project::erc::erc_coverage(before),
+            "after":foilfern_core::project::erc::erc_coverage(after)}})
 }

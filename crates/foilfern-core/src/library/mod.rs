@@ -40,6 +40,7 @@
 pub mod cat;
 pub mod cmp;
 pub mod dev;
+pub mod electrical_metadata;
 mod error;
 #[allow(clippy::module_inception)] // Upstream file name.
 mod library;

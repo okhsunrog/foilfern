@@ -614,6 +614,9 @@ pub fn component_add(session: &mut Session, args: ComponentAddArgs) -> ToolResul
             .collect::<Vec<_>>()
     );
     let mut warnings = part.warnings;
+    if detail["electrical_metadata"]["has_gaps"] == true {
+        warnings.push("The component has incomplete electrical import evidence; inspect electrical_metadata and signals[].source_pins. Native passive fallback roles and zero structural ERC findings do not verify electrical correctness.".into());
+    }
     if let Some(selection) = &done.value.1 {
         detail["part_selection"] = json!({"selected":selection.selected.as_ref().map(super::part::part_details),
             "candidates":selection.candidates.iter().map(super::part::part_details).collect::<Vec<_>>()});

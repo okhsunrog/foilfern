@@ -985,6 +985,7 @@ fn component_detail(src: &ElementSource<'_>, c: &Component, source: &str) -> Too
             })
             .collect(),
     );
+    views::component_electrical(c, &mut v);
     let mut variants = Vec::new();
     for var in c.symbol_variants().iter() {
         let mut gates = Vec::new();

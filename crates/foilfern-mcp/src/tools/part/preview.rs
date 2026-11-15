@@ -68,6 +68,7 @@ pub(super) fn render(source: &PartSource, native: &NativePart) -> ToolResult<Too
         "dry_run":true,"lcsc":source.lcsc,"mpn":source.mpn,"manufacturer":source.manufacturer,
         "source":{"url":source.source_url,"sha256":source.sha256,"snapshot":source.snapshot,"attribution":source.attribution},
         "device":native.device.metadata().uuid(),"component":native.component.metadata().uuid(),
+        "electrical_metadata":foilfern_core::library::electrical_metadata::review(&native.component).summary,
         "mapping":mapping,"model":{"available":available,"alignment_verified":false,"assets":models},
         "images":[{"index":0,"kind":"symbol"},{"index":1,"kind":"footprint"}],
         "install":{"lcsc":source.lcsc,"cache":"offline","expected_source_sha256":source.sha256,"expected_model_sha256":models.first().and_then(|m|m["sha256"].as_str())}

@@ -168,7 +168,8 @@ is no longer an accurate inventory. New operations should reuse domain services
 and batch inputs where appropriate rather than add aliases for existing behavior.
 
 `server_info` reports package and file-format versions and
-`api_capability_version` (currently `55`, including named ERC subjects, scoped
+`api_capability_version` (currently `56`, including electrical import evidence
+and explicit structural ERC coverage, named ERC subjects, scoped
 text-change events and reports, supplier acquisition,
 official KiCad imports, rendered board-placement reviews, declared connector axes, scoped legend targets and bounded legend placement).
 Its `build` object contains
@@ -769,6 +770,39 @@ symbol and pin IDs, the native pin name and the displayed name (which may be
 intentionally empty). When a connected pin's label is hidden, the readable
 `message` uses the component signal name; `canonical_message` preserves the
 upstream title in that case. Native ERC messages and approval nodes are unchanged.
+
+`erc_run` reports `coverage.scope:"native_structural_erc"`: native connectivity,
+required signal flags, forced names, gate placement and visible wiring checks.
+`pin_role_compatibility_checked`, `power_sources_checked` and `datasheet_verified`
+are false: those electrical/datasheet checks are not implemented by native ERC.
+Required connections are checked from native flags only. Zero findings are not
+proof of electrical correctness.
+
+KiCad and EasyEDA imports retain per-pin source types in the component's optional
+`foilfern-electrical.json` sidecar. It is copied with the library element into the
+project and retained by native save/reopen. `component_get`, library component
+details and the component returned by `part_import` include `electrical_metadata`;
+each signal with source evidence includes `source_pins` (original type/name/number,
+native signal/gate/pin IDs, imported native role and mapping fidelity). An explicitly
+passive source is distinct from an unspecified type that falls back to native
+passive. Neither electrical type nor pin name implies a mandatory connection.
+`source_required_connections:"not_provided"` identifies that absent source intent.
+
+Metadata summaries distinguish `native`, `recorded`, `missing`, `invalid` and
+`modified` evidence. Source pin mappings, native roles and evidence coverage are
+checked against the current component; manual library edits are preserved.
+Recognized older imports without the sidecar are reported as missing, not silently
+rewritten. Corrupt/unsupported sidecars are explicit gaps and do not prevent
+structural checks. Ordinary authored native passive components are not classified
+as unknown imports.
+
+`coverage.import_metadata` reports instantiated imported components and their
+evidence summaries. `coverage.has_metadata_gaps:true` makes `erc_run` return
+`partial` plus a notice, even when native finding counts are zero. The notice is
+not a native ERC finding and cannot disappear through native approval cleanup.
+`design_preview.erc.coverage` reports before/after evidence and warns about gaps;
+this does not block a valid edit or claim extra electrical checks. Acquisition
+previews/import/addition responses also expose the evidence and its limitations.
 
 Full DRC still rebuilds planes and air wires. Air-wire publication compares exact
 anchor IDs and integer coordinates per net; only changed results advance the

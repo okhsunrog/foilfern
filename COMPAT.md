@@ -361,6 +361,16 @@ differ between platforms/implementations:
 
 ## library, rule_check
 
+- Electrical import evidence lives in the optional component-directory file
+  `foilfern-electrical.json`, copied with ordinary element transactions. It does
+  not add tokens or new signal-role variants to native `.lp` files. Unknown and
+  unsupported source roles can retain native passive fallback while preserving
+  their actual source types and mapping fidelity. Native model flags, canonical
+  ERC messages and approval identities remain unchanged. The separate ERC
+  coverage report states structural scope and unavailable electrical/datasheet
+  checks; malformed, missing or modified import evidence is never treated as
+  verified. Existing native libraries need no sidecar.
+
 - **URLs** (library URL, resource URLs, organization and PCB design rules
   URLs) are stored verbatim as strings. Upstream parses them with
   `QUrl(…, QUrl::StrictMode)` and writes `toString(QUrl::PrettyDecoded)`
@@ -968,6 +978,17 @@ Rendering only; no file is affected.
   output directory is relative to it).
 
 ## import (crate foilfern-import)
+
+- KiCad component conversion preserves original pin electrical type tokens,
+  including unknown tokens, in electrical import evidence. `tri_state` maps to
+  native `Output` instead of the upstream-like passive fallback, with reduced
+  semantics explicitly recorded. `power_in`/`power_out` share native `Power` but
+  retain their distinct source types; free, no-connect and unsupported types keep
+  their source meaning in the sidecar rather than claiming native ERC support.
+  Mandatory connections are not inferred from pin types or names. EasyEDA's
+  original Standard-format type codes are retained rather than the generated
+  intermediate KiCad types; its directionless Power category maps to native
+  Power. Existing native elements are not overwritten on an acquisition replay.
 
 - **EasyEDA supplier parts** are an additional source format without an upstream
   counterpart. Source coordinates are retained without grid snapping or invented

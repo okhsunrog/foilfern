@@ -216,6 +216,8 @@ pub(super) fn erc_message_json(p: &Project, message: &ErcMessage) -> Value {
     output
 }
 
+pub(crate) const ERC_METADATA_WARNING: &str = "Electrical import metadata is incomplete, lossy, missing or modified; inspect ERC coverage. Zero native ERC findings do not establish electrical correctness. Pin-role compatibility, power drivers and datasheet requirements were not verified.";
+
 /// `erc_run`.
 pub fn erc_run(session: &mut Session, args: ErcArgs) -> ToolResult<ToolOutput> {
     let open = session.project_mut()?;
@@ -265,22 +267,30 @@ pub fn erc_run(session: &mut Session, args: ErcArgs) -> ToolResult<ToolOutput> {
         })
         .collect();
     let summary = format!(
-        "ERC ran: {errors} error(s), {warnings} warning(s), {hints} hint(s), {approved} \
+        "Native structural ERC ran: {errors} error(s), {warnings} warning(s), {hints} hint(s), {approved} \
          approved.{}{}",
         if lines.is_empty() { "" } else { "\n" },
         lines.join("\n")
     );
-    ToolOutput::new(
+    let coverage = foilfern_core::project::erc::erc_coverage(p);
+    let has_gaps = coverage.has_metadata_gaps;
+    let output = ToolOutput::new(
         summary,
         json!({
             "ran": true,
+            "coverage":coverage,
             "errors": errors,
             "warnings": warnings,
             "hints": hints,
             "approved": approved,
             "messages": list,
         }),
-    )
+    )?;
+    Ok(if has_gaps {
+        output.partial().warn(ERC_METADATA_WARNING)
+    } else {
+        output
+    })
 }
 
 /// Default output directory `<project>/output/<version>`.

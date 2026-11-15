@@ -1332,6 +1332,7 @@ mod tests {
     fn pin(name: &str, number: &str, x: f64) -> KiCadSymbolPin {
         KiCadSymbolPin {
             pin_type: KiCadPinType::Passive,
+            source_type: "passive".to_owned(),
             shape: KiCadPinStyle::Line,
             position: PointF { x, y: 0.0 },
             rotation: 0.0,

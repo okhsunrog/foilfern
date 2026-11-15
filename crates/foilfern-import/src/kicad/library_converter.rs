@@ -19,6 +19,9 @@ use foilfern_core::library::cmp::{
     NormDependentPrefixMap,
 };
 use foilfern_core::library::dev::{Device, DevicePadSignalMapItem};
+use foilfern_core::library::electrical_metadata::{
+    self, ElectricalMetadata, ImportedPin, RoleMapping,
+};
 use foilfern_core::library::pkg::{AssemblyType, Footprint, Package, PackageModel, PackagePad};
 use foilfern_core::library::sym::Symbol;
 use foilfern_core::library::{BaseMetadata, LibraryBaseElement, LibraryElement};
@@ -470,7 +473,7 @@ impl<'a> KiCadLibraryConverter<'a> {
         ki_gates: &[KiCadSymbolGate],
         generated_by: &str,
         sym_generated_by: &[String],
-        _log: &MessageLogger<'_>,
+        log: &MessageLogger<'_>,
     ) -> Result<Component> {
         if ki_gates.len() != sym_generated_by.len() {
             return Err(Error::Logic("gate count mismatch"));
@@ -507,6 +510,7 @@ impl<'a> KiCadLibraryConverter<'a> {
         );
 
         let add_gate_suffixes = ki_gates.len() > 1;
+        let mut electrical_pins = Vec::new();
         const SUFFIXES: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         for (i, (gate, sym_gen_by)) in ki_gates.iter().zip(sym_generated_by).enumerate() {
             let symbol_uuid = *self
@@ -533,13 +537,21 @@ impl<'a> KiCadLibraryConverter<'a> {
                     continue;
                 }
                 let signal_uuid = self.settings.uuids.generate();
-                let role = match pin.pin_type {
-                    KiCadPinType::Input => SignalRole::Input,
-                    KiCadPinType::Output => SignalRole::Output,
-                    KiCadPinType::Bidirectional => SignalRole::InOut,
-                    KiCadPinType::PowerIn | KiCadPinType::PowerOut => SignalRole::Power,
-                    KiCadPinType::OpenCollector => SignalRole::OpenDrain,
-                    _ => SignalRole::Passive,
+                let (role, mapping) = match pin.pin_type {
+                    KiCadPinType::Input => (SignalRole::Input, RoleMapping::Exact),
+                    KiCadPinType::Output => (SignalRole::Output, RoleMapping::Exact),
+                    KiCadPinType::Bidirectional => (SignalRole::InOut, RoleMapping::Exact),
+                    KiCadPinType::Passive => (SignalRole::Passive, RoleMapping::Exact),
+                    KiCadPinType::PowerIn | KiCadPinType::PowerOut => {
+                        (SignalRole::Power, RoleMapping::Approximate)
+                    }
+                    KiCadPinType::TriState => (SignalRole::Output, RoleMapping::Approximate),
+                    KiCadPinType::OpenCollector => (SignalRole::OpenDrain, RoleMapping::Exact),
+                    KiCadPinType::Unspecified => (SignalRole::Passive, RoleMapping::Unspecified),
+                    KiCadPinType::Free => (SignalRole::Passive, RoleMapping::Approximate),
+                    KiCadPinType::OpenEmitter | KiCadPinType::NoConnect | KiCadPinType::Unknown => {
+                        (SignalRole::Passive, RoleMapping::Unsupported)
+                    }
                 };
                 let is_negated = matches!(
                     pin.shape,
@@ -565,6 +577,16 @@ impl<'a> KiCadLibraryConverter<'a> {
                     .symbol_pin_map
                     .get(&(sym_gen_by.clone(), pin_name.clone()))
                     .ok_or_else(|| Error::PinNotFound(pin_name.clone()))?;
+                electrical_pins.push(ImportedPin {
+                    signal: signal_uuid,
+                    gate: item.uuid(),
+                    pin: pin_uuid,
+                    number: pin.number.clone(),
+                    name: pin.name.clone(),
+                    source_type: pin.source_type.clone(),
+                    imported_role: role.to_str().to_owned(),
+                    mapping,
+                });
                 item.pin_signal_map_mut()
                     .push(ComponentPinSignalMapItem::new(
                         pin_uuid,
@@ -581,6 +603,19 @@ impl<'a> KiCadLibraryConverter<'a> {
             symbol_variant.symbol_items_mut().push(item);
         }
         component.symbol_variants_mut().push(symbol_variant);
+        ElectricalMetadata {
+            version: 1,
+            component: component.metadata().uuid(),
+            source_format: "kicad".into(),
+            source_sha256: None,
+            pins: electrical_pins,
+        }
+        .write(&mut component)?;
+        if !generated_by.starts_with("FoilfernEasyEDA::")
+            && electrical_metadata::review(&component).summary.has_gaps
+        {
+            log.warning("Some source pin types are unspecified or have reduced native semantics. Electrical import evidence was retained; electrical correctness and datasheet-required connections are not verified.");
+        }
         self.component_map
             .insert(generated_by.to_owned(), component.metadata().uuid());
         Ok(component)

@@ -239,7 +239,7 @@ pub fn convert(raw: &Value, lcsc: &str, sha256: &str) -> Result<NativePart, Erro
         };
         text.set_position(Point::new(center, top + Length::new(offset)));
     }
-    let component = converter.create_component(
+    let mut component = converter.create_component(
         &source_path,
         &ki_symbol,
         &ki_symbol.gates,
@@ -247,6 +247,41 @@ pub fn convert(raw: &Value, lcsc: &str, sha256: &str) -> Result<NativePart, Erro
         &[key("symbol")],
         &log,
     )?;
+    // The intermediate power_in token represents EasyEDA's directionless Power
+    // category. Retain the original Standard-format codes, not synthetic KiCad
+    // semantics (https://docs.easyeda.com/en/DocumentFormat/2-EasyEDA-Schematic-File-Format/).
+    if let Some(mut metadata) =
+        foilfern_core::library::electrical_metadata::ElectricalMetadata::read(&component)
+            .map_err(|e| Error::Source(e.to_string()))?
+    {
+        metadata.source_format = "easyeda_std".into();
+        metadata.source_sha256 = Some(sha256.to_owned());
+        for pin in &mut metadata.pins {
+            pin.source_type = match pin.source_type.as_str() {
+                "unspecified" => "0",
+                "input" => "1",
+                "output" => "2",
+                "bidirectional" => "3",
+                "power_in" => {
+                    pin.mapping = foilfern_core::library::electrical_metadata::RoleMapping::Exact;
+                    "4"
+                }
+                _ => {
+                    return Err(Error::Source(
+                        "Unexpected intermediate electrical pin type.".into(),
+                    ));
+                }
+            }
+            .into();
+        }
+        metadata
+            .write(&mut component)
+            .map_err(|e| Error::Source(e.to_string()))?;
+        let summary = foilfern_core::library::electrical_metadata::review(&component).summary;
+        if summary.has_gaps {
+            warnings.push(format!("Electrical source metadata is incomplete: {} unspecified pin types, {} reduced/unsupported mappings. Native passive fallback roles do not verify pin intent. No datasheet-required connections were inferred.",summary.unspecified_pins,summary.approximated_pins+summary.unsupported_pins));
+        }
+    }
     let mut device = converter.create_device(
         &source_path,
         &ki_symbol,

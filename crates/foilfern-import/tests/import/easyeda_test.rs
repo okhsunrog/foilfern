@@ -6,6 +6,117 @@ use foilfern_import::easyeda;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
+#[test]
+fn electrical_source_types_survive_native_fallback_and_roundtrip() {
+    use foilfern_core::fileio::{TransactionalDirectory, TransactionalFileSystem};
+    use foilfern_core::library::cmp::Component;
+    use foilfern_core::library::electrical_metadata::{self, ElectricalMetadata, RoleMapping};
+    use std::sync::Arc;
+    for (code, role) in [
+        ("0", "passive"),
+        ("1", "input"),
+        ("2", "output"),
+        ("3", "inout"),
+        ("4", "power"),
+    ] {
+        let mut raw = source();
+        for shape in raw["dataStr"]["shape"].as_array_mut().unwrap() {
+            if let Some(text) = shape.as_str().filter(|s| s.starts_with("P~")) {
+                *shape = json!(text.replacen("P~show~0~", &format!("P~show~{code}~"), 1));
+            }
+        }
+        let mut native = easyeda::convert(&raw, "C123", &"a".repeat(64)).unwrap();
+        let metadata = ElectricalMetadata::read(&native.component)
+            .unwrap()
+            .unwrap();
+        assert_eq!(metadata.source_format, "easyeda_std");
+        assert_eq!(metadata.pins.len(), 2);
+        for pin in &metadata.pins {
+            assert_eq!(pin.source_type, code);
+            assert_eq!(pin.imported_role, role);
+            assert_eq!(
+                pin.mapping,
+                if code == "0" {
+                    RoleMapping::Unspecified
+                } else {
+                    RoleMapping::Exact
+                }
+            );
+            let signal = native.component.signals().by_uuid(&pin.signal).unwrap();
+            assert_eq!(signal.role().to_str(), role);
+            assert!(
+                !signal.is_required(),
+                "No datasheet connection requirement is supplied"
+            );
+        }
+        let summary = electrical_metadata::review(&native.component).summary;
+        assert_eq!(summary.has_gaps, code == "0");
+        assert_eq!(summary.unspecified_pins, if code == "0" { 2 } else { 0 });
+        assert_eq!(
+            summary.source_required_connections,
+            foilfern_core::library::electrical_metadata::RequiredConnectionEvidence::NotProvided
+        );
+        assert_eq!(
+            native
+                .warnings
+                .iter()
+                .any(|w| w.contains("Electrical source metadata")),
+            code == "0"
+        );
+        let tmp = super::helpers::TempDir::new();
+        let library = super::helpers::create_library(&tmp);
+        let id = native.component.metadata().uuid();
+        native.install(&library).unwrap();
+        let fs = Arc::new(
+            TransactionalFileSystem::open_ro(&library.path_to(&format!("cmp/{id}"))).unwrap(),
+        );
+        let reopened = Component::open(TransactionalDirectory::new(fs, "")).unwrap();
+        assert_eq!(
+            ElectricalMetadata::read(&reopened).unwrap().unwrap().pins[0].source_type,
+            code
+        );
+    }
+}
+
+#[test]
+fn electrical_evidence_detects_native_edits_missing_and_corrupt_sidecars() {
+    use foilfern_core::library::electrical_metadata::{self, FILE};
+    use foilfern_core::types::SignalRole;
+    let mut native = easyeda::convert(&source(), "C123", &"b".repeat(64)).unwrap();
+    let id = native.component.signals().get(0).unwrap().uuid();
+    native
+        .component
+        .signals_mut()
+        .by_uuid_mut(&id)
+        .unwrap()
+        .set_role(SignalRole::Power);
+    let review = electrical_metadata::review(&native.component);
+    assert_eq!(
+        review.summary.status,
+        foilfern_core::library::electrical_metadata::ReviewStatus::Modified
+    );
+    assert!(review.summary.modified_signals.contains(&id));
+    assert!(review.summary.has_gaps);
+    native
+        .component
+        .directory_mut()
+        .write(FILE, b"invalid json")
+        .unwrap();
+    let summary = electrical_metadata::review(&native.component).summary;
+    assert_eq!(
+        summary.status,
+        foilfern_core::library::electrical_metadata::ReviewStatus::Invalid
+    );
+    assert!(summary.has_gaps);
+    native.component.directory_mut().remove_file(FILE).unwrap();
+    let summary = electrical_metadata::review(&native.component).summary;
+    assert_eq!(
+        summary.status,
+        foilfern_core::library::electrical_metadata::ReviewStatus::Missing
+    );
+    assert_eq!(summary.unrecorded_signals, 2);
+}
+
 fn source() -> Value {
     json!({
         "dataStr":{"head":{"x":100,"y":100,"c_para":{"pre":"R?","Manufacturer Part":"TEST-123","Manufacturer":"Test maker","Supplier Part":"C123"}},

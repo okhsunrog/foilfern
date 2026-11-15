@@ -8,6 +8,31 @@ use serde_json::{Value, json};
 
 use crate::units::{PointMm, deg, mm};
 
+/// Attach import evidence to the existing signal details without conflating
+/// explicitly passive and unspecified source pins.
+pub(crate) fn component_electrical(
+    component: &foilfern_core::library::cmp::Component,
+    detail: &mut Value,
+) {
+    let review = foilfern_core::library::electrical_metadata::review(component);
+    detail["electrical_metadata"] = json!(review.summary);
+    if let Some(signals) = detail["signals"].as_array_mut() {
+        for signal in signals {
+            let id = signal["uuid"]
+                .as_str()
+                .and_then(|s| s.parse::<foilfern_core::types::Uuid>().ok());
+            let pins: Vec<_> = review
+                .pins
+                .iter()
+                .filter(|p| Some(p.signal) == id)
+                .collect();
+            if !pins.is_empty() {
+                signal["source_pins"] = json!(pins);
+            }
+        }
+    }
+}
+
 /// A point as `{"x": mm, "y": mm}`.
 pub fn point(p: Point) -> Value {
     json!(PointMm::from(p))

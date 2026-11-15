@@ -1098,6 +1098,9 @@ pub(crate) fn prepare(
         output.result["board_layout"]["image"]["index"] = json!(output.images.len());
         output.images.push(image);
     }
+    if output.result["erc"]["coverage"]["after"]["has_metadata_gaps"] == true {
+        output = output.warn(super::output::ERC_METADATA_WARNING);
+    }
     Ok(PreparedPreview {
         source_project,
         source_library,
