@@ -8,6 +8,8 @@ output="${2:?usage: package-linux.sh WORK_DIRECTORY OUTPUT_DIRECTORY}"
 mkdir -p "$work" "$output"
 work="$(realpath "$work")"
 output="$(realpath "$output")"
+mkdir -p "$work/tmp"
+export TMPDIR="$work/tmp"
 version="$(bash scripts/check-release-version.sh)"
 target="$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.target_directory')"
 name="foilfern-$version-linux-x86_64"
@@ -95,6 +97,15 @@ done
 "$LDAI_OUTPUT" --run-cli --version
 "$LDAI_OUTPUT" --run-mcp call server_info '{}' > "$work/server-info.jsonl"
 jq -e '.response.structuredContent.result.build | .cargo_profile == "release" and .tracked_source_state == "clean"' "$work/server-info.jsonl"
-"$LDAI_OUTPUT" --workspace "$work/smoke-workspace" --screenshot "$work/smoke.png" --size 640x480
+jq -n --arg directory "$work/smoke-project" '[
+  {tool:"project_create",arguments:{name:"Smoke",directory:$directory}},
+  {tool:"project_save"}
+]' > "$work/smoke-calls.json"
+"$LDAI_OUTPUT" --run-mcp batch "$work/smoke-calls.json" > "$work/smoke-results.jsonl"
+test -s "$work/smoke-project/resources/fontobene/newstroke.bene"
+project="$(jq -r 'select(.tool == "project_create") | .response.structuredContent.result.path' "$work/smoke-results.jsonl")"
+"$LDAI_OUTPUT" --workspace "$work/smoke-workspace" --project "$project" --tab board \
+  --screenshot "$work/smoke.png" --size 640x480
 test -s "$work/smoke.png"
+timeout --kill-after=5s 30s xvfb-run -a bash scripts/smoke-linux-desktop.sh "$LDAI_OUTPUT" "$work" "$project"
 (cd "$output" && sha256sum "$name.tar.gz" "Foilfern-$version-x86_64.AppImage" > SHA256SUMS)

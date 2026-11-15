@@ -42,6 +42,29 @@ const NEW_STRINGS: &[(&str, &str)] = &[
         "librepcb::OutputJobRunner",
         "Output jobs of type '{0}' are not supported yet by this Foilfern version.",
     ),
+    // Foilfern STEP assembly coverage reports (no upstream counterpart).
+    (
+        "librepcb::OutputJobRunner",
+        "STEP assembly on board '{0}' omits {1} fitted component(s) without a selected model: {2}.",
+    ),
+    (
+        "librepcb::OutputJobRunner",
+        "STEP assembly on board '{0}' includes {1} component model(s) with unverified alignment; mechanical fit was not checked.",
+    ),
+    // Explicit purchasing-part selection and checked initial legend placement.
+    ("librepcb::editor::CmdComponentInstanceEdit", "Select part"),
+    (
+        "librepcb::editor::BoardEditorState_AddDevice",
+        "Device legend",
+    ),
+    (
+        "librepcb::editor::BoardEditorState_AddDevice",
+        "No verified clear position was found for some device text. Check the legend and run DRC.",
+    ),
+    (
+        "librepcb::editor::CmdAddDeviceToBoard",
+        "Place device legend",
+    ),
     ("librepcb::editor::CmdSchematicNetSegmentAdd", "Draw wires"),
     (
         "librepcb::editor::ProjectEditor",

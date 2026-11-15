@@ -43,11 +43,12 @@ jobs:
           LIBREPCB_BIN_DIR: ${{ runner.temp }}/bin
         run: |
           bash scripts/cloud-setup.sh
-          sudo apt-get install -y patchelf file
+          sudo apt-get install -y patchelf file xdotool
           echo "LIBREPCB_UPSTREAM_DIR=$LIBREPCB_UPSTREAM_DIR" >> "$GITHUB_ENV"
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: linux-release
+          cache-on-failure: true
       - name: Check release version
         env:
           RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
@@ -63,6 +64,18 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+      - name: Retain packaging smoke evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-smoke-evidence
+          path: |
+            ${{ runner.temp }}/package/smoke.png
+            ${{ runner.temp }}/package/server-info.jsonl
+            ${{ runner.temp }}/package/smoke-results.jsonl
+            ${{ runner.temp }}/package/desktop.log
+          if-no-files-found: ignore
+          retention-days: 14
 
   publish:
     name: Publish downloads

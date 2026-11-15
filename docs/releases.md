@@ -48,7 +48,13 @@ The Release workflow can be started manually from a branch to build and test
 downloads without publishing. It first runs the same CI checks, then builds all
 three release programs with HTTP enabled for MCP. Packaging tests the archive's
 programs, the AppImage's console entry points and a real headless GUI screenshot.
-The resulting downloads are retained as a workflow artifact for 14 days.
+The bundled MCP also creates and saves a project with the embedded stroke font;
+the screenshot opens that project on the board tab. A bounded Xvfb test also
+opens and closes a visible Winit software-rendered window from the AppImage;
+this does not test a physical display or the GPU-based 3D viewer.
+Downloads and separate smoke
+evidence (screenshot and JSON reports) are retained as workflow artifacts for
+14 days.
 
 To publish, align the GUI/CLI/MCP package versions and push the corresponding
 `vVERSION` tag, for example `v0.1.0`. The version guard rejects mismatches. After
