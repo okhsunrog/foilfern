@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+  CARGO_BUILD_JOBS: '2'
+  RUST_TEST_THREADS: '2'
+  RAYON_NUM_THREADS: '2'
+  TOKIO_WORKER_THREADS: '2'
+
+jobs:
+  linux:
+    name: Linux workspace
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Free runner disk space
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Prepare native dependencies and reference tools
+        env:
+          LIBREPCB_UPSTREAM_DIR: ${{ runner.temp }}/LibrePCB
+          LIBREPCB_TOOLS_DIR: ${{ runner.temp }}/foilfern-tools
+          LIBREPCB_BIN_DIR: ${{ runner.temp }}/bin
+          LIBREPCB_FREEROUTING_JAVA: ${{ env.JAVA_HOME }}/bin/java
+        run: |
+          bash scripts/cloud-setup.sh
+          test "$(git -C "$LIBREPCB_UPSTREAM_DIR" rev-parse HEAD)" = "$(jq -r '.nodes.upstream.locked.rev' flake.lock)"
+          echo "LIBREPCB_UPSTREAM_DIR=$LIBREPCB_UPSTREAM_DIR" >> "$GITHUB_ENV"
+          echo "$LIBREPCB_BIN_DIR" >> "$GITHUB_PATH"
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: linux-workspace
+          save-if: ${{ github.event_name != 'pull_request' }}
+      - name: Formatting
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - name: Tests
+        run: cargo test --locked --workspace

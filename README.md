@@ -41,6 +41,15 @@ the finished layout in 3D.
 - **Manufacturing.** Run ERC and DRC, save an editable LibrePCB project, and
   export Gerber, Excellon, BOM, and pick-and-place files.
 
+## Linux downloads
+
+Download the GUI AppImage or the GUI/CLI/MCP archive from
+[GitHub Releases](https://github.com/okhsunrog/foilfern/releases).
+See [download instructions and release checks](docs/releases.md) for requirements,
+checksums and console entry points.
+
+[![CI](https://github.com/okhsunrog/foilfern/actions/workflows/ci.yml/badge.svg)](https://github.com/okhsunrog/foilfern/actions/workflows/ci.yml)
+
 ## Build from source
 
 From the repository root, use a recent stable Rust toolchain. On Debian or

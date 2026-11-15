@@ -263,6 +263,12 @@ the linked reports and their exact commits, not to this documentation refresh.
 
 ## Environment and development
 
+GitHub Actions checks formatting, full-workspace Clippy with warnings denied,
+and workspace tests on Linux, with the pinned upstream reference resources and
+CLI. Version tags run the same checks before packaging and publishing Linux
+x86_64 downloads. Manual release-workflow runs build downloadable artifacts
+without publishing; see [release instructions](releases.md).
+
 On Linux with Nix, run `nix develop`. The lock pins Rust, native development
 libraries and upstream source/test resources. `LIBREPCB_UPSTREAM_DIR` defaults
 to the prepared Nix store source; an existing value selects a custom checkout.
