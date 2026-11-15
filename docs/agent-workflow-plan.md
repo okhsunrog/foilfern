@@ -22,7 +22,9 @@ search, retaining no-fit findings and manual annotations; see its
 [release evidence](benchmarks/initial-legend/REPORT.md).
 F8 delivers contextual pin/pad numbers and explicit board overlay orientation.
 F9 delivers read-only resolved STEP/graphics paths and page identities before
-writing, using shared native selection and numbering logic. F10 remains planned.
+writing, using shared native selection and numbering logic. Their
+[release evidence](benchmarks/render-output-review/REPORT.md) includes CPU limits,
+images and response costs. F10 remains planned.
 
 ## Delivery queue
 

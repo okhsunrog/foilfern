@@ -130,7 +130,9 @@ paths before writing, with page and board/variant/view identity. Configuration
 returns the plan directly; listing/explicit dry-run can review a different output
 directory. Review is read-only and guarded exports reject stale revisions. Native
 job types outside STEP/graphics explicitly report incomplete planning while
-retaining their existing execution paths.
+retaining their existing execution paths. The
+[resource-limited release replay](benchmarks/render-output-review/REPORT.md)
+records pin-preview images, filename matching, byte costs and CPU limits.
 
 ## Routing and measurements available now
 

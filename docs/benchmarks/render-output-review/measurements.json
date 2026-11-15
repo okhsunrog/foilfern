@@ -1,0 +1,406 @@
+{
+  "date": "2026-11-15",
+  "baseline_master": "c4385d88c339595d4026dcdb31aef5bbb4577d52",
+  "upstream_fixture_commit": "99ff973ac20f3753bdb30d4e29608aadc882674f",
+  "resource_limits": {
+    "logical_cpus": [
+      0,
+      1
+    ],
+    "nice": 10,
+    "cargo_build_jobs": 2,
+    "rust_test_threads": 2,
+    "rayon_threads": 2,
+    "tokio_worker_threads": 2,
+    "normal_build_cache_paths_preserved": true
+  },
+  "method": "One release pair per flow, using local CLI shared registry. CPU affinity and low priority apply to both binaries. Preview timing includes process startup/server_info and two PNGs, source is pinned offline C8734. Export flow has four calls, including server_info and save. Compact UTF-8 JSON response bytes include text/base64 but exclude local batch framing. No model/delegated-agent runs or token measurements.",
+  "baseline": {
+    "preview": {
+      "build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "48f73299ca7a16a998579db14dd732cdfa58819b",
+        "tracked_source_state": "clean"
+      },
+      "binary": "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/baseline-mcp",
+      "binary_sha256": "5920cc898c9a95a6ebfd858e6cf70747754f47b2c9c55bd7a10169595fcc3d6c",
+      "seconds": 1.16904937394429,
+      "response_bytes": 167040,
+      "mapping": null,
+      "metadata": [
+        {
+          "index": 0,
+          "kind": "symbol"
+        },
+        {
+          "index": 1,
+          "kind": "footprint"
+        }
+      ],
+      "source": {
+        "attribution": "JLCEDA/EasyEDA Official Library",
+        "sha256": "a99b0a4abd493f08c20aa320d0332f6a14e50726b36d501e6268d1e1e68614c7",
+        "snapshot": "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/baseline-preview/ws/data/cache/supplier-parts/easyeda-v1/C8734/snapshots/a99b0a4abd493f08c20aa320d0332f6a14e50726b36d501e6268d1e1e68614c7.json",
+        "url": "https://easyeda.com/api/products/C8734/components?version=6.4.19.5"
+      }
+    },
+    "output": {
+      "binary": "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/baseline-mcp",
+      "binary_sha256": "5920cc898c9a95a6ebfd858e6cf70747754f47b2c9c55bd7a10169595fcc3d6c",
+      "build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "48f73299ca7a16a998579db14dd732cdfa58819b",
+        "tracked_source_state": "clean"
+      },
+      "api": 59,
+      "cpu_affinity": [
+        0,
+        1
+      ],
+      "nice": 10,
+      "outputs": {
+        "seconds": 0.5049073450500146,
+        "calls": 4,
+        "response_bytes": 2306,
+        "config_bytes": 379,
+        "files": [
+          "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/baseline-output/project/output/v1/board1.png",
+          "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/baseline-output/project/output/v1/board2.png"
+        ],
+        "png_sha256": {
+          "board1.png": "236654ea2aca9825331fa738c4919f2ac5f751e00799a544e97dbab68c3c743c",
+          "board2.png": "236654ea2aca9825331fa738c4919f2ac5f751e00799a544e97dbab68c3c743c"
+        },
+        "config_output_plan": null,
+        "run_matches": null
+      },
+      "views": {
+        "seconds": 0.0188982899999246,
+        "responses": {
+          "top": {
+            "metadata": null,
+            "caption": "Rendered board 0 \"default\" (top side) (640x480 px).",
+            "png_sha256": "75cd19454b18f32915ce10d51bace2e9af7ea50df9e9777b203493ffdfdc6029",
+            "response_bytes": 3541
+          },
+          "bottom": {
+            "metadata": null,
+            "caption": "Rendered board 0 \"default\" (bottom side) (640x480 px).",
+            "png_sha256": "02d21674332c2e9746706f20ff17ffa9a9a91bd0c385b213ac166379bca8fa64",
+            "response_bytes": 3544
+          },
+          "both": {
+            "metadata": null,
+            "caption": "Rendered board 0 \"default\" (top side) (640x480 px).",
+            "png_sha256": "75cd19454b18f32915ce10d51bace2e9af7ea50df9e9777b203493ffdfdc6029",
+            "response_bytes": 3541
+          }
+        }
+      }
+    }
+  },
+  "updated": {
+    "preview": {
+      "build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "0b5bb62a8615ea9dd3bf30d8835da76c1eafc479",
+        "tracked_source_state": "clean"
+      },
+      "binary": "/home/okhsunrog/code/rust/foilfern/target/release/foilfern-mcp",
+      "binary_sha256": "41c4088d48cbf1d3ded1756e7159892460ec1203171cd9d9237725e62c451694",
+      "seconds": 1.4763491379562765,
+      "response_bytes": 224754,
+      "mapping": {
+        "08fc00c3-165a-4673-a4f8-a27c381da9de": "41",
+        "162f04d3-6698-4dde-8395-09d574bd1f64": "4",
+        "17f2b65e-e767-4673-a12f-fa06dc4fee8e": "29",
+        "1e72eb21-56ad-4cbe-a15c-1ae60f3dacd9": "20",
+        "1f444f73-4701-4e0a-ba96-116f824ff3ee": "38",
+        "2103c872-b637-4fbc-8de1-b6450ce28054": "36",
+        "267cd450-af73-4502-a5da-ffed7c94ca86": "46",
+        "2a387078-9692-4f1a-8748-7d2d7d57a6de": "14",
+        "31ebb257-3dd7-4b0e-b519-f21e4574504d": "27",
+        "32933ccf-a4cc-4e3b-9955-1cd6867c80b0": "25",
+        "3baddb63-b034-40fa-940d-cae73c759c82": "9",
+        "3c77d35a-72cd-4586-85a2-7507c41c7014": "15",
+        "4d7b532d-3e06-4dcf-b0fc-2a53096ccb35": "33",
+        "4f30923e-e611-44c3-992e-8444d0110947": "26",
+        "62427e4e-e569-4f32-9130-cfd9c4737bd8": "17",
+        "63ec40e0-e870-4183-aff4-de6175acf35f": "31",
+        "645fafd3-a95f-434e-b924-06d801d2a58a": "10",
+        "6c37e82a-7609-4202-84d6-f03c67b632b2": "35",
+        "6e9e79a1-1e95-4e7d-972f-fcf1d801c2d5": "22",
+        "764c26da-fbc0-44a0-8997-4f24a41484f4": "7",
+        "787e3177-f4bd-49d6-9ec9-00ce0322f1ce": "45",
+        "7ceca949-b752-4b9b-99ae-2a288b19e74e": "48",
+        "7ff5eb13-7b24-469e-b78a-b723d2a4e638": "32",
+        "8ae62b02-4710-471d-b292-f08c7b67cdba": "24",
+        "93a8d01f-eb91-4e8d-815a-60e85a9196d4": "13",
+        "9eb4d8b8-e1d8-4d96-a70b-d7cbd7fb87d6": "3",
+        "a3f3b035-476e-4ec3-8182-21f17bd40982": "2",
+        "a4424e7b-ba92-49b5-ab27-76b74721d107": "39",
+        "a7b7d8b6-e8d0-44e3-ba97-6a351e4c5d3d": "37",
+        "a9b16668-ecd5-44da-a967-c59267bb9af0": "8",
+        "abcb6f57-a17a-4baa-ba32-ceba0ec267da": "21",
+        "bafe54c6-7888-4508-b7d3-bf582cb3a811": "47",
+        "c470fc74-931e-4003-b813-bf90e06ae1de": "42",
+        "c4c3bec4-8611-4a6a-95aa-0b5385e007da": "16",
+        "c8d3c95f-0389-4c26-82a4-0d0080595544": "43",
+        "cf9c1c3c-e80f-4f41-bfe9-b573ee63aaa7": "40",
+        "daf81b1a-4353-4faf-9ed1-377fdb826c58": "18",
+        "ddab2b54-4992-4c8d-8617-4ac0c81bff72": "19",
+        "de298d8f-bc1b-4ad1-b682-7e26f82bd3eb": "44",
+        "de77bb34-70dd-4d2a-9f74-00ca93d5055e": "6",
+        "e68eb971-b727-44d9-95a8-19f0dc8e5c4b": "28",
+        "e7a8b7d4-c5f3-44be-bda9-b6916803b68c": "12",
+        "e911ab0d-71f8-4991-a7ca-ae7f0d3db2f5": "5",
+        "f1ef48d0-09fc-4763-bd06-ae2e4fc34337": "1",
+        "f4f7ee2e-7777-4576-805b-313c45a49134": "30",
+        "fa00da7b-858d-4caa-ac7f-ab621ffd08b3": "34",
+        "fa494f2f-de27-40a9-9710-2167dd5658d6": "23",
+        "fb5337bf-9c87-45d1-b1f0-f2bedd8d3712": "11"
+      },
+      "metadata": [
+        {
+          "index": 0,
+          "kind": "symbol",
+          "mirrored": false,
+          "pin_numbers": "device_package_mapping",
+          "rotation": 0
+        },
+        {
+          "index": 1,
+          "kind": "footprint",
+          "mirrored": false,
+          "pad_names": true,
+          "rotation": 0,
+          "view_from": "top"
+        }
+      ],
+      "source": {
+        "attribution": "JLCEDA/EasyEDA Official Library",
+        "sha256": "a99b0a4abd493f08c20aa320d0332f6a14e50726b36d501e6268d1e1e68614c7",
+        "snapshot": "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/updated-preview/ws/data/cache/supplier-parts/easyeda-v1/C8734/snapshots/a99b0a4abd493f08c20aa320d0332f6a14e50726b36d501e6268d1e1e68614c7.json",
+        "url": "https://easyeda.com/api/products/C8734/components?version=6.4.19.5"
+      }
+    },
+    "output": {
+      "binary": "/home/okhsunrog/code/rust/foilfern/target/release/foilfern-mcp",
+      "binary_sha256": "41c4088d48cbf1d3ded1756e7159892460ec1203171cd9d9237725e62c451694",
+      "build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "0b5bb62a8615ea9dd3bf30d8835da76c1eafc479",
+        "tracked_source_state": "clean"
+      },
+      "api": 61,
+      "cpu_affinity": [
+        0,
+        1
+      ],
+      "nice": 10,
+      "outputs": {
+        "seconds": 0.2855387789895758,
+        "calls": 4,
+        "response_bytes": 4341,
+        "config_bytes": 1246,
+        "files": [
+          "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/updated-output/project/output/v1/board1.png",
+          "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/updated-output/project/output/v1/board2.png"
+        ],
+        "png_sha256": {
+          "board1.png": "236654ea2aca9825331fa738c4919f2ac5f751e00799a544e97dbab68c3c743c",
+          "board2.png": "236654ea2aca9825331fa738c4919f2ac5f751e00799a544e97dbab68c3c743c"
+        },
+        "config_output_plan": {
+          "complete": true,
+          "files": [
+            {
+              "pages": [
+                {
+                  "assembly_variant": null,
+                  "board": "25ec13ab-c212-43bb-bcdc-3544bf210e3b",
+                  "kind": "board_rendering",
+                  "layer_selection": "job_settings",
+                  "mirrored": false,
+                  "name": "default",
+                  "number": 1,
+                  "rotate_90": false,
+                  "view_from": "top"
+                }
+              ],
+              "path": "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/updated-output/project/output/v1/board1.png"
+            },
+            {
+              "pages": [
+                {
+                  "assembly_variant": null,
+                  "board": "25ec13ab-c212-43bb-bcdc-3544bf210e3b",
+                  "kind": "board_rendering",
+                  "layer_selection": "job_settings",
+                  "mirrored": true,
+                  "name": "default",
+                  "number": 2,
+                  "rotate_90": false,
+                  "view_from": "bottom"
+                }
+              ],
+              "path": "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/updated-output/project/output/v1/board2.png"
+            }
+          ],
+          "job": "a8031577-fd65-4f46-8723-7172987e8d51",
+          "output_count": 2,
+          "output_dir": "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/updated-output/project/output/v1"
+        },
+        "run_matches": true
+      },
+      "views": {
+        "seconds": 0.019429901032708585,
+        "responses": {
+          "top": {
+            "metadata": [
+              {
+                "board": "25ec13ab-c212-43bb-bcdc-3544bf210e3b",
+                "height": 480,
+                "index": 0,
+                "layer_selection": "board_visible_layers",
+                "mime_type": "image/png",
+                "mirrored": false,
+                "side": "top",
+                "target": "board",
+                "view": "board_view",
+                "view_from": "top",
+                "width": 640
+              }
+            ],
+            "caption": "Rendered board 0 \"default\" (top view) (640x480 px).",
+            "png_sha256": "75cd19454b18f32915ce10d51bace2e9af7ea50df9e9777b203493ffdfdc6029",
+            "response_bytes": 3786
+          },
+          "bottom": {
+            "metadata": [
+              {
+                "board": "25ec13ab-c212-43bb-bcdc-3544bf210e3b",
+                "height": 480,
+                "index": 0,
+                "layer_selection": "board_visible_layers",
+                "mime_type": "image/png",
+                "mirrored": true,
+                "side": "bottom",
+                "target": "board",
+                "view": "board_view",
+                "view_from": "bottom",
+                "width": 640
+              }
+            ],
+            "caption": "Rendered board 0 \"default\" (bottom view, mirrored) (640x480 px).",
+            "png_sha256": "02d21674332c2e9746706f20ff17ffa9a9a91bd0c385b213ac166379bca8fa64",
+            "response_bytes": 3804
+          },
+          "both": {
+            "metadata": [
+              {
+                "board": "25ec13ab-c212-43bb-bcdc-3544bf210e3b",
+                "height": 480,
+                "index": 0,
+                "layer_selection": "board_visible_layers",
+                "mime_type": "image/png",
+                "mirrored": false,
+                "side": "both",
+                "target": "board",
+                "view": "layer_overlay",
+                "view_from": "top",
+                "width": 640
+              }
+            ],
+            "caption": "Rendered board 0 \"default\" (visible-layer overlay viewed from top) (640x480 px).",
+            "png_sha256": "75cd19454b18f32915ce10d51bace2e9af7ea50df9e9777b203493ffdfdc6029",
+            "response_bytes": 3819
+          }
+        }
+      },
+      "dry_run": {
+        "seconds": 0.011057847063057125,
+        "calls": 1,
+        "no_output_directory_or_project_file_changes": true,
+        "result": {
+          "dry_run": true,
+          "files": [
+            "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/updated-output/review-only/board1.png",
+            "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/updated-output/review-only/board2.png"
+          ],
+          "output_plan": {
+            "complete": true,
+            "conflicts": [],
+            "files": [
+              "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/updated-output/review-only/board1.png",
+              "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/updated-output/review-only/board2.png"
+            ],
+            "jobs": [
+              {
+                "complete": true,
+                "files": [
+                  {
+                    "pages": [
+                      {
+                        "assembly_variant": null,
+                        "board": "25ec13ab-c212-43bb-bcdc-3544bf210e3b",
+                        "kind": "board_rendering",
+                        "layer_selection": "job_settings",
+                        "mirrored": false,
+                        "name": "default",
+                        "number": 1,
+                        "rotate_90": false,
+                        "view_from": "top"
+                      }
+                    ],
+                    "path": "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/updated-output/review-only/board1.png"
+                  },
+                  {
+                    "pages": [
+                      {
+                        "assembly_variant": null,
+                        "board": "25ec13ab-c212-43bb-bcdc-3544bf210e3b",
+                        "kind": "board_rendering",
+                        "layer_selection": "job_settings",
+                        "mirrored": true,
+                        "name": "default",
+                        "number": 2,
+                        "rotate_90": false,
+                        "view_from": "bottom"
+                      }
+                    ],
+                    "path": "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/updated-output/review-only/board2.png"
+                  }
+                ],
+                "job": "a8031577-fd65-4f46-8723-7172987e8d51",
+                "output_count": 2,
+                "output_dir": "/home/okhsunrog/tmp_zfs/codex_tmp/render-output-plan/updated-output/review-only"
+              }
+            ],
+            "output_count": 2,
+            "writes": false
+          }
+        }
+      }
+    }
+  },
+  "verification": {
+    "symbol_numbers_exactly_1_to_48": true,
+    "pin_map_source_unchanged": true,
+    "export_png_bytes_unchanged": true,
+    "all_board_render_bytes_unchanged": true,
+    "output_plan_matches_written_paths": true,
+    "dry_run_creates_no_directory_or_project_file_changes": true
+  },
+  "tests": {
+    "mcp_with_http_passed": 108,
+    "mcp_ignored_live_source": 2,
+    "graphics_passed": 22,
+    "core_output_runner_passed": 4,
+    "scene_export_passed": 5
+  }
+}

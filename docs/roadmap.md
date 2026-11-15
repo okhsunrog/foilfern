@@ -146,6 +146,7 @@ acceptance.
    draw complete pad names, with explicit top orientation. Missing mapping is
    reported, never replaced by guessed numbers. Generic library-editor/export
    placeholders remain unchanged because bare symbols have no package context.
+   See [release evidence](benchmarks/render-output-review/REPORT.md).
 
 9. **F9 — Concrete output filenames before writing** (P0/P6; A8).
    **Delivered, API 61.** STEP/graphics job configuration and listing expose
@@ -159,6 +160,7 @@ acceptance.
    explicitly marked unplanned, while their existing execution remains available.
    Numbered images, merged PDFs, STEP contexts, native placeholders, save/reopen,
    read-only review and collision/ownership preservation have integration coverage.
+   See [release evidence](benchmarks/render-output-review/REPORT.md).
 
 10. **F10 — Consistent routing-check counters and clean-state semantics**
     (P0/P2/P4; A10). A trial reported errors decreasing from one to zero while
