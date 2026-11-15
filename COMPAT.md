@@ -1103,7 +1103,12 @@ upstream `librepcb-cli` 2.1.1 except for:
   only exports/imports files): the DSN passed to FreeRouting uses the
   resolution 1/100000 mm instead of the export's 1/1000000 mm, because
   FreeRouting 2.4.1 reports bogus clearance violations and leaves
-  connections unrouted with the finer resolution.
+  connections unrouted with the finer resolution. Automated runs disable
+  automatic neckdown and the fanout pre-pass by default: the DSN width is the
+  board's manufacturing minimum, but FreeRouting 2.4.1's fanout micro-neckdown
+  can insert narrower traces even when ordinary neckdown is disabled. Explicit
+  caller arguments can opt back in; post-routing DRC still applies. The exported
+  DSN bytes and native project formats are unchanged by these launcher defaults.
 
 ## app (crate foilfern-app)
 

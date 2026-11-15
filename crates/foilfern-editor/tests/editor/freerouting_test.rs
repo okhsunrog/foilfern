@@ -5,6 +5,7 @@
 //! the saved project (`--drc`). Skipped if FreeRouting (or Java >= 25) is
 //! not available (see `scripts/cloud-setup.sh`).
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use foilfern_core::project::board::drc::DrcMessageKind;
@@ -13,7 +14,7 @@ use foilfern_core::types::{Angle, CircuitIdentifier, ElementName};
 use foilfern_editor::commands::*;
 use foilfern_editor::{FreeroutingError, FreeroutingRouter, ProjectEditor, routing_stats};
 
-use crate::helpers::{copy_dir, create_editor, lib, mm};
+use crate::helpers::{copy_dir, create_editor, lib, library_source, mm, snapshot};
 
 fn ident(s: &str) -> CircuitIdentifier {
     CircuitIdentifier::new(s).unwrap()
@@ -112,6 +113,63 @@ fn build_unrouted(editor: &mut ProjectEditor) -> BoardId {
     board
 }
 
+/// Recreate the DSN ordering which exposed FreeRouting 2.4.1's fanout width
+/// regression. Stable IDs keep the same input instead of changing heuristic
+/// ordering on every run; placement, connectivity and design rules stay intact.
+fn stable_fixture(mut editor: ProjectEditor, dir: &std::path::Path) -> ProjectEditor {
+    use foilfern_core::fileio::{FilePath, TransactionalDirectory, TransactionalFileSystem};
+
+    let mut replacements = Vec::new();
+    {
+        let circuit = editor.project().circuit();
+        for (index, name) in ["R1", "R2", "C2", "R4", "R3", "C1"].into_iter().enumerate() {
+            let component = circuit
+                .component_instances()
+                .values()
+                .find(|component| component.name().as_str() == name)
+                .unwrap();
+            replacements.push((
+                component.id().0.to_string(),
+                format!("00000000-0000-4000-8000-{:012x}", index + 1),
+            ));
+        }
+        for (index, name) in ["VCC", "GND", "B", "A"].into_iter().enumerate() {
+            let net = circuit
+                .net_signals()
+                .values()
+                .find(|net| net.name().as_str() == name)
+                .unwrap();
+            replacements.push((
+                net.uuid().to_string(),
+                format!("00000000-0000-4000-8000-{:012x}", index + 0x100),
+            ));
+        }
+    }
+    editor.save().unwrap();
+    let files = snapshot(dir);
+    drop(editor);
+    // Rewrite only this newly generated test project, then rebuild all model
+    // references through the native loader. Library and geometric data stay intact.
+    for (name, bytes) in files {
+        if name.ends_with(".lp") {
+            let original = String::from_utf8(bytes).unwrap();
+            let mut text = original.clone();
+            for (old, new) in &replacements {
+                text = text.replace(old, new);
+            }
+            if text != original {
+                std::fs::write(dir.join(name), text).unwrap();
+            }
+        }
+    }
+    let fs = TransactionalFileSystem::open_rw(&FilePath::new(dir).unwrap()).unwrap();
+    let project = ProjectLoader::new()
+        .open(TransactionalDirectory::new(Arc::new(fs), ""), "test.lpp")
+        .unwrap();
+    assert!(project.is_ref_index_consistent());
+    ProjectEditor::with_source(project, Arc::new(library_source()))
+}
+
 /// Runs the official `librepcb-cli open-project --drc` on a copy of the
 /// project and returns the non-approved messages. Returns `None` if the CLI
 /// is not available.
@@ -164,6 +222,7 @@ fn test_freerouting_round_trip() {
     let dir = tmp.path().join("project");
     let mut editor = create_editor(&dir);
     let board = build_unrouted(&mut editor);
+    let mut editor = stable_fixture(editor, &dir);
     let before = routing_stats(editor.project(), board);
     assert_eq!(before.unrouted_nets, 4);
     assert!(before.air_wires >= 8, "{before:?}");

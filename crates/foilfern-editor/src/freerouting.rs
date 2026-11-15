@@ -30,6 +30,13 @@
 //! The session import accepts any resolution (coordinates are rounded to
 //! 10 nm, within the import's matching tolerance).
 //!
+//! The DSN trace width is the board's manufacturing minimum. Disable automatic
+//! neckdown and the fanout pre-pass: FreeRouting 2.4.1's fanout micro-neckdown
+//! inserts widths of 3/4, 3/5 or 1/2 of that width, even when ordinary neckdown
+//! is disabled (`FoundConnectionInserter::insertFanoutMicroNeckdown`). Explicit
+//! caller `extra_args` can override these defaults; native post-routing checks
+//! remain necessary for every result.
+//!
 //! FreeRouting is located by [`FreeroutingConfig::detect()`]: the jar from
 //! `LIBREPCB_FREEROUTING_JAR` (run with the first Java >= 25 of
 //! `LIBREPCB_FREEROUTING_JAVA`, `JAVA_HOME` and `PATH`), or a `freerouting`
@@ -344,6 +351,8 @@ impl FreeroutingRouter {
             "-do".into(),
             ses_path.clone().into(),
             "--gui.enabled=false".into(),
+            "--router.automatic_neckdown=false".into(),
+            "--router.fanout.enabled=false".into(),
         ];
         if let Some(passes) = self.config.max_passes {
             args.push("-mp".into());

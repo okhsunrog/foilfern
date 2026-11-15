@@ -63,4 +63,14 @@ jobs:
       - name: Clippy
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Tests
+        env:
+          LIBREPCB_FREEROUTING_TEST_DIR: ${{ runner.temp }}/freerouting-test
         run: cargo test --locked --workspace
+      - name: Retain failed external routing evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: freerouting-failure
+          path: ${{ runner.temp }}/freerouting-test/
+          if-no-files-found: ignore
+          retention-days: 7
