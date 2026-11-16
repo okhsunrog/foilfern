@@ -30,6 +30,13 @@ The remaining product gap is turning compact design intent into useful checked
 changes with less coordinate-by-coordinate planning. No stage is complete merely
 because its tools exist or one board has zero air wires.
 
+## Immediate priority — schematic composition
+
+Before further board-workflow expansion, establish binary-only ACP trials and
+make readable schematic composition a reproducible ordinary workflow. The
+[schematic workflow acceptance plan](schematic-workflow-plan.md) defines the
+initial cases, full-catalog onboarding, quality gates and measurements.
+
 ## Delivery order
 
 | Stage | Result | Dependencies | State |
