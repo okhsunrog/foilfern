@@ -817,7 +817,9 @@ fn clean_route(
     let mut points = Vec::new();
     for (id, sym) in s.symbols() {
         if !is_frame(p, schematic, *id)? {
-            bodies.push(placed_symbol_rect(p, schematic, *id, true)?);
+            let (body, texts) = placed_symbol_obstacles(p, schematic, *id, true)?;
+            bodies.push(body);
+            bodies.extend(texts);
         }
         for pin in sym.pins(p.view())? {
             if ![a, b]
@@ -1002,8 +1004,10 @@ impl Command for WireGroup {
                 NetSegmentRef { schematic, segment },
             )))?;
         }
-        let mut last_segment = None;
-        let mut label_line = None;
+        // Plan the whole group before drawing it. Previously the first wire
+        // became an obstacle to later branches of this same net.
+        let all_pins: Vec<_> = connected.iter().chain(&pending).copied().collect();
+        let mut edges = Vec::new();
         while !pending.is_empty() {
             let mut candidates: Vec<_> = connected
                 .iter()
@@ -1033,40 +1037,70 @@ impl Command for WireGroup {
             })?;
             let start = connected[a];
             let end = pending.remove(b);
-            let wire = draw_wire(
-                tx,
-                Some(schematic),
-                &start.anchor(),
-                &end.anchor(),
-                &corners,
-                Some(&net_name),
-            )?;
-            last_segment = Some(wire.segment);
-            let points = std::iter::once(start.position)
+            let points: Vec<_> = std::iter::once(start.position)
                 .chain(corners)
-                .chain([end.position]);
-            let mut previous = start.position;
-            for point in points.skip(1) {
-                let length = manhattan(previous, point);
-                if label_line.is_none_or(|(a, b)| length > manhattan(a, b)) {
-                    label_line = Some((previous, point));
-                }
-                previous = point;
-            }
+                .chain([end.position])
+                .collect();
+            edges.extend(points.windows(2).map(|pair| (pair[0], pair[1])));
             connected.push(end);
         }
-        if let (Some(segment), Some((a, b))) = (last_segment, label_line) {
-            let position = Point::new((a.x + b.x) / 2, (a.y + b.y) / 2);
-            let rotation = if a.x == b.x {
-                Angle::DEG90
-            } else {
-                Angle::DEG0
-            };
-            tx.apply(Mutation::Schematic(SchematicMutation::AddNetLabel {
-                segment: NetSegmentRef { schematic, segment },
-                label: NetLabel::new(Uuid::new_random(), position, rotation, false),
-            }))?;
+
+        // Split shared runs and orthogonal intersections into unique edges.
+        // DrawWirePaths then creates one native junction per branch point and
+        // validates the complete group against unrelated schematic geometry.
+        let mut vertices: BTreeSet<_> = edges.iter().flat_map(|&(a, b)| [a, b]).collect();
+        for &(a, b) in &edges {
+            if a.x != b.x {
+                continue;
+            }
+            for &(c, d) in &edges {
+                if c.y == d.y {
+                    let point = Point::new(a.x, c.y);
+                    if point_on_segment(point, a, b) && point_on_segment(point, c, d) {
+                        vertices.insert(point);
+                    }
+                }
+            }
         }
+        let mut unique = BTreeSet::new();
+        for (a, b) in edges {
+            let points: Vec<_> = vertices
+                .range(a.min(b)..=a.max(b))
+                .copied()
+                .filter(|point| point_on_segment(*point, a, b))
+                .collect();
+            unique.extend(points.windows(2).map(|pair| (pair[0], pair[1])));
+        }
+        let waypoint = |point: Point| WireWaypoint {
+            x: WireCoordinate::Absolute(point.x),
+            y: WireCoordinate::Absolute(point.y),
+        };
+        let vertex = |point| {
+            all_pins
+                .iter()
+                .position(|pin| pin.position == point)
+                .map_or_else(
+                    || WirePathPoint::Waypoint(waypoint(point)),
+                    WirePathPoint::Pin,
+                )
+        };
+        let label = unique
+            .iter()
+            .max_by_key(|&&(a, b)| manhattan(a, b))
+            .map(|&(a, b)| waypoint(Point::new((a.x + b.x) / 2, (a.y + b.y) / 2)));
+        let paths = unique
+            .into_iter()
+            .map(|(a, b)| vec![vertex(a), vertex(b)])
+            .collect();
+        DrawWirePaths {
+            schematic,
+            groups: vec![WirePathSpec {
+                group: self,
+                paths,
+                label,
+            }],
+        }
+        .execute(tx)?;
         Ok(())
     }
 }

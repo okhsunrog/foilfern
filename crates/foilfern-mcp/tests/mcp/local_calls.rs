@@ -212,3 +212,46 @@ fn batch_stops_or_continues_and_validates_before_execution() {
     assert!(!output.status.success());
     assert_eq!(records(&output).len(), 1);
 }
+
+#[test]
+fn local_discovery_matches_the_server_catalog_and_embedded_guides() {
+    use foilfern_mcp::{FoilfernMcp, Session};
+
+    let server = FoilfernMcp::new(Session::new());
+    let output = run(&["tools"]);
+    assert!(output.status.success());
+    let catalog: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(catalog["instructions"], server.instructions());
+    let mut names: Vec<_> = catalog["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|tool| tool["name"].as_str().unwrap().to_owned())
+        .collect();
+    names.sort();
+    let mut expected = server.tool_names();
+    expected.sort();
+    assert_eq!(names, expected);
+    let output = run(&["tools", "design_preview"]);
+    assert!(output.status.success());
+    let selected: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(selected["tools"].as_array().unwrap().len(), 1);
+    assert_eq!(selected["tools"][0]["name"], "design_preview");
+    assert!(selected["tools"][0]["inputSchema"]["properties"]["version"].is_object());
+    for topic in ["schematic", "rc-lowpass", "board", "esp32-c3-devboard"] {
+        let output = run(&["guide", topic]);
+        assert!(output.status.success(), "{topic}");
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap().trim_end(),
+            FoilfernMcp::guide(topic).unwrap().trim_end()
+        );
+    }
+    for args in [
+        vec!["tools", "unknown"],
+        vec!["guide", "unknown"],
+        vec!["tools", "--save"],
+        vec!["guide", "schematic", "--save"],
+    ] {
+        assert!(!run(&args).status.success(), "{args:?}");
+    }
+}

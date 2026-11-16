@@ -62,6 +62,8 @@ time.\n\
 Check server_info for an open workspace and project before opening either. \
 Read the MCP resource librepcb://guides/board-design for the full design workflow, \
 multi-gate components, multi-page schematics, layer settings and recovery.\n\
+Before composing schematics, read foilfern://guides/schematic-design. \
+The local CLI exposes the same catalog with tools and guides with guide schematic.\n\
 Read librepcb://examples/esp32-c3-devboard for a complete schematic document.\n\
 Workflow: workspace_open/workspace_create -> library_install (e.g. [\"LibrePCB Base\"]) or \
 library_rescan -> library_search (find parts; multi-word queries like \"resistor 0805\" work) -> \
@@ -102,6 +104,10 @@ history; the app may refuse opening or closing projects (kind refused).";
 
 const BOARD_DESIGN_URI: &str = "librepcb://guides/board-design";
 const BOARD_DESIGN_GUIDE: &str = include_str!("../../../docs/mcp-board-workflow.md");
+const SCHEMATIC_GUIDE_URI: &str = "foilfern://guides/schematic-design";
+const SCHEMATIC_GUIDE: &str = include_str!("../../../docs/mcp-schematic-workflow.md");
+const RC_DOCUMENT_URI: &str = "foilfern://examples/rc-lowpass";
+const RC_DOCUMENT: &str = include_str!("../../../docs/examples/rc-lowpass.json");
 const DEVBOARD_URI: &str = "librepcb://examples/esp32-c3-devboard";
 const DEVBOARD_DOCUMENT: &str = include_str!("../../../docs/examples/esp32-c3-devboard.json");
 
@@ -145,6 +151,27 @@ impl FoilfernMcp {
     /// Returns the shared state.
     pub fn state(&self) -> &McpState {
         &self.state
+    }
+
+    /// Complete catalog used by both MCP and local CLI discovery.
+    pub fn tool_definitions(&self) -> Vec<rmcp::model::Tool> {
+        self.tool_router.list_all()
+    }
+
+    /// Starting instructions shared with local callers.
+    pub fn instructions(&self) -> &'static str {
+        INSTRUCTIONS
+    }
+
+    /// Embedded workflow and example content, available without a workspace.
+    pub fn guide(topic: &str) -> Option<&'static str> {
+        match topic {
+            "schematic" | SCHEMATIC_GUIDE_URI => Some(SCHEMATIC_GUIDE),
+            "rc-lowpass" | RC_DOCUMENT_URI => Some(RC_DOCUMENT),
+            "board" | BOARD_DESIGN_URI => Some(BOARD_DESIGN_GUIDE),
+            "esp32-c3-devboard" | DEVBOARD_URI => Some(DEVBOARD_DOCUMENT),
+            _ => None,
+        }
     }
 
     /// Returns the names of all tools.
@@ -632,7 +659,7 @@ impl FoilfernMcp {
                        schematic page (free place if no position). `part`: device or \
                        component UUID or a name like \"Resistor\" / \"LED 3mm\" / \"GND\" \
                        (supply symbols). Library elements are copied into the project \
-                       library. Selects the sole native purchasing part automatically; selected_part disambiguates alternatives. Returns pins and the actual purchasing selection."
+                       library. Selects the sole native purchasing part automatically; selected_part disambiguates alternatives. Returns pins and the actual purchasing selection. Free-space placement is a draft; follow foilfern://guides/schematic-design for a finished circuit."
     )]
     async fn component_add(
         &self,
@@ -1468,7 +1495,7 @@ impl FoilfernMcp {
     // --- Declarative design updates ----------------------------------------------
 
     #[tool(
-        description = "Preview a version 1 design document for schematic edits, board placement or both. Board placement reports pose diffs, DRC, connectivity and saved requirements. Use board_layout.repair to propose local copper replacements and preview explicitly authorized branches with the placement. Schematic edits include nets, parts, fields, blocks and local wire paths, with ERC and annotation review."
+        description = "Preview a version 1 design document for schematic edits, board placement or both. Board placement reports pose diffs, DRC, connectivity and saved requirements. Use board_layout.repair to propose local copper replacements and preview explicitly authorized branches with the placement. Schematic edits include nets, parts, fields, blocks and local wire paths, with ERC and annotation review. Compose new parts and their fields together; use wire_groups with pins and omit paths for automatic local wiring. Pin references use document keys. See foilfern://guides/schematic-design."
     )]
     async fn design_preview(
         &self,
@@ -1672,6 +1699,16 @@ impl ServerHandler for FoilfernMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         Ok(ListResourcesResult::with_all_items(vec![
+            Resource::new(SCHEMATIC_GUIDE_URI, "schematic-design")
+                .with_title("Draw and finish a readable schematic")
+                .with_description("Composition, automatic local wires, fields, visual review and CLI session workflow.")
+                .with_mime_type("text/markdown")
+                .with_size(SCHEMATIC_GUIDE.len() as u64),
+            Resource::new(RC_DOCUMENT_URI, "rc-lowpass")
+                .with_title("RC low-pass schematic document")
+                .with_description("Small complete design_preview document with automatic branch wiring and initial field styling.")
+                .with_mime_type("application/json")
+                .with_size(RC_DOCUMENT.len() as u64),
             Resource::new(BOARD_DESIGN_URI, "board-design")
                 .with_title("Designing a board through MCP")
                 .with_description(
@@ -1694,6 +1731,8 @@ impl ServerHandler for FoilfernMcp {
     ) -> Result<ReadResourceResponse, McpError> {
         let (contents, mime) = match request.uri.as_str() {
             BOARD_DESIGN_URI => (BOARD_DESIGN_GUIDE, "text/markdown"),
+            SCHEMATIC_GUIDE_URI => (SCHEMATIC_GUIDE, "text/markdown"),
+            RC_DOCUMENT_URI => (RC_DOCUMENT, "application/json"),
             DEVBOARD_URI => (DEVBOARD_DOCUMENT, "application/json"),
             _ => {
                 return Err(McpError::resource_not_found(

@@ -1,0 +1,224 @@
+{
+  "version": 1,
+  "schematic": "Main",
+  "add_nets": [
+    "IN",
+    "OUT",
+    "GND"
+  ],
+  "add_components": {
+    "input": {
+      "designator": "TP1",
+      "library_component": "e2659029-10eb-42f4-af23-41301bb12569",
+      "value": "IN",
+      "position": {
+        "x": 10.16,
+        "y": 50.8
+      },
+      "rotation": 90,
+      "connections": {
+        "1": "IN"
+      },
+      "assign_only": true,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": -2.54,
+            "y": 3.81
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": -2.54,
+            "y": -3.81
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      },
+      "symbol_variant": "7b507447-3af6-4735-979d-7d88e3f0a292",
+      "device": "1f2a25cf-bf64-4ad1-8704-bc2c02718916"
+    },
+    "resistor": {
+      "designator": "R1",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "value": "1k",
+      "position": {
+        "x": 30.48,
+        "y": 50.8
+      },
+      "rotation": 0,
+      "connections": {
+        "1": "IN",
+        "2": "OUT"
+      },
+      "assign_only": true,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": -2.54,
+            "y": 3.81
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": -2.54,
+            "y": -3.81
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      },
+      "symbol_variant": "a5995314-f535-45d4-8bd8-2d0b8a0dc42a",
+      "device": "5ff4a2e5-3593-49ab-bdbe-f9b68015a3ed"
+    },
+    "output": {
+      "designator": "TP2",
+      "library_component": "e2659029-10eb-42f4-af23-41301bb12569",
+      "value": "OUT",
+      "position": {
+        "x": 60.96,
+        "y": 50.8
+      },
+      "rotation": 270,
+      "connections": {
+        "1": "OUT"
+      },
+      "assign_only": true,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 0,
+            "y": 3.81
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": 0,
+            "y": -3.81
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      },
+      "symbol_variant": "7b507447-3af6-4735-979d-7d88e3f0a292",
+      "device": "1f2a25cf-bf64-4ad1-8704-bc2c02718916"
+    },
+    "capacitor": {
+      "designator": "C1",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "value": "100nF",
+      "position": {
+        "x": 45.72,
+        "y": 35.56
+      },
+      "rotation": 0,
+      "connections": {
+        "1": "OUT",
+        "2": "GND"
+      },
+      "assign_only": true,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 3.81,
+            "y": 1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": 3.81,
+            "y": -1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      },
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08"
+    },
+    "ground": {
+      "designator": "TP3",
+      "library_component": "e2659029-10eb-42f4-af23-41301bb12569",
+      "value": "GND",
+      "position": {
+        "x": 45.72,
+        "y": 20.32
+      },
+      "rotation": 180,
+      "connections": {
+        "1": "GND"
+      },
+      "assign_only": true,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 3.81,
+            "y": 1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": 3.81,
+            "y": -1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      },
+      "symbol_variant": "7b507447-3af6-4735-979d-7d88e3f0a292",
+      "device": "1f2a25cf-bf64-4ad1-8704-bc2c02718916"
+    }
+  },
+  "wire_groups": [
+    {
+      "net": "IN",
+      "pins": [
+        "input.1",
+        "resistor.1"
+      ]
+    },
+    {
+      "net": "OUT",
+      "pins": [
+        "resistor.2",
+        "capacitor.1",
+        "output.1"
+      ]
+    },
+    {
+      "net": "GND",
+      "pins": [
+        "capacitor.2",
+        "ground.1"
+      ]
+    }
+  ],
+  "notes": [
+    {
+      "text": "RC low-pass filter",
+      "position": {
+        "x": 10.16,
+        "y": 66.04
+      },
+      "height": 3
+    }
+  ],
+  "review_components": [
+    "input",
+    "resistor",
+    "output",
+    "capacitor",
+    "ground"
+  ]
+}

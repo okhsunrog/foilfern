@@ -9,6 +9,16 @@ use serde_json::{Map, Value, json};
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
+    /// Read the complete tool catalog, schemas and starting instructions.
+    Tools {
+        /// Restrict schema details to one exact tool name.
+        name: Option<String>,
+    },
+    /// Read an embedded workflow or example: schematic, board, rc-lowpass, esp32-c3-devboard.
+    Guide {
+        #[arg(default_value = "schematic")]
+        topic: String,
+    },
     /// Call one tool. JSON can be inline, @file, or - for stdin.
     Call {
         tool: String,
@@ -47,6 +57,9 @@ fn input(path: &str) -> Result<String, String> {
 
 fn prepare(command: Command) -> Result<(Vec<Call>, bool), String> {
     match command {
+        Command::Tools { .. } | Command::Guide { .. } => {
+            Err("Discovery commands do not execute tools.".into())
+        }
         Command::Call { tool, json } => {
             let text = if json == "-" {
                 input("-")?
@@ -124,6 +137,35 @@ async fn invoke(runner: &LocalRunner, tool: &str, arguments: Map<String, Value>)
 }
 
 pub async fn execute(server: FoilfernMcp, command: Command, save: bool) -> Result<bool, String> {
+    match &command {
+        Command::Tools { name } => {
+            let mut tools = server.tool_definitions();
+            tools.sort_by(|a, b| a.name.cmp(&b.name));
+            if let Some(name) = name {
+                tools.retain(|tool| tool.name.as_ref() == name);
+                if tools.is_empty() {
+                    return Err(format!("Unknown tool {name:?}; run foilfern-mcp tools."));
+                }
+            }
+            let catalog = json!({
+                "instructions": server.instructions(),
+                "guides": ["schematic", "rc-lowpass", "board", "esp32-c3-devboard"],
+                "tools": tools,
+            });
+            serde_json::to_writer_pretty(std::io::stdout().lock(), &catalog)
+                .map_err(|error| error.to_string())?;
+            println!();
+            return Ok(true);
+        }
+        Command::Guide { topic } => {
+            let text = FoilfernMcp::guide(topic).ok_or_else(|| {
+                format!("Unknown guide {topic:?}; choose schematic, rc-lowpass, board or esp32-c3-devboard.")
+            })?;
+            println!("{text}");
+            return Ok(true);
+        }
+        _ => {}
+    }
     // Parse the entire batch before executing its first operation.
     let (calls, continue_on_error) = tokio::task::spawn_blocking(move || prepare(command))
         .await

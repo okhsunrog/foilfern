@@ -1745,3 +1745,16 @@ If either check is incomplete, `finding_delta` is `null` and
 `resolved_error_count` is zero, since absent evidence cannot prove resolution.
 Observed new findings remain available; inspect `ran`, `complete` and
 `check_failures` on both checks before relying on a comparison.
+
+
+### Local schematic discovery
+
+API 63 adds the embedded `foilfern://guides/schematic-design` workflow and
+`foilfern://examples/rc-lowpass` document. Local clients read the same content
+with `foilfern-mcp guide schematic` and `foilfern-mcp guide rc-lowpass`.
+`foilfern-mcp tools` returns the complete generated tool catalog, argument
+schemas and server instructions; an exact tool name selects its schema.
+These discovery commands require no workspace or project. Initial placement
+is a draft; schematic creation guidance directs callers to compose parts,
+fields and automatic local wire groups together, then inspect the image,
+review annotations, check ERC and save.

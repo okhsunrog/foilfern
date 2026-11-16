@@ -463,3 +463,121 @@ fn test_auto_place_devices_by_connectivity() {
     let second: Vec<Point> = again.placed.iter().map(|(_, p)| *p).collect();
     assert_eq!(first, second);
 }
+
+#[test]
+fn test_automatic_wire_group_joins_a_three_pin_branch() {
+    use foilfern_core::types::Angle;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let mut editor = create_editor(tmp.path());
+    editor
+        .execute(AddSchematic {
+            name: ElementName::new("Main").unwrap(),
+            index: None,
+        })
+        .unwrap();
+    for (position, rotation) in [
+        (mm(0.0, 0.0), Angle::DEG0),
+        (mm(30.48, 0.0), Angle::DEG0),
+        (mm(15.24, -20.32), Angle::DEG270),
+    ] {
+        editor
+            .execute(AddComponent {
+                value: Some("1k".into()),
+                device: Some(lib::r0805()),
+                place: Some(SymbolPlacement {
+                    schematic: None,
+                    position,
+                    rotation,
+                    mirrored: false,
+                    gate_offset: None,
+                }),
+                ..AddComponent::new(lib::resistor())
+            })
+            .unwrap();
+    }
+    // A field beside the lower branch extends above the pin. Its bounding
+    // union with the symbol must not block the clear space above that pin.
+    let schematic = editor.project().schematics()[0].id();
+    let component = editor
+        .project()
+        .circuit()
+        .component_instance_by_name("R3")
+        .unwrap()
+        .0;
+    let symbol = editor.project().schematics()[0]
+        .symbols()
+        .values()
+        .find(|symbol| symbol.component() == component)
+        .unwrap();
+    let symbol_id = symbol.id();
+    let mut text = symbol.texts().values().next().unwrap().clone();
+    text.set_position(mm(30.48, -12.7));
+    text.set_rotation(Angle::DEG0);
+    editor
+        .apply_mutations(
+            "Place field beside branch",
+            vec![foilfern_core::project::Mutation::Schematic(
+                foilfern_core::project::SchematicMutation::UpdateSymbolText {
+                    symbol: foilfern_core::project::SymbolRef {
+                        schematic,
+                        symbol: symbol_id,
+                    },
+                    text,
+                },
+            )],
+        )
+        .unwrap();
+    let pins = vec![
+        signal(editor.project(), "R1", "2"),
+        signal(editor.project(), "R2", "1"),
+        signal(editor.project(), "R3", "1"),
+    ];
+    let net = editor
+        .execute(AssignNet(ConnectNet {
+            net: Some(CircuitIdentifier::new("BRANCH").unwrap()),
+            signals: pins.clone(),
+            max_wire_length: None,
+        }))
+        .unwrap()
+        .net
+        .unwrap();
+    let schematic = editor.project().schematics()[0].id();
+    editor
+        .execute(WireGroup {
+            schematic,
+            net,
+            pins: pins.clone(),
+        })
+        .unwrap();
+    let sheet = &editor.project().schematics()[0];
+    assert_eq!(sheet.net_segments().len(), 1);
+    let segment = sheet.net_segments().values().next().unwrap();
+    assert_eq!(segment.connected_pins().len(), 3);
+    assert!(segment.is_cohesive());
+    assert!(segment.junctions().values().any(|junction| {
+        segment
+            .lines()
+            .values()
+            .filter(|line| {
+                [line.p1(), line.p2()].contains(&foilfern_core::geometry::NetLineAnchor::Junction(
+                    junction.uuid(),
+                ))
+            })
+            .count()
+            == 3
+    }));
+    let revision = editor.project().revision();
+    editor
+        .execute(WireGroup {
+            schematic,
+            net,
+            pins,
+        })
+        .unwrap();
+    assert_eq!(editor.project().revision(), revision);
+    editor.undo().unwrap();
+    assert!(editor.project().schematics()[0].net_segments().is_empty());
+    editor.redo().unwrap();
+    assert_eq!(editor.project().schematics()[0].net_segments().len(), 1);
+}

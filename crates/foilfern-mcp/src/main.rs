@@ -52,8 +52,12 @@ async fn main() -> ExitCode {
         .target(env_logger::Target::Stderr)
         .init();
     let args = Args::parse();
-    if (args.command.is_some() && args.http.is_some()) || (args.save && args.command.is_none()) {
-        eprintln!("foilfern-mcp: call/batch cannot use --http; --save requires call or batch.");
+    let executes_tools = matches!(
+        &args.command,
+        Some(local_cli::Command::Call { .. } | local_cli::Command::Batch { .. })
+    );
+    if (args.command.is_some() && args.http.is_some()) || (args.save && !executes_tools) {
+        eprintln!("foilfern-mcp: local commands cannot use --http; --save requires call or batch.");
         return ExitCode::FAILURE;
     }
     let session = match tokio::task::spawn_blocking({
