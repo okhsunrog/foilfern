@@ -12,6 +12,12 @@ Read the complete tool catalog before starting. With the local binary, run
 `foilfern-mcp guide rc-lowpass` for a complete small design document, and
 `foilfern-mcp guide board` for the wider project workflow.
 
+The CLI also accepts the resource names `guide schematic-design` and
+`guide board-design`. For library details, use
+`call library_element '{"uuid":"<library UUID>","kind":"component"}'`.
+The component's variants identify its gate symbols. Query those symbols with
+`kind:"symbol"` to inspect pin positions before choosing rotations.
+
 Select exact library identities and symbol variants before drawing. Check the
 actual pin mapping. A physical part needs its device UUID in `add_components`.
 The selected library must contain the required symbol variant and dependencies.
@@ -73,6 +79,15 @@ Each `call` or `batch` starts a fresh session. Keep `design_preview` and
   {"tool":"project_save"}
 ]
 ```
+
+Write the array to `calls.json` and run
+`foilfern-mcp --project project.lpp batch @calls.json > results.jsonl`.
+Both `batch calls.json` and `batch @calls.json` read a file. `batch -` reads
+standard input. Each output line is one JSON record containing `index`, `tool`
+and `response`. Tool data is under `response.structuredContent.result`, and
+PNG attachments are under `response.content` with `type:"image"` and base64
+`data`. Check `response.isError` before using a result. Decode images to files
+and open them for visual review.
 
 Replace the first call's arguments with your actual document. Preview IDs and
 undo history belong to that session. The `rc-lowpass` guide is an executable

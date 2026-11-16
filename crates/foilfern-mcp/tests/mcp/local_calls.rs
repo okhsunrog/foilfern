@@ -64,6 +64,12 @@ fn file_and_stdin_inputs_are_supported() {
     std::fs::write(&file, "{}").unwrap();
     let output = run(&["call", "server_info", &format!("@{}", file.display())]);
     assert!(output.status.success());
+    std::fs::write(&file, r#"[{"tool":"server_info"}]"#).unwrap();
+    for path in [file.display().to_string(), format!("@{}", file.display())] {
+        let output = run(&["batch", &path]);
+        assert!(output.status.success());
+        assert_eq!(records(&output).len(), 1);
+    }
     for (args, input) in [
         (vec!["call", "server_info", "-"], "{}"),
         (vec!["batch", "-"], r#"[{"tool":"server_info"}]"#),
@@ -245,6 +251,9 @@ fn local_discovery_matches_the_server_catalog_and_embedded_guides() {
             String::from_utf8(output.stdout).unwrap().trim_end(),
             FoilfernMcp::guide(topic).unwrap().trim_end()
         );
+    }
+    for (alias, topic) in [("schematic-design", "schematic"), ("board-design", "board")] {
+        assert_eq!(run(&["guide", alias]).stdout, run(&["guide", topic]).stdout);
     }
     for args in [
         vec!["tools", "unknown"],

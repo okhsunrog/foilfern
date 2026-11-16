@@ -166,9 +166,9 @@ impl FoilfernMcp {
     /// Embedded workflow and example content, available without a workspace.
     pub fn guide(topic: &str) -> Option<&'static str> {
         match topic {
-            "schematic" | SCHEMATIC_GUIDE_URI => Some(SCHEMATIC_GUIDE),
+            "schematic" | "schematic-design" | SCHEMATIC_GUIDE_URI => Some(SCHEMATIC_GUIDE),
             "rc-lowpass" | RC_DOCUMENT_URI => Some(RC_DOCUMENT),
-            "board" | BOARD_DESIGN_URI => Some(BOARD_DESIGN_GUIDE),
+            "board" | "board-design" | BOARD_DESIGN_URI => Some(BOARD_DESIGN_GUIDE),
             "esp32-c3-devboard" | DEVBOARD_URI => Some(DEVBOARD_DOCUMENT),
             _ => None,
         }

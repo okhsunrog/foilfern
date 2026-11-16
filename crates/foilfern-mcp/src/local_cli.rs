@@ -27,7 +27,7 @@ pub enum Command {
     },
     /// Execute a JSON array of {tool, arguments} calls in one session.
     Batch {
-        /// JSON file, or - for stdin.
+        /// JSON file (optionally prefixed with @), or - for stdin.
         file: String,
         /// Continue after failed calls; the final exit status still reports failure.
         #[arg(long)]
@@ -76,7 +76,7 @@ fn prepare(command: Command) -> Result<(Vec<Call>, bool), String> {
             file,
             continue_on_error,
         } => {
-            let calls = serde_json::from_str(&input(&file)?)
+            let calls = serde_json::from_str(&input(file.strip_prefix('@').unwrap_or(&file))?)
                 .map_err(|e| format!("invalid batch JSON: {e}"))?;
             Ok((calls, continue_on_error))
         }
