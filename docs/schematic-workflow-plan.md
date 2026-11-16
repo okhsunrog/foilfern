@@ -63,4 +63,11 @@ sessions each. Native checks and independent image review accompany the
 [measured report](benchmarks/schematic-acp/results.md), frozen tasks, runner
 and detailed model feedback. Completion was repeatable across these six runs.
 Layout coordinates, title verbosity and block spacing varied between sessions.
-The measured corpus currently consists of passive circuits and test points.
+The initial repeated corpus consists of passive circuits and test points.
+
+## Larger-case frontier
+
+The subsequent [skateboard-remote trial](benchmarks/esk8-remote-schematic-acp/README.md)
+used a bare nRF52840, AXP2101 and peripheral interfaces across three pages.
+It failed electrical and visual acceptance. Retain this failed case when
+improving dense-pin layout, annotation placement and topology-preserving edits.

@@ -1,0 +1,1168 @@
+{
+  "acceptance": "failed",
+  "date": "2026-11-16",
+  "fixture": {
+    "original_request": "Can you design a PCB for an electric skateboard remote control using the nrf52840 and axp2102? add contacts on the board to solder an SSD1306 I2C display, some buttons (you can plan for extra ones; I just won\u2019t connect the rest), one of them to the PMIC, and leads for a hall sensor or a potentiometer for the trigger (so that either one or the other can be connected). what do you say?",
+    "scope": "Schematic stage",
+    "pmic_correction": "AXP2101",
+    "source_access": false,
+    "binary": {
+      "binary": "/home/okhsunrog/tmp_zfs/codex_tmp/foilfern-remote-schematic-acp/bin/foilfern-mcp",
+      "sha256": "8fc07f008bf89fc162c50dd118f8a2b760810dcad20b9c87f5d80f68f41c9baa",
+      "server_info": {
+        "api_capability_version": 63,
+        "build": {
+          "cargo_opt_level": "3",
+          "cargo_profile": "release",
+          "source_commit": "02e5637907d63c703389706f3027b85404b7e2ef",
+          "tracked_source_state": "clean"
+        },
+        "file_format_version": "2",
+        "name": "foilfern-mcp",
+        "project": null,
+        "resources_dir": null,
+        "units": {
+          "angle": "deg",
+          "length": "mm"
+        },
+        "version": "0.1.0",
+        "workspace": null
+      },
+      "library_origin": "Snapshot of installed workspace libraries, including local SupplierParts",
+      "project": "/home/okhsunrog/tmp_zfs/codex_tmp/foilfern-remote-schematic-acp/case/project/Esk8_Remote.lpp"
+    },
+    "limits": {
+      "model_turns": 180,
+      "session_seconds": 2700,
+      "session_budget_usd": 1.5
+    },
+    "catalog_tools": 101
+  },
+  "metrics": {
+    "model": "deepseek/deepseek-v4.1-flash-1017",
+    "adapter": "0.107.0",
+    "sdk": "2.7.0",
+    "catalog_tools": 101,
+    "builtin_tools": [
+      "Bash",
+      "Read",
+      "Write"
+    ],
+    "transport": "Foilfern CLI over ACP; MCP server blocked by local Claude policy",
+    "source_access": false,
+    "turns": [
+      {
+        "phase": "task",
+        "wall_s": 692.860408296,
+        "tool_calls_so_far": 86,
+        "response": {
+          "stopReason": "end_turn",
+          "usage": {
+            "inputTokens": 89690,
+            "outputTokens": 73288,
+            "cachedReadTokens": 6597760,
+            "cachedWriteTokens": 0,
+            "totalTokens": 6760738
+          },
+          "_meta": {
+            "quota": {
+              "token_count": {
+                "totalTokens": 6760738,
+                "inputTokens": 89690,
+                "cachedInputTokens": 6597760,
+                "cachedWriteTokens": 0,
+                "outputTokens": 73288,
+                "reasoningOutputTokens": 0
+              },
+              "model_usage": [
+                {
+                  "model": "deepseek/deepseek-v4.1-flash-1017",
+                  "token_count": {
+                    "totalTokens": 6760738,
+                    "inputTokens": 89690,
+                    "cachedInputTokens": 6597760,
+                    "cachedWriteTokens": 0,
+                    "outputTokens": 73288,
+                    "reasoningOutputTokens": 0
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "phase": "feedback",
+        "wall_s": 8.276146233999985,
+        "tool_calls_so_far": 86,
+        "response": {
+          "stopReason": "end_turn",
+          "usage": {
+            "inputTokens": 75,
+            "outputTokens": 494,
+            "cachedReadTokens": 157440,
+            "cachedWriteTokens": 0,
+            "totalTokens": 158009
+          },
+          "_meta": {
+            "quota": {
+              "token_count": {
+                "totalTokens": 158009,
+                "inputTokens": 75,
+                "cachedInputTokens": 157440,
+                "cachedWriteTokens": 0,
+                "outputTokens": 494,
+                "reasoningOutputTokens": 0
+              },
+              "model_usage": [
+                {
+                  "model": "deepseek/deepseek-v4.1-flash-1017",
+                  "token_count": {
+                    "totalTokens": 158009,
+                    "inputTokens": 75,
+                    "cachedInputTokens": 157440,
+                    "cachedWriteTokens": 0,
+                    "outputTokens": 494,
+                    "reasoningOutputTokens": 0
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "session_id": "379b0058-e81c-40e1-99cc-4e9004126cb0",
+    "startup_s": 6.4669813,
+    "total_wall_s": 708.3615968050001,
+    "task_native_usage": {
+      "input_tokens": 89690,
+      "output_tokens": 73288,
+      "cache_read_input_tokens": 6597760,
+      "cache_creation_input_tokens": 0
+    },
+    "task_api_messages": 82,
+    "task_models": [
+      "deepseek/deepseek-v4.1-flash-1017"
+    ]
+  },
+  "component_count": 73,
+  "net_count": 38,
+  "sheet_reviews": {
+    "Main": {
+      "annotation_overlaps": 29,
+      "review": {
+        "annotation_overlaps": [
+          {
+            "bounds_mm": [
+              57.937,
+              80.72422466960353,
+              59.41970505550661,
+              81.12383700440529
+            ],
+            "first": {
+              "component": "C2",
+              "kind": "symbol_text",
+              "layer": "sym_names",
+              "symbol": "109f6768-5533-42fd-8b15-62dc4f3c2802",
+              "text": "d388bfc1-774c-4a8e-84a6-fa8a6df43f29"
+            },
+            "second": {
+              "component": "C4",
+              "kind": "symbol_text",
+              "layer": "sym_values",
+              "symbol": "986987bd-9c22-47f4-9d53-b3313c6cd919",
+              "text": "6ac6ad4c-da41-4007-a7c4-b7bbbc3c1ed4"
+            }
+          },
+          {
+            "bounds_mm": [
+              60.48273233333333,
+              121.8561878888889,
+              61.477641485666666,
+              122.99825655555556
+            ],
+            "first": {
+              "kind": "net_label",
+              "label": "2bdf33ee-0fe7-4d0b-9655-8628bff69994",
+              "net": "XL1",
+              "segment": "9a4b9489-1f97-46fe-a00a-e3a4a8b14ec7"
+            },
+            "second": {
+              "kind": "net_label",
+              "label": "69e037df-8423-46f0-b064-e3214ee764b9",
+              "net": "XL2",
+              "segment": "2712495f-8d0a-477e-8db4-4611c2fd0cf9"
+            }
+          },
+          {
+            "bounds_mm": [
+              60.48273233333333,
+              116.7761878888889,
+              62.16077941326667,
+              117.91825655555556
+            ],
+            "first": {
+              "kind": "net_label",
+              "label": "da8bef25-441a-45dd-8742-a073072c96fe",
+              "net": "XL2",
+              "segment": "5e639646-2d7e-4328-a5e4-fa2ab5c147c6"
+            },
+            "second": {
+              "kind": "net_label",
+              "label": "c8e80bf0-b169-4c16-9a5a-efe30de766f4",
+              "net": "SCL",
+              "segment": "39e3b3b0-375c-4876-97d7-bdef2131d3fd"
+            }
+          },
+          {
+            "bounds_mm": [
+              60.50235851433334,
+              119.31618788888889,
+              62.76726766666667,
+              120.44825655555555
+            ],
+            "first": {
+              "kind": "net_label",
+              "label": "de20929c-901f-4002-a0df-494080bb573d",
+              "net": "SDA",
+              "segment": "3d763c07-df4c-42cb-a43b-7dc9ff144f12"
+            },
+            "second": {
+              "kind": "net_label",
+              "label": "169713fd-3097-4ff5-bff3-14413a617d66",
+              "net": "XL1",
+              "segment": "ea5911f2-3a5c-4bef-91df-561825ad2a25"
+            }
+          },
+          {
+            "bounds_mm": [
+              68.59049999999999,
+              82.610312041116,
+              69.65381211111111,
+              83.49726766666667
+            ],
+            "first": {
+              "kind": "net_label",
+              "label": "284b43eb-6b7d-4a8c-8a05-f786ddd36690",
+              "net": "RESET",
+              "segment": "16962e16-8710-4414-afa1-08629f1e9d43"
+            },
+            "second": {
+              "component": "U1",
+              "kind": "pin_name",
+              "pin": "U1.DECUSB",
+              "pin_uuid": "4ee694c1-9712-4697-b239-d97536d24efc",
+              "symbol": "e3f33e44-6a98-4dce-bf48-fea06ea45696"
+            }
+          },
+          {
+            "bounds_mm": [
+              83.99411527165933,
+              135.86220694933922,
+              84.33381211111111,
+              136.4546590362
+            ],
+            "first": {
+              "kind": "net_label",
+              "label": "9be2342d-d3d4-4088-acd6-e4a0328636cc",
+              "net": "GND",
+              "segment": "eccd3ea5-1971-4869-ad49-4a8d68afeef4"
+            },
+            "second": {
+              "component": "U1",
+              "kind": "pin_name",
+              "pin": "U1.GND",
+              "pin_uuid": "64e9b057-710a-4521-9f9b-263867021c22",
+              "symbol": "e3f33e44-6a98-4dce-bf48-fea06ea45696"
+            }
+          },
+          {
+            "bounds_mm": [
+              90.76360551684444,
+              147.31273233333332,
+              91.9538121111111,
+              149.51726766666667
+            ],
+            "first": {
+              "kind": "net_label",
+              "label": "ae075ad0-f6f9-4467-8a40-be8d763d1a42",
+              "net": "DEC4",
+              "segment": "437a1704-0d5d-472f-87d0-2e1f044457f4"
+            },
+            "second": {
+              "kind": "net_label",
+              "label": "86e12d2b-8ae1-4562-abc3-9c0535a902ab",
+              "net": "DEC4",
+              "segment": "508dd1d2-f581-4cc1-a10e-b71dcdaf6ab4"
+            }
+          },
+          {
+            "bounds_mm": [
+              96.16505506607929,
+              142.81007895741558,
+              96.36770486973568,
+              143.79685888399413
+            ],
+            "first": {
+              "component": "GND3",
+              "kind": "symbol_text",
+              "layer": "sym_values",
+              "symbol": "3d2d3cab-119e-400a-b1be-68d6ccccde32",
+              "text": "5ec17485-716e-4eb9-8bbf-273444155632"
+            },
+            "second": {
+              "component": "U1",
+              "kind": "symbol_text",
+              "layer": "sym_values",
+              "symbol": "e3f33e44-6a98-4dce-bf48-fea06ea45696",
+              "text": "ca443ec2-c8fb-477c-b6c9-eadc813644ec"
+            }
+          },
+          {
+            "bounds_mm": [
+              94.15411527165932,
+              135.79959040748898,
+              94.49381211111111,
+              136.4546590362
+            ],
+            "first": {
+              "kind": "net_label",
+              "label": "77f48e59-5729-40ff-9a39-6b2f07cc61cc",
+              "net": "GND",
+              "segment": "f0a25f5c-9786-407f-8bb4-fabeaf6eec06"
+            },
+            "second": {
+              "component": "U1",
+              "kind": "pin_name",
+              "pin": "U1.VSS",
+              "pin_uuid": "831cb5c0-5411-48b0-8d7c-1743de9cac16",
+              "symbol": "e3f33e44-6a98-4dce-bf48-fea06ea45696"
+            }
+          },
+          {
+            "bounds_mm": [
+              103.51174344444445,
+              145.14447948566664,
+              104.75008796631111,
+              146.32588472834067
+            ],
+            "first": {
+              "component": "U1",
+              "kind": "symbol_text",
+              "layer": "sym_names",
+              "symbol": "e3f33e44-6a98-4dce-bf48-fea06ea45696",
+              "text": "0026b951-25da-412c-9b21-6b651bc41df9"
+            },
+            "second": {
+              "kind": "net_label",
+              "label": "227a174b-3d0e-4e8b-8ced-548a0a9ad8fc",
+              "net": "IRQ",
+              "segment": "9e975634-9cbd-43dd-93e7-4f6fb9a827fa"
+            }
+          },
+          {
+            "bounds_mm": [
+              135.4127323333333,
+              112.7786866886931,
+              137.7246590362,
+              112.91825655555556
+            ],
+            "first": {
+              "component": "U1",
+              "kind": "pin_name",
+              "pin": "U1.P0.10/NFC2",
+              "pin_uuid": "fc99a55d-0258-4983-accd-711f7b413c4d",
+              "symbol": "e3f33e44-6a98-4dce-bf48-fea06ea45696"
+            },
+            "second": {
+              "kind": "net_label",
+              "label": "c32d3591-3b36-453b-b4e1-63cc664dcf40",
+              "net": "GND",
+              "segment": "e2736f35-9ab4-4e7d-b04c-60fae07b08f5"
+            }
+          },
+          {
+            "bounds_mm": [
+              135.4127323333333,
+              111.7761878888889,
+              137.7246590362,
+              112.0985012701909
+            ],
+            "first": {
+              "component": "U1",
+              "kind": "pin_name",
+              "pin": "U1.P0.09/NFC1",
+              "pin_uuid": "f9fb8682-e704-4f28-84fe-0d053cbc9027",
+              "symbol": "e3f33e44-6a98-4dce-bf48-fea06ea45696"
+            },
+            "second": {
+              "kind": "net_label",
+              "label": "c32d3591-3b36-453b-b4e1-63cc664dcf40",
+              "net": "GND",
+              "segment": "e2736f35-9ab4-4e7d-b04c-60fae07b08f5"
+            }
+          },
+          {
+            "bounds_mm": [
+              189.380548061674,
+              124.660312041116,
+              189.48362314977973,
+              126.14588472834068
+            ],
+            "first": {
+              "component": "X1",
+              "kind": "pin_name",
+              "pin": "X1.OSC1",
+              "pin_uuid": "b29d35ac-0980-43bc-b360-e461d95daa00",
+              "symbol": "44da1e11-5ad1-48bb-8b10-6bb67d14e448"
+            },
+            "second": {
+              "component": "X1",
+              "kind": "pin_name",
+              "pin": "X1.GND_1",
+              "pin_uuid": "ae326d40-6bc4-4d85-bc68-3df01f54a999",
+              "symbol": "44da1e11-5ad1-48bb-8b10-6bb67d14e448"
+            }
+          },
+          {
+            "bounds_mm": [
+              190.45376030837005,
+              129.740312041116,
+              190.6820684801762,
+              131.22588472834067
+            ],
+            "first": {
+              "component": "X1",
+              "kind": "pin_name",
+              "pin": "X1.GND_2",
+              "pin_uuid": "bee352bb-7ace-4cec-8fad-e0ae1a928810",
+              "symbol": "44da1e11-5ad1-48bb-8b10-6bb67d14e448"
+            },
+            "second": {
+              "component": "X1",
+              "kind": "pin_name",
+              "pin": "X1.OSC2",
+              "pin_uuid": "59741e10-1833-4080-b8e6-949db53d753e",
+              "symbol": "44da1e11-5ad1-48bb-8b10-6bb67d14e448"
+            }
+          },
+          {
+            "bounds_mm": [
+              24.920625,
+              118.04273233333333,
+              25.05381211111111,
+              120.35577941326666
+            ],
+            "first": {
+              "kind": "net_label",
+              "label": "c974ad5c-b50e-483e-8bea-c901f360146d",
+              "net": "XL2",
+              "segment": "54fee777-a700-4ec3-952e-61c358153835"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "XL2",
+              "segment": "54fee777-a700-4ec3-952e-61c358153835",
+              "wire": "e40accc1-e437-4c46-97f0-095a3f470650"
+            }
+          },
+          {
+            "bounds_mm": [
+              46.31273233333334,
+              86.3761878888889,
+              48.769072819,
+              87.51825655555555
+            ],
+            "first": {
+              "kind": "net_label",
+              "label": "b32923a2-b412-40a4-aeda-ad332980b183",
+              "net": "VCC",
+              "segment": "6853e6a9-f86c-4bd4-85d8-41941ac384c4"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "VCC",
+              "segment": "6853e6a9-f86c-4bd4-85d8-41941ac384c4",
+              "wire": "3cbbd66e-c657-4844-a071-33db66ee6df8"
+            }
+          },
+          {
+            "bounds_mm": [
+              69.920625,
+              82.610312041116,
+              70.079375,
+              83.509375
+            ],
+            "first": {
+              "component": "U1",
+              "kind": "pin_name",
+              "pin": "U1.DECUSB",
+              "pin_uuid": "4ee694c1-9712-4697-b239-d97536d24efc",
+              "symbol": "e3f33e44-6a98-4dce-bf48-fea06ea45696"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "RESET",
+              "segment": "16962e16-8710-4414-afa1-08629f1e9d43",
+              "wire": "3256d9db-3751-4a1b-b7c4-331603fc5526"
+            }
+          },
+          {
+            "bounds_mm": [
+              84.60062500000001,
+              142.28751703377387,
+              84.759375,
+              143.79685888399413
+            ],
+            "first": {
+              "component": "GND5",
+              "kind": "symbol_text",
+              "layer": "sym_values",
+              "symbol": "816d7f17-6b19-499a-b9fa-36cd6d157385",
+              "text": "5ec17485-716e-4eb9-8bbf-273444155632"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "GND",
+              "segment": "9d54f2ce-2569-4f52-8707-a48c5be74510",
+              "wire": "afcdc1f1-88ca-4505-98ff-1f7dd001abe0"
+            }
+          },
+          {
+            "bounds_mm": [
+              84.60062500000001,
+              135.86220694933922,
+              84.759375,
+              138.86950000000002
+            ],
+            "first": {
+              "component": "U1",
+              "kind": "pin_name",
+              "pin": "U1.GND",
+              "pin_uuid": "64e9b057-710a-4521-9f9b-263867021c22",
+              "symbol": "e3f33e44-6a98-4dce-bf48-fea06ea45696"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "GND",
+              "segment": "eccd3ea5-1971-4869-ad49-4a8d68afeef4",
+              "wire": "eda525b8-defe-4a18-9060-d975425843c0"
+            }
+          },
+          {
+            "bounds_mm": [
+              87.140625,
+              147.2527323333333,
+              87.2838121111111,
+              149.709072819
+            ],
+            "first": {
+              "kind": "net_label",
+              "label": "cc703067-2626-45f4-8675-cd9a27d1d179",
+              "net": "VCC",
+              "segment": "2604e135-0d39-49bc-b8fd-0866baa44f7b"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "VCC",
+              "segment": "2604e135-0d39-49bc-b8fd-0866baa44f7b",
+              "wire": "adc262f1-6181-4a47-a96c-377f17e8f87c"
+            }
+          },
+          {
+            "bounds_mm": [
+              92.220625,
+              158.22422466960353,
+              92.379375,
+              158.539375
+            ],
+            "first": {
+              "component": "C12",
+              "kind": "symbol_text",
+              "layer": "sym_values",
+              "symbol": "470511d1-5a25-498b-8979-f587bd4c3c67",
+              "text": "6ac6ad4c-da41-4007-a7c4-b7bbbc3c1ed4"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "DEC4",
+              "segment": "508dd1d2-f581-4cc1-a10e-b71dcdaf6ab4",
+              "wire": "a0c7a3b0-523f-478f-8d09-562bcd16a9ba"
+            }
+          },
+          {
+            "bounds_mm": [
+              92.220625,
+              162.62422466960354,
+              92.379375,
+              163.619375
+            ],
+            "first": {
+              "component": "C12",
+              "kind": "symbol_text",
+              "layer": "sym_names",
+              "symbol": "470511d1-5a25-498b-8979-f587bd4c3c67",
+              "text": "d388bfc1-774c-4a8e-84a6-fa8a6df43f29"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "GND",
+              "segment": "01db0693-47ae-4389-9521-6cab79fc1474",
+              "wire": "1564424e-c775-4a31-ba4f-999e1e1b197c"
+            }
+          },
+          {
+            "bounds_mm": [
+              94.760625,
+              142.28751703377387,
+              94.919375,
+              143.79685888399413
+            ],
+            "first": {
+              "component": "GND3",
+              "kind": "symbol_text",
+              "layer": "sym_values",
+              "symbol": "3d2d3cab-119e-400a-b1be-68d6ccccde32",
+              "text": "5ec17485-716e-4eb9-8bbf-273444155632"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "GND",
+              "segment": "47157ce8-a85d-4ac5-a3a2-8596f8b2e0c0",
+              "wire": "2f45f2e3-8deb-49bb-b6f1-75716200bba7"
+            }
+          },
+          {
+            "bounds_mm": [
+              94.760625,
+              135.79959040748898,
+              94.919375,
+              138.86950000000002
+            ],
+            "first": {
+              "component": "U1",
+              "kind": "pin_name",
+              "pin": "U1.VSS",
+              "pin_uuid": "831cb5c0-5411-48b0-8d7c-1743de9cac16",
+              "symbol": "e3f33e44-6a98-4dce-bf48-fea06ea45696"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "GND",
+              "segment": "f0a25f5c-9786-407f-8bb4-fabeaf6eec06",
+              "wire": "ea7e2607-c24e-4c76-b2c6-81a52d5a1187"
+            }
+          },
+          {
+            "bounds_mm": [
+              104.920625,
+              142.81007895741558,
+              105.079375,
+              144.4835012701909
+            ],
+            "first": {
+              "component": "U1",
+              "kind": "symbol_text",
+              "layer": "sym_values",
+              "symbol": "e3f33e44-6a98-4dce-bf48-fea06ea45696",
+              "text": "ca443ec2-c8fb-477c-b6c9-eadc813644ec"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "IRQ",
+              "segment": "9e975634-9cbd-43dd-93e7-4f6fb9a827fa",
+              "wire": "4da6f69f-a837-4dd6-bb4a-f06bac26f7a9"
+            }
+          },
+          {
+            "bounds_mm": [
+              104.920625,
+              144.840312041116,
+              105.079375,
+              146.32588472834067
+            ],
+            "first": {
+              "component": "U1",
+              "kind": "symbol_text",
+              "layer": "sym_names",
+              "symbol": "e3f33e44-6a98-4dce-bf48-fea06ea45696",
+              "text": "0026b951-25da-412c-9b21-6b651bc41df9"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "IRQ",
+              "segment": "9e975634-9cbd-43dd-93e7-4f6fb9a827fa",
+              "wire": "4da6f69f-a837-4dd6-bb4a-f06bac26f7a9"
+            }
+          },
+          {
+            "bounds_mm": [
+              107.46062500000001,
+              62.16273233333333,
+              107.60381211111111,
+              64.619072819
+            ],
+            "first": {
+              "kind": "net_label",
+              "label": "05553482-6a69-42ff-a6a9-c10582a3185b",
+              "net": "VCC",
+              "segment": "913cbda5-562b-46d6-b8ff-a534faf1a47e"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "VCC",
+              "segment": "913cbda5-562b-46d6-b8ff-a534faf1a47e",
+              "wire": "6b6945e9-1f7a-4cbf-af6c-921e2bdbc7e9"
+            }
+          },
+          {
+            "bounds_mm": [
+              130.320625,
+              147.2527323333333,
+              130.46381211111114,
+              149.709072819
+            ],
+            "first": {
+              "kind": "net_label",
+              "label": "a93e55b6-2750-4eb5-80d7-d2232ca73b4f",
+              "net": "VCC",
+              "segment": "6d4016b5-12d8-4683-a3fb-ff120e245526"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "VCC",
+              "segment": "6d4016b5-12d8-4683-a3fb-ff120e245526",
+              "wire": "5c1163bd-4bdd-4a29-b887-c72d7d5fe60c"
+            }
+          },
+          {
+            "bounds_mm": [
+              135.400625,
+              111.35062500000001,
+              140.1395,
+              111.509375
+            ],
+            "first": {
+              "component": "U1",
+              "kind": "pin_name",
+              "pin": "U1.P0.09/NFC1",
+              "pin_uuid": "f9fb8682-e704-4f28-84fe-0d053cbc9027",
+              "symbol": "e3f33e44-6a98-4dce-bf48-fea06ea45696"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "GND",
+              "segment": "e2736f35-9ab4-4e7d-b04c-60fae07b08f5",
+              "wire": "2d376d17-f35b-4044-b1fe-82a2ac3b9ca0"
+            }
+          }
+        ],
+        "schematic": "5839ed11-957a-491f-bf40-6763fd231930"
+      }
+    },
+    "Power": {
+      "annotation_overlaps": 7,
+      "review": {
+        "annotation_overlaps": [
+          {
+            "bounds_mm": [
+              27.915340963800002,
+              88.45618788888889,
+              28.3709348914,
+              89.48825655555555
+            ],
+            "first": {
+              "kind": "net_label",
+              "label": "9b039a72-3675-4a70-b029-3f7c384f7977",
+              "net": "CC2",
+              "segment": "b8215107-946b-4e88-aef1-01b905b3fd12"
+            },
+            "second": {
+              "kind": "net_label",
+              "label": "1379fef1-9fef-4d93-8448-231481156293",
+              "net": "GND",
+              "segment": "742d7a6a-605c-44a2-8a3c-8d8b3e584a31"
+            }
+          },
+          {
+            "bounds_mm": [
+              108.51174344444445,
+              135.31531204111602,
+              109.65381211111111,
+              136.4546590362
+            ],
+            "first": {
+              "component": "U2",
+              "kind": "symbol_text",
+              "layer": "sym_values",
+              "symbol": "80a26376-3ff3-4f63-b47c-1b7cef9ebf3b",
+              "text": "88d904af-7fe1-4dc8-b0bf-cc58a5fb2e57"
+            },
+            "second": {
+              "kind": "net_label",
+              "label": "c8dbab12-09e2-47da-9811-9d7805c50a02",
+              "net": "GND",
+              "segment": "e9eec46e-dc93-4a5d-a3a6-e31fc70a9be1"
+            }
+          },
+          {
+            "bounds_mm": [
+              161.937,
+              113.22422466960353,
+              164.1473349066079,
+              114.04383700440529
+            ],
+            "first": {
+              "component": "C22",
+              "kind": "symbol_text",
+              "layer": "sym_values",
+              "symbol": "35b658c5-24ce-49fc-8146-1a1d78bf7ab4",
+              "text": "6ac6ad4c-da41-4007-a7c4-b7bbbc3c1ed4"
+            },
+            "second": {
+              "component": "C21",
+              "kind": "symbol_text",
+              "layer": "sym_names",
+              "symbol": "7d2fc1f2-30af-4353-9d37-be874fb38566",
+              "text": "d388bfc1-774c-4a8e-84a6-fa8a6df43f29"
+            }
+          },
+          {
+            "bounds_mm": [
+              109.920625,
+              135.31531204111602,
+              110.079375,
+              136.8008847283407
+            ],
+            "first": {
+              "component": "U2",
+              "kind": "symbol_text",
+              "layer": "sym_values",
+              "symbol": "80a26376-3ff3-4f63-b47c-1b7cef9ebf3b",
+              "text": "88d904af-7fe1-4dc8-b0bf-cc58a5fb2e57"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "GND",
+              "segment": "e9eec46e-dc93-4a5d-a3a6-e31fc70a9be1",
+              "wire": "33f9ef22-a530-4b75-acc0-b2fa0032dd3a"
+            }
+          },
+          {
+            "bounds_mm": [
+              108.51174344444445,
+              134.765625,
+              109.65381211111111,
+              134.924375
+            ],
+            "first": {
+              "kind": "net_label",
+              "label": "c8dbab12-09e2-47da-9811-9d7805c50a02",
+              "net": "GND",
+              "segment": "e9eec46e-dc93-4a5d-a3a6-e31fc70a9be1"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "GND",
+              "segment": "a97c50cf-1a2b-426b-9920-e94f2b76b045",
+              "wire": "674c34fc-1726-4b61-8c94-a1dc9e155feb"
+            }
+          },
+          {
+            "bounds_mm": [
+              109.920625,
+              137.22031204111602,
+              110.079375,
+              138.7058847283407
+            ],
+            "first": {
+              "component": "U2",
+              "kind": "symbol_text",
+              "layer": "sym_names",
+              "symbol": "80a26376-3ff3-4f63-b47c-1b7cef9ebf3b",
+              "text": "43a4c022-5f2a-48fb-9b60-d1ca901800c4"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "GND",
+              "segment": "e9eec46e-dc93-4a5d-a3a6-e31fc70a9be1",
+              "wire": "33f9ef22-a530-4b75-acc0-b2fa0032dd3a"
+            }
+          },
+          {
+            "bounds_mm": [
+              160.460625,
+              116.34618788888889,
+              160.619375,
+              117.48825655555555
+            ],
+            "first": {
+              "kind": "net_label",
+              "label": "d4a73c37-23c2-44b5-89a3-541dfdbe1168",
+              "net": "VSYS",
+              "segment": "1daa88ce-852a-40a1-999f-5b270308cd86"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "GND",
+              "segment": "b5eb0dbe-c78f-4f2a-839e-485d016f1069",
+              "wire": "0fcec376-05de-4c64-8542-613c151e0a5e"
+            }
+          }
+        ],
+        "schematic": "9aadfc4a-8e70-4612-888d-203da360d578"
+      }
+    },
+    "UI": {
+      "annotation_overlaps": 1,
+      "review": {
+        "annotation_overlaps": [
+          {
+            "bounds_mm": [
+              60.741743444444445,
+              61.920625,
+              61.883812111111105,
+              62.079375
+            ],
+            "first": {
+              "kind": "net_label",
+              "label": "7b1eb12e-02e9-44ce-912a-e4fa070e03e3",
+              "net": "TRIGGER",
+              "segment": "014d459d-1378-463f-b87b-03688ffcd775"
+            },
+            "second": {
+              "kind": "wire",
+              "net": "TRIGGER",
+              "segment": "014d459d-1378-463f-b87b-03688ffcd775",
+              "wire": "9ebfe8b9-83fc-46a0-ac20-0258392e530f"
+            }
+          }
+        ],
+        "schematic": "d6c3cddf-0606-4ab7-9585-f2735858ea3e"
+      }
+    }
+  },
+  "collinear_different_net_overlaps": {
+    "Main": [
+      {
+        "nets": [
+          "XL2",
+          "XL1"
+        ],
+        "lines": [
+          "9f18cf3e-14e7-483d-840f-bf1c3749d2bc",
+          "eecd4e3d-9244-4a4f-9ccf-f8700191141b"
+        ],
+        "fixed_axis": "y",
+        "coordinate": 121.51,
+        "overlap_mm": [
+          60.55,
+          64.36
+        ]
+      },
+      {
+        "nets": [
+          "ANT_50",
+          "GND"
+        ],
+        "lines": [
+          "93a971da-0857-4d8e-9058-3cbc342f9b76",
+          "bfade46e-e611-468c-b540-2dc3df1d455c"
+        ],
+        "fixed_axis": "x",
+        "coordinate": 172.0,
+        "overlap_mm": [
+          106.54,
+          107.175
+        ]
+      },
+      {
+        "nets": [
+          "SCL",
+          "XL2"
+        ],
+        "lines": [
+          "f5bcaf88-0475-4cb5-b84c-50f309f33503",
+          "3d590773-5807-44da-b3fb-01e245ddd16f"
+        ],
+        "fixed_axis": "y",
+        "coordinate": 116.43,
+        "overlap_mm": [
+          60.55,
+          64.995
+        ]
+      }
+    ],
+    "Power": [],
+    "UI": []
+  },
+  "erc": {
+    "outcome": "partial",
+    "result": {
+      "approved": 0,
+      "coverage": {
+        "datasheet_verified": false,
+        "has_metadata_gaps": true,
+        "import_metadata": [
+          {
+            "component": "58644f6a-267b-460d-a57b-55e0bff2531f",
+            "designator": "J3",
+            "library_component": "878b0a1c-b2c8-4348-9520-df7a4e7bcf3f",
+            "metadata": {
+              "approximated_pins": 0,
+              "error": null,
+              "has_gaps": true,
+              "modified_signals": [],
+              "native_roles": {
+                "passive": 14
+              },
+              "signal_count": 14,
+              "source_format": "easyeda_std",
+              "source_required_connections": "not_provided",
+              "source_sha256": "37e374cb022574e92bfcc2d466a39405dbbc88035e3585ecab15932ea4eb7238",
+              "status": "recorded",
+              "unrecorded_signals": 0,
+              "unspecified_pins": 14,
+              "unsupported_pins": 0
+            }
+          },
+          {
+            "component": "7c81aa48-7494-42ab-b16d-3d4d5bd9c871",
+            "designator": "X2",
+            "library_component": "d38dc175-64b9-4952-b13d-1ab0795aafb1",
+            "metadata": {
+              "approximated_pins": 0,
+              "error": null,
+              "has_gaps": true,
+              "modified_signals": [],
+              "native_roles": {
+                "passive": 2
+              },
+              "signal_count": 2,
+              "source_format": "easyeda_std",
+              "source_required_connections": "not_provided",
+              "source_sha256": "86fd7b5c67d2de447ed3219c9982176a9f543dbdfb59ed7538d540eaf0650859",
+              "status": "recorded",
+              "unrecorded_signals": 0,
+              "unspecified_pins": 2,
+              "unsupported_pins": 0
+            }
+          },
+          {
+            "component": "c7a2fcae-eb3d-46c1-b390-55f10cdc8e05",
+            "designator": "X1",
+            "library_component": "7ba8639e-40f4-472b-8cb7-3287d76c1e17",
+            "metadata": {
+              "approximated_pins": 0,
+              "error": null,
+              "has_gaps": true,
+              "modified_signals": [],
+              "native_roles": {
+                "passive": 4
+              },
+              "signal_count": 4,
+              "source_format": "easyeda_std",
+              "source_required_connections": "not_provided",
+              "source_sha256": "84733f0d0f10c91122e6dd30bddf608e6dbd7fd8da3b3a33e9776553a68d00c5",
+              "status": "recorded",
+              "unrecorded_signals": 0,
+              "unspecified_pins": 4,
+              "unsupported_pins": 0
+            }
+          },
+          {
+            "component": "d32d8874-6eca-4c00-964b-0f41d35258e6",
+            "designator": "U1",
+            "library_component": "5b965d72-67c6-410b-ba40-8faf13fd4549",
+            "metadata": {
+              "approximated_pins": 0,
+              "error": null,
+              "has_gaps": true,
+              "modified_signals": [],
+              "native_roles": {
+                "passive": 74
+              },
+              "signal_count": 74,
+              "source_format": "easyeda_std",
+              "source_required_connections": "not_provided",
+              "source_sha256": "aa9b833e508da991e59a487c1ae85cd02cfa0475ad139f559980c06e54562839",
+              "status": "recorded",
+              "unrecorded_signals": 0,
+              "unspecified_pins": 74,
+              "unsupported_pins": 0
+            }
+          },
+          {
+            "component": "d85cf2d6-b676-4041-b574-9d4c1025a1eb",
+            "designator": "U2",
+            "library_component": "da1c6168-dd57-4da4-aad2-0de9eb0c97af",
+            "metadata": {
+              "approximated_pins": 0,
+              "error": null,
+              "has_gaps": true,
+              "modified_signals": [],
+              "native_roles": {
+                "passive": 41
+              },
+              "signal_count": 41,
+              "source_format": "easyeda_std",
+              "source_required_connections": "not_provided",
+              "source_sha256": "8d914f21797f96bbe3464de35242804c83c1c0773206412a6bff4bfb4ced7621",
+              "status": "recorded",
+              "unrecorded_signals": 0,
+              "unspecified_pins": 41,
+              "unsupported_pins": 0
+            }
+          }
+        ],
+        "pin_role_compatibility_checked": false,
+        "power_sources_checked": false,
+        "required_connections": "native_flags_only",
+        "scope": "native_structural_erc",
+        "unresolved_components": []
+      },
+      "errors": 0,
+      "hints": 0,
+      "messages": [],
+      "ran": true,
+      "warnings": 0
+    },
+    "revision": 0,
+    "warnings": [
+      "Electrical import metadata is incomplete, lossy, missing or modified; inspect ERC coverage. Zero native ERC findings do not establish electrical correctness. Pin-role compatibility, power drivers and datasheet requirements were not verified."
+    ]
+  },
+  "selected_resistor_connections": {
+    "R1": {
+      "1": "GND",
+      "2": "RESET"
+    },
+    "R6": {
+      "1": "IRQ",
+      "2": "GND"
+    },
+    "R7": {
+      "1": "SDA",
+      "2": "GND"
+    },
+    "R8": {
+      "1": "SCL",
+      "2": "GND"
+    },
+    "R10": {
+      "1": "GND",
+      "2": "LED_K"
+    }
+  },
+  "led_connections": {
+    "D1.A": "VCC",
+    "D1.C": "LED_K",
+    "U1.P0.15": "LED_K"
+  },
+  "source_access_title_audit": [],
+  "prompt_sha256": "9a9f9d3ee9b6059ee23ed6cb924cd23a3547fbd8717d2989621b1d22314a7784",
+  "submitted_generator_sha256": "9a650aa886d759369e00bd64a2e1a1c3c8659e2654893f4ad52988a1028c8168",
+  "artifact_root": "/home/okhsunrog/tmp_zfs/codex_tmp/foilfern-remote-schematic-acp",
+  "review_artifacts": "/home/okhsunrog/tmp_zfs/codex_tmp/foilfern-remote-schematic-review"
+}

@@ -35,6 +35,13 @@ the next task merely because their last paragraph once said "next".
   Image review found readable layouts with variable title verbosity and spacing.
   See [measurements and feedback](benchmarks/schematic-acp/results.md).
 
+- **Large schematic trial limits (2026-11-16):** a fresh binary-only DeepSeek
+  run produced a 73-component, three-page skateboard-remote schematic in
+  693 seconds. Independent read-back found electrical mistakes and 37
+  annotation overlaps. The task failed acceptance despite zero structural ERC
+  findings. The [trial report](benchmarks/esk8-remote-schematic-acp/README.md)
+  preserves the submitted circuit, images, token accounting and feedback.
+
 - **Electrical import evidence (2026-11-15, API 56):** KiCad/EasyEDA source pin
   types and mapping fidelity survive native library/project save/reopen. Native
   passive roles are distinguished from unspecified source fallbacks. Required
