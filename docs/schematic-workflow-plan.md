@@ -55,3 +55,12 @@ separately; do not discard them from the evidence.
 
 Do not weaken electrical or routing validation to improve completion counts.
 Preserve native LibrePCB file interoperability and existing manual work.
+
+## First small-case results
+
+On 2026-11-16 all three initial tasks completed in two fresh DeepSeek ACP
+sessions each. Native checks and independent image review accompany the
+[measured report](benchmarks/schematic-acp/results.md), frozen tasks, runner
+and detailed model feedback. Completion was repeatable across these six runs.
+Layout coordinates, title verbosity and block spacing varied between sessions.
+The measured corpus currently consists of passive circuits and test points.

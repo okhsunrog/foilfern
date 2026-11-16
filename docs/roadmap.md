@@ -37,6 +37,14 @@ make readable schematic composition a reproducible ordinary workflow. The
 [schematic workflow acceptance plan](schematic-workflow-plan.md) defines the
 initial cases, full-catalog onboarding, quality gates and measurements.
 
+The first three small cases now have two successful fresh DeepSeek ACP runs
+each with source checkouts hidden, the complete 101-tool catalog, independent
+native checks and image review. Automatic branch wiring and separate field
+obstacles were corrected, and the binary now exposes the catalog and embedded
+schematic workflow locally. The [measured results](benchmarks/schematic-acp/results.md)
+retain failures, token accounting and remaining workflow friction. Larger IC,
+multi-gate and multi-page cases remain the next acceptance expansion.
+
 ## Delivery order
 
 | Stage | Result | Dependencies | State |

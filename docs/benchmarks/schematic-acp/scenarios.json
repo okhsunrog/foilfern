@@ -1,0 +1,151 @@
+[
+  {
+    "id": "divider",
+    "request": "Draw a clear, compact voltage-divider schematic. R1 = 10k from VIN to VOUT, R2 = 10k from VOUT to GND. TP1 is VIN, TP2 is VOUT and TP3 is GND. Put the resistor chain vertically, VIN toward the top, the VOUT connection toward the right and ground below. Use visible wires so the divider can be understood without following net labels. Include a short title and readable values.",
+    "expected": {
+      "VIN": [
+        "R1.1",
+        "TP1.1"
+      ],
+      "VOUT": [
+        "R1.2",
+        "R2.1",
+        "TP2.1"
+      ],
+      "GND": [
+        "R2.2",
+        "TP3.1"
+      ]
+    },
+    "components": {
+      "R1": {
+        "type": "resistor",
+        "value": "10k"
+      },
+      "R2": {
+        "type": "resistor",
+        "value": "10k"
+      },
+      "TP1": {
+        "type": "test_pad",
+        "value": "VIN"
+      },
+      "TP2": {
+        "type": "test_pad",
+        "value": "VOUT"
+      },
+      "TP3": {
+        "type": "test_pad",
+        "value": "GND"
+      }
+    }
+  },
+  {
+    "id": "rc-filter",
+    "request": "Draw a clear RC low-pass filter schematic. TP1 is IN, R1 = 1k connects IN to OUT, TP2 is OUT, C1 = 100nF connects OUT to GND, and TP3 is GND. Signal flow should read left to right with the shunt capacitor and ground below. Make the physical wiring explicit and include a short title.",
+    "expected": {
+      "IN": [
+        "TP1.1",
+        "R1.1"
+      ],
+      "OUT": [
+        "R1.2",
+        "C1.1",
+        "TP2.1"
+      ],
+      "GND": [
+        "C1.2",
+        "TP3.1"
+      ]
+    },
+    "components": {
+      "R1": {
+        "type": "resistor",
+        "value": "1k"
+      },
+      "C1": {
+        "type": "capacitor",
+        "value": "100nF"
+      },
+      "TP1": {
+        "type": "test_pad",
+        "value": "IN"
+      },
+      "TP2": {
+        "type": "test_pad",
+        "value": "OUT"
+      },
+      "TP3": {
+        "type": "test_pad",
+        "value": "GND"
+      }
+    }
+  },
+  {
+    "id": "dual-rc",
+    "request": "Draw two independent RC low-pass filter blocks, labeled Channel A and Channel B, in an orderly layout with space between them. Each signal flows left to right, with a capacitor down to common GND. Channel A: TP1 = IN_A, R1 = 1k from IN_A to OUT_A, TP2 = OUT_A, C1 = 100nF from OUT_A to GND. Channel B: TP3 = IN_B, R2 = 2.2k from IN_B to OUT_B, TP4 = OUT_B, C2 = 47nF from OUT_B to GND. TP5 = GND. Use physical wires within each functional block, keep the blocks visually distinct and avoid a long ground wire running through both blocks.",
+    "expected": {
+      "IN_A": [
+        "TP1.1",
+        "R1.1"
+      ],
+      "OUT_A": [
+        "R1.2",
+        "C1.1",
+        "TP2.1"
+      ],
+      "IN_B": [
+        "TP3.1",
+        "R2.1"
+      ],
+      "OUT_B": [
+        "R2.2",
+        "C2.1",
+        "TP4.1"
+      ],
+      "GND": [
+        "C1.2",
+        "C2.2",
+        "TP5.1"
+      ]
+    },
+    "components": {
+      "R1": {
+        "type": "resistor",
+        "value": "1k"
+      },
+      "R2": {
+        "type": "resistor",
+        "value": "2.2k"
+      },
+      "C1": {
+        "type": "capacitor",
+        "value": "100nF"
+      },
+      "C2": {
+        "type": "capacitor",
+        "value": "47nF"
+      },
+      "TP1": {
+        "type": "test_pad",
+        "value": "IN_A"
+      },
+      "TP2": {
+        "type": "test_pad",
+        "value": "OUT_A"
+      },
+      "TP3": {
+        "type": "test_pad",
+        "value": "IN_B"
+      },
+      "TP4": {
+        "type": "test_pad",
+        "value": "OUT_B"
+      },
+      "TP5": {
+        "type": "test_pad",
+        "value": "GND"
+      }
+    }
+  }
+]

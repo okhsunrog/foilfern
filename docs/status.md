@@ -25,6 +25,16 @@ the next task merely because their last paragraph once said "next".
 
 ## Implemented foundation
 
+- **Small binary-only schematic workflows (2026-11-16, API 63):** automatic
+  local wire groups can form three-pin branches, with native junctions and
+  separate obstacles for symbol bodies and text. CLI `tools` exposes the
+  registered descriptions, schemas and starting instructions; `guide` exposes
+  the embedded schematic workflow and RC example. Six fresh DeepSeek ACP runs
+  across three tasks finished with matching connections and passive values,
+  visible local wires, zero ERC findings and zero reported annotation overlaps.
+  Image review found readable layouts with variable title verbosity and spacing.
+  See [measurements and feedback](benchmarks/schematic-acp/results.md).
+
 - **Electrical import evidence (2026-11-15, API 56):** KiCad/EasyEDA source pin
   types and mapping fidelity survive native library/project save/reopen. Native
   passive roles are distinguished from unspecified source fallbacks. Required

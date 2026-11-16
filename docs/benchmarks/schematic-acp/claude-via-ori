@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Ori injects per-launch routing and credentials. Its help documents that an
+# explicit --setting-sources suppresses that injection; the SDK adds this flag.
+args=()
+while (($#)); do
+  case "$1" in
+    --setting-sources) shift 2 ;;
+    --setting-sources=*) shift ;;
+    *) args+=("$1"); shift ;;
+  esac
+done
+exec ori claude --model deepseek/deepseek-v4.1-flash-1017 -- --bare --strict-mcp-config "${args[@]}"

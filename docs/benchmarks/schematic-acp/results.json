@@ -1,0 +1,1931 @@
+{
+  "date": "2026-11-16",
+  "model": "deepseek/deepseek-v4.1-flash-1017",
+  "claude": "2.1.322",
+  "adapter": "0.107.0",
+  "sdk": "2.7.0",
+  "catalog_tools": 101,
+  "baseline_commit": "82a9efdc1f63745e5440c1e06ede04ee652e7ab9",
+  "baseline_binary_sha256": "9dc66271c46043da21da18c2d74202b806f9f3afc9356916aea1114c70d47fbc",
+  "candidate": {
+    "profile": "release",
+    "features": "default",
+    "binary": "/home/okhsunrog/tmp_zfs/codex_tmp/foilfern-schematic-trials/bin/foilfern-mcp-candidate",
+    "sha256": "ea19249584354ebf49d604ba75f2cf2620a782300df36aaaee032729ff5c4cb2",
+    "catalog_tools": 101,
+    "source_snapshot_commit": "ab6d8f9ae2d692e55aaf95fc3e5a3bb502576292",
+    "embedded_build": {
+      "cargo_opt_level": "3",
+      "cargo_profile": "release",
+      "source_commit": "54293256d28c8110de0de69b289e938fe85a6ef8",
+      "tracked_source_state": "dirty"
+    }
+  },
+  "artifact_root": "/home/okhsunrog/tmp_zfs/codex_tmp/foilfern-schematic-trials",
+  "runs": [
+    {
+      "case": "baseline/divider-1",
+      "scenario": "divider",
+      "task_wall_s": 192.78035975000003,
+      "task_error": "max_turns_40",
+      "wall_estimated_from_session": true,
+      "task_api_messages": 40,
+      "task_native_usage": {
+        "input_tokens": 41516,
+        "output_tokens": 21324,
+        "cache_read_input_tokens": 1198976,
+        "cache_creation_input_tokens": 0
+      },
+      "task_models": [
+        "deepseek/deepseek-v4.1-flash-1017"
+      ],
+      "startup_s": 3.6356302370000004,
+      "session_id": "72850ebd-f4b5-46f1-a702-8d342398140b",
+      "prompt_sha256": "9839c850b99349161386d46c42dec5eee535482f490dd6bd2aea536cb2772717",
+      "checks": {
+        "scenario": "divider",
+        "netlist_matches": true,
+        "expected_netlist": {
+          "VIN": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "VOUT": [
+            "R1.2",
+            "R2.1",
+            "TP2.1"
+          ],
+          "GND": [
+            "R2.2",
+            "TP3.1"
+          ]
+        },
+        "actual_netlist": {
+          "GND": [
+            "R2.2",
+            "TP3.1"
+          ],
+          "VIN": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "VOUT": [
+            "R1.2",
+            "R2.1",
+            "TP2.1"
+          ]
+        },
+        "component_values_match": true,
+        "component_count": 5,
+        "expected_component_count": 5,
+        "erc": {
+          "errors": 0,
+          "warnings": 0,
+          "hints": 0
+        },
+        "annotation_overlaps": 0,
+        "physical_wiring_matches": true,
+        "physical_wire_groups": {
+          "VOUT": [
+            [
+              "R1.2",
+              "R2.1",
+              "TP2.1"
+            ]
+          ],
+          "VIN": [
+            [
+              "R1.1",
+              "TP1.1"
+            ]
+          ],
+          "GND": [
+            [
+              "R2.2",
+              "TP3.1"
+            ]
+          ]
+        },
+        "layout": {
+          "symbols": [
+            {
+              "component": "R1",
+              "position": {
+                "x": 60.0,
+                "y": 120.0
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "R2",
+              "position": {
+                "x": 60.0,
+                "y": 100.0
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP1",
+              "position": {
+                "x": 60.0,
+                "y": 145.0
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP2",
+              "position": {
+                "x": 85.0,
+                "y": 110.0
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP3",
+              "position": {
+                "x": 60.0,
+                "y": 85.0
+              },
+              "rotation": 180.0,
+              "mirrored": false
+            }
+          ],
+          "texts": [
+            {
+              "position": {
+                "x": 40.0,
+                "y": 155.0
+              },
+              "text": "Voltage Divider 10k / 10k"
+            }
+          ]
+        },
+        "layout_sha256": "cacec4fdc3c7619cb3223b71bd83860420573ef8539d461f8e5f914348b383c4",
+        "visual_review": "readable, manually inspected"
+      },
+      "source_snapshot_commit": "82a9efdc1f63745e5440c1e06ede04ee652e7ab9",
+      "embedded_build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "82a9efdc1f63745e5440c1e06ede04ee652e7ab9",
+        "tracked_source_state": "clean"
+      }
+    },
+    {
+      "case": "baseline/rc-filter-1",
+      "scenario": "rc-filter",
+      "task_wall_s": 130.763753001,
+      "task_error": "max_turns_40",
+      "wall_estimated_from_session": true,
+      "task_api_messages": 40,
+      "task_native_usage": {
+        "input_tokens": 42059,
+        "output_tokens": 22912,
+        "cache_read_input_tokens": 1452800,
+        "cache_creation_input_tokens": 0
+      },
+      "task_models": [
+        "deepseek/deepseek-v4.1-flash-1017"
+      ],
+      "startup_s": 3.5383888889999997,
+      "session_id": "0e6a1be4-1764-40c4-b453-df81532f74eb",
+      "prompt_sha256": "6464cb604bd73825e40a8066b2c903c76424eb66ff55ca2715d999344ba4b2a3",
+      "checks": {
+        "scenario": "rc-filter",
+        "netlist_matches": true,
+        "expected_netlist": {
+          "IN": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "OUT": [
+            "C1.1",
+            "R1.2",
+            "TP2.1"
+          ],
+          "GND": [
+            "C1.2",
+            "TP3.1"
+          ]
+        },
+        "actual_netlist": {
+          "GND": [
+            "C1.2",
+            "TP3.1"
+          ],
+          "IN": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "OUT": [
+            "C1.1",
+            "R1.2",
+            "TP2.1"
+          ]
+        },
+        "component_values_match": true,
+        "component_count": 5,
+        "expected_component_count": 5,
+        "erc": {
+          "errors": 0,
+          "warnings": 0,
+          "hints": 0
+        },
+        "annotation_overlaps": 0,
+        "physical_wiring_matches": true,
+        "physical_wire_groups": {
+          "IN": [
+            [
+              "R1.1",
+              "TP1.1"
+            ]
+          ],
+          "OUT": [
+            [
+              "C1.1",
+              "R1.2",
+              "TP2.1"
+            ]
+          ],
+          "GND": [
+            [
+              "C1.2",
+              "TP3.1"
+            ]
+          ]
+        },
+        "layout": {
+          "symbols": [
+            {
+              "component": "C1",
+              "position": {
+                "x": 80.0,
+                "y": 90.0
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "R1",
+              "position": {
+                "x": 65.0,
+                "y": 100.0
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP1",
+              "position": {
+                "x": 47.46,
+                "y": 100.0
+              },
+              "rotation": 90.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP2",
+              "position": {
+                "x": 92.54,
+                "y": 100.0
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP3",
+              "position": {
+                "x": 80.0,
+                "y": 79.46
+              },
+              "rotation": 180.0,
+              "mirrored": false
+            }
+          ],
+          "texts": [
+            {
+              "position": {
+                "x": 47.0,
+                "y": 110.0
+              },
+              "text": "RC Low-Pass Filter"
+            }
+          ]
+        },
+        "layout_sha256": "0a17ea82770d678ff26530a1aea8cc33b8af62749fee4ee68511619fe9a70f4f",
+        "visual_review": "readable, manually inspected"
+      },
+      "source_snapshot_commit": "82a9efdc1f63745e5440c1e06ede04ee652e7ab9",
+      "embedded_build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "82a9efdc1f63745e5440c1e06ede04ee652e7ab9",
+        "tracked_source_state": "clean"
+      }
+    },
+    {
+      "case": "baseline/dual-rc-1",
+      "scenario": "dual-rc",
+      "task_wall_s": 191.574401887,
+      "task_error": "RequestError: Internal error: Reached maximum number of turns (40)",
+      "wall_estimated_from_session": false,
+      "task_api_messages": 40,
+      "task_native_usage": {
+        "input_tokens": 41821,
+        "output_tokens": 24449,
+        "cache_read_input_tokens": 1379712,
+        "cache_creation_input_tokens": 0
+      },
+      "task_models": [
+        "deepseek/deepseek-v4.1-flash-1017"
+      ],
+      "startup_s": 6.356968960000001,
+      "session_id": "3a3e2924-e6cb-4169-a00f-139ebed5a07e",
+      "prompt_sha256": "525612f5c5c089ac8ba38ad7ba2e2521aab07580b1d98008f5523d16c2ab7285",
+      "checks": {
+        "scenario": "dual-rc",
+        "netlist_matches": true,
+        "expected_netlist": {
+          "IN_A": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "OUT_A": [
+            "C1.1",
+            "R1.2",
+            "TP2.1"
+          ],
+          "IN_B": [
+            "R2.1",
+            "TP3.1"
+          ],
+          "OUT_B": [
+            "C2.1",
+            "R2.2",
+            "TP4.1"
+          ],
+          "GND": [
+            "C1.2",
+            "C2.2",
+            "TP5.1"
+          ]
+        },
+        "actual_netlist": {
+          "GND": [
+            "C1.2",
+            "C2.2",
+            "TP5.1"
+          ],
+          "IN_A": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "IN_B": [
+            "R2.1",
+            "TP3.1"
+          ],
+          "OUT_A": [
+            "C1.1",
+            "R1.2",
+            "TP2.1"
+          ],
+          "OUT_B": [
+            "C2.1",
+            "R2.2",
+            "TP4.1"
+          ]
+        },
+        "component_values_match": true,
+        "component_count": 9,
+        "expected_component_count": 9,
+        "erc": {
+          "errors": 0,
+          "warnings": 0,
+          "hints": 0
+        },
+        "annotation_overlaps": 0,
+        "physical_wiring_matches": true,
+        "physical_wire_groups": {
+          "OUT_B": [
+            [
+              "C2.1",
+              "R2.2",
+              "TP4.1"
+            ]
+          ],
+          "OUT_A": [
+            [
+              "C1.1",
+              "R1.2",
+              "TP2.1"
+            ]
+          ],
+          "IN_B": [
+            [
+              "R2.1",
+              "TP3.1"
+            ]
+          ],
+          "GND": [
+            [
+              "TP5.1"
+            ],
+            [
+              "C1.2"
+            ],
+            [
+              "C2.2"
+            ]
+          ],
+          "IN_A": [
+            [
+              "R1.1",
+              "TP1.1"
+            ]
+          ]
+        },
+        "layout": {
+          "symbols": [
+            {
+              "component": "C1",
+              "position": {
+                "x": 43.18,
+                "y": 117.46
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "C2",
+              "position": {
+                "x": 139.7,
+                "y": 117.46
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "R1",
+              "position": {
+                "x": 30.48,
+                "y": 120.0
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "R2",
+              "position": {
+                "x": 127.0,
+                "y": 120.0
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP1",
+              "position": {
+                "x": 17.78,
+                "y": 122.54
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP2",
+              "position": {
+                "x": 55.88,
+                "y": 122.54
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP3",
+              "position": {
+                "x": 114.3,
+                "y": 122.54
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP4",
+              "position": {
+                "x": 152.4,
+                "y": 122.54
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP5",
+              "position": {
+                "x": 85.09,
+                "y": 72.54
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            }
+          ],
+          "texts": [
+            {
+              "position": {
+                "x": 14.0,
+                "y": 133.0
+              },
+              "text": "Channel A"
+            },
+            {
+              "position": {
+                "x": 110.49,
+                "y": 133.0
+              },
+              "text": "Channel B"
+            }
+          ]
+        },
+        "layout_sha256": "8c7c8f0a77538ce7a3ae221a9b1af253ef0caeb00fb890ab30ee432c478ea04a",
+        "visual_review": "readable, manually inspected"
+      },
+      "source_snapshot_commit": "82a9efdc1f63745e5440c1e06ede04ee652e7ab9",
+      "embedded_build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "82a9efdc1f63745e5440c1e06ede04ee652e7ab9",
+        "tracked_source_state": "clean"
+      }
+    },
+    {
+      "case": "candidate/divider-1",
+      "scenario": "divider",
+      "task_wall_s": 125.169824545,
+      "task_error": null,
+      "wall_estimated_from_session": false,
+      "task_api_messages": 35,
+      "task_native_usage": {
+        "input_tokens": 95186,
+        "output_tokens": 17818,
+        "cache_read_input_tokens": 974336,
+        "cache_creation_input_tokens": 0
+      },
+      "task_models": [
+        "deepseek/deepseek-v4.1-flash-1017"
+      ],
+      "startup_s": 5.810012823,
+      "session_id": "35ed18ca-1777-4b27-9b87-ed609ad28b1b",
+      "prompt_sha256": "de544f500ab6d110c234766bf91cef6e0b108f2bd054d66b58e43736b37a4e72",
+      "checks": {
+        "scenario": "divider",
+        "netlist_matches": true,
+        "expected_netlist": {
+          "VIN": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "VOUT": [
+            "R1.2",
+            "R2.1",
+            "TP2.1"
+          ],
+          "GND": [
+            "R2.2",
+            "TP3.1"
+          ]
+        },
+        "actual_netlist": {
+          "GND": [
+            "R2.2",
+            "TP3.1"
+          ],
+          "VIN": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "VOUT": [
+            "R1.2",
+            "R2.1",
+            "TP2.1"
+          ]
+        },
+        "component_values_match": true,
+        "component_count": 5,
+        "expected_component_count": 5,
+        "erc": {
+          "errors": 0,
+          "warnings": 0,
+          "hints": 0
+        },
+        "annotation_overlaps": 0,
+        "physical_wiring_matches": true,
+        "physical_wire_groups": {
+          "VIN": [
+            [
+              "R1.1",
+              "TP1.1"
+            ]
+          ],
+          "VOUT": [
+            [
+              "R1.2",
+              "R2.1",
+              "TP2.1"
+            ]
+          ],
+          "GND": [
+            [
+              "R2.2",
+              "TP3.1"
+            ]
+          ]
+        },
+        "layout": {
+          "symbols": [
+            {
+              "component": "R1",
+              "position": {
+                "x": 50.8,
+                "y": 60.96
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "R2",
+              "position": {
+                "x": 50.8,
+                "y": 40.64
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP1",
+              "position": {
+                "x": 50.8,
+                "y": 71.12
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP2",
+              "position": {
+                "x": 66.04,
+                "y": 50.8
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP3",
+              "position": {
+                "x": 50.8,
+                "y": 25.4
+              },
+              "rotation": 180.0,
+              "mirrored": false
+            }
+          ],
+          "texts": [
+            {
+              "position": {
+                "x": 30.48,
+                "y": 85.09
+              },
+              "text": "Voltage Divider 10k / 10k"
+            }
+          ]
+        },
+        "layout_sha256": "1053d54deb9c9c2febfdca394681ede2d30fced87861457a4d3666e9ab6e88ca",
+        "visual_review": "readable, manually inspected"
+      },
+      "task_response_usage": {
+        "inputTokens": 95186,
+        "outputTokens": 17818,
+        "cachedReadTokens": 974336,
+        "cachedWriteTokens": 0,
+        "totalTokens": 1087340
+      },
+      "tool_calls": 41,
+      "feedback_wall_s": 10.40241160599998,
+      "feedback_usage": {
+        "inputTokens": 148,
+        "outputTokens": 802,
+        "cachedReadTokens": 47488,
+        "cachedWriteTokens": 0,
+        "totalTokens": 48438
+      },
+      "source_snapshot_commit": "54293256d28c8110de0de69b289e938fe85a6ef8",
+      "embedded_build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "54293256d28c8110de0de69b289e938fe85a6ef8",
+        "tracked_source_state": "clean"
+      }
+    },
+    {
+      "case": "polished/divider-1",
+      "scenario": "divider",
+      "task_wall_s": 115.325546333,
+      "task_error": null,
+      "wall_estimated_from_session": false,
+      "task_api_messages": 17,
+      "task_native_usage": {
+        "input_tokens": 63839,
+        "output_tokens": 15682,
+        "cache_read_input_tokens": 461952,
+        "cache_creation_input_tokens": 0
+      },
+      "task_models": [
+        "deepseek/deepseek-v4.1-flash-1017"
+      ],
+      "startup_s": 3.3962515479999995,
+      "session_id": "e982319e-d4e8-4ea0-b856-7f99594755b2",
+      "prompt_sha256": "de544f500ab6d110c234766bf91cef6e0b108f2bd054d66b58e43736b37a4e72",
+      "checks": {
+        "scenario": "divider",
+        "netlist_matches": true,
+        "expected_netlist": {
+          "VIN": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "VOUT": [
+            "R1.2",
+            "R2.1",
+            "TP2.1"
+          ],
+          "GND": [
+            "R2.2",
+            "TP3.1"
+          ]
+        },
+        "actual_netlist": {
+          "GND": [
+            "R2.2",
+            "TP3.1"
+          ],
+          "VIN": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "VOUT": [
+            "R1.2",
+            "R2.1",
+            "TP2.1"
+          ]
+        },
+        "component_values_match": true,
+        "component_count": 5,
+        "expected_component_count": 5,
+        "erc": {
+          "errors": 0,
+          "warnings": 0,
+          "hints": 0
+        },
+        "annotation_overlaps": 0,
+        "physical_wiring_matches": true,
+        "physical_wire_groups": {
+          "VIN": [
+            [
+              "R1.1",
+              "TP1.1"
+            ]
+          ],
+          "GND": [
+            [
+              "R2.2",
+              "TP3.1"
+            ]
+          ],
+          "VOUT": [
+            [
+              "R1.2",
+              "R2.1",
+              "TP2.1"
+            ]
+          ]
+        },
+        "layout": {
+          "symbols": [
+            {
+              "component": "R1",
+              "position": {
+                "x": 100.0,
+                "y": 100.0
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "R2",
+              "position": {
+                "x": 100.0,
+                "y": 84.84
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP1",
+              "position": {
+                "x": 90.0,
+                "y": 105.08
+              },
+              "rotation": 90.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP2",
+              "position": {
+                "x": 110.0,
+                "y": 92.42
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP3",
+              "position": {
+                "x": 100.0,
+                "y": 74.72
+              },
+              "rotation": 180.0,
+              "mirrored": false
+            }
+          ],
+          "texts": [
+            {
+              "position": {
+                "x": 87.0,
+                "y": 117.0
+              },
+              "text": "Voltage Divider"
+            }
+          ]
+        },
+        "layout_sha256": "aa2fe172c5c105d97b7c4b944134d3d13a2dfe49ecd7a52888c49a26f821a3b6",
+        "visual_review": "readable, manually inspected"
+      },
+      "task_response_usage": {
+        "inputTokens": 63839,
+        "outputTokens": 15682,
+        "cachedReadTokens": 461952,
+        "cachedWriteTokens": 0,
+        "totalTokens": 541473
+      },
+      "tool_calls": 20,
+      "feedback_wall_s": 16.17817935600001,
+      "feedback_usage": {
+        "inputTokens": 172,
+        "outputTokens": 1066,
+        "cachedReadTokens": 53376,
+        "cachedWriteTokens": 0,
+        "totalTokens": 54614
+      },
+      "tool_title_source_and_sibling_audit": "passed",
+      "source_snapshot_commit": "ab6d8f9ae2d692e55aaf95fc3e5a3bb502576292",
+      "embedded_build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "54293256d28c8110de0de69b289e938fe85a6ef8",
+        "tracked_source_state": "dirty"
+      }
+    },
+    {
+      "case": "polished/divider-2",
+      "scenario": "divider",
+      "task_wall_s": 101.57258734300001,
+      "task_error": null,
+      "wall_estimated_from_session": false,
+      "task_api_messages": 27,
+      "task_native_usage": {
+        "input_tokens": 37843,
+        "output_tokens": 13097,
+        "cache_read_input_tokens": 747648,
+        "cache_creation_input_tokens": 0
+      },
+      "task_models": [
+        "deepseek/deepseek-v4.1-flash-1017"
+      ],
+      "startup_s": 2.772177107,
+      "session_id": "916e1783-212c-47c1-a476-5bafe27de558",
+      "prompt_sha256": "de544f500ab6d110c234766bf91cef6e0b108f2bd054d66b58e43736b37a4e72",
+      "checks": {
+        "scenario": "divider",
+        "netlist_matches": true,
+        "expected_netlist": {
+          "VIN": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "VOUT": [
+            "R1.2",
+            "R2.1",
+            "TP2.1"
+          ],
+          "GND": [
+            "R2.2",
+            "TP3.1"
+          ]
+        },
+        "actual_netlist": {
+          "GND": [
+            "R2.2",
+            "TP3.1"
+          ],
+          "VIN": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "VOUT": [
+            "R1.2",
+            "R2.1",
+            "TP2.1"
+          ]
+        },
+        "component_values_match": true,
+        "component_count": 5,
+        "expected_component_count": 5,
+        "erc": {
+          "errors": 0,
+          "warnings": 0,
+          "hints": 0
+        },
+        "annotation_overlaps": 0,
+        "physical_wiring_matches": true,
+        "physical_wire_groups": {
+          "VIN": [
+            [
+              "R1.1",
+              "TP1.1"
+            ]
+          ],
+          "GND": [
+            [
+              "R2.2",
+              "TP3.1"
+            ]
+          ],
+          "VOUT": [
+            [
+              "R1.2",
+              "R2.1",
+              "TP2.1"
+            ]
+          ]
+        },
+        "layout": {
+          "symbols": [
+            {
+              "component": "R1",
+              "position": {
+                "x": 100.0,
+                "y": 135.0
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "R2",
+              "position": {
+                "x": 100.0,
+                "y": 105.0
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP1",
+              "position": {
+                "x": 100.0,
+                "y": 147.32
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP2",
+              "position": {
+                "x": 115.08,
+                "y": 120.0
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP3",
+              "position": {
+                "x": 100.0,
+                "y": 92.38
+              },
+              "rotation": 180.0,
+              "mirrored": false
+            }
+          ],
+          "texts": [
+            {
+              "position": {
+                "x": 84.0,
+                "y": 162.0
+              },
+              "text": "Voltage Divider: R1 = R2 = 10k, VOUT = VIN / 2"
+            },
+            {
+              "position": {
+                "x": 84.0,
+                "y": 156.0
+              },
+              "text": "TP1 = VIN, TP2 = VOUT, TP3 = GND"
+            }
+          ]
+        },
+        "layout_sha256": "193189d73ce2abe5cf9bae00d848d1b5884e8f8320f19742f9c0d6047a2f4143",
+        "visual_review": "readable, manually inspected; verbose title and redundant explanatory note"
+      },
+      "task_response_usage": {
+        "inputTokens": 37843,
+        "outputTokens": 13097,
+        "cachedReadTokens": 747648,
+        "cachedWriteTokens": 0,
+        "totalTokens": 798588
+      },
+      "tool_calls": 29,
+      "feedback_wall_s": 7.878884034999995,
+      "feedback_usage": {
+        "inputTokens": 49108,
+        "outputTokens": 602,
+        "cachedReadTokens": 0,
+        "cachedWriteTokens": 0,
+        "totalTokens": 49710
+      },
+      "tool_title_source_and_sibling_audit": "passed",
+      "source_snapshot_commit": "ab6d8f9ae2d692e55aaf95fc3e5a3bb502576292",
+      "embedded_build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "54293256d28c8110de0de69b289e938fe85a6ef8",
+        "tracked_source_state": "dirty"
+      }
+    },
+    {
+      "case": "polished/rc-filter-1",
+      "scenario": "rc-filter",
+      "task_wall_s": 98.16094089299999,
+      "task_error": null,
+      "wall_estimated_from_session": false,
+      "task_api_messages": 22,
+      "task_native_usage": {
+        "input_tokens": 29395,
+        "output_tokens": 10726,
+        "cache_read_input_tokens": 473472,
+        "cache_creation_input_tokens": 0
+      },
+      "task_models": [
+        "deepseek/deepseek-v4.1-flash-1017"
+      ],
+      "startup_s": 2.825383446,
+      "session_id": "54d3f204-3879-47b6-8766-9e8957dcb34f",
+      "prompt_sha256": "35b766bb1f8573174c1c68998855ad0120d7fb502cfcbaa7b4407c73c924f02b",
+      "checks": {
+        "scenario": "rc-filter",
+        "netlist_matches": true,
+        "expected_netlist": {
+          "IN": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "OUT": [
+            "C1.1",
+            "R1.2",
+            "TP2.1"
+          ],
+          "GND": [
+            "C1.2",
+            "TP3.1"
+          ]
+        },
+        "actual_netlist": {
+          "GND": [
+            "C1.2",
+            "TP3.1"
+          ],
+          "IN": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "OUT": [
+            "C1.1",
+            "R1.2",
+            "TP2.1"
+          ]
+        },
+        "component_values_match": true,
+        "component_count": 5,
+        "expected_component_count": 5,
+        "erc": {
+          "errors": 0,
+          "warnings": 0,
+          "hints": 0
+        },
+        "annotation_overlaps": 0,
+        "physical_wiring_matches": true,
+        "physical_wire_groups": {
+          "GND": [
+            [
+              "C1.2",
+              "TP3.1"
+            ]
+          ],
+          "IN": [
+            [
+              "R1.1",
+              "TP1.1"
+            ]
+          ],
+          "OUT": [
+            [
+              "C1.1",
+              "R1.2",
+              "TP2.1"
+            ]
+          ]
+        },
+        "layout": {
+          "symbols": [
+            {
+              "component": "C1",
+              "position": {
+                "x": 45.72,
+                "y": 35.56
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "R1",
+              "position": {
+                "x": 30.48,
+                "y": 50.8
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP1",
+              "position": {
+                "x": 10.16,
+                "y": 50.8
+              },
+              "rotation": 90.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP2",
+              "position": {
+                "x": 60.96,
+                "y": 50.8
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP3",
+              "position": {
+                "x": 45.72,
+                "y": 20.32
+              },
+              "rotation": 180.0,
+              "mirrored": false
+            }
+          ],
+          "texts": [
+            {
+              "position": {
+                "x": 10.16,
+                "y": 64.77
+              },
+              "text": "RC Low-Pass Filter"
+            }
+          ]
+        },
+        "layout_sha256": "29be6b3ef0cd9d1a6f6a368fcf3faa9a5dfaf4d1463b2d6571e0b94c6e1d4a1b",
+        "visual_review": "readable, manually inspected"
+      },
+      "task_response_usage": {
+        "inputTokens": 29395,
+        "outputTokens": 10726,
+        "cachedReadTokens": 473472,
+        "cachedWriteTokens": 0,
+        "totalTokens": 513593
+      },
+      "tool_calls": 21,
+      "feedback_wall_s": 8.696537120000007,
+      "feedback_usage": {
+        "inputTokens": 136,
+        "outputTokens": 411,
+        "cachedReadTokens": 38656,
+        "cachedWriteTokens": 0,
+        "totalTokens": 39203
+      },
+      "tool_title_source_and_sibling_audit": "passed",
+      "source_snapshot_commit": "ab6d8f9ae2d692e55aaf95fc3e5a3bb502576292",
+      "embedded_build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "54293256d28c8110de0de69b289e938fe85a6ef8",
+        "tracked_source_state": "dirty"
+      }
+    },
+    {
+      "case": "polished/rc-filter-2",
+      "scenario": "rc-filter",
+      "task_wall_s": 74.26238916800001,
+      "task_error": null,
+      "wall_estimated_from_session": false,
+      "task_api_messages": 23,
+      "task_native_usage": {
+        "input_tokens": 29206,
+        "output_tokens": 11801,
+        "cache_read_input_tokens": 494208,
+        "cache_creation_input_tokens": 0
+      },
+      "task_models": [
+        "deepseek/deepseek-v4.1-flash-1017"
+      ],
+      "startup_s": 2.555440146,
+      "session_id": "358d83b9-2219-4e84-ace4-5a1ac7443ef3",
+      "prompt_sha256": "35b766bb1f8573174c1c68998855ad0120d7fb502cfcbaa7b4407c73c924f02b",
+      "checks": {
+        "scenario": "rc-filter",
+        "netlist_matches": true,
+        "expected_netlist": {
+          "IN": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "OUT": [
+            "C1.1",
+            "R1.2",
+            "TP2.1"
+          ],
+          "GND": [
+            "C1.2",
+            "TP3.1"
+          ]
+        },
+        "actual_netlist": {
+          "GND": [
+            "C1.2",
+            "TP3.1"
+          ],
+          "IN": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "OUT": [
+            "C1.1",
+            "R1.2",
+            "TP2.1"
+          ]
+        },
+        "component_values_match": true,
+        "component_count": 5,
+        "expected_component_count": 5,
+        "erc": {
+          "errors": 0,
+          "warnings": 0,
+          "hints": 0
+        },
+        "annotation_overlaps": 0,
+        "physical_wiring_matches": true,
+        "physical_wire_groups": {
+          "OUT": [
+            [
+              "C1.1",
+              "R1.2",
+              "TP2.1"
+            ]
+          ],
+          "GND": [
+            [
+              "C1.2",
+              "TP3.1"
+            ]
+          ],
+          "IN": [
+            [
+              "R1.1",
+              "TP1.1"
+            ]
+          ]
+        },
+        "layout": {
+          "symbols": [
+            {
+              "component": "C1",
+              "position": {
+                "x": 45.72,
+                "y": 35.56
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "R1",
+              "position": {
+                "x": 30.48,
+                "y": 50.8
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP1",
+              "position": {
+                "x": 10.16,
+                "y": 50.8
+              },
+              "rotation": 90.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP2",
+              "position": {
+                "x": 60.96,
+                "y": 50.8
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP3",
+              "position": {
+                "x": 45.72,
+                "y": 20.32
+              },
+              "rotation": 180.0,
+              "mirrored": false
+            }
+          ],
+          "texts": [
+            {
+              "position": {
+                "x": 10.16,
+                "y": 66.04
+              },
+              "text": "RC low-pass filter"
+            }
+          ]
+        },
+        "layout_sha256": "0e1ec92038826df5df47dffe7d1622cbb5ac57fc5c788e84680917a7a61b3dda",
+        "visual_review": "readable, manually inspected"
+      },
+      "task_response_usage": {
+        "inputTokens": 29206,
+        "outputTokens": 11801,
+        "cachedReadTokens": 494208,
+        "cachedWriteTokens": 0,
+        "totalTokens": 535215
+      },
+      "tool_calls": 25,
+      "feedback_wall_s": 6.19750149200001,
+      "feedback_usage": {
+        "inputTokens": 162,
+        "outputTokens": 1142,
+        "cachedReadTokens": 38656,
+        "cachedWriteTokens": 0,
+        "totalTokens": 39960
+      },
+      "tool_title_source_and_sibling_audit": "passed",
+      "source_snapshot_commit": "ab6d8f9ae2d692e55aaf95fc3e5a3bb502576292",
+      "embedded_build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "54293256d28c8110de0de69b289e938fe85a6ef8",
+        "tracked_source_state": "dirty"
+      }
+    },
+    {
+      "case": "polished/dual-rc-1",
+      "scenario": "dual-rc",
+      "task_wall_s": 247.779675009,
+      "task_error": null,
+      "wall_estimated_from_session": false,
+      "task_api_messages": 35,
+      "task_native_usage": {
+        "input_tokens": 36039,
+        "output_tokens": 28281,
+        "cache_read_input_tokens": 1341952,
+        "cache_creation_input_tokens": 0
+      },
+      "task_models": [
+        "deepseek/deepseek-v4.1-flash-1017"
+      ],
+      "startup_s": 2.7361761619999996,
+      "session_id": "514ec0b3-c912-4473-81d3-dbbb84b187b0",
+      "prompt_sha256": "2c7f7ba8ccba071ae8e057e4269763b8bbe1952f13f16b56ace851615256605f",
+      "checks": {
+        "scenario": "dual-rc",
+        "netlist_matches": true,
+        "expected_netlist": {
+          "IN_A": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "OUT_A": [
+            "C1.1",
+            "R1.2",
+            "TP2.1"
+          ],
+          "IN_B": [
+            "R2.1",
+            "TP3.1"
+          ],
+          "OUT_B": [
+            "C2.1",
+            "R2.2",
+            "TP4.1"
+          ],
+          "GND": [
+            "C1.2",
+            "C2.2",
+            "TP5.1"
+          ]
+        },
+        "actual_netlist": {
+          "GND": [
+            "C1.2",
+            "C2.2",
+            "TP5.1"
+          ],
+          "IN_A": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "IN_B": [
+            "R2.1",
+            "TP3.1"
+          ],
+          "OUT_A": [
+            "C1.1",
+            "R1.2",
+            "TP2.1"
+          ],
+          "OUT_B": [
+            "C2.1",
+            "R2.2",
+            "TP4.1"
+          ]
+        },
+        "component_values_match": true,
+        "component_count": 9,
+        "expected_component_count": 9,
+        "erc": {
+          "errors": 0,
+          "warnings": 0,
+          "hints": 0
+        },
+        "annotation_overlaps": 0,
+        "physical_wiring_matches": true,
+        "physical_wire_groups": {
+          "GND": [
+            [
+              "C1.2",
+              "TP5.1"
+            ],
+            [
+              "C2.2"
+            ]
+          ],
+          "OUT_A": [
+            [
+              "C1.1",
+              "R1.2",
+              "TP2.1"
+            ]
+          ],
+          "IN_B": [
+            [
+              "R2.1",
+              "TP3.1"
+            ]
+          ],
+          "IN_A": [
+            [
+              "R1.1",
+              "TP1.1"
+            ]
+          ],
+          "OUT_B": [
+            [
+              "C2.1",
+              "R2.2",
+              "TP4.1"
+            ]
+          ]
+        },
+        "layout": {
+          "symbols": [
+            {
+              "component": "C1",
+              "position": {
+                "x": 38.1,
+                "y": 57.15
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "C2",
+              "position": {
+                "x": 38.1,
+                "y": 21.59
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "R1",
+              "position": {
+                "x": 30.48,
+                "y": 71.12
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "R2",
+              "position": {
+                "x": 30.48,
+                "y": 33.02
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP1",
+              "position": {
+                "x": 15.24,
+                "y": 71.12
+              },
+              "rotation": 90.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP2",
+              "position": {
+                "x": 48.26,
+                "y": 71.12
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP3",
+              "position": {
+                "x": 15.24,
+                "y": 33.02
+              },
+              "rotation": 90.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP4",
+              "position": {
+                "x": 48.26,
+                "y": 33.02
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP5",
+              "position": {
+                "x": 48.26,
+                "y": 49.53
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            }
+          ],
+          "texts": [
+            {
+              "position": {
+                "x": 12.7,
+                "y": 78.74
+              },
+              "text": "Channel A"
+            },
+            {
+              "position": {
+                "x": 12.7,
+                "y": 40.64
+              },
+              "text": "Channel B"
+            }
+          ]
+        },
+        "layout_sha256": "fea400eb952429b308b3aead99d2c21156ef3182b95e4dcc2a723c3941b1d8fc",
+        "visual_review": "readable, manually inspected"
+      },
+      "task_response_usage": {
+        "inputTokens": 36039,
+        "outputTokens": 28281,
+        "cachedReadTokens": 1341952,
+        "cachedWriteTokens": 0,
+        "totalTokens": 1406272
+      },
+      "tool_calls": 34,
+      "feedback_wall_s": 4.454110421999998,
+      "feedback_usage": {
+        "inputTokens": 149,
+        "outputTokens": 470,
+        "cachedReadTokens": 61824,
+        "cachedWriteTokens": 0,
+        "totalTokens": 62443
+      },
+      "tool_title_source_and_sibling_audit": "passed",
+      "source_snapshot_commit": "ab6d8f9ae2d692e55aaf95fc3e5a3bb502576292",
+      "embedded_build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "54293256d28c8110de0de69b289e938fe85a6ef8",
+        "tracked_source_state": "dirty"
+      }
+    },
+    {
+      "case": "polished/dual-rc-2",
+      "scenario": "dual-rc",
+      "task_wall_s": 178.853505284,
+      "task_error": null,
+      "wall_estimated_from_session": false,
+      "task_api_messages": 26,
+      "task_native_usage": {
+        "input_tokens": 54698,
+        "output_tokens": 21394,
+        "cache_read_input_tokens": 930432,
+        "cache_creation_input_tokens": 0
+      },
+      "task_models": [
+        "deepseek/deepseek-v4.1-flash-1017"
+      ],
+      "startup_s": 3.667050017,
+      "session_id": "3ae66c23-126f-4f0b-b7ab-4fee77966a4d",
+      "prompt_sha256": "2c7f7ba8ccba071ae8e057e4269763b8bbe1952f13f16b56ace851615256605f",
+      "checks": {
+        "scenario": "dual-rc",
+        "netlist_matches": true,
+        "expected_netlist": {
+          "IN_A": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "OUT_A": [
+            "C1.1",
+            "R1.2",
+            "TP2.1"
+          ],
+          "IN_B": [
+            "R2.1",
+            "TP3.1"
+          ],
+          "OUT_B": [
+            "C2.1",
+            "R2.2",
+            "TP4.1"
+          ],
+          "GND": [
+            "C1.2",
+            "C2.2",
+            "TP5.1"
+          ]
+        },
+        "actual_netlist": {
+          "GND": [
+            "C1.2",
+            "C2.2",
+            "TP5.1"
+          ],
+          "IN_A": [
+            "R1.1",
+            "TP1.1"
+          ],
+          "IN_B": [
+            "R2.1",
+            "TP3.1"
+          ],
+          "OUT_A": [
+            "C1.1",
+            "R1.2",
+            "TP2.1"
+          ],
+          "OUT_B": [
+            "C2.1",
+            "R2.2",
+            "TP4.1"
+          ]
+        },
+        "component_values_match": true,
+        "component_count": 9,
+        "expected_component_count": 9,
+        "erc": {
+          "errors": 0,
+          "warnings": 0,
+          "hints": 0
+        },
+        "annotation_overlaps": 0,
+        "physical_wiring_matches": true,
+        "physical_wire_groups": {
+          "GND": [
+            [
+              "C1.2",
+              "TP5.1"
+            ],
+            [
+              "C2.2"
+            ]
+          ],
+          "IN_B": [
+            [
+              "R2.1",
+              "TP3.1"
+            ]
+          ],
+          "OUT_A": [
+            [
+              "C1.1",
+              "R1.2",
+              "TP2.1"
+            ]
+          ],
+          "IN_A": [
+            [
+              "R1.1",
+              "TP1.1"
+            ]
+          ],
+          "OUT_B": [
+            [
+              "C2.1",
+              "R2.2",
+              "TP4.1"
+            ]
+          ]
+        },
+        "layout": {
+          "symbols": [
+            {
+              "component": "C1",
+              "position": {
+                "x": 135.9,
+                "y": 120.0
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "C2",
+              "position": {
+                "x": 135.9,
+                "y": 55.0
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "R1",
+              "position": {
+                "x": 125.7,
+                "y": 135.0
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "R2",
+              "position": {
+                "x": 125.7,
+                "y": 70.0
+              },
+              "rotation": 0.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP1",
+              "position": {
+                "x": 105.4,
+                "y": 135.0
+              },
+              "rotation": 90.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP2",
+              "position": {
+                "x": 146.0,
+                "y": 135.0
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP3",
+              "position": {
+                "x": 105.4,
+                "y": 70.0
+              },
+              "rotation": 90.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP4",
+              "position": {
+                "x": 146.0,
+                "y": 70.0
+              },
+              "rotation": 270.0,
+              "mirrored": false
+            },
+            {
+              "component": "TP5",
+              "position": {
+                "x": 135.9,
+                "y": 105.0
+              },
+              "rotation": 180.0,
+              "mirrored": false
+            }
+          ],
+          "texts": [
+            {
+              "position": {
+                "x": 100.0,
+                "y": 170.0
+              },
+              "text": "Dual RC Low-Pass Filter"
+            },
+            {
+              "position": {
+                "x": 100.0,
+                "y": 83.0
+              },
+              "text": "Channel B"
+            },
+            {
+              "position": {
+                "x": 100.0,
+                "y": 148.0
+              },
+              "text": "Channel A"
+            }
+          ]
+        },
+        "layout_sha256": "2d603d12c904b6e5734d3f7dd04556167897468143b02c89cdfcff31c49c4270",
+        "visual_review": "readable, manually inspected; generous inter-block spacing"
+      },
+      "task_response_usage": {
+        "inputTokens": 54698,
+        "outputTokens": 21394,
+        "cachedReadTokens": 930432,
+        "cachedWriteTokens": 0,
+        "totalTokens": 1006524
+      },
+      "tool_calls": 33,
+      "feedback_wall_s": 13.441204112000007,
+      "feedback_usage": {
+        "inputTokens": 1344,
+        "outputTokens": 1171,
+        "cachedReadTokens": 64128,
+        "cachedWriteTokens": 0,
+        "totalTokens": 66643
+      },
+      "tool_title_source_and_sibling_audit": "passed",
+      "source_snapshot_commit": "ab6d8f9ae2d692e55aaf95fc3e5a3bb502576292",
+      "embedded_build": {
+        "cargo_opt_level": "3",
+        "cargo_profile": "release",
+        "source_commit": "54293256d28c8110de0de69b289e938fe85a6ef8",
+        "tracked_source_state": "dirty"
+      }
+    }
+  ],
+  "final_seed_sha256": "d109414ff69e6e1e55ef92259e1a55faa0a8f12a5cb6ab4faa4543a30f0e62ef",
+  "intermediate_candidate": {
+    "profile": "release",
+    "binary": "/home/okhsunrog/tmp_zfs/codex_tmp/foilfern-schematic-trials/bin/foilfern-mcp-5429325",
+    "sha256": "4f6192e3a702ce375f71113a092577f2af79273c892356ce727acbc7da46f788",
+    "source_snapshot_commit": "54293256d28c8110de0de69b289e938fe85a6ef8",
+    "embedded_build": {
+      "cargo_opt_level": "3",
+      "cargo_profile": "release",
+      "source_commit": "54293256d28c8110de0de69b289e938fe85a6ef8",
+      "tracked_source_state": "clean"
+    }
+  }
+}
