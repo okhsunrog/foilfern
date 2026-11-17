@@ -630,3 +630,71 @@ fn test_tidy_preserves_complete_circuit_and_other_pages() {
     assert_eq!(editor.project().circuit(), &circuit);
     assert_eq!(editor.project().schematic(other), Some(&other_page));
 }
+
+/// Rails joining a row of parallel pins, their junctions and the group
+/// label stay on the page grid when the pins are on it.
+#[test]
+fn test_wire_group_rails_stay_on_the_page_grid() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut editor = create_editor(tmp.path());
+    editor
+        .execute(AddSchematic {
+            name: ElementName::new("Main").unwrap(),
+            index: None,
+        })
+        .unwrap();
+    let mut names = Vec::new();
+    for index in 0..4 {
+        let added = editor
+            .execute(AddComponent {
+                value: Some("100nF".into()),
+                device: Some(lib::c0805()),
+                place: Some(SymbolPlacement {
+                    schematic: None,
+                    position: mm(12.7 * f64::from(index), 0.0),
+                    rotation: Default::default(),
+                    mirrored: false,
+                    gate_offset: None,
+                }),
+                ..AddComponent::new(lib::capacitor())
+            })
+            .unwrap();
+        names.push(added.name);
+    }
+    let schematic = editor.project().schematics()[0].id();
+    for (net, pin) in [("VCC", "1"), ("GND", "2")] {
+        let pins: Vec<_> = names
+            .iter()
+            .map(|name| signal(editor.project(), name, pin))
+            .collect();
+        let net = editor
+            .execute(AssignNet(ConnectNet {
+                net: Some(CircuitIdentifier::new(net).unwrap()),
+                signals: pins.clone(),
+                max_wire_length: None,
+            }))
+            .unwrap()
+            .net
+            .unwrap();
+        editor
+            .execute(WireGroup {
+                schematic,
+                net,
+                pins,
+            })
+            .unwrap();
+    }
+    let sheet = &editor.project().schematics()[0];
+    let grid = sheet.grid_interval();
+    assert_eq!(sheet.net_segments().len(), 2);
+    for segment in sheet.net_segments().values() {
+        assert_eq!(segment.connected_pins().len(), 4);
+        assert!(segment.is_cohesive());
+        for junction in segment.junctions().values() {
+            assert!(junction.position().is_on_grid(grid), "{junction:?}");
+        }
+        for label in segment.labels().values() {
+            assert!(label.position().is_on_grid(grid), "{label:?}");
+        }
+    }
+}

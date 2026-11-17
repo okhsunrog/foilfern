@@ -252,12 +252,19 @@ fn move_label(
             Length::new(delta.x.to_nm().signum()),
             Length::new(delta.y.to_nm().signum()),
         );
-        for distance in 1..=64i64 {
-            let position = junction.position()
+        // Prefer label positions on the page grid, nearest first; half-grid
+        // positions remain a fallback.
+        let at = |distance: i64| {
+            junction.position()
                 + Point::new(
                     direction.x * distance * 1_270_000,
                     direction.y * distance * 1_270_000,
-                );
+                )
+        };
+        let mut distances: Vec<i64> = (1..=64).collect();
+        distances.sort_by_key(|distance| !at(*distance).is_on_grid(sheet.grid_interval()));
+        for distance in distances {
+            let position = at(distance);
             let moved = relative + convert::point(position).to_vec2();
             let label_clear = scene.scene()
                 .items_in_rect(moved.inflate(0.3, 0.3), SelectionMode::Intersects)

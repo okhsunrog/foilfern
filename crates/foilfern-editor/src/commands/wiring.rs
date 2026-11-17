@@ -103,6 +103,25 @@ fn manhattan(a: Point, b: Point) -> Length {
     (a.x - b.x).abs() + (a.y - b.y).abs()
 }
 
+/// The middle of an orthogonal line, moved along it to the nearest page grid
+/// position inside the line. Keeps the exact middle if no grid position lies
+/// on the line or the line is diagonal.
+fn grid_midpoint(a: Point, b: Point, grid: PositiveLength) -> Point {
+    let middle = Point::new((a.x + b.x) / 2, (a.y + b.y) / 2);
+    let snapped = if a.y == b.y {
+        Point::new(middle.x.mapped_to_grid(*grid), middle.y)
+    } else if a.x == b.x {
+        Point::new(middle.x, middle.y.mapped_to_grid(*grid))
+    } else {
+        return middle;
+    };
+    if point_on_segment(snapped, a, b) {
+        snapped
+    } else {
+        middle
+    }
+}
+
 /// Draws a stub wire from a pin and puts a net label at its end (its text
 /// runs back along the stub, like upstream's labels sit on their wire). The
 /// stub is as long as the label and leaves the pin straight or with a short
@@ -319,12 +338,19 @@ fn segments_cross(a: (Point, Point), b: (Point, Point)) -> bool {
 /// labels fit tighter gaps. Use the straight stub if no clear route exists.
 fn label_stub_route(p: &Project, pin: &PlacedPin, chars: usize) -> Result<(Vec<Point>, Point)> {
     let clearance = Clearance::new(p, pin.schematic)?;
+    let grid = p
+        .schematic(pin.schematic)
+        .ok_or_else(|| Error::not_found("Schematic", pin.schematic))?
+        .grid_interval();
     Ok(
-        checked_label_stub_route(&clearance, pin, chars).unwrap_or_else(|| {
+        checked_label_stub_route(&clearance, pin, chars, grid).unwrap_or_else(|| {
             let out = pin.stub_end();
-            let step = DEFAULT_STUB_LENGTH / 2;
-            let needed = (net_label_length(chars) + Length::new(1_000_000)).to_nm();
-            let length = step * ((needed + step.to_nm() - 1) / step.to_nm()).max(2);
+            // Whole grid steps, at least one default stub length.
+            let step = grid.get().to_nm();
+            let needed = (net_label_length(chars) + Length::new(1_000_000))
+                .to_nm()
+                .max(DEFAULT_STUB_LENGTH.to_nm());
+            let length = Length::new(step * ((needed + step - 1) / step));
             let direction = (
                 (out.x - pin.position.x).to_nm().signum(),
                 (out.y - pin.position.y).to_nm().signum(),
@@ -337,10 +363,27 @@ fn label_stub_route(p: &Project, pin: &PlacedPin, chars: usize) -> Result<(Vec<P
     )
 }
 
+/// Prefers routes whose corners and label anchor lie on the page grid, then
+/// falls back to the same search on the half grid for tight gaps.
 fn checked_label_stub_route(
     clearance: &Clearance,
     pin: &PlacedPin,
     chars: usize,
+    grid: PositiveLength,
+) -> Option<(Vec<Point>, Point)> {
+    let aligned =
+        |corners: &[Point], end: Point| corners.iter().chain([&end]).all(|p| p.is_on_grid(grid));
+    // A label run one half step longer reaches the grid after an odd jog.
+    label_stub_search(clearance, pin, chars, &aligned, &[0, 1])
+        .or_else(|| label_stub_search(clearance, pin, chars, &|_, _| true, &[0]))
+}
+
+fn label_stub_search(
+    clearance: &Clearance,
+    pin: &PlacedPin,
+    chars: usize,
+    accept: &dyn Fn(&[Point], Point) -> bool,
+    extra_units: &[i64],
 ) -> Option<(Vec<Point>, Point)> {
     let out = pin.stub_end();
     let direction = (
@@ -359,7 +402,7 @@ fn checked_label_stub_route(
     let perpendicular = (-dy, dx);
     for units in label_units..=label_units + 4 {
         let end = at(pin.position, direction, units);
-        if clearance.is_clear(&[pin.position, end], back, chars) {
+        if accept(&[], end) && clearance.is_clear(&[pin.position, end], back, chars) {
             return Some((Vec::new(), end));
         }
     }
@@ -370,16 +413,24 @@ fn checked_label_stub_route(
         );
         for jog in (1..=16).flat_map(|distance| [distance, -distance]) {
             let second = at(first, perpendicular, jog);
-            let end = at(second, direction, label_units);
-            if clearance.is_clear(&[pin.position, first, second, end], back, chars) {
-                return Some((vec![first, second], end));
+            for extra in extra_units {
+                let end = at(second, direction, label_units + extra);
+                if accept(&[first, second], end)
+                    && clearance.is_clear(&[pin.position, first, second, end], back, chars)
+                {
+                    return Some((vec![first, second], end));
+                }
             }
         }
         for side in [1, -1] {
-            let end = at(first, perpendicular, side * label_units);
-            let label_back = (-perpendicular.0 * side, -perpendicular.1 * side);
-            if clearance.is_clear(&[pin.position, first, end], label_back, chars) {
-                return Some((vec![first], end));
+            for extra in extra_units {
+                let end = at(first, perpendicular, side * (label_units + extra));
+                let label_back = (-perpendicular.0 * side, -perpendicular.1 * side);
+                if accept(&[first], end)
+                    && clearance.is_clear(&[pin.position, first, end], label_back, chars)
+                {
+                    return Some((vec![first], end));
+                }
             }
         }
     }
@@ -420,9 +471,12 @@ pub(crate) fn repair_label_stub(
         .name()
         .clone();
     let clearance = Clearance::excluding(project, schematic, Some(segment))?;
-    let Some((corners, end)) =
-        checked_label_stub_route(&clearance, &placed, name.as_str().chars().count())
-    else {
+    let Some((corners, end)) = checked_label_stub_route(
+        &clearance,
+        &placed,
+        name.as_str().chars().count(),
+        sheet.grid_interval(),
+    ) else {
         return Ok(false);
     };
     tx.apply(Mutation::Schematic(SchematicMutation::RemoveNetSegment(
@@ -839,10 +893,7 @@ impl ConnectNet {
                     .max_by_key(|(a, b)| manhattan(*a, *b));
                 match (longest, placed.first()) {
                     (Some((a, b)), _) if manhattan(a, b) >= Length::new(5_080_000) => {
-                        let middle = Point::new((a.x + b.x) / 2, (a.y + b.y) / 2).mapped_to_grid(
-                            PositiveLength::new(Length::new(1_270_000))
-                                .map_err(foilfern_core::project::Error::from)?,
-                        );
+                        let middle = grid_midpoint(a, b, s.grid_interval());
                         let rotation = if a.x == b.x {
                             Angle::DEG90
                         } else {
@@ -1009,7 +1060,11 @@ fn clean_route(
     }
     // Parallel pins need a rail beyond the annotation row. Keep the search
     // bounded and prefer channels in the starting pin's outward direction.
+    // Rails on the page grid come first; half-grid channels remain a
+    // fallback for tight gaps.
+    let grid = s.grid_interval();
     let outward = a.stub_end() - a.position;
+    let mut candidates = Vec::new();
     for step in 1..=8i64 {
         let offset = DEFAULT_STUB_LENGTH / 2 * step;
         let mut xs = [
@@ -1028,25 +1083,27 @@ fn clean_route(
         }
         let vertical = |x| vec![Point::new(x, a.position.y), Point::new(x, b.position.y)];
         let horizontal = |y| vec![Point::new(a.position.x, y), Point::new(b.position.x, y)];
-        let candidates = if a.is_horizontal() {
-            [
+        if a.is_horizontal() {
+            candidates.extend([
                 vertical(xs[0]),
                 vertical(xs[1]),
                 horizontal(ys[0]),
                 horizontal(ys[1]),
-            ]
+            ]);
         } else {
-            [
+            candidates.extend([
                 horizontal(ys[0]),
                 horizontal(ys[1]),
                 vertical(xs[0]),
                 vertical(xs[1]),
-            ]
-        };
-        for corners in candidates {
-            if corners[0] != corners[1] && clear(&corners) {
-                return Ok(Some(corners));
-            }
+            ]);
+        }
+    }
+    let on_grid = |corners: &Vec<Point>| corners.iter().all(|c| c.is_on_grid(grid));
+    let (aligned, half): (Vec<_>, Vec<_>) = candidates.into_iter().partition(on_grid);
+    for corners in aligned.into_iter().chain(half) {
+        if corners[0] != corners[1] && clear(&corners) {
+            return Ok(Some(corners));
         }
     }
     Ok(None)
@@ -1185,6 +1242,11 @@ impl Command for WireGroup {
             return Ok(());
         };
         let schematic = self.schematic;
+        let grid = tx
+            .project()
+            .schematic(schematic)
+            .ok_or_else(|| Error::not_found("Schematic", schematic))?
+            .grid_interval();
         let net_name = tx
             .project()
             .circuit()
@@ -1281,7 +1343,7 @@ impl Command for WireGroup {
         let label = unique
             .iter()
             .max_by_key(|&&(a, b)| manhattan(a, b))
-            .map(|&(a, b)| waypoint(Point::new((a.x + b.x) / 2, (a.y + b.y) / 2)));
+            .map(|&(a, b)| waypoint(grid_midpoint(a, b, grid)));
         let paths = unique
             .into_iter()
             .map(|(a, b)| vec![vertex(a), vertex(b)])

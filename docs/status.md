@@ -56,7 +56,10 @@ the next task merely because their last paragraph once said "next".
   `scripts/schematic-metrics.py` measures every page of one project or compares
   two. Against the saved remote trial it separates the tidied pages from the
   originals; the four accepted two-block trials differ by up to 59 % in wire
-  length and 2.2× in symbol fill despite identical acceptance.
+  length and 2.2× in symbol fill despite identical acceptance. Automatic group
+  rails, mid-wire labels and label stubs now try page-grid positions first and
+  keep half-grid positions only as a fallback for tight gaps; replayed trial
+  documents keep identical netlists with no off-grid anchors of their own.
 
 - **Small binary-only schematic workflows (2026-11-16, API 63):** automatic
   local wire groups can form three-pin branches, with native junctions and
