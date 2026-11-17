@@ -61,6 +61,11 @@ fn failed_library_model_validation_preserves_the_step_file_on_save() {
     );
     // Lexically minifiable, but not a valid geometric STEP model.
     let invalid = b"DATA;\n#1=FOO();\n#2=FOO();\nENDSEC;\n";
+    // Upstream data from the Nix store is read-only and copies keep the mode.
+    let mut permissions = std::fs::metadata(model.as_ref()).unwrap().permissions();
+    #[allow(clippy::permissions_set_readonly_false)]
+    permissions.set_readonly(false);
+    std::fs::set_permissions(model.as_ref(), permissions).unwrap();
     std::fs::write(model.as_ref(), invalid).unwrap();
     let output = run(&[
         "open-library",

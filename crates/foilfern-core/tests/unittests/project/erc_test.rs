@@ -175,6 +175,11 @@ fn copy_test_project(name: &str) -> (crate::helpers::TempDir, std::path::PathBuf
             std::fs::create_dir_all(&target).unwrap();
         } else {
             std::fs::copy(entry.path(), &target).unwrap();
+            // Upstream data from the Nix store is read-only; the copy is edited.
+            let mut permissions = std::fs::metadata(&target).unwrap().permissions();
+            #[allow(clippy::permissions_set_readonly_false)]
+            permissions.set_readonly(false);
+            std::fs::set_permissions(&target, permissions).unwrap();
         }
     }
     (tmp, dst)
