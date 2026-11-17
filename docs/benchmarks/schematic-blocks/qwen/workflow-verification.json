@@ -1,0 +1,81 @@
+[
+  {
+    "document": "doc1.json",
+    "block": {
+      "members": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "min": {
+        "x": 25.4,
+        "y": 40.64
+      },
+      "max": {
+        "x": 93.98,
+        "y": 60.96
+      },
+      "direction": "row",
+      "gap": 5.08,
+      "baseline": 50.8
+    },
+    "wire_groups": [
+      {
+        "net": "VCC",
+        "pins": 4,
+        "automatic": true
+      },
+      {
+        "net": "GND",
+        "pins": 4,
+        "automatic": true
+      }
+    ],
+    "replay_diff": []
+  },
+  {
+    "document": "doc2.json",
+    "block": {
+      "members": [
+        "r1",
+        "r2",
+        "r3"
+      ],
+      "min": {
+        "x": 119.38,
+        "y": 38.1
+      },
+      "max": {
+        "x": 172.72,
+        "y": 63.5
+      },
+      "direction": "row",
+      "gap": 7.62,
+      "baseline": 50.8
+    },
+    "wire_groups": [
+      {
+        "net": "VCC",
+        "pins": 3,
+        "automatic": true
+      },
+      {
+        "net": "SDA",
+        "pins": 1,
+        "automatic": false
+      },
+      {
+        "net": "SCL",
+        "pins": 1,
+        "automatic": false
+      },
+      {
+        "net": "IRQ",
+        "pins": 1,
+        "automatic": false
+      }
+    ],
+    "replay_diff": []
+  }
+]

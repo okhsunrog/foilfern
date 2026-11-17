@@ -1,0 +1,49 @@
+[
+  {
+    "document": "decoupling.json",
+    "block": {
+      "members": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "min": {
+        "x": 10,
+        "y": 40
+      },
+      "max": {
+        "x": 80,
+        "y": 65
+      },
+      "direction": "row",
+      "gap": 5.08,
+      "baseline": 50.8
+    },
+    "automatic_wire_groups": true,
+    "replay_diff": []
+  },
+  {
+    "document": "pullups.json",
+    "block": {
+      "members": [
+        "r1",
+        "r2",
+        "r3"
+      ],
+      "min": {
+        "x": 100,
+        "y": 35
+      },
+      "max": {
+        "x": 160,
+        "y": 65
+      },
+      "direction": "row",
+      "gap": 5.08,
+      "baseline": 50.8
+    },
+    "automatic_wire_groups": true,
+    "replay_diff": []
+  }
+]

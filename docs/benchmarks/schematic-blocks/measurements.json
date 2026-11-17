@@ -1,0 +1,753 @@
+{
+  "sol": {
+    "model": "gpt-6.1-sol",
+    "models_in_native_transcript": [
+      "gpt-6.1-sol"
+    ],
+    "phases": [
+      {
+        "phase": "task",
+        "wall_s": 171.33059551310726,
+        "session_wall_s": null,
+        "input_uncached": 60600,
+        "input_cached": 493440,
+        "input_cache_write": 0,
+        "output": 6175,
+        "total": 560215,
+        "stop_reason": "complete",
+        "counter_source": "Codex turn.completed cumulative delta"
+      },
+      {
+        "phase": "feedback",
+        "wall_s": 32.035514193121344,
+        "session_wall_s": null,
+        "input_uncached": 180,
+        "input_cached": 74368,
+        "input_cache_write": 0,
+        "output": 571,
+        "total": 75119,
+        "stop_reason": "complete",
+        "counter_source": "Codex turn.completed cumulative delta"
+      }
+    ],
+    "builtin_tool_calls": 20,
+    "builtin_event_types": {
+      "agent_message": 4,
+      "command_execution": 20
+    },
+    "binary_matches_fixture": true,
+    "fixture": {
+      "model": "gpt-6.1-sol",
+      "source_access": false,
+      "binary": {
+        "api_capability_version": 63,
+        "build": {
+          "cargo_opt_level": "3",
+          "cargo_profile": "release",
+          "source_commit": "9e89cad8e847e5814bf4f4abc77150b13c4259d9",
+          "tracked_source_state": "clean"
+        },
+        "file_format_version": "2",
+        "name": "foilfern-mcp",
+        "project": null,
+        "resources_dir": null,
+        "units": {
+          "angle": "deg",
+          "length": "mm"
+        },
+        "version": "0.1.0",
+        "workspace": null
+      },
+      "sha256": "131309b983f9af43d330e5a0affb162bdb0f76bbf8d389b06028a7848e946ec4",
+      "normalized_prompt_sha256": "2b60e6a6d62a24efa172676016a6ea9cc31cc76628fe0d73a2178bd6d9a021f1",
+      "catalog_tools": 101,
+      "cpu_affinity": [
+        0,
+        1
+      ],
+      "deadline_s": 600,
+      "max_model_turns": 40,
+      "scenario": "two_passive_banks",
+      "parts": {
+        "resistor": {
+          "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+          "name": "Resistor",
+          "pins": [
+            "1",
+            "2"
+          ],
+          "symbol_variant": "a5995314-f535-45d4-8bd8-2d0b8a0dc42a",
+          "device": "5ff4a2e5-3593-49ab-bdbe-f9b68015a3ed"
+        },
+        "capacitor": {
+          "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+          "name": "Capacitor Bipolar",
+          "pins": [
+            "1",
+            "2"
+          ],
+          "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+          "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08"
+        }
+      }
+    },
+    "acceptance": {
+      "exact_netlist": true,
+      "values": {
+        "C1": true,
+        "C2": true,
+        "C3": true,
+        "C4": true,
+        "R1": true,
+        "R2": true,
+        "R3": true
+      },
+      "component_count": 7,
+      "annotation_overlaps": 0,
+      "different_net_wire_overlaps": 0,
+      "supply_above": {
+        "C2": true,
+        "R1": true,
+        "R3": true,
+        "C4": true,
+        "C1": true,
+        "C3": true,
+        "R2": true
+      },
+      "local_rails": true,
+      "signal_labels": true,
+      "titles": [
+        "I2C / IRQ PULL-UPS",
+        "DECOUPLING BANK"
+      ],
+      "actual_values": {
+        "C1": "100nF",
+        "C2": "100nF",
+        "C3": "100nF",
+        "C4": "4.7uF",
+        "R1": "2.2k",
+        "R2": "2.2k",
+        "R3": "10k"
+      },
+      "accepted": true
+    }
+  },
+  "terra": {
+    "model": "gpt-6.1-terra",
+    "models_in_native_transcript": [
+      "gpt-6.1-terra"
+    ],
+    "phases": [
+      {
+        "phase": "task",
+        "wall_s": 129.94644355308264,
+        "session_wall_s": null,
+        "input_uncached": 40327,
+        "input_cached": 858368,
+        "input_cache_write": 0,
+        "output": 4342,
+        "total": 903037,
+        "stop_reason": "complete",
+        "counter_source": "Codex turn.completed cumulative delta"
+      },
+      {
+        "phase": "feedback",
+        "wall_s": 16.192622218979523,
+        "session_wall_s": null,
+        "input_uncached": 186,
+        "input_cached": 50432,
+        "input_cache_write": 0,
+        "output": 397,
+        "total": 51015,
+        "stop_reason": "complete",
+        "counter_source": "Codex turn.completed cumulative delta"
+      }
+    ],
+    "builtin_tool_calls": 20,
+    "builtin_event_types": {
+      "agent_message": 4,
+      "command_execution": 20
+    },
+    "binary_matches_fixture": true,
+    "fixture": {
+      "model": "gpt-6.1-terra",
+      "source_access": false,
+      "binary": {
+        "api_capability_version": 63,
+        "build": {
+          "cargo_opt_level": "3",
+          "cargo_profile": "release",
+          "source_commit": "9e89cad8e847e5814bf4f4abc77150b13c4259d9",
+          "tracked_source_state": "clean"
+        },
+        "file_format_version": "2",
+        "name": "foilfern-mcp",
+        "project": null,
+        "resources_dir": null,
+        "units": {
+          "angle": "deg",
+          "length": "mm"
+        },
+        "version": "0.1.0",
+        "workspace": null
+      },
+      "sha256": "131309b983f9af43d330e5a0affb162bdb0f76bbf8d389b06028a7848e946ec4",
+      "normalized_prompt_sha256": "2b60e6a6d62a24efa172676016a6ea9cc31cc76628fe0d73a2178bd6d9a021f1",
+      "catalog_tools": 101,
+      "cpu_affinity": [
+        0,
+        1
+      ],
+      "deadline_s": 600,
+      "max_model_turns": 40,
+      "scenario": "two_passive_banks",
+      "parts": {
+        "resistor": {
+          "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+          "name": "Resistor",
+          "pins": [
+            "1",
+            "2"
+          ],
+          "symbol_variant": "a5995314-f535-45d4-8bd8-2d0b8a0dc42a",
+          "device": "5ff4a2e5-3593-49ab-bdbe-f9b68015a3ed"
+        },
+        "capacitor": {
+          "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+          "name": "Capacitor Bipolar",
+          "pins": [
+            "1",
+            "2"
+          ],
+          "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+          "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08"
+        }
+      }
+    },
+    "acceptance": {
+      "exact_netlist": true,
+      "values": {
+        "C1": true,
+        "C2": true,
+        "C3": true,
+        "C4": true,
+        "R1": true,
+        "R2": true,
+        "R3": true
+      },
+      "component_count": 7,
+      "annotation_overlaps": 0,
+      "different_net_wire_overlaps": 0,
+      "supply_above": {
+        "R3": true,
+        "C4": true,
+        "R2": true,
+        "C1": true,
+        "C3": true,
+        "C2": true,
+        "R1": true
+      },
+      "local_rails": true,
+      "signal_labels": true,
+      "titles": [
+        "DECOUPLING BANK",
+        "I2C / IRQ PULL-UPS"
+      ],
+      "actual_values": {
+        "C1": "100nF",
+        "C2": "100nF",
+        "C3": "100nF",
+        "C4": "4.7uF",
+        "R1": "2.2k",
+        "R2": "2.2k",
+        "R3": "10k"
+      },
+      "accepted": true
+    }
+  },
+  "deepseek": {
+    "model": "deepseek/deepseek-v4.1-flash-1017",
+    "models_in_native_transcript": [
+      "deepseek/deepseek-v4.1-flash-1017"
+    ],
+    "phases": [
+      {
+        "phase": "task",
+        "wall_s": 99.19194713,
+        "session_wall_s": 107.92723973300001,
+        "input_uncached": 85620,
+        "input_cached": 467712,
+        "input_cache_write": 0,
+        "output": 14581,
+        "total": 567913,
+        "stop_reason": "end_turn",
+        "counter_source": "ACP quota.model_usage"
+      },
+      {
+        "phase": "feedback",
+        "wall_s": 11.157983978000004,
+        "session_wall_s": 119.085707173,
+        "input_uncached": 70,
+        "input_cached": 52480,
+        "input_cache_write": 0,
+        "output": 851,
+        "total": 53401,
+        "stop_reason": "end_turn",
+        "counter_source": "ACP quota.model_usage"
+      }
+    ],
+    "builtin_tool_calls": 24,
+    "builtin_event_types": {},
+    "binary_matches_fixture": true,
+    "fixture": {
+      "model": "deepseek/deepseek-v4.1-flash-1017",
+      "source_access": false,
+      "binary": {
+        "api_capability_version": 63,
+        "build": {
+          "cargo_opt_level": "3",
+          "cargo_profile": "release",
+          "source_commit": "9e89cad8e847e5814bf4f4abc77150b13c4259d9",
+          "tracked_source_state": "clean"
+        },
+        "file_format_version": "2",
+        "name": "foilfern-mcp",
+        "project": null,
+        "resources_dir": null,
+        "units": {
+          "angle": "deg",
+          "length": "mm"
+        },
+        "version": "0.1.0",
+        "workspace": null
+      },
+      "sha256": "131309b983f9af43d330e5a0affb162bdb0f76bbf8d389b06028a7848e946ec4",
+      "normalized_prompt_sha256": "2b60e6a6d62a24efa172676016a6ea9cc31cc76628fe0d73a2178bd6d9a021f1",
+      "catalog_tools": 101,
+      "cpu_affinity": [
+        0,
+        1
+      ],
+      "deadline_s": 600,
+      "max_model_turns": 40,
+      "scenario": "two_passive_banks",
+      "parts": {
+        "resistor": {
+          "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+          "name": "Resistor",
+          "pins": [
+            "1",
+            "2"
+          ],
+          "symbol_variant": "a5995314-f535-45d4-8bd8-2d0b8a0dc42a",
+          "device": "5ff4a2e5-3593-49ab-bdbe-f9b68015a3ed"
+        },
+        "capacitor": {
+          "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+          "name": "Capacitor Bipolar",
+          "pins": [
+            "1",
+            "2"
+          ],
+          "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+          "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08"
+        }
+      }
+    },
+    "acceptance": {
+      "exact_netlist": true,
+      "values": {
+        "C1": true,
+        "C2": true,
+        "C3": true,
+        "C4": true,
+        "R1": true,
+        "R2": true,
+        "R3": true
+      },
+      "component_count": 7,
+      "annotation_overlaps": 0,
+      "different_net_wire_overlaps": 0,
+      "supply_above": {
+        "R1": true,
+        "C2": true,
+        "C3": true,
+        "C4": true,
+        "R3": true,
+        "C1": true,
+        "R2": true
+      },
+      "local_rails": true,
+      "signal_labels": true,
+      "titles": [
+        "Decoupling bank",
+        "I2C / IRQ pull-up bank"
+      ],
+      "actual_values": {
+        "C1": "100nF",
+        "C2": "100nF",
+        "C3": "100nF",
+        "C4": "4.7uF",
+        "R1": "2.2k",
+        "R2": "2.2k",
+        "R3": "10k"
+      },
+      "accepted": true
+    }
+  },
+  "qwen": {
+    "model": "qwen/qwen4-max",
+    "models_in_native_transcript": [
+      "qwen/qwen4-max"
+    ],
+    "phases": [
+      {
+        "phase": "task",
+        "wall_s": 344.586673135,
+        "session_wall_s": 352.209871524,
+        "input_uncached": 65837,
+        "input_cached": 674304,
+        "input_cache_write": 53737,
+        "output": 14805,
+        "total": 808683,
+        "stop_reason": "end_turn",
+        "counter_source": "ACP quota.model_usage"
+      },
+      {
+        "phase": "feedback",
+        "wall_s": 23.27421047400002,
+        "session_wall_s": 375.484738968,
+        "input_uncached": 54271,
+        "input_cached": 0,
+        "input_cache_write": 0,
+        "output": 499,
+        "total": 54770,
+        "stop_reason": "end_turn",
+        "counter_source": "ACP quota.model_usage"
+      }
+    ],
+    "builtin_tool_calls": 31,
+    "builtin_event_types": {},
+    "binary_matches_fixture": true,
+    "fixture": {
+      "model": "qwen/qwen4-max",
+      "source_access": false,
+      "binary": {
+        "api_capability_version": 63,
+        "build": {
+          "cargo_opt_level": "3",
+          "cargo_profile": "release",
+          "source_commit": "9e89cad8e847e5814bf4f4abc77150b13c4259d9",
+          "tracked_source_state": "clean"
+        },
+        "file_format_version": "2",
+        "name": "foilfern-mcp",
+        "project": null,
+        "resources_dir": null,
+        "units": {
+          "angle": "deg",
+          "length": "mm"
+        },
+        "version": "0.1.0",
+        "workspace": null
+      },
+      "sha256": "131309b983f9af43d330e5a0affb162bdb0f76bbf8d389b06028a7848e946ec4",
+      "normalized_prompt_sha256": "2b60e6a6d62a24efa172676016a6ea9cc31cc76628fe0d73a2178bd6d9a021f1",
+      "catalog_tools": 101,
+      "cpu_affinity": [
+        0,
+        1
+      ],
+      "deadline_s": 600,
+      "max_model_turns": 40,
+      "scenario": "two_passive_banks",
+      "parts": {
+        "resistor": {
+          "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+          "name": "Resistor",
+          "pins": [
+            "1",
+            "2"
+          ],
+          "symbol_variant": "a5995314-f535-45d4-8bd8-2d0b8a0dc42a",
+          "device": "5ff4a2e5-3593-49ab-bdbe-f9b68015a3ed"
+        },
+        "capacitor": {
+          "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+          "name": "Capacitor Bipolar",
+          "pins": [
+            "1",
+            "2"
+          ],
+          "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+          "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08"
+        }
+      }
+    },
+    "acceptance": {
+      "exact_netlist": true,
+      "values": {
+        "C1": true,
+        "C2": true,
+        "C3": true,
+        "C4": true,
+        "R1": true,
+        "R2": true,
+        "R3": true
+      },
+      "component_count": 7,
+      "annotation_overlaps": 0,
+      "different_net_wire_overlaps": 0,
+      "supply_above": {
+        "C1": true,
+        "C3": true,
+        "C2": true,
+        "C4": true,
+        "R1": true,
+        "R2": true,
+        "R3": true
+      },
+      "local_rails": true,
+      "signal_labels": true,
+      "titles": [
+        "Decoupling bank",
+        "I2C / IRQ pull-ups"
+      ],
+      "actual_values": {
+        "C1": "100nF",
+        "C2": "100nF",
+        "C3": "100nF",
+        "C4": "4.7uF",
+        "R1": "2.2k",
+        "R2": "2.2k",
+        "R3": "10k"
+      },
+      "accepted": true
+    }
+  },
+  "earlier_runs": {
+    "deepseek": {
+      "model": "deepseek/deepseek-v4.1-flash-1017",
+      "models_in_native_transcript": [
+        "deepseek/deepseek-v4.1-flash-1017"
+      ],
+      "phases": [
+        {
+          "phase": "task",
+          "wall_s": 591.9480725699999,
+          "session_wall_s": null,
+          "input_uncached": 98780,
+          "input_cached": 631808,
+          "input_cache_write": 0,
+          "output": 21874,
+          "total": 752462,
+          "stop_reason": "cancelled",
+          "counter_source": "ACP quota.model_usage"
+        },
+        {
+          "phase": "feedback",
+          "wall_s": 11.168001505,
+          "session_wall_s": null,
+          "input_uncached": 62449,
+          "input_cached": 0,
+          "input_cache_write": 0,
+          "output": 929,
+          "total": 63378,
+          "stop_reason": "end_turn",
+          "counter_source": "ACP quota.model_usage"
+        }
+      ],
+      "builtin_tool_calls": 28,
+      "builtin_event_types": {},
+      "binary_matches_fixture": true,
+      "fixture": {
+        "model": "deepseek/deepseek-v4.1-flash-1017",
+        "source_access": false,
+        "binary": {
+          "api_capability_version": 63,
+          "build": {
+            "cargo_opt_level": "3",
+            "cargo_profile": "release",
+            "source_commit": "2c83e0ba36b2f42efe7dcd6b80ec12c952595c0f",
+            "tracked_source_state": "clean"
+          },
+          "file_format_version": "2",
+          "name": "foilfern-mcp",
+          "project": null,
+          "resources_dir": null,
+          "units": {
+            "angle": "deg",
+            "length": "mm"
+          },
+          "version": "0.1.0",
+          "workspace": null
+        },
+        "sha256": "4ddef47eb74c720fc736a0e5f573882dec4659fbfa4613250e755f68e7a951aa",
+        "normalized_prompt_sha256": "2b60e6a6d62a24efa172676016a6ea9cc31cc76628fe0d73a2178bd6d9a021f1",
+        "catalog_tools": 101,
+        "cpu_affinity": [
+          0,
+          1
+        ],
+        "deadline_s": 600,
+        "max_model_turns": 40,
+        "scenario": "two_passive_banks",
+        "parts": {
+          "resistor": {
+            "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+            "name": "Resistor",
+            "pins": [
+              "1",
+              "2"
+            ],
+            "symbol_variant": "a5995314-f535-45d4-8bd8-2d0b8a0dc42a",
+            "device": "5ff4a2e5-3593-49ab-bdbe-f9b68015a3ed"
+          },
+          "capacitor": {
+            "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+            "name": "Capacitor Bipolar",
+            "pins": [
+              "1",
+              "2"
+            ],
+            "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+            "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08"
+          }
+        }
+      }
+    },
+    "sol": {
+      "model": "gpt-6.1-sol",
+      "models_in_native_transcript": [
+        "gpt-6.1-sol"
+      ],
+      "phases": [
+        {
+          "phase": "task",
+          "wall_s": 212.0338079018984,
+          "session_wall_s": null,
+          "input_uncached": 73803,
+          "input_cached": 933632,
+          "input_cache_write": 0,
+          "output": 7258,
+          "total": 1014693,
+          "stop_reason": "complete",
+          "counter_source": "Codex turn.completed cumulative delta"
+        },
+        {
+          "phase": "feedback",
+          "wall_s": 22.46168054197915,
+          "session_wall_s": null,
+          "input_uncached": 1790,
+          "input_cached": 87680,
+          "input_cache_write": 0,
+          "output": 566,
+          "total": 90036,
+          "stop_reason": "complete",
+          "counter_source": "Codex turn.completed cumulative delta"
+        }
+      ],
+      "builtin_tool_calls": 17,
+      "builtin_event_types": {
+        "agent_message": 5,
+        "command_execution": 17
+      },
+      "binary_matches_fixture": true,
+      "fixture": {
+        "model": "gpt-6.1-sol",
+        "source_access": false,
+        "binary": {
+          "api_capability_version": 63,
+          "build": {
+            "cargo_opt_level": "3",
+            "cargo_profile": "release",
+            "source_commit": "2c83e0ba36b2f42efe7dcd6b80ec12c952595c0f",
+            "tracked_source_state": "clean"
+          },
+          "file_format_version": "2",
+          "name": "foilfern-mcp",
+          "project": null,
+          "resources_dir": null,
+          "units": {
+            "angle": "deg",
+            "length": "mm"
+          },
+          "version": "0.1.0",
+          "workspace": null
+        },
+        "sha256": "4ddef47eb74c720fc736a0e5f573882dec4659fbfa4613250e755f68e7a951aa",
+        "normalized_prompt_sha256": "2b60e6a6d62a24efa172676016a6ea9cc31cc76628fe0d73a2178bd6d9a021f1",
+        "catalog_tools": 101,
+        "cpu_affinity": [
+          0,
+          1
+        ],
+        "deadline_s": 600,
+        "max_model_turns": 40,
+        "scenario": "two_passive_banks",
+        "parts": {
+          "resistor": {
+            "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+            "name": "Resistor",
+            "pins": [
+              "1",
+              "2"
+            ],
+            "symbol_variant": "a5995314-f535-45d4-8bd8-2d0b8a0dc42a",
+            "device": "5ff4a2e5-3593-49ab-bdbe-f9b68015a3ed"
+          },
+          "capacitor": {
+            "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+            "name": "Capacitor Bipolar",
+            "pins": [
+              "1",
+              "2"
+            ],
+            "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+            "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08"
+          }
+        }
+      },
+      "acceptance": {
+        "exact_netlist": true,
+        "values": {
+          "C1": true,
+          "C2": true,
+          "C3": true,
+          "C4": true,
+          "R1": true,
+          "R2": true,
+          "R3": true
+        },
+        "component_count": 7,
+        "annotation_overlaps": 0,
+        "different_net_wire_overlaps": 0,
+        "supply_above": {
+          "C1": true,
+          "C4": true,
+          "R2": true,
+          "C3": true,
+          "R1": true,
+          "R3": true,
+          "C2": true
+        },
+        "local_rails": true,
+        "signal_labels": true,
+        "titles": [
+          "Decoupling bank",
+          "I2C / IRQ pull-ups"
+        ],
+        "actual_values": {
+          "C1": "100nF",
+          "C2": "100nF",
+          "C3": "100nF",
+          "C4": "4.7uF",
+          "R1": "2.2k",
+          "R2": "2.2k",
+          "R3": "10k"
+        },
+        "accepted": true
+      }
+    }
+  }
+}

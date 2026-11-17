@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "schematic": "Main",
+  "add_nets": [
+    "VCC",
+    "SDA",
+    "SCL",
+    "IRQ"
+  ],
+  "add_components": {
+    "R1": {
+      "designator": "R1",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "symbol_variant": "a5995314-f535-45d4-8bd8-2d0b8a0dc42a",
+      "device": "5ff4a2e5-3593-49ab-bdbe-f9b68015a3ed",
+      "value": "2.2k",
+      "rotation": 270,
+      "connections": {
+        "1": "VCC",
+        "2": "SDA"
+      },
+      "assign_only": false,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 3.81,
+            "y": 1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": 3.81,
+            "y": -1.65
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      }
+    },
+    "R2": {
+      "designator": "R2",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "symbol_variant": "a5995314-f535-45d4-8bd8-2d0b8a0dc42a",
+      "device": "5ff4a2e5-3593-49ab-bdbe-f9b68015a3ed",
+      "value": "2.2k",
+      "rotation": 270,
+      "connections": {
+        "1": "VCC",
+        "2": "SCL"
+      },
+      "assign_only": false,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 3.81,
+            "y": 1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": 3.81,
+            "y": -1.65
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      }
+    },
+    "R3": {
+      "designator": "R3",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "symbol_variant": "a5995314-f535-45d4-8bd8-2d0b8a0dc42a",
+      "device": "5ff4a2e5-3593-49ab-bdbe-f9b68015a3ed",
+      "value": "10k",
+      "rotation": 270,
+      "connections": {
+        "1": "VCC",
+        "2": "IRQ"
+      },
+      "assign_only": false,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 3.81,
+            "y": 1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": 3.81,
+            "y": -1.65
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      }
+    }
+  },
+  "block": {
+    "members": [
+      "R1",
+      "R2",
+      "R3"
+    ],
+    "min": {
+      "x": 10,
+      "y": 15
+    },
+    "max": {
+      "x": 100,
+      "y": 45
+    },
+    "direction": "row",
+    "gap": 5.08,
+    "baseline": 30.48
+  },
+  "wire_groups": [
+    {
+      "net": "VCC",
+      "pins": [
+        "R1.1",
+        "R2.1",
+        "R3.1"
+      ]
+    }
+  ],
+  "notes": [
+    {
+      "text": "I2C / IRQ PULL-UPS",
+      "position": {
+        "x": 10,
+        "y": 51
+      },
+      "height": 2.5
+    }
+  ]
+}

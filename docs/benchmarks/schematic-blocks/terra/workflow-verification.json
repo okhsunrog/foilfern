@@ -1,0 +1,49 @@
+[
+  {
+    "document": "bank1.json",
+    "block": {
+      "members": [
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "min": {
+        "x": 10,
+        "y": 60
+      },
+      "max": {
+        "x": 100,
+        "y": 85
+      },
+      "direction": "row",
+      "gap": 5.08,
+      "baseline": 72.39
+    },
+    "automatic_wire_groups": true,
+    "replay_diff": []
+  },
+  {
+    "document": "bank2.json",
+    "block": {
+      "members": [
+        "R1",
+        "R2",
+        "R3"
+      ],
+      "min": {
+        "x": 10,
+        "y": 15
+      },
+      "max": {
+        "x": 100,
+        "y": 45
+      },
+      "direction": "row",
+      "gap": 5.08,
+      "baseline": 30.48
+    },
+    "automatic_wire_groups": true,
+    "replay_diff": []
+  }
+]

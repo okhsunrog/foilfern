@@ -1,0 +1,136 @@
+[
+  {
+    "case": "release-before",
+    "timing": {
+      "wall_s": 0.6122054939623922,
+      "binary": "/home/okhsunrog/tmp_zfs/codex_tmp/foilfern-remote-schematic-acp/bin/foilfern-mcp",
+      "cpu_affinity": [
+        0,
+        1
+      ]
+    },
+    "netlist_equal": true,
+    "pages": [
+      {
+        "page_index": 0,
+        "connectivity_preserved": null,
+        "annotation_overlaps": null,
+        "shared_artwork_symbols": null
+      },
+      {
+        "page_index": 1,
+        "connectivity_preserved": null,
+        "annotation_overlaps": null,
+        "shared_artwork_symbols": null
+      },
+      {
+        "page_index": 2,
+        "connectivity_preserved": null,
+        "annotation_overlaps": null,
+        "shared_artwork_symbols": null
+      }
+    ]
+  },
+  {
+    "case": "final-release-1",
+    "timing": {
+      "wall_s": 0.8803060811478645,
+      "binary": "/home/okhsunrog/code/rust/foilfern/target/release/foilfern-mcp",
+      "cpu_affinity": [
+        0,
+        1
+      ]
+    },
+    "netlist_equal": true,
+    "pages": [
+      {
+        "page_index": 0,
+        "connectivity_preserved": true,
+        "annotation_overlaps": [],
+        "shared_artwork_symbols": [
+          "b8bdfdf6-d153-4761-b6ea-5e7b6e32fd55"
+        ]
+      },
+      {
+        "page_index": 1,
+        "connectivity_preserved": true,
+        "annotation_overlaps": [],
+        "shared_artwork_symbols": []
+      },
+      {
+        "page_index": 2,
+        "connectivity_preserved": true,
+        "annotation_overlaps": [],
+        "shared_artwork_symbols": []
+      }
+    ]
+  },
+  {
+    "case": "final-release-2",
+    "timing": {
+      "wall_s": 0.522570586996153,
+      "binary": "/home/okhsunrog/code/rust/foilfern/target/release/foilfern-mcp",
+      "cpu_affinity": [
+        0,
+        1
+      ]
+    },
+    "netlist_equal": true,
+    "pages": [
+      {
+        "page_index": 0,
+        "connectivity_preserved": true,
+        "annotation_overlaps": [],
+        "shared_artwork_symbols": [
+          "b8bdfdf6-d153-4761-b6ea-5e7b6e32fd55"
+        ]
+      },
+      {
+        "page_index": 1,
+        "connectivity_preserved": true,
+        "annotation_overlaps": [],
+        "shared_artwork_symbols": []
+      },
+      {
+        "page_index": 2,
+        "connectivity_preserved": true,
+        "annotation_overlaps": [],
+        "shared_artwork_symbols": []
+      }
+    ]
+  },
+  {
+    "case": "final-release-3",
+    "timing": {
+      "wall_s": 0.527427266119048,
+      "binary": "/home/okhsunrog/code/rust/foilfern/target/release/foilfern-mcp",
+      "cpu_affinity": [
+        0,
+        1
+      ]
+    },
+    "netlist_equal": true,
+    "pages": [
+      {
+        "page_index": 0,
+        "connectivity_preserved": true,
+        "annotation_overlaps": [],
+        "shared_artwork_symbols": [
+          "b8bdfdf6-d153-4761-b6ea-5e7b6e32fd55"
+        ]
+      },
+      {
+        "page_index": 1,
+        "connectivity_preserved": true,
+        "annotation_overlaps": [],
+        "shared_artwork_symbols": []
+      },
+      {
+        "page_index": 2,
+        "connectivity_preserved": true,
+        "annotation_overlaps": [],
+        "shared_artwork_symbols": []
+      }
+    ]
+  }
+]

@@ -1,0 +1,265 @@
+{
+  "version": 1,
+  "schematic": "Main",
+  "add_nets": [
+    "SDA",
+    "SCL",
+    "IRQ"
+  ],
+  "add_components": {
+    "r1": {
+      "designator": "R1",
+      "value": "2.2k",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "symbol_variant": "a5995314-f535-45d4-8bd8-2d0b8a0dc42a",
+      "device": "5ff4a2e5-3593-49ab-bdbe-f9b68015a3ed",
+      "rotation": 270,
+      "connections": {
+        "1": "VCC",
+        "2": "SDA"
+      },
+      "assign_only": true,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 3.81,
+            "y": 1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": 3.81,
+            "y": -1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      }
+    },
+    "r2": {
+      "designator": "R2",
+      "value": "2.2k",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "symbol_variant": "a5995314-f535-45d4-8bd8-2d0b8a0dc42a",
+      "device": "5ff4a2e5-3593-49ab-bdbe-f9b68015a3ed",
+      "rotation": 270,
+      "connections": {
+        "1": "VCC",
+        "2": "SCL"
+      },
+      "assign_only": true,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 3.81,
+            "y": 1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": 3.81,
+            "y": -1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      }
+    },
+    "r3": {
+      "designator": "R3",
+      "value": "10k",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "symbol_variant": "a5995314-f535-45d4-8bd8-2d0b8a0dc42a",
+      "device": "5ff4a2e5-3593-49ab-bdbe-f9b68015a3ed",
+      "rotation": 270,
+      "connections": {
+        "1": "VCC",
+        "2": "IRQ"
+      },
+      "assign_only": true,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 3.81,
+            "y": 1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": 3.81,
+            "y": -1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      }
+    }
+  },
+  "block": {
+    "members": [
+      "r1",
+      "r2",
+      "r3"
+    ],
+    "min": {
+      "x": 119.38,
+      "y": 38.1
+    },
+    "max": {
+      "x": 172.72,
+      "y": 63.5
+    },
+    "direction": "row",
+    "gap": 7.62,
+    "baseline": 50.8
+  },
+  "wire_groups": [
+    {
+      "net": "VCC",
+      "pins": [
+        "r1.1",
+        "r2.1",
+        "r3.1"
+      ]
+    },
+    {
+      "net": "SDA",
+      "pins": [
+        "r1.2"
+      ],
+      "paths": [
+        [
+          "r1.2",
+          {
+            "x": {
+              "pin": "r1.2",
+              "offset": 0
+            },
+            "y": {
+              "pin": "r1.2",
+              "offset": -2.54
+            }
+          },
+          {
+            "x": {
+              "pin": "r1.2",
+              "offset": 3.81
+            },
+            "y": {
+              "pin": "r1.2",
+              "offset": -2.54
+            }
+          }
+        ]
+      ],
+      "label": {
+        "x": {
+          "pin": "r1.2",
+          "offset": 3.81
+        },
+        "y": {
+          "pin": "r1.2",
+          "offset": -2.54
+        }
+      }
+    },
+    {
+      "net": "SCL",
+      "pins": [
+        "r2.2"
+      ],
+      "paths": [
+        [
+          "r2.2",
+          {
+            "x": {
+              "pin": "r2.2",
+              "offset": 0
+            },
+            "y": {
+              "pin": "r2.2",
+              "offset": -2.54
+            }
+          },
+          {
+            "x": {
+              "pin": "r2.2",
+              "offset": 3.81
+            },
+            "y": {
+              "pin": "r2.2",
+              "offset": -2.54
+            }
+          }
+        ]
+      ],
+      "label": {
+        "x": {
+          "pin": "r2.2",
+          "offset": 3.81
+        },
+        "y": {
+          "pin": "r2.2",
+          "offset": -2.54
+        }
+      }
+    },
+    {
+      "net": "IRQ",
+      "pins": [
+        "r3.2"
+      ],
+      "paths": [
+        [
+          "r3.2",
+          {
+            "x": {
+              "pin": "r3.2",
+              "offset": 0
+            },
+            "y": {
+              "pin": "r3.2",
+              "offset": -2.54
+            }
+          },
+          {
+            "x": {
+              "pin": "r3.2",
+              "offset": 3.81
+            },
+            "y": {
+              "pin": "r3.2",
+              "offset": -2.54
+            }
+          }
+        ]
+      ],
+      "label": {
+        "x": {
+          "pin": "r3.2",
+          "offset": 3.81
+        },
+        "y": {
+          "pin": "r3.2",
+          "offset": -2.54
+        }
+      }
+    }
+  ],
+  "notes": [
+    {
+      "text": "I2C / IRQ pull-ups",
+      "position": {
+        "x": 119.38,
+        "y": 66.04
+      },
+      "height": 3.0
+    }
+  ]
+}

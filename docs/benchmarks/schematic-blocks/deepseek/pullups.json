@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "schematic": "Main",
+  "add_nets": [
+    "SDA",
+    "SCL",
+    "IRQ"
+  ],
+  "add_components": {
+    "r1": {
+      "designator": "R1",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "symbol_variant": "a5995314-f535-45d4-8bd8-2d0b8a0dc42a",
+      "device": "5ff4a2e5-3593-49ab-bdbe-f9b68015a3ed",
+      "value": "2.2k",
+      "rotation": -90,
+      "connections": {
+        "1": "VCC",
+        "2": "SDA"
+      },
+      "assign_only": false,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 3.81,
+            "y": 1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": 3.81,
+            "y": -1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      }
+    },
+    "r2": {
+      "designator": "R2",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "symbol_variant": "a5995314-f535-45d4-8bd8-2d0b8a0dc42a",
+      "device": "5ff4a2e5-3593-49ab-bdbe-f9b68015a3ed",
+      "value": "2.2k",
+      "rotation": -90,
+      "connections": {
+        "1": "VCC",
+        "2": "SCL"
+      },
+      "assign_only": false,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 3.81,
+            "y": 1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": 3.81,
+            "y": -1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      }
+    },
+    "r3": {
+      "designator": "R3",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "symbol_variant": "a5995314-f535-45d4-8bd8-2d0b8a0dc42a",
+      "device": "5ff4a2e5-3593-49ab-bdbe-f9b68015a3ed",
+      "value": "10k",
+      "rotation": -90,
+      "connections": {
+        "1": "VCC",
+        "2": "IRQ"
+      },
+      "assign_only": false,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 3.81,
+            "y": 1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": 3.81,
+            "y": -1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      }
+    }
+  },
+  "block": {
+    "members": [
+      "r1",
+      "r2",
+      "r3"
+    ],
+    "min": {
+      "x": 20,
+      "y": 58
+    },
+    "max": {
+      "x": 150,
+      "y": 92
+    },
+    "direction": "row",
+    "gap": 16,
+    "baseline": 78
+  },
+  "wire_groups": [
+    {
+      "net": "VCC",
+      "pins": [
+        "r1.1",
+        "r2.1",
+        "r3.1"
+      ]
+    }
+  ],
+  "notes": [
+    {
+      "text": "I2C / IRQ pull-up bank",
+      "position": {
+        "x": 20,
+        "y": 96
+      },
+      "height": 2.5
+    }
+  ],
+  "review_components": [
+    "r1",
+    "r2",
+    "r3"
+  ],
+  "image_region": {
+    "min": {
+      "x": 10,
+      "y": 48
+    },
+    "max": {
+      "x": 180,
+      "y": 104
+    }
+  }
+}

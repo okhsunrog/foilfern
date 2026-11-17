@@ -1,0 +1,40 @@
+{
+  "exact_netlist": true,
+  "values": {
+    "C1": true,
+    "C2": true,
+    "C3": true,
+    "C4": true,
+    "R1": true,
+    "R2": true,
+    "R3": true
+  },
+  "component_count": 7,
+  "annotation_overlaps": 0,
+  "different_net_wire_overlaps": 0,
+  "supply_above": {
+    "R1": true,
+    "C2": true,
+    "C3": true,
+    "C4": true,
+    "R3": true,
+    "C1": true,
+    "R2": true
+  },
+  "local_rails": true,
+  "signal_labels": true,
+  "titles": [
+    "Decoupling bank",
+    "I2C / IRQ pull-up bank"
+  ],
+  "actual_values": {
+    "C1": "100nF",
+    "C2": "100nF",
+    "C3": "100nF",
+    "C4": "4.7uF",
+    "R1": "2.2k",
+    "R2": "2.2k",
+    "R3": "10k"
+  },
+  "accepted": true
+}

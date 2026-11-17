@@ -1,0 +1,199 @@
+{
+  "version": 1,
+  "schematic": "Main",
+  "add_nets": [
+    "VCC",
+    "GND"
+  ],
+  "add_components": {
+    "c1": {
+      "designator": "C1",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08",
+      "value": "100nF",
+      "rotation": 0,
+      "connections": {
+        "1": "VCC",
+        "2": "GND"
+      },
+      "assign_only": true,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 3.81,
+            "y": 1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": 3.81,
+            "y": -1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      }
+    },
+    "c2": {
+      "designator": "C2",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08",
+      "value": "100nF",
+      "rotation": 0,
+      "connections": {
+        "1": "VCC",
+        "2": "GND"
+      },
+      "assign_only": true,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 3.81,
+            "y": 1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": 3.81,
+            "y": -1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      }
+    },
+    "c3": {
+      "designator": "C3",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08",
+      "value": "100nF",
+      "rotation": 0,
+      "connections": {
+        "1": "VCC",
+        "2": "GND"
+      },
+      "assign_only": true,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 3.81,
+            "y": 1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": 3.81,
+            "y": -1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      }
+    },
+    "c4": {
+      "designator": "C4",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08",
+      "value": "4.7uF",
+      "rotation": 0,
+      "connections": {
+        "1": "VCC",
+        "2": "GND"
+      },
+      "assign_only": true,
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 3.81,
+            "y": 1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        },
+        "value": {
+          "offset": {
+            "x": 3.81,
+            "y": -1.27
+          },
+          "rotation": 0,
+          "height": 1.82
+        }
+      }
+    }
+  },
+  "block": {
+    "members": [
+      "c1",
+      "c2",
+      "c3",
+      "c4"
+    ],
+    "min": {
+      "x": 20,
+      "y": 118
+    },
+    "max": {
+      "x": 170,
+      "y": 152
+    },
+    "direction": "row",
+    "gap": 12,
+    "baseline": 135
+  },
+  "wire_groups": [
+    {
+      "net": "VCC",
+      "pins": [
+        "c1.1",
+        "c2.1",
+        "c3.1",
+        "c4.1"
+      ]
+    },
+    {
+      "net": "GND",
+      "pins": [
+        "c1.2",
+        "c2.2",
+        "c3.2",
+        "c4.2"
+      ]
+    }
+  ],
+  "notes": [
+    {
+      "text": "Decoupling bank",
+      "position": {
+        "x": 20,
+        "y": 156
+      },
+      "height": 2.5
+    }
+  ],
+  "review_components": [
+    "c1",
+    "c2",
+    "c3",
+    "c4"
+  ],
+  "image_region": {
+    "min": {
+      "x": 10,
+      "y": 108
+    },
+    "max": {
+      "x": 180,
+      "y": 165
+    }
+  }
+}
