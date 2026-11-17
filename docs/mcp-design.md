@@ -298,7 +298,9 @@ Omitting a field preserves its current value. When the current value equals
 identifies the managed field. Positions are in millimeters and rotations are in
 degrees.
 
-Use `block` to position selected components inside a rectangle on the sheet.
+Use `block` to position new or bound components inside a rectangle on the sheet.
+New members are addressed by `add_components` keys and omit initial `position`.
+Their initial rotation and fields are applied before packing.
 Specify `members` in visual order, `min` and `max` corners
 as `{x,y}` in millimeters, `direction` (`row` or `column`), and a minimum `gap`
 in millimeters. A row runs left to right, a column top to bottom. An optional
@@ -310,9 +312,10 @@ or left edge of the area.
 List only the members whose positions the document may change. Surrounding
 components, wires and annotations stay in place. Existing symbol fields and
 independent wire stubs move with their symbol. To move members joined by a
-shared wire, include an explicit wire group covering every pin of that
+shared wire, include a wire group covering every pin of that
 segment, including any fixed pins. Preview places the members and redraws
-those groups together. A bus tap or an unlisted pin on a replaced segment
+those groups together. Omit `paths` for automatic routing after the final
+placement. A bus tap or an unlisted pin on a replaced segment
 causes the preview to fail. Each member requires a single symbol on the
 selected sheet. `block_position` entries report the changed positions and
 the preview reviews annotation overlaps for the block.
@@ -322,7 +325,8 @@ net labels, page notes and schematic wires on the live sheet. Pass `components` 
 or component UUIDs to focus the review on their symbols and attached labels.
 Each finding identifies both annotations and the overlap rectangle as
 `[min_x,min_y,max_x,max_y]` in sheet millimeters. In `design_preview`,
-`review_components` takes document component keys and checks the proposed sheet.
+bound and new components are reviewed automatically. `review_components` adds
+document component keys to that review.
 `annotation_changes` reports `introduced`, `inherited` and `resolved`
 overlaps. Matching uses the two annotation identities regardless of their order
 or position. `annotation_overlaps` lists all findings in the proposed sheet.

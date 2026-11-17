@@ -25,6 +25,14 @@ the next task merely because their last paragraph once said "next".
 
 ## Implemented foundation
 
+- **Bounded group creation (2026-11-17, API 63):** `design_preview.block`
+  accepts new component keys together with initial rotations and fields.
+  Automatic wire groups are drawn after placement and can replace fully
+  managed existing segments during a move. Packing includes rendered field,
+  pin-legend and wire-label bounds. The embedded workflow and RC example use
+  this creation path. Creation, replay, scoped moves and rollback have native
+  integration coverage.
+
 - **Checked whole-page schematic repair (2026-11-17, API 63):**
   `schematic_tidy` normalizes ordinary fields, uses renderer bounds to repair
   annotation conflicts, and verifies that the complete circuit is preserved.

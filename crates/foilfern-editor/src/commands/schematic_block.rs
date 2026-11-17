@@ -6,6 +6,7 @@ use foilfern_core::project::{
     Mutation, NetSegmentId, NetSegmentRef, SchematicId, SchematicMutation, SymbolId,
 };
 use foilfern_core::types::{Length, Point, UnsignedLength};
+use foilfern_scene::{ColorScheme, SchematicObject, SchematicScene};
 
 use super::component::MoveSymbol;
 use super::placement::{
@@ -80,6 +81,27 @@ impl Command for PlaceSchematicBlock {
             ));
         }
 
+        let scene = SchematicScene::build(project, self.schematic, &ColorScheme::SCHEMATIC_LIGHT)?;
+        let mut rendered = Vec::new();
+        for (id, item) in scene.scene().items() {
+            if !scene
+                .scene()
+                .layer(item.layer)
+                .is_some_and(|layer| layer.visible)
+            {
+                continue;
+            }
+            if let Some(object) = scene.object(id) {
+                let bounds = item.bounding_box();
+                rendered.push((
+                    object,
+                    Rect {
+                        min: Point::new(Length::from_mm(bounds.x0)?, Length::from_mm(bounds.y0)?),
+                        max: Point::new(Length::from_mm(bounds.x1)?, Length::from_mm(bounds.y1)?),
+                    },
+                ));
+            }
+        }
         let mut members = Vec::new();
         let mut moving_segments = self.redrawn_segments.clone();
         for symbol in self.symbols {
@@ -93,6 +115,11 @@ impl Command for PlaceSchematicBlock {
                 )));
             }
             let mut bounds = placed_symbol_rect(project, self.schematic, symbol, true)?;
+            for (_, rect) in rendered.iter().filter(|(object, _)| {
+                matches!(object, SchematicObject::Symbol(owner) | SchematicObject::SymbolPin(owner, _) | SchematicObject::SymbolText(owner, _) if *owner == symbol)
+            }) {
+                bounds = Rect::bounding([bounds.min, bounds.max, rect.min, rect.max]).unwrap_or(bounds);
+            }
             let mut segments = Vec::new();
             for segment in sheet.net_segments().values() {
                 if self.redrawn_segments.contains(&segment.id()) {
@@ -114,6 +141,11 @@ impl Command for PlaceSchematicBlock {
                     bounds = Rect::bounding([bounds.min, bounds.max, rect.min, rect.max])
                         .unwrap_or(bounds);
                 }
+                for (_, rect) in rendered.iter().filter(|(object, _)| {
+                    matches!(object, SchematicObject::NetLine(owner, _) | SchematicObject::NetJunction(owner, _) | SchematicObject::NetLabel(owner, _) if *owner == segment.id())
+                }) {
+                    bounds = Rect::bounding([bounds.min, bounds.max, rect.min, rect.max]).unwrap_or(bounds);
+                }
                 segments.push(segment.id());
                 moving_segments.insert(segment.id());
             }
@@ -132,6 +164,26 @@ impl Command for PlaceSchematicBlock {
             false,
         )?;
         obstacles.extend(sheet_annotation_obstacles(project, sheet));
+        let mut frames = BTreeSet::new();
+        for id in sheet.symbols().keys() {
+            if is_frame(project, self.schematic, *id)? {
+                frames.insert(*id);
+            }
+        }
+        obstacles.extend(rendered.into_iter().filter_map(|(object, rect)| {
+            let excluded = match object {
+                SchematicObject::Symbol(owner)
+                | SchematicObject::SymbolPin(owner, _)
+                | SchematicObject::SymbolText(owner, _) => {
+                    selected.contains(&owner) || frames.contains(&owner)
+                }
+                SchematicObject::NetLine(owner, _)
+                | SchematicObject::NetJunction(owner, _)
+                | SchematicObject::NetLabel(owner, _) => moving_segments.contains(&owner),
+                _ => false,
+            };
+            (!excluded).then_some(rect)
+        }));
         let mut cursor = match self.direction {
             BlockDirection::Row => self.area.min.x,
             BlockDirection::Column => -self.area.max.y,

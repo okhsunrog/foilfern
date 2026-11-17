@@ -1092,6 +1092,19 @@ impl WireGroup {
     pub fn segments_to_replace(&self, p: &Project) -> Result<Option<BTreeSet<NetSegmentId>>> {
         Ok(self.resolve(p)?.map(|plan| plan.segments))
     }
+
+    /// Schematic segments wholly owned by this group,
+    /// including an already connected group which a block will reposition.
+    pub fn replaceable_segments(&self, p: &Project) -> Result<BTreeSet<NetSegmentId>> {
+        let plan = self.resolve_pins(p)?;
+        if plan.pins.len() < 2 {
+            return Err(Error::InvalidArgument(
+                "A wire group needs at least two pins.".into(),
+            ));
+        }
+        self.check_replacement(p, &plan)?;
+        Ok(plan.segments)
+    }
 }
 
 impl Command for WireGroup {

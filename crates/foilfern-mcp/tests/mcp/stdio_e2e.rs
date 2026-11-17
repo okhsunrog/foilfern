@@ -1772,7 +1772,10 @@ async fn stdio_design_led_board_with_official_libraries() {
         .peer_info()
         .and_then(|i| i.instructions.clone())
         .unwrap_or_default();
-    assert!(instructions.contains("component_add"), "{instructions}");
+    assert!(
+        instructions.contains("add_components, block and wire_groups"),
+        "{instructions}"
+    );
 
     let created = call_ok(
         &client,
@@ -2713,13 +2716,6 @@ async fn stdio_design_block_moves_only_selected_symbols_and_stubs() {
 
     let mut wire = document.clone();
     wire["wire_groups"] = json!([{"net":"EN","pins":["R3.2","R2.1"]}]);
-    assert!(
-        call(&client, "design_preview", wire.clone())
-            .await
-            .is_error
-            .unwrap_or(false)
-    );
-    wire.as_object_mut().unwrap().remove("block");
     let preview = call_ok(&client, "design_preview", wire).await;
     call_ok(
         &client,
@@ -5337,5 +5333,105 @@ async fn stdio_output_plans_match_numbered_files_and_do_not_write() {
     );
     assert!(!conflict_dir.exists());
     call_ok(&client, "project_save", json!({})).await;
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn stdio_design_creates_and_replays_an_automatically_wired_block() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    call_ok(
+        &client,
+        "project_create",
+        json!({"name":"New Block", "create_board":false}),
+    )
+    .await;
+    let device = call_ok(
+        &client,
+        "library_search",
+        json!({"query":"R-0805","kind":"device"}),
+    )
+    .await["elements"][0]["uuid"]
+        .clone();
+    let document = json!({
+        "version":1,"schematic":"Main","add_nets":["IN","MID","OUT"],
+        "add_components":{
+            "first":{"designator":"R1","device":device,"value":"1k","rotation":0,
+                "connections":{"1":"IN","2":"MID"}},
+            "second":{"designator":"R2","device":device,"value":"2k","rotation":0,
+                "connections":{"1":"MID","2":"OUT"}}
+        },
+        "block":{"members":["first","second"],"direction":"row","gap":10,
+            "min":{"x":20,"y":20},"max":{"x":180,"y":80},"baseline":50},
+        "wire_groups":[{"net":"MID","pins":["first.2","second.1"]}]
+    });
+    let empty = call_ok(&client, "project_summary", json!({})).await;
+    let mut wide = document.clone();
+    wide["block"]["gap"] = json!(1);
+    for key in ["first", "second"] {
+        wide["add_components"][key]["value"] = json!("WMWMWMWMWMWMWMWM");
+        wide["add_components"][key]["fields"] = json!({
+            "value":{"offset":{"x":0,"y":-6},"height":3,"rotation":0}
+        });
+    }
+    let wide_preview = call_ok(&client, "design_preview", wide).await;
+    assert_eq!(wide_preview["annotation_overlaps"], json!([]));
+    let mut invalid = document.clone();
+    invalid["block"]["max"]["x"] = json!(21);
+    assert_eq!(
+        call(&client, "design_preview", invalid).await.is_error,
+        Some(true)
+    );
+    assert_eq!(call_ok(&client, "project_summary", json!({})).await, empty);
+    let preview = call_ok(&client, "design_preview", document.clone()).await;
+    assert_eq!(preview["annotation_overlaps"], json!([]));
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":preview["preview"]}),
+    )
+    .await;
+    let netlist = call_ok(&client, "netlist", json!({})).await;
+    let sheet = call_ok(&client, "schematic_get", json!({})).await;
+    let connected: Vec<_> = sheet["net_segments"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|segment| segment["net"] == "MID")
+        .collect();
+    assert_eq!(connected.len(), 1);
+    assert!(
+        connected[0]["lines"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|line| line["from"].get("pin").is_some() && line["to"].get("pin").is_some())
+    );
+    let repeated = call_ok(&client, "design_preview", document.clone()).await;
+    assert_eq!(repeated["diff"], json!([]));
+    let noop = call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":repeated["preview"]}),
+    )
+    .await;
+    assert_eq!(noop["operation_count"], 0);
+    let mut moved = document.clone();
+    moved["block"]["min"]["y"] = json!(70);
+    moved["block"]["max"]["y"] = json!(130);
+    moved["block"]["baseline"] = json!(100);
+    let moved = call_ok(&client, "design_preview", moved).await;
+    assert_eq!(moved["annotation_overlaps"], json!([]));
+    call_ok(&client, "design_apply", json!({"preview":moved["preview"]})).await;
+    assert_eq!(call_ok(&client, "netlist", json!({})).await, netlist);
+    call_ok(&client, "undo", json!({})).await;
+    assert_eq!(call_ok(&client, "schematic_get", json!({})).await, sheet);
     client.cancel().await.unwrap();
 }

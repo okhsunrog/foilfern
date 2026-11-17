@@ -67,18 +67,17 @@ The local CLI exposes the same catalog with tools and guides with guide schemati
 Read librepcb://examples/esp32-c3-devboard for a complete schematic document.\n\
 Workflow: workspace_open/workspace_create -> library_install (e.g. [\"LibrePCB Base\"]) or \
 library_rescan -> library_search (find parts; multi-word queries like \"resistor 0805\" work) -> \
-project_create -> component_add (part = name or device/component UUID; placed automatically) -> \
-connect (net + pins, e.g. net \"VCC\", pins [\"J1.1\",\"R1.1\"]; supply symbols like GND/VCC \
-force their net name and unconnected ones of the same name are attached automatically) -> \
-design_preview -> design_apply (review local schematic layout) -> erc_run -> \
+project_create -> design_preview (one functional group with add_components, block and wire_groups) -> \
+design_apply -> schematic_review (each page) -> erc_run -> \
 board_set_outline (width/height mm) -> device_auto_place (or device_place) -> \
 routing_prepare, routing_compare or routing_staged_prepare -> routing_preview -> routing_apply \
 (reviewed builtin; autoroute is direct) -> \
 plane_add (net \"GND\", bottom) -> drc_run -> export_fabrication / jobs_run -> project_save.\n\
 With existing pours, use routing_staged_prepare with explicit ordinary nets to check each batch before keeping it.\n\
 For local device moves, use routing_placement_start for an allowed region, poll routing_placement_status, then review the checked patch.\n\
-For precise schematics, place and rotate components, use connect with assign_only:true, \
-then read pin coordinates with schematic_get. In design_preview use wire_groups with paths \
+Use block.members for bounded row/column placement of new or bound components; omit initial positions for new members. \
+Set rotation and fields at creation. Keep surrounding parts fixed. \
+For precise custom paths, read pin coordinates with schematic_get. In design_preview use wire_groups with paths \
 (pin names and {x,y} vertices in mm), label positions and notes. Branch endpoints on another \
 path become junctions. Omit paths to request automatic local wiring. Use schematic_tidy \
 for checked whole-page relayout and overlap repair with circuit assignments preserved.\n\
@@ -1497,7 +1496,7 @@ impl FoilfernMcp {
     // --- Declarative design updates ----------------------------------------------
 
     #[tool(
-        description = "Preview a version 1 design document for schematic edits, board placement or both. Board placement reports pose diffs, DRC, connectivity and saved requirements. Use board_layout.repair to propose local copper replacements and preview explicitly authorized branches with the placement. Schematic edits include nets, parts, fields, blocks and local wire paths, with ERC and automatic annotation review. Overlaps return partial with locations to repair before apply. Compose new parts and their fields together; use wire_groups with pins and omit paths for automatic local wiring. Pin references use document keys. See foilfern://guides/schematic-design."
+        description = "Preview a version 1 design document for schematic edits, board placement or both. Board placement reports pose diffs, DRC, connectivity and saved requirements. Use board_layout.repair to propose local copper replacements and preview explicitly authorized branches with the placement. Create functional groups with add_components, block.members and wire_groups. Blocks pack new or bound components inside an area, with automatic local wiring after placement. Schematic edits include nets, parts, fields, blocks and local wire paths, with ERC and automatic annotation review. Overlaps return partial with locations to repair before apply. Compose new parts and their fields together; use wire_groups with pins and omit paths for automatic local wiring. Pin references use document keys. See foilfern://guides/schematic-design."
     )]
     async fn design_preview(
         &self,

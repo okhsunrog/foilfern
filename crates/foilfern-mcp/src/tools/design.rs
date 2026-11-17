@@ -8,8 +8,8 @@ use foilfern_core::geometry::Text;
 use foilfern_core::library::dev::{Part, PartList};
 use foilfern_core::project::schematic::SchematicSymbol;
 use foilfern_core::project::{
-    ComponentInstanceId, ComponentSignalRef, LibraryElementKind, Mutation, NetSignalId, Project,
-    SchematicId, SchematicMutation, SymbolRef,
+    ComponentInstanceId, ComponentSignalRef, LibraryElementKind, Mutation, NetSegmentRef,
+    NetSignalId, Project, SchematicId, SchematicMutation, SymbolRef,
 };
 use foilfern_core::types::{
     Alignment, Angle, ElementName, Layer, Length, Point, PositiveLength, SimpleString, Uuid,
@@ -167,7 +167,7 @@ pub struct DesignDocument {
     review_components: Vec<String>,
     /// Find a position for one symbol field within a caller-supplied area.
     place_text: Option<text_placement::PlaceText>,
-    /// Bounded row/column placement of selected existing components.
+    /// Bounded row/column placement of bound or newly added components.
     block: Option<SchematicBlock>,
     /// Place components and establish board requirements in the same patch.
     board_layout: Option<board_layout::BoardLayout>,
@@ -176,7 +176,8 @@ pub struct DesignDocument {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct SchematicBlock {
-    /// Ordered component keys to move. Omitted components stay fixed.
+    /// Ordered bound or add_components keys. New members can specify initial
+    /// rotation and fields; omit their position to let the block place them.
     members: Vec<String>,
     /// Bottom-left and top-right corners in sheet coordinates.
     min: PointMm,
@@ -772,65 +773,6 @@ pub(crate) fn prepare(
             plan_symbol_move(key, symbol, managed, &mut diff, &mut edits)?;
         }
     }
-    let mut block_members = BTreeSet::new();
-    let mut block_designators = BTreeMap::new();
-    let mut block = if let Some(block) = &doc.block {
-        let mut symbols = Vec::new();
-        for member in &block.members {
-            let id = bindings.get(member.as_str()).ok_or_else(|| {
-                ToolError::invalid(format!(
-                    "Block member {member:?} must be an existing component key."
-                ))
-            })?;
-            if !block_members.insert(*id) {
-                return Err(ToolError::invalid(format!(
-                    "{member:?} appears more than once in the block."
-                )));
-            }
-            let spec = &doc.components[member];
-            if spec.position.is_some()
-                || spec.rotation.is_some()
-                || !spec.text_positions.is_empty()
-                || !spec.symbols.is_empty()
-            {
-                return Err(ToolError::invalid(format!(
-                    "{member:?} combines block placement with explicit symbol or text placement."
-                )));
-            }
-            let mut instances = schematic
-                .symbols()
-                .values()
-                .filter(|symbol| symbol.component() == *id);
-            let symbol = instances
-                .next()
-                .filter(|_| instances.next().is_none())
-                .ok_or_else(|| {
-                    ToolError::invalid(format!(
-                        "{member:?} must have exactly one symbol on this sheet."
-                    ))
-                })?;
-            symbols.push(symbol.id());
-            block_designators.insert(symbol.id(), resolve::designator(p, *id));
-            reviewed.insert(*id);
-        }
-        Some(PlaceSchematicBlock {
-            schematic: page,
-            symbols,
-            area: Rect {
-                min: block.min.to_point()?,
-                max: block.max.to_point()?,
-            },
-            direction: match block.direction {
-                LayoutDirection::Row => BlockDirection::Row,
-                LayoutDirection::Column => BlockDirection::Column,
-            },
-            gap: foilfern_core::types::UnsignedLength::new(units::length(block.gap)?)?,
-            baseline: block.baseline.map(units::length).transpose()?,
-            redrawn_segments: BTreeSet::new(),
-        })
-    } else {
-        None
-    };
     let (mut preview, before, project, (added, verified, topology, text_placement, placement)) = snapshot.prepare(
         |tx| -> ToolResult<_> {
             let mut added = Vec::new();
@@ -878,6 +820,71 @@ pub(crate) fn prepare(
                 &mut topology,
             )?;
             style_symbols(tx, &doc.symbol_styles, &mut added)?;
+
+            let mut block_members = BTreeSet::new();
+            let mut block_designators = BTreeMap::new();
+            let project = tx.project();
+            let sheet = project.schematic(page).ok_or_else(|| ToolError::not_found("Schematic not found."))?;
+            let mut block = if let Some(block) = &doc.block {
+                let mut symbols = Vec::new();
+                for member in &block.members {
+                    let id = bindings.get(member.as_str()).ok_or_else(|| {
+                        ToolError::invalid(format!(
+                            "Block member {member:?} must be a bound or new component key."
+                        ))
+                    })?;
+                    if !block_members.insert(*id) {
+                        return Err(ToolError::invalid(format!(
+                            "{member:?} appears more than once in the block."
+                        )));
+                    }
+                    if let Some(spec) = doc.components.get(member)
+                        && (spec.position.is_some()
+                        || spec.rotation.is_some()
+                        || !spec.text_positions.is_empty()
+                        || !spec.symbols.is_empty())
+                    {
+                        return Err(ToolError::invalid(format!(
+                            "{member:?} combines block placement with explicit symbol or text placement."
+                        )));
+                    }
+                    if doc.add_components.get(member).is_some_and(|spec| spec.position.is_some()) {
+                        return Err(ToolError::invalid(format!("Omit the initial position for block member {member:?}; the block places it.")));
+                    }
+                    let mut instances = sheet
+                        .symbols()
+                        .values()
+                        .filter(|symbol| symbol.component() == *id);
+                    let symbol = instances
+                        .next()
+                        .filter(|_| instances.next().is_none())
+                        .ok_or_else(|| {
+                            ToolError::invalid(format!(
+                                "{member:?} must have exactly one symbol on this sheet."
+                            ))
+                        })?;
+                    symbols.push(symbol.id());
+                    block_designators.insert(symbol.id(), resolve::designator(project, *id));
+                    reviewed.insert(*id);
+                }
+                Some(PlaceSchematicBlock {
+                    schematic: page,
+                    symbols,
+                    area: Rect {
+                        min: block.min.to_point()?,
+                        max: block.max.to_point()?,
+                    },
+                    direction: match block.direction {
+                        LayoutDirection::Row => BlockDirection::Row,
+                        LayoutDirection::Column => BlockDirection::Column,
+                    },
+                    gap: foilfern_core::types::UnsignedLength::new(units::length(block.gap)?)?,
+                    baseline: block.baseline.map(units::length).transpose()?,
+                    redrawn_segments: BTreeSet::new(),
+                })
+            } else {
+                None
+            };
             let p = tx.project();
             let mut verified = BTreeSet::new();
             for (name, pins) in &doc.nets {
@@ -895,11 +902,6 @@ pub(crate) fn prepare(
                 let (net, pins) =
                     resolve_memberships(p, &bindings, &group.net, names.iter().copied())?;
                 for (pin, name) in pins.iter().zip(&names) {
-                    if block_members.contains(&pin.component) && group.paths.is_none() {
-                        return Err(ToolError::invalid(format!(
-                            "{name} is a movable block member. Supply explicit paths to redraw its wires in this preview."
-                        )));
-                    }
                     if !grouped.insert(*pin) {
                         return Err(ToolError::invalid(format!(
                             "{name} appears more than once in wire groups."
@@ -907,6 +909,7 @@ pub(crate) fn prepare(
                     }
                 }
                 verified.extend(pins.iter().copied());
+                let redraw_with_block = pins.iter().any(|pin| block_members.contains(&pin.component));
                 let command = WireGroup {
                     schematic: page,
                     net,
@@ -953,22 +956,47 @@ pub(crate) fn prepare(
                     return Err(ToolError::invalid(
                         "A label position requires explicit wire paths.",
                     ));
-                } else if let Some(segments) = command.segments_to_replace(p)? {
-                    added.push(json!({
-                    "field":"wire_group","net":group.net,"pins":names,"replaced_segments":segments,
-                }));
-                    // Wire groups run after explicit placement of their endpoints.
-                    wire_edits.push(DesignEdit::WireGroup(command));
+                } else {
+                    let segments = if redraw_with_block {
+                        Some(command.replaceable_segments(p)?)
+                    } else {
+                        command.segments_to_replace(p)?
+                    };
+                    if let Some(segments) = segments {
+                        if redraw_with_block && let Some(block) = &mut block {
+                            block.redrawn_segments.extend(segments.iter().copied());
+                        }
+                        let change = json!({"field":"wire_group","net":group.net,"pins":names,"replaced_segments":segments});
+                        wire_edits.push((command, change, segments, redraw_with_block));
+                    }
                 }
             }
-            for edit in wire_edits {
-                edit.execute(tx)?;
-            }
+            let mut block_moved = false;
             if let Some(block) = block {
-                for (symbol, before, after) in tx.run(block)? {
+                let moves = tx.run(block)?;
+                block_moved = !moves.is_empty();
+                for (symbol, before, after) in moves {
                     added.push(json!({"field":"block_position","symbol":symbol,
                     "component":block_designators[&symbol],
                     "before":views::point(before),"after":views::point(after)}));
+                }
+            }
+            // Clear all managed old routes before routing from the final block
+            // positions. Their stretched geometry must not obstruct one another.
+            if block_moved {
+                let segments: BTreeSet<_> = wire_edits.iter()
+                    .filter(|(_, _, _, follows_block)| *follows_block)
+                    .flat_map(|(_, _, segments, _)| segments.iter().copied()).collect();
+                for segment in segments {
+                    tx.apply(Mutation::Schematic(SchematicMutation::RemoveNetSegment(NetSegmentRef {
+                        schematic: page, segment,
+                    })))?;
+                }
+            }
+            for (command, change, _, _) in wire_edits {
+                if command.segments_to_replace(tx.project())?.is_some() {
+                    tx.run(command)?;
+                    added.push(change);
                 }
             }
             if !explicit.is_empty() {

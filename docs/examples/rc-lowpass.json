@@ -11,10 +11,6 @@
       "designator": "TP1",
       "library_component": "e2659029-10eb-42f4-af23-41301bb12569",
       "value": "IN",
-      "position": {
-        "x": 10.16,
-        "y": 50.8
-      },
       "rotation": 90,
       "connections": {
         "1": "IN"
@@ -45,10 +41,6 @@
       "designator": "R1",
       "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
       "value": "1k",
-      "position": {
-        "x": 30.48,
-        "y": 50.8
-      },
       "rotation": 0,
       "connections": {
         "1": "IN",
@@ -80,10 +72,6 @@
       "designator": "TP2",
       "library_component": "e2659029-10eb-42f4-af23-41301bb12569",
       "value": "OUT",
-      "position": {
-        "x": 60.96,
-        "y": 50.8
-      },
       "rotation": 270,
       "connections": {
         "1": "OUT"
@@ -179,6 +167,24 @@
       "symbol_variant": "7b507447-3af6-4735-979d-7d88e3f0a292",
       "device": "1f2a25cf-bf64-4ad1-8704-bc2c02718916"
     }
+  },
+  "block": {
+    "members": [
+      "input",
+      "resistor",
+      "output"
+    ],
+    "min": {
+      "x": 5.08,
+      "y": 43.18
+    },
+    "max": {
+      "x": 110,
+      "y": 63.5
+    },
+    "direction": "row",
+    "gap": 7.62,
+    "baseline": 50.8
   },
   "wire_groups": [
     {

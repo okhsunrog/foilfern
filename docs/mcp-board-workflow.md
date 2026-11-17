@@ -27,6 +27,13 @@ matching a library name is not evidence that the part fits the circuit.
 
 ## Discover parts and build the schematic
 
+For new native schematics, read `foilfern://guides/schematic-design` and create
+functional groups with `design_preview`. Combine `add_components`, bounded
+`block.members` placement and local `wire_groups` in one document. Preview
+measures the fields, places the group and draws its local connections before
+returning the image and annotation findings. The `rc-lowpass` example shows
+this creation workflow.
+
 For a flat KiCad schematic, call `project_create` with
 `kicad_schematic` pointing to the `.kicad_sch` file. The new project uses
 the schematic's embedded symbols, placements, wires, labels, texts,
@@ -67,7 +74,9 @@ against the schematic and reports conversions that need review.
    Multiple gates of one component must stay on the same page in the current
    model. Use `symbol_move` with `gate` (suffix, index or UUID) to position
    an individual gate. `component_get` lists the actual placed gates and pins.
-5. Connect by electrical intent: `{"net":"VCC","pins":["J1.1","R1.1"]}`.
+5. In grouped documents, set component `connections` and local `wire_groups`.
+   For individual edits, connect by electrical intent with
+   `{"net":"VCC","pins":["J1.1","R1.1"]}`.
    Include `"assign_only":true` when you plan to draw explicit paths in step 6.
    A pin address uses a pad number or component signal name, not an assumed
    schematic pin number. Inspect the library mapping to resolve ambiguity.

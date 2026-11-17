@@ -28,7 +28,9 @@ Prefer one `design_preview` document containing `add_components`, `add_nets`,
 `wire_groups` and `notes` over separately adding every part, connecting every
 net and repairing every annotation. Use stable document keys throughout.
 
-- Give each new symbol an initial `position` and `rotation`. Arrange signal
+- Use `block` to pack an ordered row or column of new components into an area.
+  Omit their initial `position` and set their `rotation` and `fields` during
+  creation. Give fixed anchors an explicit position. Arrange signal
   flow left to right, supply above and ground below. Give separate functional
   blocks distinct areas and short titles. Keep local decoupling with its IC.
 - Set each component's `connections` and `assign_only:true`, then list its
@@ -56,6 +58,24 @@ covers bound and new components. A preview with overlaps returns `partial`
 and includes their locations and changes from the live sheet. Field edits and
 local placement can be included in the same document. Preserve manual work by
 limiting the managed components and wires.
+
+## Place functional groups
+
+Create one local group per `design_preview` document. `block.members` accepts
+keys from `add_components` and bound existing `components`. Set `min`, `max`,
+`direction`, `gap` and optionally `baseline` to define its area and alignment.
+Foilfern measures symbol fields and existing independent wire stubs when packing
+members. Keep the anchor IC and unrelated parts outside `members` when arranging
+a nearby capacitor bank or pull-up row.
+
+Include local `wire_groups` with `pins` and omit `paths`. The block is placed
+first, then these connections are drawn from the final pin positions. Existing
+wires can be replaced when every pin on their segments belongs to the declared
+wire group. Replaying the same document preserves the resulting layout.
+
+Use separate bounded groups for the MCU support circuitry, power stages, clock
+circuits and interfaces. Inspect each group before adding the next one. The
+`rc-lowpass` example uses a new-component block with automatic branch wiring.
 
 ## Check, inspect and save
 
