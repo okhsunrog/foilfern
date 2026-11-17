@@ -510,7 +510,7 @@ fn schematic_review_identifies_overlapping_imported_pin_names() {
     assert_eq!(metrics["defects"]["symbol_overlaps"], json!([]));
     assert!(metrics["content"]["width_mm"].as_f64().unwrap() > 0.0);
     assert!(metrics["symbol_fill"].as_f64().unwrap() > 0.0);
-    for key in ["junctions", "labels", "symbols"] {
+    for key in ["junctions", "labels", "pins", "symbols"] {
         assert!(metrics["off_grid"][key].is_u64(), "{metrics}");
     }
     assert!(!session.project().unwrap().has_unsaved_changes());

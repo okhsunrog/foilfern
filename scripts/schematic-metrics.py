@@ -72,8 +72,8 @@ def value(metrics, path):
         if metrics is None:
             return None
         metrics = metrics.get(key)
-    if isinstance(metrics, dict):  # off_grid
-        return sum(metrics.values())
+    if isinstance(metrics, dict):  # off_grid: anchors placed by the layout
+        return sum(v for k, v in metrics.items() if k != "pins")
     return metrics
 
 

@@ -106,6 +106,7 @@ fn test_metrics_report_misleading_geometry() {
     assert_eq!(m.defects(), 3);
     assert_eq!(m.off_grid.junctions, 1);
     assert_eq!(m.off_grid.symbols, 0);
+    assert_eq!(m.off_grid.pins, 0);
     // The resistors have no nets, the free wires have no pins.
     assert_eq!(m.nets.unwired_pins, 0);
     assert_eq!(m.nets.pin_span_mm, 0.0);

@@ -337,8 +337,8 @@ or position. `annotation_overlaps` lists all findings in the proposed sheet.
 `longest_mm`, `bends` at two-line junctions, proper `crossings` between
 segments, `diagonal`), `nets` (`nets`, `segments`, `labels`, `split_nets` drawn
 as several segments, `pin_span_mm` as the summed half perimeter of each net's
-pins on the page, `unwired_pins`) and `off_grid` symbol origins, junctions and
-labels. `defects` lists `symbol_overlaps`, `different_net_wire_overlaps`
+pins on the page, `unwired_pins`) and `off_grid` symbol origins, pins,
+junctions and labels. `defects` lists `symbol_overlaps`, `different_net_wire_overlaps`
 (collinear stretches longer than 0.1 mm) and `foreign_wire_contacts` (a wire end
 on the interior of another net's wire). `defect_count` counts them and
 `readability_issues` adds the annotation overlaps. Defects make the outcome

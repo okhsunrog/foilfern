@@ -316,6 +316,7 @@ fn metrics_json(
         },
         "off_grid": {
             "symbols": metrics.off_grid.symbols,
+            "pins": metrics.off_grid.pins,
             "junctions": metrics.off_grid.junctions,
             "labels": metrics.off_grid.labels,
         },

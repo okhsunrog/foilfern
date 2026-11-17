@@ -101,6 +101,8 @@ pub struct SchematicMetrics {
 pub struct OffGrid {
     /// Symbol origins.
     pub symbols: usize,
+    /// Symbol pins; wires attached to them cannot stay on the grid.
+    pub pins: usize,
     /// Net segment junctions.
     pub junctions: usize,
     /// Net label anchors.
@@ -180,7 +182,7 @@ pub fn schematic_metrics(project: &Project, scene: &SchematicScene) -> Result<Sc
         symbol_overlaps,
         wires: wire_metrics(schematic, &lines),
         nets: net_metrics(project, schematic)?,
-        off_grid: off_grid(schematic),
+        off_grid: off_grid(project, schematic)?,
     })
 }
 
@@ -403,7 +405,7 @@ fn net_metrics(project: &Project, schematic: &Schematic) -> Result<NetMetrics> {
     })
 }
 
-fn off_grid(schematic: &Schematic) -> OffGrid {
+fn off_grid(project: &Project, schematic: &Schematic) -> Result<OffGrid> {
     let grid = schematic.grid_interval().get().to_nm();
     let off = |p: Point| p.x.to_nm() % grid != 0 || p.y.to_nm() % grid != 0;
     let mut result = OffGrid {
@@ -414,6 +416,13 @@ fn off_grid(schematic: &Schematic) -> OffGrid {
             .count(),
         ..OffGrid::default()
     };
+    for symbol in schematic.symbols().values() {
+        result.pins += symbol
+            .pins(project.view())?
+            .iter()
+            .filter(|pin| off(pin.position()))
+            .count();
+    }
     for segment in schematic.net_segments().values() {
         result.junctions += segment
             .junctions()
@@ -426,5 +435,5 @@ fn off_grid(schematic: &Schematic) -> OffGrid {
             .filter(|l| off(l.position()))
             .count();
     }
-    result
+    Ok(result)
 }
