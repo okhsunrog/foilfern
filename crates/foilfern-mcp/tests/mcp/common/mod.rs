@@ -20,6 +20,12 @@ pub fn copy_dir(src: &Path, dst: &Path) {
             copy_dir(&entry.path(), &target);
         } else {
             std::fs::copy(entry.path(), &target).unwrap();
+            // Copies keep the source mode; upstream data from the Nix store
+            // is read-only, but tests edit their copies.
+            let mut permissions = std::fs::metadata(&target).unwrap().permissions();
+            #[allow(clippy::permissions_set_readonly_false)]
+            permissions.set_readonly(false);
+            std::fs::set_permissions(&target, permissions).unwrap();
         }
     }
 }
