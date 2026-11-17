@@ -3851,12 +3851,17 @@ async fn stdio_design_add_component_replays_library_and_keeps_identity() {
     )
     .await;
     assert_eq!(reviewed["diff"], json!([]));
-    let live = call_ok(
+    let live = call(
         &client,
         "schematic_review",
         json!({"schematic":"Main","components":["C7"]}),
     )
     .await;
+    assert_ne!(live.is_error, Some(true));
+    let envelope = live.structured_content.unwrap();
+    assert_eq!(envelope["outcome"], "partial");
+    assert_eq!(envelope["result"]["next_action"]["tool"], "schematic_tidy");
+    let live = &envelope["result"];
     assert_eq!(live["annotation_overlaps"], reviewed["annotation_overlaps"]);
     assert_eq!(reviewed["annotation_changes"]["introduced"], json!([]));
     assert_eq!(reviewed["annotation_changes"]["resolved"], json!([]));

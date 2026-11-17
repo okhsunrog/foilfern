@@ -19,6 +19,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// Building the visible geometry for schematic layout failed.
+    #[error(transparent)]
+    Scene(#[from] foilfern_scene::Error),
     /// A mutation of the project model failed (boxed: large).
     #[error(transparent)]
     Project(Box<project::Error>),

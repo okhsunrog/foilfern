@@ -25,6 +25,16 @@ the next task merely because their last paragraph once said "next".
 
 ## Implemented foundation
 
+- **Checked whole-page schematic repair (2026-11-17, API 63):**
+  `schematic_tidy` normalizes ordinary fields, uses renderer bounds to repair
+  annotation conflicts, and verifies that the complete circuit is preserved.
+  Redrawing is scoped to the selected sheet. Unresolved conflicts roll back
+  placement, wiring and embedded artwork together. `schematic_review` provides
+  a repair action for overlapping annotations. The saved remote trial can be
+  relaid out with zero reported annotation overlaps on all three pages and an
+  identical netlist. Functional grouping and electrical correctness require
+  separate acceptance in the follow-up model trials.
+
 - **Small binary-only schematic workflows (2026-11-16, API 63):** automatic
   local wire groups can form three-pin branches, with native junctions and
   separate obstacles for symbol bodies and text. CLI `tools` exposes the

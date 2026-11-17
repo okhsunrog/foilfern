@@ -115,12 +115,22 @@ fn stub_with_label(
     net: &CircuitIdentifier,
 ) -> Result<()> {
     let (corners, end) = label_stub_route(tx.project(), pin, net.as_str().chars().count())?;
+    draw_labeled_stub(tx, pin, net, &corners, end)
+}
+
+fn draw_labeled_stub(
+    tx: &mut Transaction<'_>,
+    pin: &PlacedPin,
+    net: &CircuitIdentifier,
+    corners: &[Point],
+    end: Point,
+) -> Result<()> {
     let wire = draw_wire(
         tx,
         Some(pin.schematic),
         &pin.anchor(),
         &WireAnchor::Point(end),
-        &corners,
+        corners,
         Some(net),
     )?;
     let before_end = corners.last().copied().unwrap_or(pin.position);
@@ -187,6 +197,14 @@ struct Clearance {
 
 impl Clearance {
     fn new(p: &Project, schematic: SchematicId) -> Result<Self> {
+        Self::excluding(p, schematic, None)
+    }
+
+    fn excluding(
+        p: &Project,
+        schematic: SchematicId,
+        excluded: Option<NetSegmentId>,
+    ) -> Result<Self> {
         let s = p
             .schematic(schematic)
             .ok_or_else(|| Error::not_found("Schematic", schematic))?;
@@ -216,6 +234,9 @@ impl Clearance {
         );
         let mut lines = Vec::new();
         for (id, segment) in s.net_segments() {
+            if Some(*id) == excluded {
+                continue;
+            }
             points.extend(segment.junctions().values().map(|j| j.position()));
             for line in segment.lines().values() {
                 let ends =
@@ -294,10 +315,33 @@ fn segments_cross(a: (Point, Point), b: (Point, Point)) -> bool {
 /// Returns the corner points and the end of a stub wire with a net label
 /// for `pin` (see [`stub_with_label()`]): the first clear variant of a
 /// straight stub (long enough to hold the label), or a stub with
-/// a jog of up to 7.62 mm to either side. Shorter departures and side-facing
+/// a jog of up to 20.32 mm to either side. Shorter departures and side-facing
 /// labels fit tighter gaps. Use the straight stub if no clear route exists.
 fn label_stub_route(p: &Project, pin: &PlacedPin, chars: usize) -> Result<(Vec<Point>, Point)> {
     let clearance = Clearance::new(p, pin.schematic)?;
+    Ok(
+        checked_label_stub_route(&clearance, pin, chars).unwrap_or_else(|| {
+            let out = pin.stub_end();
+            let step = DEFAULT_STUB_LENGTH / 2;
+            let needed = (net_label_length(chars) + Length::new(1_000_000)).to_nm();
+            let length = step * ((needed + step.to_nm() - 1) / step.to_nm()).max(2);
+            let direction = (
+                (out.x - pin.position.x).to_nm().signum(),
+                (out.y - pin.position.y).to_nm().signum(),
+            );
+            (
+                Vec::new(),
+                pin.position + Point::new(length * direction.0, length * direction.1),
+            )
+        }),
+    )
+}
+
+fn checked_label_stub_route(
+    clearance: &Clearance,
+    pin: &PlacedPin,
+    chars: usize,
+) -> Option<(Vec<Point>, Point)> {
     let out = pin.stub_end();
     let direction = (
         (out.x - pin.position.x).to_nm().signum(),
@@ -313,34 +357,79 @@ fn label_stub_route(p: &Project, pin: &PlacedPin, chars: usize) -> Result<(Vec<P
         Point::new(from.x + g * x * n, from.y + g * y * n)
     };
     let perpendicular = (-dy, dx);
-    let fallback = at(pin.position, direction, label_units);
     for units in label_units..=label_units + 4 {
         let end = at(pin.position, direction, units);
         if clearance.is_clear(&[pin.position, end], back, chars) {
-            return Ok((Vec::new(), end));
+            return Some((Vec::new(), end));
         }
     }
-    for departure in [g * 2, g, g * 3, g * 4, g / 2] {
+    for departure in [g * 2, g, g * 3, g * 4, g / 2, g / 4] {
         let first = Point::new(
             pin.position.x + departure * dx,
             pin.position.y + departure * dy,
         );
-        for jog in [2, -2, 1, -1, 3, -3, 4, -4, 5, -5, 6, -6] {
+        for jog in (1..=16).flat_map(|distance| [distance, -distance]) {
             let second = at(first, perpendicular, jog);
             let end = at(second, direction, label_units);
             if clearance.is_clear(&[pin.position, first, second, end], back, chars) {
-                return Ok((vec![first, second], end));
+                return Some((vec![first, second], end));
             }
         }
         for side in [1, -1] {
             let end = at(first, perpendicular, side * label_units);
             let label_back = (-perpendicular.0 * side, -perpendicular.1 * side);
             if clearance.is_clear(&[pin.position, first, end], label_back, chars) {
-                return Ok((vec![first], end));
+                return Some((vec![first], end));
             }
         }
     }
-    Ok((Vec::new(), fallback))
+    None
+}
+
+/// Redraw a single-pin label stub without touching its circuit assignment.
+pub(crate) fn repair_label_stub(
+    tx: &mut Transaction<'_>,
+    schematic: SchematicId,
+    segment: NetSegmentId,
+) -> Result<bool> {
+    let project = tx.project();
+    let sheet = project
+        .schematic(schematic)
+        .ok_or_else(|| Error::not_found("Schematic", schematic))?;
+    let existing = &sheet.net_segments()[&segment];
+    let pins: Vec<_> = existing.connected_pins().into_iter().collect();
+    let [(symbol, pin)] = pins.as_slice() else {
+        return Ok(false);
+    };
+    let view = sheet.symbols()[symbol]
+        .pins(project.view())?
+        .into_iter()
+        .find(|view| view.uuid() == *pin)
+        .ok_or_else(|| Error::not_found("Pin", pin))?;
+    let placed = PlacedPin {
+        schematic,
+        symbol: *symbol,
+        pin: *pin,
+        position: view.position(),
+        rotation: view.rotation(),
+    };
+    let name = project
+        .circuit()
+        .net_signal(existing.net())
+        .ok_or_else(|| Error::not_found("Net", existing.net()))?
+        .name()
+        .clone();
+    let clearance = Clearance::excluding(project, schematic, Some(segment))?;
+    let Some((corners, end)) =
+        checked_label_stub_route(&clearance, &placed, name.as_str().chars().count())
+    else {
+        return Ok(false);
+    };
+    tx.apply(Mutation::Schematic(SchematicMutation::RemoveNetSegment(
+        NetSegmentRef { schematic, segment },
+    )))?;
+    draw_labeled_stub(tx, &placed, &name, &corners, end)?;
+    Ok(true)
 }
 
 /// Connects component signals to one net (created if needed, other nets
@@ -397,7 +486,7 @@ impl Command for ConnectNet {
     }
 
     fn execute(self, tx: &mut Transaction<'_>) -> Result<ConnectedNet> {
-        self.execute_with_geometry(tx, true)
+        self.execute_with_geometry(tx, true, None)
     }
 }
 
@@ -412,12 +501,25 @@ impl Command for AssignNet {
     }
 
     fn execute(self, tx: &mut Transaction<'_>) -> Result<ConnectedNet> {
-        self.0.execute_with_geometry(tx, false)
+        self.0.execute_with_geometry(tx, false, None)
     }
 }
 
 impl ConnectNet {
-    fn execute_with_geometry(self, tx: &mut Transaction<'_>, draw: bool) -> Result<ConnectedNet> {
+    pub(crate) fn redraw(
+        self,
+        tx: &mut Transaction<'_>,
+        schematic: SchematicId,
+    ) -> Result<ConnectedNet> {
+        self.execute_with_geometry(tx, true, Some(schematic))
+    }
+
+    fn execute_with_geometry(
+        self,
+        tx: &mut Transaction<'_>,
+        draw: bool,
+        only_page: Option<SchematicId>,
+    ) -> Result<ConnectedNet> {
         if self.signals.is_empty() {
             return Err(Error::InvalidArgument("No pins to connect.".to_owned()));
         }
@@ -522,8 +624,11 @@ impl ConnectNet {
             .filter_map(|id| {
                 let (signal, name) = supply_signal(p, *id)?;
                 let unconnected = current_net(p, &signal).is_none();
-                (name == net_name && unconnected && !signals.contains(&signal))
-                    .then(|| (resolve::component_name(p, *id), signal))
+                (only_page.is_none()
+                    && name == net_name
+                    && unconnected
+                    && !signals.contains(&signal))
+                .then(|| (resolve::component_name(p, *id), signal))
             })
             .collect();
         supplies.sort_by(|a, b| a.0.cmp(&b.0));
@@ -547,7 +652,16 @@ impl ConnectNet {
         // Placed pins per schematic.
         let mut pages: BTreeMap<SchematicId, Vec<PlacedPin>> = BTreeMap::new();
         for s in &signals {
-            let pins = placed_pins(tx.project(), *s)?;
+            let pins: Vec<_> = placed_pins(tx.project(), *s)?
+                .into_iter()
+                .filter(|pin| only_page.is_none_or(|page| pin.schematic == page))
+                .collect();
+            if only_page.is_some() && !pins.is_empty() {
+                for pin in pins {
+                    pages.entry(pin.schematic).or_default().push(pin);
+                }
+                continue;
+            }
             match pins.first() {
                 Some(pin) => pages.entry(pin.schematic).or_default().push(*pin),
                 None => {
@@ -674,6 +788,9 @@ impl ConnectNet {
         let segments = resolve::schematic_segments_of_net(tx.project(), target);
         if segments.len() > 1 {
             for (schematic, segment) in segments {
+                if only_page.is_some_and(|page| page != schematic) {
+                    continue;
+                }
                 let p = tx.project();
                 let Some(seg) = p
                     .schematic(schematic)
@@ -753,7 +870,9 @@ impl ConnectNet {
                 result.labels += 1;
             }
         }
-        remove_unused_nets(tx)?;
+        if only_page.is_none() {
+            remove_unused_nets(tx)?;
+        }
         result.net = Some(target);
         result.name = net_name.to_string();
         Ok(result)

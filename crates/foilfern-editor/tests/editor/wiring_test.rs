@@ -581,3 +581,52 @@ fn test_automatic_wire_group_joins_a_three_pin_branch() {
     editor.redo().unwrap();
     assert_eq!(editor.project().schematics()[0].net_segments().len(), 1);
 }
+
+#[test]
+fn test_tidy_preserves_complete_circuit_and_other_pages() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut editor = create_editor(tmp.path());
+    build_rc(&mut editor);
+    editor
+        .execute(AddNet {
+            name: Some(CircuitIdentifier::new("UNUSED").unwrap()),
+            net_class: None,
+        })
+        .unwrap();
+    let other = editor
+        .execute(AddSchematic {
+            name: ElementName::new("Other").unwrap(),
+            index: None,
+        })
+        .unwrap();
+    editor
+        .execute(AddComponent {
+            place: Some(SymbolPlacement {
+                schematic: Some(other),
+                position: mm(20.0, 20.0),
+                rotation: Default::default(),
+                mirrored: false,
+                gate_offset: None,
+            }),
+            ..AddComponent::new(lib::supply_gnd())
+        })
+        .unwrap();
+    let circuit = editor.project().circuit().clone();
+    let other_page = editor.project().schematic(other).unwrap().clone();
+    editor.execute(TidySchematic::default()).unwrap();
+    assert_eq!(editor.project().circuit(), &circuit);
+    assert_eq!(editor.project().schematic(other), Some(&other_page));
+    let page = editor.project().schematics()[0].id();
+    let scene = foilfern_scene::SchematicScene::build(
+        editor.project(),
+        page,
+        &foilfern_scene::ColorScheme::SCHEMATIC_LIGHT,
+    )
+    .unwrap();
+    assert!(foilfern_scene::annotation_overlaps(&scene, None).is_empty());
+    editor.undo().unwrap();
+    assert_eq!(editor.project().circuit(), &circuit);
+    editor.redo().unwrap();
+    assert_eq!(editor.project().circuit(), &circuit);
+    assert_eq!(editor.project().schematic(other), Some(&other_page));
+}

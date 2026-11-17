@@ -500,7 +500,34 @@ fn schematic_review_identifies_overlapping_imported_pin_names() {
     assert_eq!(finding["first"]["symbol"], finding["second"]["symbol"]);
     assert_ne!(finding["first"]["pin_uuid"], finding["second"]["pin_uuid"]);
     assert_eq!(finding["bounds_mm"].as_array().unwrap().len(), 4);
+    assert_eq!(review.envelope()["outcome"], "partial");
+    assert_eq!(review.result["next_action"]["tool"], "schematic_tidy");
+    assert_eq!(review.result["next_action"]["connectivity_preserved"], true);
     assert!(!session.project().unwrap().has_unsaved_changes());
+    // Imported legends may have fixed external appearance overrides. A failed
+    // layout repair must restore its field, artwork and placement mutations.
+    use foilfern_core::serialization::{List, SerializeObject};
+    let before = session.project().unwrap().project();
+    let revision = before.revision();
+    let circuit = before.circuit().clone();
+    let sheets = before.schematics().to_vec();
+    let mut before_artwork = List::new("symbols");
+    for symbol in before.library().symbols().values() {
+        symbol.serialize(&mut before_artwork);
+    }
+    let error =
+        foilfern_mcp::tools::schematic_edit::schematic_tidy(&mut session, Default::default())
+            .unwrap_err();
+    assert!(error.to_string().contains("rolled back"));
+    let after = session.project().unwrap().project();
+    assert_eq!(after.circuit(), &circuit);
+    assert_eq!(after.schematics(), sheets);
+    let mut after_artwork = List::new("symbols");
+    for symbol in after.library().symbols().values() {
+        symbol.serialize(&mut after_artwork);
+    }
+    assert_eq!(after_artwork, before_artwork);
+    assert_eq!(after.revision(), revision);
 }
 
 #[test]

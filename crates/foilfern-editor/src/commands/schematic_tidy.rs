@@ -17,17 +17,23 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use foilfern_core::project::{
     ComponentSignalRef, Mutation, NetSegmentRef, NetSignalId, SchematicId, SchematicMutation,
-    SymbolId,
+    SymbolId, SymbolRef,
 };
-use foilfern_core::types::{Length, Point, UnsignedLength};
+use foilfern_core::types::{
+    Alignment, Angle, HAlign, Layer, Length, Point, UnsignedLength, Uuid, VAlign,
+};
 use foilfern_i18n::tr;
 
 use super::component::MoveSymbol;
-use super::placement::{AutoPlaceSymbols, Rect, SCHEMATIC_AREA, is_frame, symbol_room_rect};
+use super::placement::{
+    AutoPlaceSymbols, Rect, SCHEMATIC_AREA, is_frame, placed_symbol_rect, symbol_room_rect,
+};
 use super::resolve;
 use super::wiring::{ConnectNet, supply_signal};
 use crate::editor::{Command, Transaction};
 use crate::error::{Error, Result};
+
+mod readability;
 
 /// Placement grid of the symbols.
 const GRID: Length = Length::new(2_540_000);
@@ -61,6 +67,8 @@ pub struct TidiedSchematic {
     pub wires: usize,
     /// Number of net labels.
     pub labels: usize,
+    /// Embedded symbols whose shared pin-name artwork was adjusted.
+    pub artwork_symbols: Vec<Uuid>,
     /// Hints from drawing the nets.
     pub warnings: Vec<String>,
 }
@@ -81,8 +89,10 @@ impl Command for TidySchematic {
     }
 
     fn execute(self, tx: &mut Transaction<'_>) -> Result<TidiedSchematic> {
+        let schematic = resolve::schematic(tx.project(), self.schematic)?.id();
+        let circuit = tx.project().circuit().clone();
+        arrange_fields(tx, schematic)?;
         let p = tx.project();
-        let schematic = resolve::schematic(p, self.schematic)?.id();
         let s = p
             .schematic(schematic)
             .ok_or_else(|| Error::not_found("Schematic", schematic))?;
@@ -197,15 +207,34 @@ impl Command for TidySchematic {
                 continue;
             };
             let signals: Vec<ComponentSignalRef> = nets[&net].iter().copied().collect();
-            let drawn = tx.run(ConnectNet {
+            let global = signals.len() > 4;
+            let drawn = ConnectNet {
                 net: Some(name),
                 signals,
-                max_wire_length,
-            })?;
+                max_wire_length: if global {
+                    UnsignedLength::new(Length::ZERO).ok()
+                } else {
+                    max_wire_length
+                },
+            }
+            .redraw(tx, schematic)?;
             result.nets += 1;
             result.wires += drawn.wires;
             result.labels += drawn.labels;
             result.warnings.extend(drawn.warnings);
+        }
+        result.artwork_symbols = readability::polish(tx, schematic)?;
+        if !result.artwork_symbols.is_empty() {
+            result.warnings.push(format!(
+                "Adjusted pin-name artwork of {} embedded symbol(s), shared by all their project instances.",
+                result.artwork_symbols.len()
+            ));
+        }
+        if tx.project().circuit() != &circuit {
+            return Err(Error::InvalidArgument(
+                "Schematic layout changed circuit connectivity; the operation was rolled back."
+                    .into(),
+            ));
         }
         Ok(result)
     }
@@ -363,4 +392,84 @@ fn place(items: &[Item], supply_nets: &BTreeSet<NetSignalId>) -> Vec<Point> {
         .into_iter()
         .map(|p| p.unwrap_or(Point::ORIGIN))
         .collect()
+}
+
+/// Place ordinary fields consistently before reserving room for wires. Large
+/// multi-pin symbols have a clear interior for their identifier and value.
+fn arrange_fields(tx: &mut Transaction<'_>, schematic: SchematicId) -> Result<()> {
+    let symbols: Vec<_> = tx
+        .project()
+        .schematic(schematic)
+        .into_iter()
+        .flat_map(|s| s.symbols().keys())
+        .copied()
+        .collect();
+    for id in symbols {
+        if is_frame(tx.project(), schematic, id)? {
+            continue;
+        }
+        let body = placed_symbol_rect(tx.project(), schematic, id, false)?;
+        let symbol = &tx
+            .project()
+            .schematic(schematic)
+            .ok_or_else(|| Error::not_found("Schematic", schematic))?
+            .symbols()[&id];
+        if supply_signal(tx.project(), symbol.component()).is_some() {
+            tx.run(MoveSymbol {
+                symbol: id,
+                position: None,
+                rotation: Some(Angle::DEG0),
+                mirrored: None,
+            })?;
+            continue;
+        }
+        let large = symbol.pins(tx.project().view())?.len() >= 10;
+        let center = Point::new((body.min.x + body.max.x) / 2, (body.min.y + body.max.y) / 2);
+        let fields: Vec<_> = symbol.texts().values().cloned().collect();
+        for mut text in fields {
+            if text.locked() || ![Layer::SYMBOL_NAMES, Layer::SYMBOL_VALUES].contains(&text.layer())
+            {
+                continue;
+            }
+            let name = text.layer() == Layer::SYMBOL_NAMES;
+            let gap = *text.height() + Length::new(635_000);
+            let (position, align) = if large {
+                (
+                    Point::new(center.x, center.y + if name { gap } else { -gap }),
+                    Alignment::new(HAlign::Center, VAlign::Center),
+                )
+            } else if body.height() > body.width() {
+                (
+                    Point::new(
+                        body.max.x + Length::new(2_540_000),
+                        center.y + if name { gap / 2 } else { -gap / 2 },
+                    ),
+                    Alignment::new(HAlign::Left, VAlign::Center),
+                )
+            } else {
+                (
+                    Point::new(
+                        center.x,
+                        if name {
+                            body.max.y + gap
+                        } else {
+                            body.min.y - gap
+                        },
+                    ),
+                    Alignment::new(HAlign::Center, VAlign::Center),
+                )
+            };
+            text.set_position(position);
+            text.set_align(align);
+            text.set_rotation(Angle::DEG0);
+            tx.apply(Mutation::Schematic(SchematicMutation::UpdateSymbolText {
+                symbol: SymbolRef {
+                    schematic,
+                    symbol: id,
+                },
+                text,
+            }))?;
+        }
+    }
+    Ok(())
 }

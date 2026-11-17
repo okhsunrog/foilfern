@@ -220,13 +220,30 @@ pub fn schematic_review(session: &Session, args: SchematicReviewArgs) -> ToolRes
         .map(|key| resolve::component(project, key).map(|(id, _)| id))
         .collect::<ToolResult<BTreeSet<_>>>()?;
     let findings = annotation_review(project, schematic, &components, true)?;
-    ToolOutput::new(
+    let mut result = json!({
+        "schematic": schematic.id(),
+        "annotation_overlaps": findings.overlaps().collect::<Vec<_>>()
+    });
+    if !findings.entries.is_empty() {
+        result["next_action"] = json!({
+            "tool": "schematic_tidy",
+            "arguments": { "schematic": schematic.id() },
+            "scope": "whole_page_layout",
+            "connectivity_preserved": true
+        });
+    }
+    let output = ToolOutput::new(
         format!(
             "{} schematic annotation overlap(s).",
             findings.entries.len()
         ),
-        json!({"schematic":schematic.id(), "annotation_overlaps":findings.overlaps().collect::<Vec<_>>()}),
-    )
+        result,
+    )?;
+    Ok(if findings.entries.is_empty() {
+        output
+    } else {
+        output.partial().warn("Use schematic_tidy for a checked whole-page relayout, or design_preview for local text and placement edits. Inspect the rendered result.")
+    })
 }
 
 pub(super) struct AnnotationReview {

@@ -81,10 +81,10 @@ For precise schematics, place and rotate components, use connect with assign_onl
 then read pin coordinates with schematic_get. In design_preview use wire_groups with paths \
 (pin names and {x,y} vertices in mm), label positions and notes. Branch endpoints on another \
 path become junctions. Omit paths to request automatic local wiring. Use schematic_tidy \
-when regenerating the whole page is intended.\n\
+for checked whole-page relayout and overlap repair with circuit assignments preserved.\n\
 Use no_connects in a design document to mark explicitly unused pins. \
 Use image_region on render or design_preview to inspect a schematic block at a larger scale. \
-Use schematic_review to find overlapping annotations on the live sheet. \
+Use schematic_review to find overlapping annotations on the live sheet and follow its repair action. \
 Use design_preview with place_text to find a clear position for one symbol field in a selected area. \
 Before design_apply, review the preview's diff, ERC changes, board impact and schematic \
 requirements when present. Use requirements_get and requirements_check to read saved rules.\n\
@@ -790,7 +790,7 @@ impl FoilfernMcp {
     }
 
     #[tool(
-        description = "Find overlaps between annotations or with schematic wires. Optionally focus on a list of components. Read-only."
+        description = "Find overlaps between annotations or with schematic wires and return an actionable repair hint. Optionally focus on a list of components. Read-only."
     )]
     async fn schematic_review(
         &self,
@@ -811,7 +811,9 @@ impl FoilfernMcp {
     #[tool(
         description = "Regenerate layout and wiring of the whole schematic page. Replaces \
                        hand-drawn placement and wires with connectivity-based positions, \
-                       short direct wires and net labels. Nets and boards are unchanged. \
+                       short direct wires and net labels. Checks rendered annotation bounds \
+                       and preserves the full circuit. An unresolved overlap rolls back the operation. \
+                       May adjust embedded pin-name artwork shared by symbol instances. \
                        For a reviewed local edit, use design_preview."
     )]
     async fn schematic_tidy(

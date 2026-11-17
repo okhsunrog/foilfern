@@ -64,8 +64,15 @@ rendered circuit follows the requested flow, local components belong together,
 values are legible and wires do not obscure annotations. Correct any findings
 and save with `project_save`.
 
-`schematic_tidy` replaces a whole page's placement and wiring. Use it for an
-intentional whole-page relayout and inspect the result. Plan functional blocks explicitly.
+`schematic_review` returns a repair action when annotations overlap. Use
+`schematic_tidy` for whole-page repair. It normalizes ordinary name/value fields,
+rebuilds placement and wiring, and checks the rendered annotation bounds. It
+preserves the complete circuit, including unused nets and pin assignments.
+`shared_artwork_symbols` lists embedded symbols whose pin-name positions were
+adjusted. All instances using those symbols display the adjusted artwork.
+An unresolved conflict rolls the operation back. Inspect the resulting render
+and use `design_preview` for focused placement or field edits. Plan functional
+blocks explicitly.
 
 ## Local CLI sessions
 

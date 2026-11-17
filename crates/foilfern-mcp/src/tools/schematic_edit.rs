@@ -1126,6 +1126,9 @@ pub fn schematic_tidy(session: &mut Session, args: SchematicTidyArgs) -> ToolRes
             "nets": r.nets,
             "wires": r.wires,
             "labels": r.labels,
+            "connectivity_preserved": true,
+            "annotation_overlaps": [],
+            "shared_artwork_symbols": r.artwork_symbols,
         }),
     )
     .map(|out| out.warnings(r.warnings.clone()))
