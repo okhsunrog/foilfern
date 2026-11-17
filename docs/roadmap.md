@@ -51,6 +51,51 @@ unverified MCU support circuitry and 37 annotation overlaps. Dense IC layout,
 electrical intent preservation during layout edits and verification beyond
 structural ERC form the current acceptance frontier.
 
+## Work queue (2026-11-18)
+
+Ordered from the [GPT-6.2 Sol full remote trial](benchmarks/esk8-remote-sol62/README.md),
+its follow-up answer and retained feedback. The trial finished a readable
+three-page schematic with zero reported layout issues, but placed every symbol
+and wire by explicit coordinates and never tried `block` or automatic
+`wire_groups`. Public MCP changes are allowed; contract changes start with a
+short design note agreed with the owner.
+
+1. **Record the trial.** Prompt, fixture, metrics, renders, answers, feedback
+   and the follow-up about manual layout. **Done.**
+2. **Collision checks against rendered ink.** `schematic_review` reported zero
+   overlaps while text touched capacitor plates and a rotated connector field
+   was partly hidden. Include symbol artwork, pin captions and fields of
+   neighboring symbols.
+3. **Small contract fixes from feedback.** A do-not-populate flag in
+   `design_preview` instead of raw mutations; `library_rescan` reports
+   rejected elements and reasons with a `partial` outcome instead of stderr
+   only; preview warnings or snapping for symbols placed off the page grid.
+4. **Design note: pin-relative placement.** Fixed members (placed ICs and
+   finished groups), anchors such as "beside U2.DEC1 on the pin side" with an
+   offset, and preserved local topology such as a feedback tap after the
+   inductor or a bypass capacitor between pin and rail. The trial model named
+   these as the conditions for relying on automatic layout around large ICs.
+5. **Implement pin-relative placement** in `design_preview` and `block`, tested
+   on nRF52840 DEC1–DEC6, the AXP2101 LX1/FB1 loop and a crystal.
+6. **Explainable previews.** Report which groups were drawn as continuous wires
+   and which were split into labels, which constraint failed and why, and the
+   page metrics before and after.
+7. **Repeat the GPT-6.2 Sol trial** after items 2 and 4–6, asking the model to
+   try automatic composition on one group first. Compare metrics, tokens and
+   time with the recorded run.
+8. **Narrow regression scenarios** with automatic netlist and metric checks:
+   dense IC decoupling, a switching regulator, a crystal, moving a wired block.
+9. **Electrical checks beyond structural ERC.** Bypass capacitors per supply
+   pin, pull-ups on open-drain signals, LED current limiting, and explicitly
+   intended single-pin nets without spurious warnings.
+10. **State across CLI processes.** Each CLI call reopens the project, so
+    previews must be recomputed, `undo`/`redo` report nothing to undo and the
+    revision restarts at 0 (DeepSeek and Qwen feedback). Preferred direction:
+    a history journal of inverse mutations stored beside the project plus
+    saved preview patches applied with a revision check, rather than a
+    resident session daemon. Needs a design note.
+11. **Repository hygiene.** Remove merged local branches and worktrees.
+
 ## Delivery order
 
 | Stage | Result | Dependencies | State |

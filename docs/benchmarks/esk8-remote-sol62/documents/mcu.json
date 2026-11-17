@@ -1,0 +1,1692 @@
+{
+  "version": 1,
+  "schematic": "Radio and MCU",
+  "create_schematic": true,
+  "add_components": {
+    "U2": {
+      "designator": "U2",
+      "library_component": "5b965d72-67c6-410b-ba40-8faf13fd4549",
+      "symbol_variant": "a9845f45-1eb0-4f1a-b1a1-d0b5e27e4e48",
+      "value": "nRF52840-QIAA-R7",
+      "position": {
+        "x": 104.14,
+        "y": 146.05
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "B24": "HFXO_XC1",
+        "A23": "HFXO_XC2",
+        "C1": "NRF_DEC1",
+        "D23": "NRF_DEC3",
+        "B5": "NRF_DEC46",
+        "E24": "NRF_DEC46",
+        "N24": "NRF_DEC5",
+        "B1": "+3V3",
+        "W1": "+3V3",
+        "Y2": "+3V3",
+        "A22": "+3V3",
+        "AD14": "+3V3",
+        "AD23": "+3V3",
+        "0": "GND",
+        "B7": "GND",
+        "AD2": "GND",
+        "H23": "NRF_ANT",
+        "F23": "GND",
+        "AA24": "SWCLK",
+        "AC24": "SWDIO",
+        "AC13": "RESET_N",
+        "G1": "PMIC_SCL",
+        "H2": "PMIC_SDA",
+        "N1": "PMIC_IRQ_N",
+        "T2": "OLED_SCL",
+        "U1": "OLED_SDA",
+        "A12": "TRIGGER_ADC",
+        "AD8": "BTN_1_N",
+        "AC9": "BTN_2_N",
+        "AD10": "BTN_3_N",
+        "AC11": "BTN_4_N"
+      },
+      "device": "f709fd10-ec5b-4e27-9c9c-d0380c24312c",
+      "part": {
+        "mpn": "NRF52840-QIAA-R7",
+        "manufacturer": "NORDIC",
+        "attributes": {
+          "LCSC": "C1851953"
+        }
+      }
+    },
+    "Y1": {
+      "designator": "Y1",
+      "library_component": "f221e92e-d51a-44f1-a5da-75c05ff27f48",
+      "symbol_variant": "fe68931a-cd1d-48e3-9080-ce873a7dff7f",
+      "value": "32 MHz",
+      "position": {
+        "x": 43.18,
+        "y": 196.85
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "HFXO_XC1",
+        "3": "HFXO_XC2",
+        "2": "GND",
+        "4": "GND"
+      },
+      "device": "d170379a-4e58-4c9a-bd68-6ac783d2288c",
+      "part": {
+        "mpn": "ABM11W-32.0000MHZ-8-D1G-T3",
+        "manufacturer": "Abracon",
+        "attributes": {}
+      }
+    },
+    "C11": {
+      "designator": "C11",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "12 pF",
+      "position": {
+        "x": 25.4,
+        "y": 204.47
+      },
+      "rotation": 270,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "HFXO_XC1",
+        "2": "GND"
+      },
+      "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": -2.286,
+            "y": 1.27
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": -2.54,
+            "y": -1.27
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "C12": {
+      "designator": "C12",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "12 pF",
+      "position": {
+        "x": 25.4,
+        "y": 189.23
+      },
+      "rotation": 270,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "HFXO_XC2",
+        "2": "GND"
+      },
+      "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": -2.286,
+            "y": 1.27
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": -2.54,
+            "y": -1.27
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "GND101": {
+      "designator": "GND101",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 13.97,
+        "y": 182.88
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "C13": {
+      "designator": "C13",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "100 nF",
+      "position": {
+        "x": 38.1,
+        "y": 175.26
+      },
+      "rotation": 270,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "NRF_DEC1",
+        "2": "GND"
+      },
+      "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": -2.286,
+            "y": 1.27
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": -2.54,
+            "y": -1.27
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "C14": {
+      "designator": "C14",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "100 pF",
+      "position": {
+        "x": 38.1,
+        "y": 165.1
+      },
+      "rotation": 270,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "NRF_DEC3",
+        "2": "GND"
+      },
+      "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": -2.286,
+            "y": 1.27
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": -2.54,
+            "y": -1.27
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "C15": {
+      "designator": "C15",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "1 µF",
+      "position": {
+        "x": 38.1,
+        "y": 154.94
+      },
+      "rotation": 270,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "NRF_DEC46",
+        "2": "GND"
+      },
+      "device": "e80a2ba5-13dd-41f2-9cdc-f29e30a9e2ed",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": -2.286,
+            "y": 1.27
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": -2.54,
+            "y": -1.27
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "C16": {
+      "designator": "C16",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "820 pF",
+      "position": {
+        "x": 38.1,
+        "y": 138.43
+      },
+      "rotation": 270,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "NRF_DEC5",
+        "2": "GND"
+      },
+      "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": -2.286,
+            "y": 1.27
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": -2.54,
+            "y": -1.27
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "GND102": {
+      "designator": "GND102",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 20.32,
+        "y": 132.08
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "C17": {
+      "designator": "C17",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "1 µF",
+      "position": {
+        "x": 8.89,
+        "y": 86.36
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "+3V3",
+        "2": "GND"
+      },
+      "device": "e80a2ba5-13dd-41f2-9cdc-f29e30a9e2ed",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "C18": {
+      "designator": "C18",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "4.7 µF",
+      "position": {
+        "x": 20.32,
+        "y": 86.36
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "+3V3",
+        "2": "GND"
+      },
+      "device": "e80a2ba5-13dd-41f2-9cdc-f29e30a9e2ed",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "C19": {
+      "designator": "C19",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "100 nF",
+      "position": {
+        "x": 31.75,
+        "y": 86.36
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "+3V3",
+        "2": "GND"
+      },
+      "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "C20": {
+      "designator": "C20",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "100 nF",
+      "position": {
+        "x": 43.18,
+        "y": 86.36
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "+3V3",
+        "2": "GND"
+      },
+      "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "C21": {
+      "designator": "C21",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "100 nF",
+      "position": {
+        "x": 54.61,
+        "y": 86.36
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "+3V3",
+        "2": "GND"
+      },
+      "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "VCC103": {
+      "designator": "VCC103",
+      "library_component": "58c3c6cd-11eb-4557-aa3f-d3e05874afde",
+      "symbol_variant": "afb86b45-68ec-47b6-8d96-153d73567228",
+      "value": "+3V3",
+      "position": {
+        "x": 54.61,
+        "y": 133.35
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "+3V3"
+      }
+    },
+    "GND104": {
+      "designator": "GND104",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 31.75,
+        "y": 74.93
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "GND105": {
+      "designator": "GND105",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 63.5,
+        "y": 72.39
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "L3": {
+      "designator": "L3",
+      "library_component": "506bd124-6062-400e-9078-b38bd7e1aaee",
+      "symbol_variant": "4245d515-6f6d-48cb-9958-a4ea23d0187f",
+      "value": "4.7 nH",
+      "position": {
+        "x": 179.07,
+        "y": 204.47
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "NRF_ANT",
+        "2": "RF_50R"
+      },
+      "device": "1918863f-b0ba-4482-90fc-3e3e8d7f7a1d",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": -3.048,
+            "y": 1.651
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": -3.048,
+            "y": -1.5875
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "J4": {
+      "designator": "J4",
+      "library_component": "b7155012-a974-48a0-a7be-de353f94277d",
+      "symbol_variant": "386d3bfd-21e6-4c47-b974-623182b28c93",
+      "value": "U.FL",
+      "position": {
+        "x": 242.57,
+        "y": 204.47
+      },
+      "rotation": 270,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "2": "RF_50R",
+        "1": "GND",
+        "3": "GND"
+      },
+      "device": "71cab1f7-bfa5-4e78-9476-382b8457e826",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": -1.905,
+            "y": 3.937
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": -0.635,
+            "y": -3.81
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      },
+      "part": {
+        "mpn": "U.FL-R-SMT-1(10)",
+        "manufacturer": "HRS(广濑)",
+        "attributes": {
+          "LCSC": "C88373"
+        }
+      }
+    },
+    "C22": {
+      "designator": "C22",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "0.8 pF",
+      "position": {
+        "x": 154.94,
+        "y": 196.85
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "NRF_ANT",
+        "2": "GND"
+      },
+      "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "C23": {
+      "designator": "C23",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "0.5 pF",
+      "position": {
+        "x": 205.74,
+        "y": 196.85
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "RF_50R",
+        "2": "GND"
+      },
+      "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "GND106": {
+      "designator": "GND106",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 154.94,
+        "y": 182.88
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "GND107": {
+      "designator": "GND107",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 205.74,
+        "y": 189.23
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "GND108": {
+      "designator": "GND108",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 256.54,
+        "y": 182.88
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "J5": {
+      "designator": "J5",
+      "library_component": "d2b39209-d220-4b06-9440-457c50047ad2",
+      "symbol_variant": "73e2675f-40d4-42f8-98ff-8004b500e531",
+      "value": "SWD",
+      "position": {
+        "x": 204.47,
+        "y": 152.4
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "+3V3",
+        "2": "SWDIO",
+        "3": "GND",
+        "4": "SWCLK",
+        "5": "RESET_N"
+      },
+      "device": "476b4778-b9d7-4e1e-a6b4-4fb321cebf18"
+    }
+  },
+  "add_nets": [
+    "+3V3",
+    "BTN_1_N",
+    "BTN_2_N",
+    "BTN_3_N",
+    "BTN_4_N",
+    "GND",
+    "HFXO_XC1",
+    "HFXO_XC2",
+    "NRF_ANT",
+    "NRF_DEC1",
+    "NRF_DEC3",
+    "NRF_DEC46",
+    "NRF_DEC5",
+    "OLED_SCL",
+    "OLED_SDA",
+    "PMIC_IRQ_N",
+    "PMIC_SCL",
+    "PMIC_SDA",
+    "RESET_N",
+    "RF_50R",
+    "SWCLK",
+    "SWDIO",
+    "TRIGGER_ADC"
+  ],
+  "wire_groups": [
+    {
+      "net": "HFXO_XC1",
+      "paths": [
+        [
+          "U2.B24",
+          {
+            "x": 43.18,
+            "y": 204.47
+          },
+          "C11.1"
+        ],
+        [
+          "Y1.1",
+          {
+            "x": 43.18,
+            "y": 204.47
+          }
+        ]
+      ]
+    },
+    {
+      "net": "HFXO_XC2",
+      "paths": [
+        [
+          "U2.A23",
+          {
+            "x": 43.18,
+            "y": 189.23
+          },
+          "C12.1"
+        ],
+        [
+          "Y1.3",
+          {
+            "x": 43.18,
+            "y": 189.23
+          }
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "C11.2",
+          {
+            "x": 13.97,
+            "y": 204.47
+          },
+          "GND101.Net"
+        ],
+        [
+          "C12.2",
+          {
+            "x": 13.97,
+            "y": 189.23
+          }
+        ],
+        [
+          "Y1.2",
+          {
+            "x": 31.75,
+            "y": 199.39
+          },
+          {
+            "x": 31.75,
+            "y": 194.31
+          },
+          "Y1.4"
+        ],
+        [
+          {
+            "x": 31.75,
+            "y": 196.85
+          },
+          {
+            "x": 13.97,
+            "y": 196.85
+          }
+        ]
+      ]
+    },
+    {
+      "net": "NRF_DEC1",
+      "paths": [
+        [
+          "U2.C1",
+          "C13.1"
+        ]
+      ]
+    },
+    {
+      "net": "NRF_DEC3",
+      "paths": [
+        [
+          "U2.D23",
+          "C14.1"
+        ]
+      ]
+    },
+    {
+      "net": "NRF_DEC46",
+      "paths": [
+        [
+          "U2.B5",
+          {
+            "x": 57.15,
+            "y": 154.94
+          },
+          "C15.1"
+        ],
+        [
+          "U2.E24",
+          {
+            "x": 57.15,
+            "y": 149.86
+          },
+          {
+            "x": 57.15,
+            "y": 154.94
+          }
+        ]
+      ]
+    },
+    {
+      "net": "NRF_DEC5",
+      "paths": [
+        [
+          "U2.N24",
+          "C16.1"
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "C13.2",
+          {
+            "x": 20.32,
+            "y": 175.26
+          },
+          "GND102.Net"
+        ],
+        [
+          "C14.2",
+          {
+            "x": 20.32,
+            "y": 165.1
+          }
+        ],
+        [
+          "C15.2",
+          {
+            "x": 20.32,
+            "y": 154.94
+          }
+        ],
+        [
+          "C16.2",
+          {
+            "x": 20.32,
+            "y": 138.43
+          }
+        ]
+      ]
+    },
+    {
+      "net": "+3V3",
+      "paths": [
+        [
+          "VCC103.Net",
+          {
+            "x": 54.61,
+            "y": 100.33
+          },
+          {
+            "x": 54.61,
+            "y": 95.25
+          },
+          {
+            "x": 8.89,
+            "y": 95.25
+          },
+          "C17.1"
+        ],
+        [
+          "U2.B1",
+          {
+            "x": 54.61,
+            "y": 125.73
+          }
+        ],
+        [
+          "U2.W1",
+          {
+            "x": 54.61,
+            "y": 120.65
+          }
+        ],
+        [
+          "U2.Y2",
+          {
+            "x": 54.61,
+            "y": 115.57
+          }
+        ],
+        [
+          "U2.A22",
+          {
+            "x": 54.61,
+            "y": 110.49
+          }
+        ],
+        [
+          "U2.AD14",
+          {
+            "x": 54.61,
+            "y": 105.41
+          }
+        ],
+        [
+          "U2.AD23",
+          {
+            "x": 54.61,
+            "y": 100.33
+          }
+        ],
+        [
+          "C18.1",
+          {
+            "x": 20.32,
+            "y": 95.25
+          }
+        ],
+        [
+          "C19.1",
+          {
+            "x": 31.75,
+            "y": 95.25
+          }
+        ],
+        [
+          "C20.1",
+          {
+            "x": 43.18,
+            "y": 95.25
+          }
+        ],
+        [
+          "C21.1",
+          {
+            "x": 54.61,
+            "y": 95.25
+          }
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "C17.2",
+          {
+            "x": 8.89,
+            "y": 80.01
+          },
+          {
+            "x": 54.61,
+            "y": 80.01
+          },
+          "C21.2"
+        ],
+        [
+          "C18.2",
+          {
+            "x": 20.32,
+            "y": 80.01
+          }
+        ],
+        [
+          "C19.2",
+          {
+            "x": 31.75,
+            "y": 80.01
+          }
+        ],
+        [
+          "C20.2",
+          {
+            "x": 43.18,
+            "y": 80.01
+          }
+        ],
+        [
+          "GND104.Net",
+          {
+            "x": 31.75,
+            "y": 80.01
+          }
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "U2.0",
+          {
+            "x": 63.5,
+            "y": 88.9
+          },
+          "GND105.Net"
+        ],
+        [
+          "U2.B7",
+          {
+            "x": 63.5,
+            "y": 83.82
+          }
+        ],
+        [
+          "U2.AD2",
+          {
+            "x": 63.5,
+            "y": 78.74
+          }
+        ]
+      ]
+    },
+    {
+      "net": "NRF_ANT",
+      "paths": [
+        [
+          "U2.H23",
+          "L3.1"
+        ],
+        [
+          "C22.1",
+          {
+            "x": 154.94,
+            "y": 204.47
+          }
+        ]
+      ]
+    },
+    {
+      "net": "RF_50R",
+      "paths": [
+        [
+          "L3.2",
+          "J4.2"
+        ],
+        [
+          "C23.1",
+          {
+            "x": 205.74,
+            "y": 204.47
+          }
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "U2.F23",
+          {
+            "x": 154.94,
+            "y": 189.23
+          },
+          "GND106.Net"
+        ],
+        [
+          "C22.2",
+          {
+            "x": 154.94,
+            "y": 189.23
+          }
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "C23.2",
+          "GND107.Net"
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "J4.1",
+          {
+            "x": 256.54,
+            "y": 217.17
+          },
+          "GND108.Net"
+        ],
+        [
+          "J4.3",
+          {
+            "x": 256.54,
+            "y": 191.77
+          }
+        ]
+      ]
+    },
+    {
+      "net": "+3V3",
+      "paths": [
+        [
+          "J5.1",
+          {
+            "x": 220.98,
+            "y": 157.48
+          }
+        ]
+      ],
+      "label": {
+        "x": 220.98,
+        "y": 157.48
+      }
+    },
+    {
+      "net": "SWDIO",
+      "paths": [
+        [
+          "J5.2",
+          {
+            "x": 220.98,
+            "y": 154.94
+          }
+        ]
+      ],
+      "label": {
+        "x": 220.98,
+        "y": 154.94
+      }
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "J5.3",
+          {
+            "x": 220.98,
+            "y": 152.4
+          }
+        ]
+      ],
+      "label": {
+        "x": 220.98,
+        "y": 152.4
+      }
+    },
+    {
+      "net": "SWCLK",
+      "paths": [
+        [
+          "J5.4",
+          {
+            "x": 220.98,
+            "y": 149.86
+          }
+        ]
+      ],
+      "label": {
+        "x": 220.98,
+        "y": 149.86
+      }
+    },
+    {
+      "net": "RESET_N",
+      "paths": [
+        [
+          "J5.5",
+          {
+            "x": 220.98,
+            "y": 147.32
+          }
+        ]
+      ],
+      "label": {
+        "x": 220.98,
+        "y": 147.32
+      }
+    },
+    {
+      "net": "SWCLK",
+      "paths": [
+        [
+          "U2.AA24",
+          {
+            "x": 151.13,
+            "y": 176.53
+          }
+        ]
+      ],
+      "label": {
+        "x": 151.13,
+        "y": 176.53
+      }
+    },
+    {
+      "net": "SWDIO",
+      "paths": [
+        [
+          "U2.AC24",
+          {
+            "x": 151.13,
+            "y": 171.45
+          }
+        ]
+      ],
+      "label": {
+        "x": 151.13,
+        "y": 171.45
+      }
+    },
+    {
+      "net": "RESET_N",
+      "paths": [
+        [
+          "U2.AC13",
+          {
+            "x": 151.13,
+            "y": 166.37
+          }
+        ]
+      ],
+      "label": {
+        "x": 151.13,
+        "y": 166.37
+      }
+    },
+    {
+      "net": "PMIC_SCL",
+      "paths": [
+        [
+          "U2.G1",
+          {
+            "x": 151.13,
+            "y": 153.67
+          }
+        ]
+      ],
+      "label": {
+        "x": 151.13,
+        "y": 153.67
+      }
+    },
+    {
+      "net": "PMIC_SDA",
+      "paths": [
+        [
+          "U2.H2",
+          {
+            "x": 151.13,
+            "y": 148.59
+          }
+        ]
+      ],
+      "label": {
+        "x": 151.13,
+        "y": 148.59
+      }
+    },
+    {
+      "net": "PMIC_IRQ_N",
+      "paths": [
+        [
+          "U2.N1",
+          {
+            "x": 151.13,
+            "y": 143.51
+          }
+        ]
+      ],
+      "label": {
+        "x": 151.13,
+        "y": 143.51
+      }
+    },
+    {
+      "net": "OLED_SCL",
+      "paths": [
+        [
+          "U2.T2",
+          {
+            "x": 151.13,
+            "y": 133.35
+          }
+        ]
+      ],
+      "label": {
+        "x": 151.13,
+        "y": 133.35
+      }
+    },
+    {
+      "net": "OLED_SDA",
+      "paths": [
+        [
+          "U2.U1",
+          {
+            "x": 151.13,
+            "y": 128.27
+          }
+        ]
+      ],
+      "label": {
+        "x": 151.13,
+        "y": 128.27
+      }
+    },
+    {
+      "net": "TRIGGER_ADC",
+      "paths": [
+        [
+          "U2.A12",
+          {
+            "x": 151.13,
+            "y": 116.84
+          }
+        ]
+      ],
+      "label": {
+        "x": 151.13,
+        "y": 116.84
+      }
+    },
+    {
+      "net": "BTN_1_N",
+      "paths": [
+        [
+          "U2.AD8",
+          {
+            "x": 151.13,
+            "y": 106.68
+          }
+        ]
+      ],
+      "label": {
+        "x": 151.13,
+        "y": 106.68
+      }
+    },
+    {
+      "net": "BTN_2_N",
+      "paths": [
+        [
+          "U2.AC9",
+          {
+            "x": 151.13,
+            "y": 101.6
+          }
+        ]
+      ],
+      "label": {
+        "x": 151.13,
+        "y": 101.6
+      }
+    },
+    {
+      "net": "BTN_3_N",
+      "paths": [
+        [
+          "U2.AD10",
+          {
+            "x": 151.13,
+            "y": 96.52
+          }
+        ]
+      ],
+      "label": {
+        "x": 151.13,
+        "y": 96.52
+      }
+    },
+    {
+      "net": "BTN_4_N",
+      "paths": [
+        [
+          "U2.AC11",
+          {
+            "x": 151.13,
+            "y": 91.44
+          }
+        ]
+      ],
+      "label": {
+        "x": 151.13,
+        "y": 91.44
+      }
+    }
+  ],
+  "notes": [
+    {
+      "position": {
+        "x": 6.35,
+        "y": 238.76
+      },
+      "height": 4.0,
+      "text": "ESK8 REMOTE  /  RADIO AND MCU"
+    },
+    {
+      "position": {
+        "x": 6.35,
+        "y": 228.6
+      },
+      "height": 2.0,
+      "text": "Bare nRF52840-QIAA  •  Normal-voltage supply  •  Nordic configuration 6"
+    },
+    {
+      "position": {
+        "x": 6.35,
+        "y": 215.9
+      },
+      "height": 2.6,
+      "text": "32 MHz REFERENCE"
+    },
+    {
+      "position": {
+        "x": 30.48,
+        "y": 180.34
+      },
+      "height": 2.4,
+      "text": "INTERNAL REGULATOR DECOUPLING"
+    },
+    {
+      "position": {
+        "x": 6.35,
+        "y": 114.3
+      },
+      "height": 2.4,
+      "text": "NORMAL-VOLTAGE SUPPLY"
+    },
+    {
+      "position": {
+        "x": 6.35,
+        "y": 109.22
+      },
+      "height": 1.9,
+      "text": "VDDH and all VDD balls on +3V3."
+    },
+    {
+      "position": {
+        "x": 6.35,
+        "y": 66.04
+      },
+      "height": 2.0,
+      "text": "C17 → B1     C18 → W1 / Y2"
+    },
+    {
+      "position": {
+        "x": 6.35,
+        "y": 60.96
+      },
+      "height": 1.9,
+      "text": "C19 → A22     C20 → AD14     C21 → AD23"
+    },
+    {
+      "position": {
+        "x": 6.35,
+        "y": 55.88
+      },
+      "height": 1.9,
+      "text": "Place each bypass at its assigned ball."
+    },
+    {
+      "position": {
+        "x": 6.35,
+        "y": 45.72
+      },
+      "height": 1.9,
+      "text": "LDO mode. Keep DCDCEN and DCDCEN0 disabled."
+    },
+    {
+      "position": {
+        "x": 6.35,
+        "y": 40.64
+      },
+      "height": 1.9,
+      "text": "LFCLK uses calibrated internal RC. USB and NFC are disabled."
+    },
+    {
+      "position": {
+        "x": 149.86,
+        "y": 215.9
+      },
+      "height": 2.6,
+      "text": "2.4 GHz RADIO"
+    },
+    {
+      "position": {
+        "x": 161.29,
+        "y": 182.88
+      },
+      "height": 1.8,
+      "text": "50 Ω controlled-impedance feed to external antenna."
+    },
+    {
+      "position": {
+        "x": 161.29,
+        "y": 177.8
+      },
+      "height": 1.8,
+      "text": "Copy Nordic's matching geometry and tune on the assembled board."
+    },
+    {
+      "position": {
+        "x": 194.31,
+        "y": 165.1
+      },
+      "height": 2.5,
+      "text": "SERIAL WIRE DEBUG"
+    },
+    {
+      "position": {
+        "x": 193.04,
+        "y": 140.97
+      },
+      "height": 1.8,
+      "text": "1 is target voltage sense only."
+    },
+    {
+      "position": {
+        "x": 193.04,
+        "y": 135.89
+      },
+      "height": 1.8,
+      "text": "Enable P0.18 reset in UICR."
+    }
+  ],
+  "no_connects": {
+    "U2.A10": true,
+    "U2.A14": true,
+    "U2.A16": true,
+    "U2.A18": true,
+    "U2.A20": true,
+    "U2.A8": true,
+    "U2.AB2": true,
+    "U2.AC15": true,
+    "U2.AC17": true,
+    "U2.AC19": true,
+    "U2.AC21": true,
+    "U2.AC5": true,
+    "U2.AD12": true,
+    "U2.AD16": true,
+    "U2.AD18": true,
+    "U2.AD20": true,
+    "U2.AD22": true,
+    "U2.AD4": true,
+    "U2.AD6": true,
+    "U2.B11": true,
+    "U2.B13": true,
+    "U2.B15": true,
+    "U2.B17": true,
+    "U2.B19": true,
+    "U2.B3": true,
+    "U2.B9": true,
+    "U2.D2": true,
+    "U2.F2": true,
+    "U2.J1": true,
+    "U2.J24": true,
+    "U2.K2": true,
+    "U2.L1": true,
+    "U2.L24": true,
+    "U2.M2": true,
+    "U2.P2": true,
+    "U2.P23": true,
+    "U2.R1": true,
+    "U2.R24": true,
+    "U2.T23": true,
+    "U2.U24": true,
+    "U2.V23": true,
+    "U2.W24": true,
+    "U2.Y23": true
+  }
+}

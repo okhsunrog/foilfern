@@ -1,0 +1,35 @@
+{
+  "model": "gpt-6.2-sol",
+  "reasoning_effort": "medium",
+  "client": "codex-cli 0.169.0",
+  "source_access": false,
+  "binary": {
+    "api_capability_version": 63,
+    "build": {
+      "cargo_opt_level": "3",
+      "cargo_profile": "release",
+      "source_commit": "e34980bbd13448a865b3f750d06b630e1b20768f",
+      "tracked_source_state": "clean"
+    },
+    "file_format_version": "2",
+    "name": "foilfern-mcp",
+    "project": null,
+    "resources_dir": null,
+    "units": {
+      "angle": "deg",
+      "length": "mm"
+    },
+    "version": "0.1.0",
+    "workspace": null
+  },
+  "sha256": "93e08c70e32785050c220963126c4885838ca5aca20870b234391c9d0252d059",
+  "normalized_prompt_sha256": "9e84a8aa50dcb523ed2f5c464c02b4037ce4f445ae58c9a2d81acb4bf60c897e",
+  "catalog_tools": 101,
+  "cpu_affinity": [
+    0,
+    1
+  ],
+  "deadline_s": 1800,
+  "max_model_turns": 120,
+  "scenario": "esk8_remote_full"
+}

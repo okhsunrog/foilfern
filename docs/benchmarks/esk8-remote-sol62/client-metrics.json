@@ -1,0 +1,42 @@
+{
+  "model": "gpt-6.2-sol",
+  "reasoning_effort": "medium",
+  "client": "codex-cli 0.169.0",
+  "source_access": false,
+  "cpu_affinity": [
+    0,
+    1
+  ],
+  "turns": [
+    {
+      "phase": "task",
+      "wall_s": 1470.0195269261021,
+      "exit_code": 0,
+      "usage": [
+        {
+          "input_tokens": 14299930,
+          "cached_input_tokens": 14042496,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 55914,
+          "reasoning_output_tokens": 18758
+        }
+      ],
+      "session_id": "01a1eb86-4c97-7da3-a496-dac04354839e"
+    },
+    {
+      "phase": "feedback",
+      "wall_s": 23.519668373977765,
+      "exit_code": 0,
+      "usage": [
+        {
+          "input_tokens": 14544590,
+          "cached_input_tokens": 14286592,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 56374,
+          "reasoning_output_tokens": 18857
+        }
+      ],
+      "session_id": "01a1eb86-4c97-7da3-a496-dac04354839e"
+    }
+  ]
+}

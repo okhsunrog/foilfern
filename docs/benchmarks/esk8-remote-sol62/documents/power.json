@@ -1,0 +1,1947 @@
+{
+  "version": 1,
+  "schematic": "Main",
+  "create_schematic": false,
+  "add_components": {
+    "J1": {
+      "designator": "J1",
+      "library_component": "878b0a1c-b2c8-4348-9520-df7a4e7bcf3f",
+      "symbol_variant": "361c7086-3908-4f42-961b-c09d8222cb52",
+      "value": "USB-C",
+      "position": {
+        "x": 54.61,
+        "y": 234.95
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "A5": "USB_CC1",
+        "B5": "USB_CC2",
+        "A4B9": "USB_5V",
+        "B4A9": "USB_5V",
+        "A1B12": "GND",
+        "B1A12": "GND",
+        "13": "GND",
+        "14": "GND"
+      },
+      "device": "c79c4909-0c7f-4f4b-b89f-7be1697915da",
+      "part": {
+        "mpn": "TYPE-C 16PIN 2MD(073)",
+        "manufacturer": "SHOU HAN(首韩)",
+        "attributes": {
+          "LCSC": "C2765186"
+        }
+      }
+    },
+    "R1": {
+      "designator": "R1",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "symbol_variant": "d16e1f44-16af-4773-a310-de370f744548",
+      "value": "5.1 kΩ",
+      "position": {
+        "x": 15.24,
+        "y": 242.57
+      },
+      "rotation": 90,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "2": "USB_CC1",
+        "1": "GND"
+      },
+      "device": "483a71eb-318e-448e-82ff-f02efc4821aa",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "R2": {
+      "designator": "R2",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "symbol_variant": "d16e1f44-16af-4773-a310-de370f744548",
+      "value": "5.1 kΩ",
+      "position": {
+        "x": 15.24,
+        "y": 219.71
+      },
+      "rotation": 90,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "2": "USB_CC2",
+        "1": "GND"
+      },
+      "device": "483a71eb-318e-448e-82ff-f02efc4821aa",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "GND1": {
+      "designator": "GND1",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 15.24,
+        "y": 232.41
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "GND2": {
+      "designator": "GND2",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 15.24,
+        "y": 209.55
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "GND3": {
+      "designator": "GND3",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 91.44,
+        "y": 212.09
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "J2": {
+      "designator": "J2",
+      "library_component": "ce2ea95f-dbd2-432e-a6a6-6c20043f6d7e",
+      "symbol_variant": "bf5e0d54-c4fd-4d18-9b25-0fdf1374aa49",
+      "value": "1S PACK",
+      "position": {
+        "x": 140.97,
+        "y": 236.22
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "VBAT",
+        "2": "PACK_TS",
+        "3": "GND"
+      },
+      "device": "253364ab-4137-4239-b3ed-f3e252794109"
+    },
+    "U1": {
+      "designator": "U1",
+      "library_component": "da1c6168-dd57-4da4-aad2-0de9eb0c97af",
+      "symbol_variant": "7fd0c9ff-181a-4d2c-a6fb-8d54244030c1",
+      "value": "AXP2101",
+      "position": {
+        "x": 134.62,
+        "y": 121.92
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "37": "USB_5V",
+        "36": "VMID",
+        "33": "VBAT",
+        "2": "PMIC_VREF",
+        "28": "PMIC_VRTC",
+        "35": "CHG_SW",
+        "34": "VSYS",
+        "31": "PACK_TS",
+        "30": "PMIC_PWRON",
+        "3": "GND",
+        "41": "GND",
+        "23": "VSYS",
+        "22": "BUCK1_LX",
+        "21": "+3V3",
+        "40": "PMIC_SCL",
+        "39": "PMIC_SDA",
+        "38": "PMIC_IRQ_N",
+        "24": "VSYS",
+        "13": "VSYS",
+        "6": "VSYS",
+        "7": "VSYS",
+        "17": "VSYS"
+      },
+      "device": "ea404d90-d20d-498a-9f15-7afda3877a9a",
+      "part": {
+        "mpn": "AXP2101",
+        "manufacturer": "x-powers(芯智汇)",
+        "attributes": {
+          "LCSC": "C3036461"
+        }
+      }
+    },
+    "C1": {
+      "designator": "C1",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "4.7 µF",
+      "position": {
+        "x": 80.01,
+        "y": 181.61
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "USB_5V",
+        "2": "GND"
+      },
+      "device": "c139e505-592b-46ba-bdf2-acb7383ea0cd",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "GND4": {
+      "designator": "GND4",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 80.01,
+        "y": 175.26
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "C2": {
+      "designator": "C2",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "10 µF",
+      "position": {
+        "x": 68.58,
+        "y": 167.64
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "VMID",
+        "2": "GND"
+      },
+      "device": "c139e505-592b-46ba-bdf2-acb7383ea0cd",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "GND5": {
+      "designator": "GND5",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 68.58,
+        "y": 161.29
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "C5": {
+      "designator": "C5",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "1 µF",
+      "position": {
+        "x": 69.85,
+        "y": 127.0
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "VBAT",
+        "2": "GND"
+      },
+      "device": "e80a2ba5-13dd-41f2-9cdc-f29e30a9e2ed",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "GND6": {
+      "designator": "GND6",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 69.85,
+        "y": 120.65
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "C7": {
+      "designator": "C7",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "1 µF",
+      "position": {
+        "x": 81.28,
+        "y": 88.9
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "PMIC_VREF",
+        "2": "GND"
+      },
+      "device": "e80a2ba5-13dd-41f2-9cdc-f29e30a9e2ed",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "GND7": {
+      "designator": "GND7",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 81.28,
+        "y": 82.55
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "C8": {
+      "designator": "C8",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "1 µF",
+      "position": {
+        "x": 72.39,
+        "y": 72.39
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "PMIC_VRTC",
+        "2": "GND"
+      },
+      "device": "e80a2ba5-13dd-41f2-9cdc-f29e30a9e2ed",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "GND8": {
+      "designator": "GND8",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 72.39,
+        "y": 66.04
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "L1": {
+      "designator": "L1",
+      "library_component": "506bd124-6062-400e-9078-b38bd7e1aaee",
+      "symbol_variant": "4245d515-6f6d-48cb-9958-a4ea23d0187f",
+      "value": "1 µH",
+      "position": {
+        "x": 77.47,
+        "y": 156.21
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "2": "CHG_SW",
+        "1": "VSYS"
+      },
+      "device": "3ce36a57-13ad-48c9-8ba6-af79753c0464",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": -3.048,
+            "y": 1.651
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": -3.048,
+            "y": -1.5875
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "C3": {
+      "designator": "C3",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "22 µF",
+      "position": {
+        "x": 41.91,
+        "y": 142.24
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "2": "GND",
+        "1": "VSYS"
+      },
+      "device": "d0691a38-acb7-4a41-b889-99d7a2f92b10",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "GND9": {
+      "designator": "GND9",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 41.91,
+        "y": 134.62
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "C4": {
+      "designator": "C4",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "22 µF",
+      "position": {
+        "x": 58.42,
+        "y": 142.24
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "2": "GND",
+        "1": "VSYS"
+      },
+      "device": "d0691a38-acb7-4a41-b889-99d7a2f92b10",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "GND10": {
+      "designator": "GND10",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 58.42,
+        "y": 134.62
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "J3": {
+      "designator": "J3",
+      "library_component": "f62feaaa-19c4-4378-b699-4528637e1107",
+      "symbol_variant": "f247c91a-1ecb-454d-b8ff-362950773c0b",
+      "value": "POWER KEY",
+      "position": {
+        "x": 40.64,
+        "y": 110.49
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "PWR_KEY",
+        "2": "GND"
+      },
+      "device": "016a3bad-8903-4705-825d-953d402b9467"
+    },
+    "R6": {
+      "designator": "R6",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "symbol_variant": "d16e1f44-16af-4773-a310-de370f744548",
+      "value": "510 Ω",
+      "position": {
+        "x": 68.58,
+        "y": 110.49
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "PWR_KEY",
+        "2": "PMIC_PWRON"
+      },
+      "device": "483a71eb-318e-448e-82ff-f02efc4821aa",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": -3.048,
+            "y": 1.27
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": -3.048,
+            "y": -1.27
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "C6": {
+      "designator": "C6",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "1 nF",
+      "position": {
+        "x": 86.36,
+        "y": 104.14
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "PMIC_PWRON",
+        "2": "GND"
+      },
+      "device": "2704f5e1-f8c2-4565-b8bd-5a7ea9946f08",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "GND11": {
+      "designator": "GND11",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 86.36,
+        "y": 97.79
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "GND12": {
+      "designator": "GND12",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 50.8,
+        "y": 101.6
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "GND13": {
+      "designator": "GND13",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 83.82,
+        "y": 36.83
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "C9": {
+      "designator": "C9",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "1 µF",
+      "position": {
+        "x": 199.39,
+        "y": 179.07
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "VSYS",
+        "2": "GND"
+      },
+      "device": "e80a2ba5-13dd-41f2-9cdc-f29e30a9e2ed",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "GND14": {
+      "designator": "GND14",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 199.39,
+        "y": 172.72
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "L2": {
+      "designator": "L2",
+      "library_component": "506bd124-6062-400e-9078-b38bd7e1aaee",
+      "symbol_variant": "4245d515-6f6d-48cb-9958-a4ea23d0187f",
+      "value": "1 µH",
+      "position": {
+        "x": 186.69,
+        "y": 167.64
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "BUCK1_LX",
+        "2": "+3V3"
+      },
+      "device": "3ce36a57-13ad-48c9-8ba6-af79753c0464",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": -3.048,
+            "y": 1.651
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": -3.048,
+            "y": -1.5875
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "C10": {
+      "designator": "C10",
+      "library_component": "d167e0e3-6a92-4b76-b013-77b9c230e5f1",
+      "symbol_variant": "8cd7b37f-e5fa-4af5-a8dd-d78830bba3af",
+      "value": "22 µF",
+      "position": {
+        "x": 247.65,
+        "y": 153.67
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "+3V3",
+        "2": "GND"
+      },
+      "device": "d0691a38-acb7-4a41-b889-99d7a2f92b10",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "VCC15": {
+      "designator": "VCC15",
+      "library_component": "58c3c6cd-11eb-4557-aa3f-d3e05874afde",
+      "symbol_variant": "afb86b45-68ec-47b6-8d96-153d73567228",
+      "value": "+3V3",
+      "position": {
+        "x": 217.17,
+        "y": 171.45
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "+3V3"
+      }
+    },
+    "GND16": {
+      "designator": "GND16",
+      "library_component": "8076f6be-bfab-4fc1-9772-5d54465dd7e1",
+      "symbol_variant": "f09ad258-595b-4ee9-a1fc-910804a203ae",
+      "value": "GND",
+      "position": {
+        "x": 247.65,
+        "y": 146.05
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "GND"
+      }
+    },
+    "R3": {
+      "designator": "R3",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "symbol_variant": "d16e1f44-16af-4773-a310-de370f744548",
+      "value": "2.2 kΩ",
+      "position": {
+        "x": 210.82,
+        "y": 134.62
+      },
+      "rotation": 90,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "PMIC_SCL",
+        "2": "+3V3"
+      },
+      "device": "483a71eb-318e-448e-82ff-f02efc4821aa",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "R4": {
+      "designator": "R4",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "symbol_variant": "d16e1f44-16af-4773-a310-de370f744548",
+      "value": "2.2 kΩ",
+      "position": {
+        "x": 234.95,
+        "y": 134.62
+      },
+      "rotation": 90,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "PMIC_SDA",
+        "2": "+3V3"
+      },
+      "device": "483a71eb-318e-448e-82ff-f02efc4821aa",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "R5": {
+      "designator": "R5",
+      "library_component": "ef80cd5e-2689-47ee-8888-31d04fc99174",
+      "symbol_variant": "d16e1f44-16af-4773-a310-de370f744548",
+      "value": "4.7 kΩ",
+      "position": {
+        "x": 259.08,
+        "y": 134.62
+      },
+      "rotation": 90,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "1": "PMIC_IRQ_N",
+        "2": "+3V3"
+      },
+      "device": "483a71eb-318e-448e-82ff-f02efc4821aa",
+      "fields": {
+        "name": {
+          "offset": {
+            "x": 2.032,
+            "y": 0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        },
+        "value": {
+          "offset": {
+            "x": 2.032,
+            "y": -0.3175
+          },
+          "rotation": 0.0,
+          "height": 1.8
+        }
+      }
+    },
+    "VCC17": {
+      "designator": "VCC17",
+      "library_component": "58c3c6cd-11eb-4557-aa3f-d3e05874afde",
+      "symbol_variant": "afb86b45-68ec-47b6-8d96-153d73567228",
+      "value": "+3V3",
+      "position": {
+        "x": 220.98,
+        "y": 147.32
+      },
+      "rotation": 0,
+      "mirrored": false,
+      "assign_only": true,
+      "connections": {
+        "Net": "+3V3"
+      }
+    }
+  },
+  "add_nets": [
+    "+3V3",
+    "BUCK1_LX",
+    "CHG_SW",
+    "GND",
+    "PACK_TS",
+    "PMIC_IRQ_N",
+    "PMIC_PWRON",
+    "PMIC_SCL",
+    "PMIC_SDA",
+    "PMIC_VREF",
+    "PMIC_VRTC",
+    "PWR_KEY",
+    "USB_5V",
+    "USB_CC1",
+    "USB_CC2",
+    "VBAT",
+    "VMID",
+    "VSYS"
+  ],
+  "wire_groups": [
+    {
+      "net": "USB_CC1",
+      "paths": [
+        [
+          "J1.A5",
+          {
+            "x": 22.86,
+            "y": 241.3
+          },
+          {
+            "x": 22.86,
+            "y": 247.65
+          },
+          "R1.2"
+        ]
+      ]
+    },
+    {
+      "net": "USB_CC2",
+      "paths": [
+        [
+          "J1.B5",
+          {
+            "x": 22.86,
+            "y": 228.6
+          },
+          {
+            "x": 22.86,
+            "y": 224.79
+          },
+          "R2.2"
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "R1.1",
+          "GND1.Net"
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "R2.1",
+          "GND2.Net"
+        ]
+      ]
+    },
+    {
+      "net": "USB_5V",
+      "paths": [
+        [
+          "J1.A4B9",
+          {
+            "x": 91.44,
+            "y": 250.19
+          },
+          {
+            "x": 111.76,
+            "y": 250.19
+          }
+        ],
+        [
+          "J1.B4A9",
+          {
+            "x": 91.44,
+            "y": 245.11
+          },
+          {
+            "x": 91.44,
+            "y": 250.19
+          }
+        ]
+      ],
+      "label": {
+        "x": 111.76,
+        "y": 250.19
+      }
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "J1.A1B12",
+          {
+            "x": 91.44,
+            "y": 236.22
+          },
+          "GND3.Net"
+        ],
+        [
+          "J1.B1A12",
+          {
+            "x": 91.44,
+            "y": 231.14
+          }
+        ],
+        [
+          "J1.13",
+          {
+            "x": 91.44,
+            "y": 226.06
+          }
+        ],
+        [
+          "J1.14",
+          {
+            "x": 91.44,
+            "y": 220.98
+          }
+        ]
+      ]
+    },
+    {
+      "net": "VBAT",
+      "paths": [
+        [
+          "J2.1",
+          {
+            "x": 157.48,
+            "y": 238.76
+          }
+        ]
+      ],
+      "label": {
+        "x": 157.48,
+        "y": 238.76
+      }
+    },
+    {
+      "net": "PACK_TS",
+      "paths": [
+        [
+          "J2.2",
+          {
+            "x": 157.48,
+            "y": 236.22
+          }
+        ]
+      ],
+      "label": {
+        "x": 157.48,
+        "y": 236.22
+      }
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "J2.3",
+          {
+            "x": 157.48,
+            "y": 233.68
+          }
+        ]
+      ],
+      "label": {
+        "x": 157.48,
+        "y": 233.68
+      }
+    },
+    {
+      "net": "USB_5V",
+      "paths": [
+        [
+          "U1.37",
+          {
+            "x": 80.01,
+            "y": 185.42
+          },
+          "C1.1"
+        ]
+      ],
+      "label": {
+        "x": 80.01,
+        "y": 185.42
+      }
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "C1.2",
+          "GND4.Net"
+        ]
+      ]
+    },
+    {
+      "net": "VMID",
+      "paths": [
+        [
+          "U1.36",
+          {
+            "x": 68.58,
+            "y": 171.45
+          },
+          "C2.1"
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "C2.2",
+          "GND5.Net"
+        ]
+      ]
+    },
+    {
+      "net": "VBAT",
+      "paths": [
+        [
+          "U1.33",
+          {
+            "x": 69.85,
+            "y": 133.35
+          },
+          "C5.1"
+        ]
+      ],
+      "label": {
+        "x": 69.85,
+        "y": 133.35
+      }
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "C5.2",
+          "GND6.Net"
+        ]
+      ]
+    },
+    {
+      "net": "PMIC_VREF",
+      "paths": [
+        [
+          "U1.2",
+          {
+            "x": 81.28,
+            "y": 93.98
+          },
+          "C7.1"
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "C7.2",
+          "GND7.Net"
+        ]
+      ]
+    },
+    {
+      "net": "PMIC_VRTC",
+      "paths": [
+        [
+          "U1.28",
+          {
+            "x": 72.39,
+            "y": 77.47
+          },
+          "C8.1"
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "C8.2",
+          "GND8.Net"
+        ]
+      ]
+    },
+    {
+      "net": "CHG_SW",
+      "paths": [
+        [
+          "U1.35",
+          "L1.2"
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "C3.2",
+          "GND9.Net"
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "C4.2",
+          "GND10.Net"
+        ]
+      ]
+    },
+    {
+      "net": "VSYS",
+      "paths": [
+        [
+          "U1.34",
+          {
+            "x": 41.91,
+            "y": 148.59
+          },
+          {
+            "x": 31.75,
+            "y": 148.59
+          }
+        ],
+        [
+          "L1.1",
+          {
+            "x": 72.39,
+            "y": 148.59
+          }
+        ],
+        [
+          "C3.1",
+          {
+            "x": 41.91,
+            "y": 148.59
+          }
+        ],
+        [
+          "C4.1",
+          {
+            "x": 58.42,
+            "y": 148.59
+          }
+        ]
+      ],
+      "label": {
+        "x": 31.75,
+        "y": 148.59
+      }
+    },
+    {
+      "net": "PACK_TS",
+      "paths": [
+        [
+          "U1.31",
+          {
+            "x": 80.01,
+            "y": 121.92
+          }
+        ]
+      ],
+      "label": {
+        "x": 80.01,
+        "y": 121.92
+      }
+    },
+    {
+      "net": "PWR_KEY",
+      "paths": [
+        [
+          "J3.1",
+          "R6.1"
+        ]
+      ]
+    },
+    {
+      "net": "PMIC_PWRON",
+      "paths": [
+        [
+          "R6.2",
+          "U1.30"
+        ],
+        [
+          "C6.1",
+          {
+            "x": 86.36,
+            "y": 110.49
+          }
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "C6.2",
+          "GND11.Net"
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "J3.2",
+          {
+            "x": 50.8,
+            "y": 107.95
+          },
+          "GND12.Net"
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "U1.3",
+          {
+            "x": 83.82,
+            "y": 46.99
+          },
+          "GND13.Net"
+        ],
+        [
+          "U1.41",
+          {
+            "x": 83.82,
+            "y": 41.91
+          }
+        ]
+      ]
+    },
+    {
+      "net": "VSYS",
+      "paths": [
+        [
+          "U1.23",
+          {
+            "x": 199.39,
+            "y": 185.42
+          },
+          "C9.1"
+        ]
+      ],
+      "label": {
+        "x": 199.39,
+        "y": 185.42
+      }
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "C9.2",
+          "GND14.Net"
+        ]
+      ]
+    },
+    {
+      "net": "BUCK1_LX",
+      "paths": [
+        [
+          "U1.22",
+          "L2.1"
+        ]
+      ]
+    },
+    {
+      "net": "+3V3",
+      "paths": [
+        [
+          "L2.2",
+          {
+            "x": 217.17,
+            "y": 167.64
+          },
+          {
+            "x": 217.17,
+            "y": 160.02
+          },
+          "U1.21"
+        ],
+        [
+          "VCC15.Net",
+          {
+            "x": 217.17,
+            "y": 167.64
+          }
+        ],
+        [
+          "C10.1",
+          {
+            "x": 247.65,
+            "y": 160.02
+          },
+          {
+            "x": 217.17,
+            "y": 160.02
+          }
+        ]
+      ]
+    },
+    {
+      "net": "GND",
+      "paths": [
+        [
+          "C10.2",
+          "GND16.Net"
+        ]
+      ]
+    },
+    {
+      "net": "PMIC_SCL",
+      "paths": [
+        [
+          "U1.40",
+          {
+            "x": 182.88,
+            "y": 143.51
+          }
+        ]
+      ],
+      "label": {
+        "x": 182.88,
+        "y": 143.51
+      }
+    },
+    {
+      "net": "PMIC_SDA",
+      "paths": [
+        [
+          "U1.39",
+          {
+            "x": 182.88,
+            "y": 138.43
+          }
+        ]
+      ],
+      "label": {
+        "x": 182.88,
+        "y": 138.43
+      }
+    },
+    {
+      "net": "PMIC_IRQ_N",
+      "paths": [
+        [
+          "U1.38",
+          {
+            "x": 182.88,
+            "y": 133.35
+          }
+        ]
+      ],
+      "label": {
+        "x": 182.88,
+        "y": 133.35
+      }
+    },
+    {
+      "net": "PMIC_SCL",
+      "paths": [
+        [
+          "R3.1",
+          {
+            "x": 210.82,
+            "y": 125.73
+          },
+          {
+            "x": 215.9,
+            "y": 125.73
+          }
+        ]
+      ],
+      "label": {
+        "x": 215.9,
+        "y": 125.73
+      }
+    },
+    {
+      "net": "PMIC_SDA",
+      "paths": [
+        [
+          "R4.1",
+          {
+            "x": 234.95,
+            "y": 125.73
+          },
+          {
+            "x": 240.03,
+            "y": 125.73
+          }
+        ]
+      ],
+      "label": {
+        "x": 240.03,
+        "y": 125.73
+      }
+    },
+    {
+      "net": "PMIC_IRQ_N",
+      "paths": [
+        [
+          "R5.1",
+          {
+            "x": 259.08,
+            "y": 125.73
+          },
+          {
+            "x": 264.16,
+            "y": 125.73
+          }
+        ]
+      ],
+      "label": {
+        "x": 264.16,
+        "y": 125.73
+      }
+    },
+    {
+      "net": "+3V3",
+      "paths": [
+        [
+          "R3.2",
+          {
+            "x": 210.82,
+            "y": 143.51
+          },
+          {
+            "x": 259.08,
+            "y": 143.51
+          },
+          "R5.2"
+        ],
+        [
+          "R4.2",
+          {
+            "x": 234.95,
+            "y": 143.51
+          }
+        ],
+        [
+          "VCC17.Net",
+          {
+            "x": 220.98,
+            "y": 143.51
+          }
+        ]
+      ]
+    },
+    {
+      "net": "VSYS",
+      "paths": [
+        [
+          "U1.24",
+          {
+            "x": 185.42,
+            "y": 121.92
+          },
+          {
+            "x": 185.42,
+            "y": 106.68
+          },
+          "U1.13"
+        ],
+        [
+          "U1.6",
+          {
+            "x": 185.42,
+            "y": 118.11
+          }
+        ],
+        [
+          "U1.7",
+          {
+            "x": 185.42,
+            "y": 114.3
+          }
+        ],
+        [
+          "U1.17",
+          {
+            "x": 185.42,
+            "y": 110.49
+          }
+        ],
+        [
+          {
+            "x": 185.42,
+            "y": 106.68
+          },
+          {
+            "x": 194.31,
+            "y": 106.68
+          }
+        ]
+      ],
+      "label": {
+        "x": 194.31,
+        "y": 106.68
+      }
+    }
+  ],
+  "notes": [
+    {
+      "position": {
+        "x": 6.35,
+        "y": 290.83
+      },
+      "height": 4.0,
+      "text": "ESK8 REMOTE  /  POWER AND CHARGING"
+    },
+    {
+      "position": {
+        "x": 6.35,
+        "y": 279.4
+      },
+      "height": 2.0,
+      "text": "5 V USB-C input     •     Protected 1S Li-ion/LiPo     •     AXP2101 switched 3.3 V"
+    },
+    {
+      "position": {
+        "x": 6.35,
+        "y": 266.7
+      },
+      "height": 2.6,
+      "text": "USB-C CHARGE INPUT"
+    },
+    {
+      "position": {
+        "x": 7.62,
+        "y": 182.88
+      },
+      "height": 1.9,
+      "text": "5 V sink only. Fixed Rd on both CC pins."
+    },
+    {
+      "position": {
+        "x": 133.35,
+        "y": 266.7
+      },
+      "height": 2.6,
+      "text": "BATTERY AND TEMPERATURE"
+    },
+    {
+      "position": {
+        "x": 133.35,
+        "y": 220.98
+      },
+      "height": 1.9,
+      "text": "Use a protected 4.2 V cell with pack NTC."
+    },
+    {
+      "position": {
+        "x": 133.35,
+        "y": 215.9
+      },
+      "height": 1.9,
+      "text": "1 +BAT   2 TS (10 kΩ NTC)   3 GND"
+    },
+    {
+      "position": {
+        "x": 133.35,
+        "y": 210.82
+      },
+      "height": 1.9,
+      "text": "Cell and NTC ratings must match charge settings."
+    },
+    {
+      "position": {
+        "x": 96.52,
+        "y": 196.85
+      },
+      "height": 2.6,
+      "text": "CHARGER / POWER PATH"
+    },
+    {
+      "position": {
+        "x": 181.61,
+        "y": 196.85
+      },
+      "height": 2.6,
+      "text": "DCDC1 / 3.3 V SYSTEM RAIL"
+    },
+    {
+      "position": {
+        "x": 181.61,
+        "y": 162.56
+      },
+      "height": 1.9,
+      "text": "Factory profile must start DCDC1 at 3.3 V."
+    },
+    {
+      "position": {
+        "x": 26.67,
+        "y": 97.79
+      },
+      "height": 1.8,
+      "text": "Momentary N.O. contact"
+    },
+    {
+      "position": {
+        "x": 181.61,
+        "y": 151.13
+      },
+      "height": 2.6,
+      "text": "PMIC CONTROL"
+    },
+    {
+      "position": {
+        "x": 208.28,
+        "y": 118.11
+      },
+      "height": 1.8,
+      "text": "I²C 0x34 (7-bit), active-low IRQ"
+    },
+    {
+      "position": {
+        "x": 190.5,
+        "y": 100.33
+      },
+      "height": 1.9,
+      "text": "Unused bucks and LDOs disabled in factory profile."
+    },
+    {
+      "position": {
+        "x": 190.5,
+        "y": 95.25
+      },
+      "height": 1.9,
+      "text": "Leave their switch, feedback and output pins open."
+    },
+    {
+      "position": {
+        "x": 6.35,
+        "y": 10.16
+      },
+      "height": 2.4,
+      "text": "STARTUP ASSUMPTIONS"
+    },
+    {
+      "position": {
+        "x": 6.35,
+        "y": 3.81
+      },
+      "height": 1.9,
+      "text": "Battery-only startup uses the power key. VBUS wake and charger limits depend on the ordered AXP2101 profile."
+    },
+    {
+      "position": {
+        "x": 6.35,
+        "y": -1.27
+      },
+      "height": 1.9,
+      "text": "Qualify DCDC1, power-key timing, 5 V current limit and battery charging on an unprogrammed sample."
+    }
+  ],
+  "no_connects": {
+    "J1.A6": true,
+    "J1.A7": true,
+    "J1.A8": true,
+    "J1.B6": true,
+    "J1.B7": true,
+    "J1.B8": true,
+    "U1.1": true,
+    "U1.10": true,
+    "U1.11": true,
+    "U1.12": true,
+    "U1.14": true,
+    "U1.15": true,
+    "U1.16": true,
+    "U1.18": true,
+    "U1.19": true,
+    "U1.20": true,
+    "U1.25": true,
+    "U1.26": true,
+    "U1.27": true,
+    "U1.29": true,
+    "U1.32": true,
+    "U1.4": true,
+    "U1.5": true,
+    "U1.8": true,
+    "U1.9": true
+  }
+}

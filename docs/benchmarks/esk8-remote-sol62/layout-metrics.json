@@ -1,0 +1,145 @@
+{
+  "/tmp/ff-sol62/project/Esk8_Remote.lpp": {
+    "Main": {
+      "annotation_overlaps": [],
+      "metrics": {
+        "content": {
+          "bounds_mm": [
+            6.21,
+            -1.26,
+            271.318,
+            294.028
+          ],
+          "height_mm": 295.287,
+          "width_mm": 265.108
+        },
+        "defect_count": 0,
+        "defects": {
+          "different_net_wire_overlaps": [],
+          "foreign_wire_contacts": [],
+          "symbol_overlaps": []
+        },
+        "nets": {
+          "labels": 16,
+          "nets": 18,
+          "pin_span_mm": 1604.01,
+          "segments": 42,
+          "split_nets": 9,
+          "unwired_pins": 0
+        },
+        "off_grid": {
+          "junctions": 38,
+          "labels": 13,
+          "pins": 66,
+          "symbols": 29
+        },
+        "readability_issues": 0,
+        "symbol_fill": 0.233,
+        "symbols": 39,
+        "wires": {
+          "bends": 21,
+          "crossings": 0,
+          "diagonal": 0,
+          "lines": 97,
+          "longest_mm": 44.45,
+          "total_length_mm": 876.3
+        }
+      },
+      "schematic": "fdfe1f1d-84fd-4086-9528-a431d4df8cb9"
+    },
+    "Radio and MCU": {
+      "annotation_overlaps": [],
+      "metrics": {
+        "content": {
+          "bounds_mm": [
+            6.21,
+            -16.637,
+            258.595,
+            241.958
+          ],
+          "height_mm": 258.595,
+          "width_mm": 252.385
+        },
+        "defect_count": 0,
+        "defects": {
+          "different_net_wire_overlaps": [],
+          "foreign_wire_contacts": [],
+          "symbol_overlaps": []
+        },
+        "nets": {
+          "labels": 18,
+          "nets": 23,
+          "pin_span_mm": 1244.6,
+          "segments": 34,
+          "split_nets": 5,
+          "unwired_pins": 0
+        },
+        "off_grid": {
+          "junctions": 45,
+          "labels": 13,
+          "pins": 109,
+          "symbols": 18
+        },
+        "readability_issues": 0,
+        "symbol_fill": 0.255,
+        "symbols": 26,
+        "wires": {
+          "bends": 10,
+          "crossings": 0,
+          "diagonal": 0,
+          "lines": 101,
+          "longest_mm": 31.75,
+          "total_length_mm": 1101.09
+        }
+      },
+      "schematic": "c51659ef-985b-4a6b-a6fe-fc19ea54840f"
+    },
+    "User interfaces": {
+      "annotation_overlaps": [],
+      "metrics": {
+        "content": {
+          "bounds_mm": [
+            6.21,
+            21.6,
+            240.585,
+            184.808
+          ],
+          "height_mm": 163.207,
+          "width_mm": 234.375
+        },
+        "defect_count": 0,
+        "defects": {
+          "different_net_wire_overlaps": [],
+          "foreign_wire_contacts": [],
+          "symbol_overlaps": []
+        },
+        "nets": {
+          "labels": 8,
+          "nets": 10,
+          "pin_span_mm": 862.33,
+          "segments": 21,
+          "split_nets": 2,
+          "unwired_pins": 0
+        },
+        "off_grid": {
+          "junctions": 21,
+          "labels": 6,
+          "pins": 36,
+          "symbols": 23
+        },
+        "readability_issues": 0,
+        "symbol_fill": 0.021,
+        "symbols": 29,
+        "wires": {
+          "bends": 15,
+          "crossings": 0,
+          "diagonal": 0,
+          "lines": 66,
+          "longest_mm": 58.42,
+          "total_length_mm": 704.85
+        }
+      },
+      "schematic": "45c40853-2ea3-4582-bbec-fc406cd43dae"
+    }
+  }
+}

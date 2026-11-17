@@ -1,0 +1,5 @@
+Saved the three-sheet [LibrePCB schematic](/home/okhsunrog/tmp_zfs/codex_tmp/foilfern-remote-sol62/sol/case/project/Esk8_Remote.lpp). It includes the bare nRF52840, AXP2101 charging and power-key circuitry, SSD1306 I²C solder contacts, four optional buttons, and a shared trigger input for either an analog Hall sensor or a potentiometer.
+
+I checked the package pin mappings against manufacturer documentation and verified 179 connections across 37 nets. Native ERC reported zero findings. Imported pin metadata limits its coverage. Visual review found zero annotation overlaps, wire crossings, or unwired assigned pins.
+
+The main unresolved item is confirming that the purchased AXP2101 starts DCDC1 at 3.3 V before firmware runs. Availability of the specified 32 MHz crystal also remains unconfirmed. The [design notes](/home/okhsunrog/tmp_zfs/codex_tmp/foilfern-remote-sol62/sol/case/design-notes.md) record the required startup profile, interface pinouts, and sources. PCB placement, routing, and fabrication remain for the next stage.
