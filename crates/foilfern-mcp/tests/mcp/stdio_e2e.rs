@@ -5500,3 +5500,66 @@ async fn stdio_automatic_bank_routes_around_fields_and_replays() {
     assert_eq!(repeated["annotation_overlaps"], json!([]));
     client.cancel().await.unwrap();
 }
+
+#[tokio::test]
+async fn stdio_block_packs_new_notes_and_no_connect_markers_once() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    call_ok(
+        &client,
+        "project_create",
+        json!({"name":"Annotated Block", "create_board":false}),
+    )
+    .await;
+    let device = call_ok(
+        &client,
+        "library_search",
+        json!({"query":"R-0805","kind":"device"}),
+    )
+    .await["elements"][0]["uuid"]
+        .clone();
+    let document = json!({
+        "version":1,"schematic":"Main",
+        "add_components":{
+            "r1":{"designator":"R1","device":device,"value":"1k"},
+            "r2":{"designator":"R2","device":device,"value":"1k"}
+        },
+        "block":{"members":["r1","r2"],"direction":"row","gap":5,
+            "min":{"x":20,"y":20},"max":{"x":180,"y":80},"baseline":50},
+        "no_connects":{"r1.1":true,"r1.2":true,"r2.1":true,"r2.2":true},
+        "notes":[{"text":"Occupied annotation","position":{"x":20,"y":50},"height":3}]
+    });
+    let preview = call_ok(&client, "design_preview", document.clone()).await;
+    assert_eq!(preview["annotation_overlaps"], json!([]));
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":preview["preview"]}),
+    )
+    .await;
+    let sheet = call_ok(&client, "schematic_get", json!({})).await;
+    assert!(
+        sheet["symbols"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|symbol| symbol["position"]["x"].as_f64().unwrap() > 60.0)
+    );
+    let repeat = call_ok(&client, "design_preview", document).await;
+    assert_eq!(repeat["diff"], json!([]));
+    let noop = call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":repeat["preview"]}),
+    )
+    .await;
+    assert_eq!(noop["operation_count"], 0);
+    client.cancel().await.unwrap();
+}

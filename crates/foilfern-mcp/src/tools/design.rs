@@ -821,6 +821,47 @@ pub(crate) fn prepare(
                 &mut topology,
             )?;
             style_symbols(tx, &doc.symbol_styles, &mut added)?;
+            // Include new annotations in packing and report their edits after wiring.
+            let mut annotation_edits = Vec::new();
+            for note in &doc.notes {
+                if note.text.trim().is_empty() {
+                    return Err(ToolError::invalid("A page note needs text."));
+                }
+                let position = note.position.to_point()?;
+                let height = PositiveLength::new(units::length(note.height)?)?;
+                let sheet = tx
+                    .project()
+                    .schematic(page)
+                    .ok_or_else(|| ToolError::not_found("Schematic not found."))?;
+                if sheet.texts().values().any(|text| {
+                    text.layer() == Layer::SCHEMATIC_COMMENTS
+                        && text.text() == &note.text
+                        && text.position() == position
+                        && text.height() == height
+                        && text.rotation() == Angle::DEG0
+                        && text.align() == Alignment::default()
+                }) {
+                    continue;
+                }
+                let uuid = Uuid::new_random();
+                tx.apply(Mutation::Schematic(SchematicMutation::AddText {
+                    schematic: page,
+                    text: Text::new(
+                        uuid,
+                        Layer::SCHEMATIC_COMMENTS,
+                        &note.text,
+                        position,
+                        Angle::DEG0,
+                        height,
+                        Alignment::default(),
+                        false,
+                    ),
+                }))?;
+                annotation_edits.push(
+                json!({"field":"page_note","uuid":uuid,"text":note.text,"position":note.position,"height":note.height}),
+            );
+            }
+            no_connect::update(tx, page, &bindings, &doc.no_connects, &mut annotation_edits)?;
 
             let mut block_members = BTreeSet::new();
             let mut block_designators = BTreeMap::new();
@@ -901,7 +942,7 @@ pub(crate) fn prepare(
                 checkpoint(Stage::Plan)?;
                 let names = group.pin_names()?;
                 if group.paths.is_none() && names.len() < 2 {
-                    return Err(ToolError::invalid("Automatic wire groups need at least two pins. For a single labeled signal end, omit its wire group and use connections with assign_only:false, or connect that pin."));
+                    return Err(ToolError::invalid("Automatic wire groups need at least two pins. To draw a labeled stub for one pin, use connect. During creation set add_components.<key>.assign_only:false and omit that pin's automatic wire group."));
                 }
                 let (net, pins) =
                     resolve_memberships(p, &bindings, &group.net, names.iter().copied())?;
@@ -1015,45 +1056,7 @@ pub(crate) fn prepare(
                     }
                 }
             }
-            for note in &doc.notes {
-                if note.text.trim().is_empty() {
-                    return Err(ToolError::invalid("A page note needs text."));
-                }
-                let position = note.position.to_point()?;
-                let height = PositiveLength::new(units::length(note.height)?)?;
-                let sheet = tx
-                    .project()
-                    .schematic(page)
-                    .ok_or_else(|| ToolError::not_found("Schematic not found."))?;
-                if sheet.texts().values().any(|text| {
-                    text.layer() == Layer::SCHEMATIC_COMMENTS
-                        && text.text() == &note.text
-                        && text.position() == position
-                        && text.height() == height
-                        && text.rotation() == Angle::DEG0
-                        && text.align() == Alignment::default()
-                }) {
-                    continue;
-                }
-                let uuid = Uuid::new_random();
-                tx.apply(Mutation::Schematic(SchematicMutation::AddText {
-                    schematic: page,
-                    text: Text::new(
-                        uuid,
-                        Layer::SCHEMATIC_COMMENTS,
-                        &note.text,
-                        position,
-                        Angle::DEG0,
-                        height,
-                        Alignment::default(),
-                        false,
-                    ),
-                }))?;
-                added.push(
-                json!({"field":"page_note","uuid":uuid,"text":note.text,"position":note.position,"height":note.height}),
-            );
-            }
-            no_connect::update(tx, page, &bindings, &doc.no_connects, &mut added)?;
+            added.extend(annotation_edits);
             topology.remove_unused_nets(tx, &doc.add_nets)?;
             let text_placement = doc.place_text.as_ref().map(|placement| {
                 checkpoint(Stage::Plan)?;

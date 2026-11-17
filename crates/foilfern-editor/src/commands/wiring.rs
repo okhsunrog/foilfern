@@ -27,7 +27,7 @@ use super::circuit::{
 use super::component::MoveSymbol;
 use super::placement::{
     Rect, is_frame, net_label_direction, net_label_length, net_label_rect, placed_symbol_obstacles,
-    placed_symbol_rect, schematic_obstacles, text_rect,
+    placed_symbol_rect, schematic_obstacles, sheet_annotation_obstacles, text_rect,
 };
 use super::resolve;
 use super::schematic::{
@@ -934,7 +934,7 @@ fn clean_route(
     let s = p
         .schematic(schematic)
         .ok_or_else(|| Error::not_found("Schematic", schematic))?;
-    let mut bodies = Vec::new();
+    let mut bodies = sheet_annotation_obstacles(p, s);
     let mut points = Vec::new();
     for (id, sym) in s.symbols() {
         if !is_frame(p, schematic, *id)? {

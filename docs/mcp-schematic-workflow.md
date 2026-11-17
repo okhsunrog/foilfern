@@ -21,6 +21,8 @@ The component's variants identify its gate symbols. Query those symbols with
 Select exact library identities and symbol variants before drawing. Check the
 actual pin mapping. A physical part needs its device UUID in `add_components`.
 The selected library must contain the required symbol variant and dependencies.
+A symbol-variant UUID identifies an entry inside its component. To read pin
+geometry with `library_element`, use that variant gate's symbol UUID.
 
 ## Compose the whole local circuit
 

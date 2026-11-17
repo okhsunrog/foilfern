@@ -34,7 +34,8 @@ the next task merely because their last paragraph once said "next".
   integration coverage. Automatic local wires can use two bends to put parallel
   rails beyond name/value fields. The saved four-capacitor request which failed
   in the first bounded DeepSeek trial now previews with zero overlaps and
-  replays without changes.
+  replays without changes. New page notes and intentional no-connect markers
+  participate in the initial geometry measurement, keeping group replay stable.
 
 - **Checked whole-page schematic repair (2026-11-17, API 63):**
   `schematic_tidy` normalizes ordinary fields, uses renderer bounds to repair
