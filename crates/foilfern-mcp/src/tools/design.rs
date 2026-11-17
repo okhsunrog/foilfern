@@ -322,7 +322,8 @@ pub struct LocalWireGroup {
     /// in mm (Y up). Use orthogonal edges. End a branch on another path to
     /// create a junction. Each group describes one connected segment.
     paths: Option<Vec<Vec<WireVertex>>>,
-    /// Label position on an explicit wire. Omit to draw no label.
+    /// Label position for explicit paths. With explicit paths, omit this field
+    /// to draw no label. Automatic groups choose a label without this field.
     label: Option<PathWaypoint>,
 }
 
@@ -899,6 +900,9 @@ pub(crate) fn prepare(
             for group in &doc.wire_groups {
                 checkpoint(Stage::Plan)?;
                 let names = group.pin_names()?;
+                if group.paths.is_none() && names.len() < 2 {
+                    return Err(ToolError::invalid("Automatic wire groups need at least two pins. For a single labeled signal end, omit its wire group and use connections with assign_only:false, or connect that pin."));
+                }
                 let (net, pins) =
                     resolve_memberships(p, &bindings, &group.net, names.iter().copied())?;
                 for (pin, name) in pins.iter().zip(&names) {

@@ -31,7 +31,10 @@ the next task merely because their last paragraph once said "next".
   managed existing segments during a move. Packing includes rendered field,
   pin-legend and wire-label bounds. The embedded workflow and RC example use
   this creation path. Creation, replay, scoped moves and rollback have native
-  integration coverage.
+  integration coverage. Automatic local wires can use two bends to put parallel
+  rails beyond name/value fields. The saved four-capacitor request which failed
+  in the first bounded DeepSeek trial now previews with zero overlaps and
+  replays without changes.
 
 - **Checked whole-page schematic repair (2026-11-17, API 63):**
   `schematic_tidy` normalizes ordinary fields, uses renderer bounds to repair

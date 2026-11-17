@@ -3,8 +3,8 @@
 //! net, drawing readable schematic wires, or disconnect signals.
 //!
 //! [`ConnectNet`] draws direct wires between nearby pins of a schematic
-//! page (a minimum spanning tree, edges up to a maximum length, with one
-//! corner) and connects far pins through short stub wires with net labels,
+//! page (a minimum spanning tree, edges up to a maximum length, with bounded
+//! orthogonal detours) and connects far pins through short stub wires with net labels,
 //! which is how upstream's schematics connect distant pins and pins on
 //! other pages. All wires are drawn with the regular wire drawing logic
 //! (net merging, forced net names).
@@ -754,7 +754,8 @@ impl ConnectNet {
                     .unwrap_or(0)
             };
             for (a, b) in edges {
-                let Some(points) = clean_route(tx.project(), *schematic, &a, &b)? else {
+                let Some(points) = clean_route(tx.project(), *schematic, &a, &b, Some(max_len))?
+                else {
                     continue;
                 };
                 draw_wire(
@@ -920,7 +921,7 @@ fn segments_overlap(a: (Point, Point), b: (Point, Point)) -> bool {
 }
 
 /// Returns the corner points of a clean wire from `a` to `b` (straight or
-/// with one corner, preferring to leave `a` in its pin direction), or
+/// with one or two corners, preferring to leave `a` in its pin direction), or
 /// `None` if every variant passes through a symbol body or text, over
 /// another pin or junction, or along or across an existing wire.
 fn clean_route(
@@ -928,6 +929,7 @@ fn clean_route(
     schematic: SchematicId,
     a: &PlacedPin,
     b: &PlacedPin,
+    max_length: Option<Length>,
 ) -> Result<Option<Vec<Point>>> {
     let s = p
         .schematic(schematic)
@@ -951,6 +953,17 @@ fn clean_route(
     }
     let mut lines = Vec::new();
     for (id, segment) in s.net_segments() {
+        let chars = p
+            .circuit()
+            .net_signal(segment.net())
+            .map_or(8, |net| net.name().as_str().chars().count());
+        bodies.extend(segment.labels().values().map(|label| {
+            net_label_rect(
+                label.position(),
+                net_label_direction(label.rotation(), label.mirrored()),
+                chars,
+            )
+        }));
         for junction in segment.junctions().values() {
             points.push(junction.position());
         }
@@ -961,6 +974,24 @@ fn clean_route(
             }
         }
     }
+    let clear = |corners: &[Point]| {
+        let path: Vec<_> = std::iter::once(a.position)
+            .chain(corners.iter().copied())
+            .chain([b.position])
+            .collect();
+        let distance = path.windows(2).fold(Length::ZERO, |total, pair| {
+            total + manhattan(pair[0], pair[1])
+        });
+        max_length.is_none_or(|limit| distance <= limit)
+            && path.windows(2).all(|w| {
+                let (p1, p2) = (w[0], w[1]);
+                !bodies.iter().any(|r| segment_crosses_rect(p1, p2, r))
+                    && !points.iter().any(|x| point_on_segment(*x, p1, p2))
+                    && !lines.iter().any(|line| {
+                        segments_overlap((p1, p2), *line) || segments_cross((p1, p2), *line)
+                    })
+            })
+    };
     let modes = if a.is_horizontal() {
         [WireMode::HV, WireMode::VH]
     } else {
@@ -972,19 +1003,50 @@ fn clean_route(
             .into_iter()
             .filter(|m| *m != a.position && *m != b.position)
             .collect();
-        let mut path = vec![a.position];
-        path.extend(corners.iter().copied());
-        path.push(b.position);
-        let clean = path.windows(2).all(|w| {
-            let (p1, p2) = (w[0], w[1]);
-            !bodies.iter().any(|r| segment_crosses_rect(p1, p2, r))
-                && !points.iter().any(|x| point_on_segment(*x, p1, p2))
-                && !lines
-                    .iter()
-                    .any(|l| segments_overlap((p1, p2), *l) || segments_cross((p1, p2), *l))
-        });
-        if clean {
+        if clear(&corners) {
             return Ok(Some(corners));
+        }
+    }
+    // Parallel pins need a rail beyond the annotation row. Keep the search
+    // bounded and prefer channels in the starting pin's outward direction.
+    let outward = a.stub_end() - a.position;
+    for step in 1..=8i64 {
+        let offset = DEFAULT_STUB_LENGTH / 2 * step;
+        let mut xs = [
+            a.position.x.min(b.position.x) - offset,
+            a.position.x.max(b.position.x) + offset,
+        ];
+        let mut ys = [
+            a.position.y.min(b.position.y) - offset,
+            a.position.y.max(b.position.y) + offset,
+        ];
+        if outward.x >= Length::ZERO {
+            xs.swap(0, 1);
+        }
+        if outward.y >= Length::ZERO {
+            ys.swap(0, 1);
+        }
+        let vertical = |x| vec![Point::new(x, a.position.y), Point::new(x, b.position.y)];
+        let horizontal = |y| vec![Point::new(a.position.x, y), Point::new(b.position.x, y)];
+        let candidates = if a.is_horizontal() {
+            [
+                vertical(xs[0]),
+                vertical(xs[1]),
+                horizontal(ys[0]),
+                horizontal(ys[1]),
+            ]
+        } else {
+            [
+                horizontal(ys[0]),
+                horizontal(ys[1]),
+                vertical(xs[0]),
+                vertical(xs[1]),
+            ]
+        };
+        for corners in candidates {
+            if corners[0] != corners[1] && clear(&corners) {
+                return Ok(Some(corners));
+            }
         }
     }
     Ok(None)
@@ -1156,7 +1218,7 @@ impl Command for WireGroup {
             for (distance, a, b) in candidates {
                 if distance != Length::ZERO
                     && let Some(corners) =
-                        clean_route(tx.project(), schematic, &connected[a], &pending[b])?
+                        clean_route(tx.project(), schematic, &connected[a], &pending[b], None)?
                 {
                     route = Some((a, b, corners));
                     break;
@@ -1164,7 +1226,7 @@ impl Command for WireGroup {
             }
             let (a, b, corners) = route.ok_or_else(|| {
                 Error::InvalidArgument(format!(
-                    "No clear route for wire group on {net_name}. Adjust the symbol positions."
+                    "No clear route for wire group on {net_name}. Adjust symbol positions or move name/value fields away from the pin rows."
                 ))
             })?;
             let start = connected[a];

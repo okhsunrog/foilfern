@@ -33,12 +33,16 @@ net and repairing every annotation. Use stable document keys throughout.
   creation. Give fixed anchors an explicit position. Arrange signal
   flow left to right, supply above and ground below. Give separate functional
   blocks distinct areas and short titles. Keep local decoupling with its IC.
-- Set each component's `connections` and `assign_only:true`, then list its
-  local physical connections in `wire_groups`.
+- Set each component's `connections`. Use `assign_only:true` when every
+  connection will be drawn through `wire_groups`. For a component with labeled
+  single-pin signal ends, leave `assign_only:false`; local groups replace their
+  member stubs while the other stubs keep their labels.
 - Start with `wire_groups` containing `net` and `pins`. Omit `paths` to let
   Foilfern draw the orthogonal connections and branch junctions. Reserve explicit
   paths for geometry that requires a particular route. Explicit path segments
   must be orthogonal, nonzero and include every selected pin.
+  Automatic groups need at least two pins and receive net labels automatically.
+  The `label` position field requires explicit `paths`.
 - Pin references use document keys. If a component is declared under key
   `filter_r`, use `filter_r.1`; its designator `R1` is a separate field.
   To edit an existing part, first bind a key under `components`, for example
@@ -48,6 +52,9 @@ net and repairing every annotation. Use stable document keys throughout.
   is an absolute text angle. For a vertical passive, horizontal fields to
   its right are usually readable; for a horizontal passive, put the name
   above and the value below. Keep a consistent text height.
+  These are initial styles. For a field already present in the project, use
+  `symbol_text_move` with `text:"name"` or `text:"value"`, or `place_text` in a
+  preview to find a clear position.
 - Use labels to cross between blocks. Draw local relationships with continuous
   wires. Avoid joining unrelated functional blocks with a long shared ground
   wire solely because their nets have the same name.
@@ -65,8 +72,14 @@ Create one local group per `design_preview` document. `block.members` accepts
 keys from `add_components` and bound existing `components`. Set `min`, `max`,
 `direction`, `gap` and optionally `baseline` to define its area and alignment.
 Foilfern measures symbol fields and existing independent wire stubs when packing
-members. Keep the anchor IC and unrelated parts outside `members` when arranging
+members. `gap` is clearance between occupied bounds; center spacing also
+includes the symbols, fields and stubs. Keep the anchor IC and unrelated parts outside `members` when arranging
 a nearby capacitor bank or pull-up row.
+
+For imported rectangular passives, `symbol_styles` provides `capacitor`,
+`normally_open_push_button` and `crystal` artwork. The crystal style takes
+`resonator_pins` and `case_pins` as library symbol pin UUIDs. It adjusts the
+embedded shared artwork while preserving pin anchors and circuit memberships.
 
 Include local `wire_groups` with `pins` and omit `paths`. The block is placed
 first, then these connections are drawn from the final pin positions. Existing
@@ -116,6 +129,14 @@ and `response`. Tool data is under `response.structuredContent.result`, and
 PNG attachments are under `response.content` with `type:"image"` and base64
 `data`. Check `response.isError` before using a result. Decode images to files
 and open them for visual review.
+
+`call` returns one record with the same `index`, `tool` and `response` envelope.
+Revision history starts again with each CLI process; preview IDs and revision
+checks belong to that process.
+Read one tool schema with `foilfern-mcp tools design_preview`. Its catalog
+envelope contains the starting instructions and the selected tool.
+For independent calls, `batch calls.json --continue-on-error` runs later calls
+after a failure and retains a failing exit status.
 
 Replace the first call's arguments with your actual document. Preview IDs and
 undo history belong to that session. The `rc-lowpass` guide is an executable

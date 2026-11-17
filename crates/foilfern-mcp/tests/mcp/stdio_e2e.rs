@@ -5435,3 +5435,68 @@ async fn stdio_design_creates_and_replays_an_automatically_wired_block() {
     assert_eq!(call_ok(&client, "schematic_get", json!({})).await, sheet);
     client.cancel().await.unwrap();
 }
+
+#[tokio::test]
+async fn stdio_automatic_bank_routes_around_fields_and_replays() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    call_ok(
+        &client,
+        "project_create",
+        json!({"name":"Parallel Bank", "create_board":false}),
+    )
+    .await;
+    let device = call_ok(
+        &client,
+        "library_search",
+        json!({"query":"R-0805","kind":"device"}),
+    )
+    .await["elements"][0]["uuid"]
+        .clone();
+    let mut document = json!({
+        "version":1,"schematic":"Main","add_nets":["VCC","GND"],"add_components":{},
+        "block":{"members":["r1","r2","r3"],"direction":"row","gap":10,
+            "min":{"x":20,"y":20},"max":{"x":210,"y":100},"baseline":60},
+        "wire_groups":[
+            {"net":"VCC","pins":["r1.1","r2.1","r3.1"]},
+            {"net":"GND","pins":["r1.2","r2.2","r3.2"]}
+        ]
+    });
+    for index in 1..=3 {
+        document["add_components"][format!("r{index}")] = json!({
+            "designator":format!("R{index}"),"device":device,"value":"1k","rotation":270,
+            "connections":{"1":"VCC","2":"GND"},"assign_only":true,
+            "fields":{
+                "name":{"offset":{"x":3.81,"y":4.5},"height":2,"rotation":0},
+                "value":{"offset":{"x":3.81,"y":-4.5},"height":2,"rotation":0}
+            }
+        });
+    }
+    let preview = call_ok(&client, "design_preview", document.clone()).await;
+    assert_eq!(preview["annotation_overlaps"], json!([]));
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":preview["preview"]}),
+    )
+    .await;
+    let sheet = call_ok(&client, "schematic_get", json!({})).await;
+    let segments = sheet["net_segments"].as_array().unwrap();
+    assert_eq!(segments.len(), 2);
+    assert!(
+        segments
+            .iter()
+            .all(|segment| segment["lines"].as_array().unwrap().len() >= 5)
+    );
+    let repeated = call_ok(&client, "design_preview", document).await;
+    assert_eq!(repeated["diff"], json!([]));
+    assert_eq!(repeated["annotation_overlaps"], json!([]));
+    client.cancel().await.unwrap();
+}
