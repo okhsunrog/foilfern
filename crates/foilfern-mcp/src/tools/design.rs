@@ -161,7 +161,8 @@ pub struct DesignDocument {
     /// symbol UUID (see component_get). All instances using that symbol change.
     #[serde(default)]
     symbol_styles: BTreeMap<String, Artwork>,
-    /// Optional annotation-overlap review focused on these component keys.
+    /// Additional component keys to include in annotation review. Bound and
+    /// newly created components are always reviewed.
     #[serde(default)]
     review_components: Vec<String>,
     /// Find a position for one symbol field within a caller-supplied area.
@@ -1041,6 +1042,11 @@ pub(crate) fn prepare(
     let schematic = project
         .schematic(page)
         .ok_or_else(|| ToolError::not_found("Preview schematic not found."))?;
+    let bound: BTreeSet<_> = bindings.values().copied().collect();
+    reviewed.extend(schematic.symbols().values().filter_map(|symbol| {
+        (bound.contains(&symbol.component()) || !doc.symbol_styles.is_empty())
+            .then_some(symbol.component())
+    }));
     let mut payload = json!({
         "preview": preview.id, "base_revision": preview.revision, "diff": diff,
         "verified_pins": verified, "erc": erc::compare(&before, &project), "schematic": page,
@@ -1052,7 +1058,7 @@ pub(crate) fn prepare(
     if !copper.is_empty() {
         payload["board_impact"] = json!(copper);
     }
-    if !reviewed.is_empty() {
+    {
         let after = super::layout::annotation_review(&project, schematic, &reviewed, true)?;
         checkpoint(Stage::Check)?;
         let baseline = before
@@ -1073,6 +1079,15 @@ pub(crate) fn prepare(
             super::requirements::evidence(&project, findings, preview.revision, Some(preview.id));
     }
     let mut summary = format!("{} design changes.", diff.len());
+    let introduced_overlaps = payload["annotation_changes"]["introduced"]
+        .as_array()
+        .map_or(0, Vec::len);
+    let annotation_overlaps = payload["annotation_overlaps"]
+        .as_array()
+        .map_or(0, Vec::len);
+    if annotation_overlaps > 0 {
+        summary.push_str(&format!(" {annotation_overlaps} annotation overlap(s), including {introduced_overlaps} new, need layout repair before apply."));
+    }
     if blockers > 0 {
         summary.push_str(&format!(
             " {blockers} schematic requirement(s) block apply."
@@ -1130,6 +1145,9 @@ pub(crate) fn prepare(
     }
     if output.result["erc"]["coverage"]["after"]["has_metadata_gaps"] == true {
         output = output.warn(super::output::ERC_METADATA_WARNING);
+    }
+    if annotation_overlaps > 0 {
+        output = output.partial().warn("Inspect the rendered overlap locations and adjust placement or fields in design_preview. schematic_tidy repairs an applied page while preserving circuit assignments.");
     }
     Ok(PreparedPreview {
         source_project,

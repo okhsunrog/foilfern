@@ -51,8 +51,9 @@ net and repairing every annotation. Use stable document keys throughout.
   wire solely because their nets have the same name.
 
 Preview checks the proposed circuit and annotations and returns its image.
-Inspect that image before accepting the layout. `review_components` selects
-new or edited document keys for focused annotation review. Field edits and
+Inspect that image before accepting the layout. Annotation review automatically
+covers bound and new components. A preview with overlaps returns `partial`
+and includes their locations and changes from the live sheet. Field edits and
 local placement can be included in the same document. Preserve manual work by
 limiting the managed components and wires.
 

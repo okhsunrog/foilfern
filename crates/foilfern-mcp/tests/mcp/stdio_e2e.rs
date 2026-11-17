@@ -32,7 +32,15 @@ async fn call_ok(
     let res = call(client, tool, args).await;
     let envelope = res.structured_content.clone().expect("structured content");
     assert_ne!(res.is_error, Some(true), "{tool} failed: {envelope:#}");
-    assert_eq!(envelope["outcome"], "complete", "{tool}: {envelope:#}");
+    let reviewed_layout = tool == "design_preview"
+        && envelope["outcome"] == "partial"
+        && envelope["result"]["annotation_overlaps"]
+            .as_array()
+            .is_some_and(|overlaps| !overlaps.is_empty());
+    assert!(
+        envelope["outcome"] == "complete" || reviewed_layout,
+        "{tool}: {envelope:#}"
+    );
     assert!(
         matches!(res.content.first(), Some(ContentBlock::Text(_))),
         "{tool}: text summary first"
@@ -2284,6 +2292,8 @@ async fn stdio_design_wire_group_keeps_other_connections() {
     let netlist = call_ok(&client, "netlist", json!({})).await;
     let preview = call_ok(&client, "design_preview", document.clone()).await;
     assert_eq!(preview["diff"].as_array().unwrap().len(), 1);
+    assert!(preview["annotation_overlaps"].is_array());
+    assert!(preview["annotation_changes"]["introduced"].is_array());
     assert_eq!(preview["diff"][0]["field"], "wire_group");
     assert_eq!(preview["diff"][0]["net"], "EN");
     assert_eq!(preview["diff"][0]["pins"], json!(["R1.2", "R2.1"]));
@@ -3845,8 +3855,7 @@ async fn stdio_design_add_component_replays_library_and_keeps_identity() {
         &client,
         "design_preview",
         json!({
-            "version":1,"schematic":"Main","components":{"cap":{"uuid":id}},
-            "review_components":["cap"]
+            "version":1,"schematic":"Main","components":{"cap":{"uuid":id}}
         }),
     )
     .await;

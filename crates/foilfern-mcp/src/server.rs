@@ -1497,7 +1497,7 @@ impl FoilfernMcp {
     // --- Declarative design updates ----------------------------------------------
 
     #[tool(
-        description = "Preview a version 1 design document for schematic edits, board placement or both. Board placement reports pose diffs, DRC, connectivity and saved requirements. Use board_layout.repair to propose local copper replacements and preview explicitly authorized branches with the placement. Schematic edits include nets, parts, fields, blocks and local wire paths, with ERC and annotation review. Compose new parts and their fields together; use wire_groups with pins and omit paths for automatic local wiring. Pin references use document keys. See foilfern://guides/schematic-design."
+        description = "Preview a version 1 design document for schematic edits, board placement or both. Board placement reports pose diffs, DRC, connectivity and saved requirements. Use board_layout.repair to propose local copper replacements and preview explicitly authorized branches with the placement. Schematic edits include nets, parts, fields, blocks and local wire paths, with ERC and automatic annotation review. Overlaps return partial with locations to repair before apply. Compose new parts and their fields together; use wire_groups with pins and omit paths for automatic local wiring. Pin references use document keys. See foilfern://guides/schematic-design."
     )]
     async fn design_preview(
         &self,

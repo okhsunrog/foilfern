@@ -30,7 +30,9 @@ the next task merely because their last paragraph once said "next".
   annotation conflicts, and verifies that the complete circuit is preserved.
   Redrawing is scoped to the selected sheet. Unresolved conflicts roll back
   placement, wiring and embedded artwork together. `schematic_review` provides
-  a repair action for overlapping annotations. The saved remote trial can be
+  a repair action for overlapping annotations. Declarative previews review
+  bound and new symbols automatically and report overlapping layouts as
+  `partial`. The saved remote trial can be
   relaid out with zero reported annotation overlaps on all three pages and an
   identical netlist. Functional grouping and electrical correctness require
   separate acceptance in the follow-up model trials.
