@@ -48,6 +48,15 @@ the next task merely because their last paragraph once said "next".
   relaid out with zero reported annotation overlaps on all three pages and an
   identical netlist. Functional grouping and electrical correctness require
   separate acceptance in the follow-up model trials.
+- **Schematic layout metrics (2026-11-17, API 63):** `schematic_review`
+  returns whole-page `metrics`: overlapping symbol bodies, collinear wires of
+  different nets and wire ends on another net's wire (`defects`, which make the
+  outcome `partial`), plus crossings, bends, wire length, label-split nets, pin
+  spread, symbol fill and off-grid anchors for comparing layouts.
+  `scripts/schematic-metrics.py` measures every page of one project or compares
+  two. Against the saved remote trial it separates the tidied pages from the
+  originals; the four accepted two-block trials differ by up to 59 % in wire
+  length and 2.2× in symbol fill despite identical acceptance.
 
 - **Small binary-only schematic workflows (2026-11-16, API 63):** automatic
   local wire groups can form three-pin branches, with native junctions and

@@ -10,7 +10,8 @@ use foilfern_core::project::schematic::import_appearance::ImportAppearance;
 use foilfern_core::project::{ComponentInstanceId, NetSegmentId, Project, SymbolId};
 use foilfern_core::types::Point;
 use foilfern_scene::{
-    Annotation, AnnotationOverlap, ColorScheme, SchematicScene, annotation_overlaps,
+    Annotation, AnnotationOverlap, ColorScheme, SchematicMetrics, SchematicScene,
+    annotation_overlaps, schematic_metrics,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -219,10 +220,13 @@ pub fn schematic_review(session: &Session, args: SchematicReviewArgs) -> ToolRes
         .iter()
         .map(|key| resolve::component(project, key).map(|(id, _)| id))
         .collect::<ToolResult<BTreeSet<_>>>()?;
-    let findings = annotation_review(project, schematic, &components, true)?;
+    let scene = SchematicScene::build(project, schematic.id(), &ColorScheme::SCHEMATIC_LIGHT)?;
+    let findings = annotation_review_in(project, schematic, &scene, &components, true)?;
+    let metrics = schematic_metrics(project, &scene)?;
     let mut result = json!({
         "schematic": schematic.id(),
-        "annotation_overlaps": findings.overlaps().collect::<Vec<_>>()
+        "annotation_overlaps": findings.overlaps().collect::<Vec<_>>(),
+        "metrics": metrics_json(project, schematic, &metrics, findings.entries.len()),
     });
     if !findings.entries.is_empty() {
         result["next_action"] = json!({
@@ -232,17 +236,109 @@ pub fn schematic_review(session: &Session, args: SchematicReviewArgs) -> ToolRes
             "connectivity_preserved": true
         });
     }
-    let output = ToolOutput::new(
-        format!(
-            "{} schematic annotation overlap(s).",
-            findings.entries.len()
-        ),
-        result,
-    )?;
-    Ok(if findings.entries.is_empty() {
-        output
-    } else {
-        output.partial().warn("Use schematic_tidy for a checked whole-page relayout, or design_preview for local text and placement edits. Inspect the rendered result.")
+    let defects = metrics.defects();
+    let mut summary = format!(
+        "{} schematic annotation overlap(s).",
+        findings.entries.len()
+    );
+    if defects > 0 {
+        summary.push_str(&format!(
+            " {defects} layout defect(s): overlapping symbols or wires of different nets drawn as connected."
+        ));
+    }
+    let mut output = ToolOutput::new(summary, result)?;
+    if !findings.entries.is_empty() {
+        output = output.partial().warn("Use schematic_tidy for a checked whole-page relayout, or design_preview for local text and placement edits. Inspect the rendered result.");
+    }
+    if defects > 0 {
+        output = output.partial().warn("metrics.defects lists symbol bodies drawn over each other and wires of different nets which overlap or end on each other. Move the symbols or reroute the wires with design_preview, then review again.");
+    }
+    Ok(output)
+}
+
+fn round3(value: f64) -> f64 {
+    (value * 1000.0).round() / 1000.0
+}
+
+fn point3((x, y): (f64, f64)) -> Value {
+    json!({ "x": round3(x), "y": round3(y) })
+}
+
+/// Page layout measurements of `schematic_review`. Lower counts, length and
+/// pin span are better when comparing layouts of the same circuit.
+fn metrics_json(
+    project: &Project,
+    schematic: &Schematic,
+    metrics: &SchematicMetrics,
+    annotation_overlaps: usize,
+) -> Value {
+    let designator = |symbol: SymbolId| {
+        schematic
+            .symbols()
+            .get(&symbol)
+            .map(|s| resolve::designator(project, s.component()))
+    };
+    let net = |segment: NetSegmentId| {
+        schematic
+            .net_segments()
+            .get(&segment)
+            .map(|s| resolve::net_name(project, s.net()))
+    };
+    let wire = |(segment, uuid): (NetSegmentId, foilfern_core::types::Uuid)| json!({ "net": net(segment), "segment": segment, "wire": uuid });
+    let wires = &metrics.wires;
+    let nets = &metrics.nets;
+    let content = metrics.content_bounds.map(|[x0, y0, x1, y1]| {
+        json!({
+            "bounds_mm": [round3(x0), round3(y0), round3(x1), round3(y1)],
+            "width_mm": round3(x1 - x0),
+            "height_mm": round3(y1 - y0),
+        })
+    });
+    json!({
+        "symbols": metrics.symbols,
+        "content": content,
+        "symbol_fill": round3(metrics.symbol_fill),
+        "wires": {
+            "lines": wires.lines,
+            "total_length_mm": round3(wires.total_length_mm),
+            "longest_mm": round3(wires.longest_mm),
+            "bends": wires.bends,
+            "crossings": wires.crossings,
+            "diagonal": wires.diagonal,
+        },
+        "nets": {
+            "nets": nets.nets,
+            "segments": nets.segments,
+            "labels": nets.labels,
+            "split_nets": nets.split_nets,
+            "pin_span_mm": round3(nets.pin_span_mm),
+            "unwired_pins": nets.unwired_pins,
+        },
+        "off_grid": {
+            "symbols": metrics.off_grid.symbols,
+            "junctions": metrics.off_grid.junctions,
+            "labels": metrics.off_grid.labels,
+        },
+        "defect_count": metrics.defects(),
+        "readability_issues": metrics.defects() + annotation_overlaps,
+        "defects": {
+            "symbol_overlaps": metrics.symbol_overlaps.iter().map(|o| json!({
+                "components": [designator(o.first), designator(o.second)],
+                "symbols": [o.first, o.second],
+                "bounds_mm": o.bounds.map(round3),
+            })).collect::<Vec<_>>(),
+            "different_net_wire_overlaps": wires.different_net_overlaps.iter().map(|o| json!({
+                "first": wire(o.first),
+                "second": wire(o.second),
+                "from": point3(o.from),
+                "to": point3(o.to),
+            })).collect::<Vec<_>>(),
+            "foreign_wire_contacts": wires.foreign_contacts.iter().map(|c| json!({
+                "wire": wire(c.wire),
+                "touched": wire(c.touched),
+                "position": point3(c.position),
+            })).collect::<Vec<_>>(),
+        },
     })
 }
 
@@ -280,6 +376,18 @@ pub(super) fn annotation_review(
     components: &BTreeSet<ComponentInstanceId>,
     require_placed: bool,
 ) -> ToolResult<AnnotationReview> {
+    let scene = SchematicScene::build(project, schematic.id(), &ColorScheme::SCHEMATIC_LIGHT)?;
+    annotation_review_in(project, schematic, &scene, components, require_placed)
+}
+
+/// [`annotation_review`] on an already built scene of `schematic`.
+pub(super) fn annotation_review_in(
+    project: &Project,
+    schematic: &Schematic,
+    scene: &SchematicScene,
+    components: &BTreeSet<ComponentInstanceId>,
+    require_placed: bool,
+) -> ToolResult<AnnotationReview> {
     let symbols: BTreeSet<_> = schematic
         .symbols()
         .iter()
@@ -307,7 +415,6 @@ pub(super) fn annotation_review(
         })
         .map(|(id, _)| *id)
         .collect();
-    let scene = SchematicScene::build(project, schematic.id(), &ColorScheme::SCHEMATIC_LIGHT)?;
     let describe = |object| match object {
         Annotation::SymbolText(symbol, text) => {
             let placed = &schematic.symbols()[&symbol];
@@ -339,7 +446,7 @@ pub(super) fn annotation_review(
         }
     };
     let scope = (!components.is_empty()).then_some((&symbols, &segments));
-    let entries = annotation_overlaps(&scene, scope)
+    let entries = annotation_overlaps(scene, scope)
         .into_iter()
         .map(
             |AnnotationOverlap {

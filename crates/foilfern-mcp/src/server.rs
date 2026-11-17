@@ -83,7 +83,7 @@ path become junctions. Omit paths to request automatic local wiring. Use schemat
 for checked whole-page relayout and overlap repair with circuit assignments preserved.\n\
 Use no_connects in a design document to mark explicitly unused pins. \
 Use image_region on render or design_preview to inspect a schematic block at a larger scale. \
-Use schematic_review to find overlapping annotations on the live sheet and follow its repair action. \
+Use schematic_review to find overlapping annotations and misleading wires on the live sheet and follow its repair action; compare its metrics before and after a layout change. \
 Use design_preview with place_text to find a clear position for one symbol field in a selected area. \
 Before design_apply, review the preview's diff, ERC changes, board impact and schematic \
 requirements when present. Use requirements_get and requirements_check to read saved rules.\n\
@@ -789,7 +789,7 @@ impl FoilfernMcp {
     }
 
     #[tool(
-        description = "Find overlaps between annotations or with schematic wires and return an actionable repair hint. Optionally focus on a list of components. Read-only."
+        description = "Find overlaps between annotations or with schematic wires and return an actionable repair hint. Optionally focus on a list of components. Also returns whole-page layout metrics: overlapping symbols, wires of different nets drawn as connected, crossings, bends, wire length, label-split nets, pin spread and off-grid anchors. Read-only."
     )]
     async fn schematic_review(
         &self,

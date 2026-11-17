@@ -330,6 +330,19 @@ document component keys to that review.
 `annotation_changes` reports `introduced`, `inherited` and `resolved`
 overlaps. Matching uses the two annotation identities regardless of their order
 or position. `annotation_overlaps` lists all findings in the proposed sheet.
+
+`schematic_review.metrics` measures the whole page regardless of `components`:
+`symbols`, `content` (visible bounds, width and height in mm), `symbol_fill`
+(symbol body area over content area), `wires` (`lines`, `total_length_mm`,
+`longest_mm`, `bends` at two-line junctions, proper `crossings` between
+segments, `diagonal`), `nets` (`nets`, `segments`, `labels`, `split_nets` drawn
+as several segments, `pin_span_mm` as the summed half perimeter of each net's
+pins on the page, `unwired_pins`) and `off_grid` symbol origins, junctions and
+labels. `defects` lists `symbol_overlaps`, `different_net_wire_overlaps`
+(collinear stretches longer than 0.1 mm) and `foreign_wire_contacts` (a wire end
+on the interior of another net's wire). `defect_count` counts them and
+`readability_issues` adds the annotation overlaps. Defects make the outcome
+`partial`; the other values are comparison measurements without thresholds.
 The check uses annotation bounds from the schematic scene. Findings are advisory.
 
 Use `wire_groups` for pins that should be joined by visible wires on that

@@ -43,6 +43,7 @@ mod footprint;
 mod render;
 pub mod resources;
 mod schematic;
+mod schematic_metrics;
 mod schematic_readability;
 mod shapes;
 mod symbol;
@@ -60,6 +61,10 @@ pub use render::{
     render_schematic_region, render_schematic_scene, visible_bounds,
 };
 pub use schematic::{SchematicObject, SchematicScene};
+pub use schematic_metrics::{
+    ForeignWireContact, NetMetrics, OffGrid, SchematicMetrics, SymbolOverlap, WireMetrics,
+    WireOverlap, schematic_metrics,
+};
 pub use schematic_readability::{
     Annotation, AnnotationOverlap, SymbolTextPlacement, annotation_overlaps,
 };

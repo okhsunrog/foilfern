@@ -503,6 +503,16 @@ fn schematic_review_identifies_overlapping_imported_pin_names() {
     assert_eq!(review.envelope()["outcome"], "partial");
     assert_eq!(review.result["next_action"]["tool"], "schematic_tidy");
     assert_eq!(review.result["next_action"]["connectivity_preserved"], true);
+    let metrics = &review.result["metrics"];
+    assert_eq!(metrics["symbols"], 1, "{metrics}");
+    assert_eq!(metrics["defect_count"], 0);
+    assert_eq!(metrics["readability_issues"], 1);
+    assert_eq!(metrics["defects"]["symbol_overlaps"], json!([]));
+    assert!(metrics["content"]["width_mm"].as_f64().unwrap() > 0.0);
+    assert!(metrics["symbol_fill"].as_f64().unwrap() > 0.0);
+    for key in ["junctions", "labels", "symbols"] {
+        assert!(metrics["off_grid"][key].is_u64(), "{metrics}");
+    }
     assert!(!session.project().unwrap().has_unsaved_changes());
     // Imported legends may have fixed external appearance overrides. A failed
     // layout repair must restore its field, artwork and placement mutations.
