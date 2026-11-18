@@ -146,6 +146,17 @@ impl Item {
         let half_width = self.style.stroke.as_ref().map_or(0.0, |s| s.width / 2.0);
         self.geometry.outline_touches_rect(rect, half_width)
     }
+
+    /// Whether the stroked outline touches the rectangle, ignoring any fill
+    /// (e.g. text drawn on a shaded symbol body but clear of its outline).
+    /// Items without a stroke never touch.
+    pub fn stroke_touches_rect(&self, rect: Rect) -> bool {
+        let Some(stroke) = self.style.stroke.as_ref() else {
+            return false;
+        };
+        self.bounding_box().overlaps(rect)
+            && self.geometry.outline_touches_rect(rect, stroke.width / 2.0)
+    }
 }
 
 /// How [`Scene::items_in_rect`] selects items.

@@ -789,7 +789,7 @@ impl FoilfernMcp {
     }
 
     #[tool(
-        description = "Find overlaps between annotations or with schematic wires and return an actionable repair hint. Optionally focus on a list of components. Also returns whole-page layout metrics: overlapping symbols, wires of different nets drawn as connected, crossings, bends, wire length, label-split nets, pin spread and off-grid anchors. Read-only."
+        description = "Find overlaps of annotations with each other, with schematic wires and with drawn symbol artwork, and return an actionable repair hint. Optionally focus on a list of components. Also returns whole-page layout metrics: overlapping symbols, wires of different nets drawn as connected, wires through symbols, crossings, bends, wire length, label-split nets, pin spread and off-grid anchors. Read-only."
     )]
     async fn schematic_review(
         &self,

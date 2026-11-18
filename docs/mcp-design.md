@@ -321,7 +321,11 @@ selected sheet. `block_position` entries report the changed positions and
 the preview reviews annotation overlaps for the block.
 
 `schematic_review` finds overlaps involving symbol fields, pin names and numbers,
-net labels, page notes and schematic wires on the live sheet. Pass `components` with designators
+net labels, page notes, schematic wires and drawn symbol artwork on the live sheet.
+Artwork means outlines, filled shapes and pin lines tested against their painted
+shape; a shaded symbol body counts only at its outline, and pin names and numbers
+are tested only against other symbols' artwork. Such findings name the touched
+symbol as `{"kind":"symbol_artwork","component":...}`. Pass `components` with designators
 or component UUIDs to focus the review on their symbols and attached labels.
 Each finding identifies both annotations and the overlap rectangle as
 `[min_x,min_y,max_x,max_y]` in sheet millimeters. In `design_preview`,
@@ -339,8 +343,9 @@ segments, `diagonal`), `nets` (`nets`, `segments`, `labels`, `split_nets` drawn
 as several segments, `pin_span_mm` as the summed half perimeter of each net's
 pins on the page, `unwired_pins`) and `off_grid` symbol origins, pins,
 junctions and labels. `defects` lists `symbol_overlaps`, `different_net_wire_overlaps`
-(collinear stretches longer than 0.1 mm) and `foreign_wire_contacts` (a wire end
-on the interior of another net's wire). `defect_count` counts them and
+(collinear stretches longer than 0.1 mm), `foreign_wire_contacts` (a wire end
+on the interior of another net's wire) and `wires_through_symbols` (an
+orthogonal wire drawn across a symbol body or outline away from its ends). `defect_count` counts them and
 `readability_issues` adds the annotation overlaps. Defects make the outcome
 `partial`; the other values are comparison measurements without thresholds.
 The check uses annotation bounds from the schematic scene. Findings are advisory.
@@ -1775,3 +1780,11 @@ These discovery commands require no workspace or project. Initial placement
 is a draft; schematic creation guidance directs callers to compose parts,
 fields and automatic local wire groups together, then inspect the image,
 review annotations, check ERC and save.
+
+### Layout metrics and artwork review
+
+API 64 adds whole-page `metrics` to `schematic_review` (see the schematic
+review section) and extends annotation review to drawn symbol artwork. New
+finding kinds are `symbol_artwork` in `annotation_overlaps` and
+`wires_through_symbols` in `metrics.defects`. Callers that switch on finding
+kinds should treat unknown kinds as readability issues.

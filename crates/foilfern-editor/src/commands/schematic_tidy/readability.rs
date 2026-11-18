@@ -95,6 +95,11 @@ fn describe(tx: &Transaction<'_>, page: SchematicId, annotation: Annotation) -> 
                 super::resolve::component_name(tx.project(), sheet.symbols()[&symbol].component());
             format!("{name} annotation")
         }
+        Annotation::SymbolArtwork(symbol) => {
+            let name =
+                super::resolve::component_name(tx.project(), sheet.symbols()[&symbol].component());
+            format!("{name} symbol artwork")
+        }
         Annotation::NetLabel(segment, _) | Annotation::Wire(segment, _) => {
             let name =
                 super::resolve::net_name(tx.project(), Some(sheet.net_segments()[&segment].net()));

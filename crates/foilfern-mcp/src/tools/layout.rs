@@ -243,7 +243,7 @@ pub fn schematic_review(session: &Session, args: SchematicReviewArgs) -> ToolRes
     );
     if defects > 0 {
         summary.push_str(&format!(
-            " {defects} layout defect(s): overlapping symbols or wires of different nets drawn as connected."
+            " {defects} layout defect(s): overlapping symbols, wires drawn through symbols, or wires of different nets drawn as connected."
         ));
     }
     let mut output = ToolOutput::new(summary, result)?;
@@ -251,7 +251,7 @@ pub fn schematic_review(session: &Session, args: SchematicReviewArgs) -> ToolRes
         output = output.partial().warn("Use schematic_tidy for a checked whole-page relayout, or design_preview for local text and placement edits. Inspect the rendered result.");
     }
     if defects > 0 {
-        output = output.partial().warn("metrics.defects lists symbol bodies drawn over each other and wires of different nets which overlap or end on each other. Move the symbols or reroute the wires with design_preview, then review again.");
+        output = output.partial().warn("metrics.defects lists symbol bodies drawn over each other, wires drawn through symbols, and wires of different nets which overlap or end on each other. Move the symbols or reroute the wires with design_preview, then review again.");
     }
     Ok(output)
 }
@@ -333,6 +333,11 @@ fn metrics_json(
                 "second": wire(o.second),
                 "from": point3(o.from),
                 "to": point3(o.to),
+            })).collect::<Vec<_>>(),
+            "wires_through_symbols": wires.through_symbols.iter().map(|c| json!({
+                "wire": wire(c.wire),
+                "component": designator(c.symbol),
+                "symbol": c.symbol,
             })).collect::<Vec<_>>(),
             "foreign_wire_contacts": wires.foreign_contacts.iter().map(|c| json!({
                 "wire": wire(c.wire),
@@ -431,6 +436,10 @@ pub(super) fn annotation_review_in(
             json!({"kind":"wire","net":resolve::net_name(project, net),"segment":segment,"wire":wire})
         }
         Annotation::Text(text) => json!({"kind":"schematic_text","text":text}),
+        Annotation::SymbolArtwork(symbol) => {
+            let placed = &schematic.symbols()[&symbol];
+            json!({"kind":"symbol_artwork","component":resolve::designator(project, placed.component()),"symbol":symbol})
+        }
         Annotation::PinName(symbol, pin) | Annotation::PinNumber(symbol, pin) => {
             let placed = &schematic.symbols()[&symbol];
             let pin_label = placed

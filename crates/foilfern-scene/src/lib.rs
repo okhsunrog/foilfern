@@ -63,7 +63,7 @@ pub use render::{
 pub use schematic::{SchematicObject, SchematicScene};
 pub use schematic_metrics::{
     ForeignWireContact, NetMetrics, OffGrid, SchematicMetrics, SymbolOverlap, WireMetrics,
-    WireOverlap, schematic_metrics,
+    WireOverlap, WireThroughSymbol, schematic_metrics,
 };
 pub use schematic_readability::{
     Annotation, AnnotationOverlap, SymbolTextPlacement, annotation_overlaps,

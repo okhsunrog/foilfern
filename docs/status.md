@@ -60,6 +60,10 @@ the next task merely because their last paragraph once said "next".
   rails, mid-wire labels and label stubs now try page-grid positions first and
   keep half-grid positions only as a fallback for tight gaps; replayed trial
   documents keep identical netlists with no off-grid anchors of their own.
+  Annotation review also tests fields, labels and notes against painted symbol
+  artwork, and the metrics report wires drawn through symbols. On the original
+  DeepSeek remote pages this finds 12 artwork contacts and 3 wires through
+  symbols, all confirmed in close-up renders; the clean trial pages report none.
 
 - **Small binary-only schematic workflows (2026-11-16, API 63):** automatic
   local wire groups can form three-pin branches, with native junctions and

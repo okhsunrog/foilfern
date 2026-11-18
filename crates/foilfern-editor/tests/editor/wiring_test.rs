@@ -698,3 +698,68 @@ fn test_wire_group_rails_stay_on_the_page_grid() {
         }
     }
 }
+
+/// A field drawn over the plates of its own capacitor overlaps the symbol
+/// artwork; the same field beside the symbol does not.
+#[test]
+fn test_review_reports_text_on_symbol_artwork() {
+    use foilfern_scene::{Annotation, ColorScheme, SchematicScene, annotation_overlaps};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let mut editor = create_editor(tmp.path());
+    editor
+        .execute(AddSchematic {
+            name: ElementName::new("Main").unwrap(),
+            index: None,
+        })
+        .unwrap();
+    let added = editor
+        .execute(AddComponent {
+            value: Some("100nF".into()),
+            device: Some(lib::c0805()),
+            place: Some(SymbolPlacement {
+                schematic: None,
+                position: mm(0.0, 0.0),
+                rotation: Default::default(),
+                mirrored: false,
+                gate_offset: None,
+            }),
+            ..AddComponent::new(lib::capacitor())
+        })
+        .unwrap();
+    let schematic = editor.project().schematics()[0].id();
+    let symbol = added.symbols[0];
+    let move_text = |editor: &mut foilfern_editor::ProjectEditor, position| {
+        let mut text = editor.project().schematics()[0].symbols()[&symbol]
+            .texts()
+            .values()
+            .find(|text| text.layer().id() == "sym_values")
+            .unwrap()
+            .clone();
+        text.set_position(position);
+        editor
+            .apply_mutations(
+                "Move value",
+                vec![foilfern_core::project::Mutation::Schematic(
+                    foilfern_core::project::SchematicMutation::UpdateSymbolText {
+                        symbol: foilfern_core::project::SymbolRef { schematic, symbol },
+                        text,
+                    },
+                )],
+            )
+            .unwrap();
+    };
+    let overlaps = |editor: &foilfern_editor::ProjectEditor| {
+        let scene =
+            SchematicScene::build(editor.project(), schematic, &ColorScheme::SCHEMATIC_LIGHT)
+                .unwrap();
+        annotation_overlaps(&scene, None)
+            .into_iter()
+            .filter(|o| o.second == Annotation::SymbolArtwork(symbol))
+            .count()
+    };
+    move_text(&mut editor, mm(10.16, 0.0));
+    assert_eq!(overlaps(&editor), 0);
+    move_text(&mut editor, mm(-1.27, 0.0));
+    assert_eq!(overlaps(&editor), 1);
+}

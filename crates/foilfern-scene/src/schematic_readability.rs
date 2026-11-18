@@ -77,9 +77,19 @@ pub enum Annotation {
     PinName(SymbolId, Uuid),
     PinNumber(SymbolId, Uuid),
     Wire(NetSegmentId, Uuid),
+    /// Drawn artwork of a symbol: outlines, filled shapes and pin lines.
+    /// The shaded body area of a symbol does not count.
+    SymbolArtwork(SymbolId),
 }
 
-/// Checks visible annotations against each other and against schematic wires.
+/// Text bounds are shrunk by this much (mm) before testing them against
+/// symbol artwork, to ignore stroke-width contacts at glyph box corners.
+const ARTWORK_CONTACT_MM: f64 = 0.05;
+
+/// Checks visible annotations against each other, against schematic wires
+/// and against drawn symbol artwork. Pin names and numbers are tested only
+/// against the artwork of other symbols; their placement on their own symbol
+/// comes from the library.
 /// Limits the report to overlaps involving the supplied symbols or their labels.
 pub fn annotation_overlaps(
     scene: &SchematicScene,
@@ -148,6 +158,56 @@ pub fn annotation_overlaps(
                     bounds: [overlap.x0, overlap.y0, overlap.x1, overlap.y1],
                 });
             }
+        }
+    }
+    let pin_lines = SchematicScene::layer_id("schematic_pin_lines");
+    for &(annotation, bounds) in &annotations {
+        let own = match annotation {
+            Annotation::PinName(symbol, _) | Annotation::PinNumber(symbol, _) => Some(symbol),
+            _ => None,
+        };
+        let probe = bounds.inset(-ARTWORK_CONTACT_MM);
+        if probe.width() <= 0.0 || probe.height() <= 0.0 {
+            continue;
+        }
+        let mut touched: BTreeMap<SymbolId, Rect> = BTreeMap::new();
+        for id in scene
+            .scene()
+            .items_in_rect(probe, SelectionMode::Intersects)
+        {
+            let Some(item) = scene.scene().item(id) else {
+                continue;
+            };
+            let symbol = match scene.object(id) {
+                Some(SchematicObject::Symbol(symbol)) => symbol,
+                Some(SchematicObject::SymbolPin(symbol, _)) if Some(item.layer) == pin_lines => {
+                    symbol
+                }
+                _ => continue,
+            };
+            if own == Some(symbol) {
+                continue;
+            }
+            // A shaded body only counts where text meets its outline.
+            if item.z == crate::schematic::z::GRAB_AREAS && !item.stroke_touches_rect(probe) {
+                continue;
+            }
+            if !in_scope(annotation) && !scope.is_some_and(|(symbols, _)| symbols.contains(&symbol))
+            {
+                continue;
+            }
+            let overlap = probe.intersect(item.bounding_box());
+            touched
+                .entry(symbol)
+                .and_modify(|rect| *rect = rect.union(overlap))
+                .or_insert(overlap);
+        }
+        for (symbol, overlap) in touched {
+            result.push(AnnotationOverlap {
+                first: annotation,
+                second: Annotation::SymbolArtwork(symbol),
+                bounds: [overlap.x0, overlap.y0, overlap.x1, overlap.y1],
+            });
         }
     }
     for (annotation, bounds) in annotations {

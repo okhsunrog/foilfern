@@ -68,7 +68,7 @@ pub(crate) const ROLES: &[&str] = &[
 ];
 
 /// Draw order of the item kinds (upstream `SchematicPainter::paint()`).
-mod z {
+pub(crate) mod z {
     pub const GRAB_AREAS: i32 = 0;
     pub const FILLED: i32 = 1;
     pub const SYMBOL_IMAGES: i32 = 2;

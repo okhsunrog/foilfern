@@ -100,10 +100,12 @@ rendered circuit follows the requested flow, local components belong together,
 values are legible and wires do not obscure annotations. Correct any findings
 and save with `project_save`.
 
-`schematic_review` also returns `metrics` for the whole page. `defects` lists
-overlapping symbol bodies and wires of different nets which run along each other
-or end on each other; a reader takes both for connections, so fix them before
-saving. Crossings, bends, wire length, `split_nets` (nets joined only by labels),
+`schematic_review` also checks fields, labels and notes against drawn symbol
+artwork such as capacitor plates and outlines, not only against other text.
+Its `metrics` cover the whole page. `defects` lists overlapping symbol bodies,
+wires of different nets which run along each other or end on each other, and
+wires drawn through a symbol; a reader takes these for connections, so fix them
+before saving. Crossings, bends, wire length, `split_nets` (nets joined only by labels),
 `pin_span_mm` (spread of connected pins), `symbol_fill` and `off_grid` are
 measurements, not errors. Compare them before and after a layout change of the
 same circuit: lower length, crossings and pin span usually read better.

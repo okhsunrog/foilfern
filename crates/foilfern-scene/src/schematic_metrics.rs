@@ -11,6 +11,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use foilfern_canvas::SelectionMode;
 use foilfern_canvas::kurbo::Rect;
 use foilfern_core::geometry::NetLineAnchor;
 use foilfern_core::project::schematic::Schematic;
@@ -64,6 +65,16 @@ pub struct WireMetrics {
     pub crossings: usize,
     pub different_net_overlaps: Vec<WireOverlap>,
     pub foreign_contacts: Vec<ForeignWireContact>,
+    /// Orthogonal lines drawn through a symbol body or its outline.
+    pub through_symbols: Vec<WireThroughSymbol>,
+}
+
+/// A wire drawn across the body or outline of a symbol. Contacts at the
+/// wire ends (pin connections) do not count.
+#[derive(Debug, Clone, PartialEq)]
+pub struct WireThroughSymbol {
+    pub wire: (NetSegmentId, Uuid),
+    pub symbol: SymbolId,
 }
 
 /// Net counters of a page.
@@ -117,6 +128,7 @@ impl SchematicMetrics {
         self.symbol_overlaps.len()
             + self.wires.different_net_overlaps.len()
             + self.wires.foreign_contacts.len()
+            + self.wires.through_symbols.len()
     }
 }
 
@@ -180,7 +192,10 @@ pub fn schematic_metrics(project: &Project, scene: &SchematicScene) -> Result<Sc
         content_bounds: scene.content_bounds().map(|r| [r.x0, r.y0, r.x1, r.y1]),
         symbol_fill,
         symbol_overlaps,
-        wires: wire_metrics(schematic, &lines),
+        wires: WireMetrics {
+            through_symbols: wires_through_symbols(scene, &lines),
+            ..wire_metrics(schematic, &lines)
+        },
         nets: net_metrics(project, schematic)?,
         off_grid: off_grid(project, schematic)?,
     })
@@ -436,4 +451,44 @@ fn off_grid(project: &Project, schematic: &Schematic) -> Result<OffGrid> {
             .count();
     }
     Ok(result)
+}
+
+/// Wire ends are shortened by this much (mm) so pin connections and the
+/// stroke at a pin end do not count as crossing the symbol.
+const WIRE_END_MM: f64 = 0.3;
+
+fn wires_through_symbols(scene: &SchematicScene, lines: &[Line]) -> Vec<WireThroughSymbol> {
+    let mut result = Vec::new();
+    for line in lines {
+        if !line.horizontal() && !line.vertical() {
+            continue;
+        }
+        let ((ax, ay), (bx, by)) = (mm(line.a), mm(line.b));
+        let mut probe = Rect::new(ax, ay, bx, by).abs();
+        if line.horizontal() {
+            probe.x0 += WIRE_END_MM;
+            probe.x1 -= WIRE_END_MM;
+        } else {
+            probe.y0 += WIRE_END_MM;
+            probe.y1 -= WIRE_END_MM;
+        }
+        if probe.x1 < probe.x0 || probe.y1 < probe.y0 {
+            continue;
+        }
+        let probe = probe.inflate(0.01, 0.01);
+        let symbols: BTreeSet<SymbolId> = scene
+            .scene()
+            .items_in_rect(probe, SelectionMode::Intersects)
+            .into_iter()
+            .filter_map(|id| match scene.object(id) {
+                Some(SchematicObject::Symbol(symbol)) => Some(symbol),
+                _ => None,
+            })
+            .collect();
+        result.extend(symbols.into_iter().map(|symbol| WireThroughSymbol {
+            wire: line.id(),
+            symbol,
+        }));
+    }
+    result
 }

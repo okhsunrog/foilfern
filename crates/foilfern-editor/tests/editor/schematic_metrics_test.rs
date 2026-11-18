@@ -170,3 +170,34 @@ fn test_metrics_measure_net_spread_and_split_nets() {
     let after = metrics(&editor).nets.pin_span_mm;
     assert!((after - before - 25.4).abs() < 1e-6, "{before} -> {after}");
 }
+
+#[test]
+fn test_metrics_report_wires_through_symbols() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut editor = create_editor(tmp.path());
+    editor
+        .execute(AddSchematic {
+            name: ElementName::new("Main").unwrap(),
+            index: None,
+        })
+        .unwrap();
+    let r1 = resistor(&mut editor, mm(0.0, 0.0));
+    // A free wire beside the resistor does not cross it.
+    wire(&mut editor, mm(-10.16, 15.24), &[], mm(10.16, 15.24));
+    assert!(metrics(&editor).wires.through_symbols.is_empty());
+    // Free wires drawn straight across the resistor body do.
+    wire(&mut editor, mm(-10.16, 0.0), &[], mm(10.16, 0.0));
+    wire(&mut editor, mm(0.0, -10.16), &[], mm(0.0, 10.16));
+    let m = metrics(&editor);
+    assert!(!m.wires.through_symbols.is_empty(), "{:?}", m.wires);
+    assert!(
+        m.wires
+            .through_symbols
+            .iter()
+            .all(|crossing| crossing.symbol == r1.symbols[0])
+    );
+    assert_eq!(
+        m.defects(),
+        m.wires.through_symbols.len() + m.wires.foreign_contacts.len()
+    );
+}
