@@ -65,7 +65,8 @@ short design note agreed with the owner.
 2. **Collision checks against rendered ink.** `schematic_review` reported zero
    overlaps while text touched capacitor plates and a rotated connector field
    was partly hidden. Include symbol artwork, pin captions and fields of
-   neighboring symbols.
+   neighboring symbols. **Done, API 64:** artwork contacts and wires drawn
+   through symbols; 15 confirmed findings on the original DeepSeek pages.
 3. **Small contract fixes from feedback.** A do-not-populate flag in
    `design_preview` instead of raw mutations; `library_rescan` reports
    rejected elements and reasons with a `partial` outcome instead of stderr
