@@ -265,6 +265,7 @@ fn design_rc_circuit_with_populated_library() {
             designator: None,
             value: Some("1k".into()),
             attributes: Some([("TOLERANCE".to_owned(), Some("1%".to_owned()))].into()),
+            do_not_populate: None,
             expected_revision: None,
         },
     )

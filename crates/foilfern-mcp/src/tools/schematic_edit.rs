@@ -21,6 +21,7 @@ use foilfern_editor::commands::{
     AddComponent, AddNetClass, AddSchematic, ApplyMutations, AssignNet, AutoPlaceSymbols,
     ConnectNet, DisconnectSignals, EditComponent, EditNet, EditNetClass, LibraryPartSelector,
     MoveSymbol, NetRef, RemoveComponent, SelectComponentPart, SymbolPlacement, TidySchematic,
+    assembly_with_population,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -131,6 +132,10 @@ pub struct ComponentUpdateArgs {
     /// their type and unit, new ones are plain strings.
     #[serde(default)]
     pub attributes: Option<BTreeMap<String, Option<String>>>,
+    /// true: do not populate in any assembly variant (DNP); false: populate
+    /// the selected device in every variant. Omit to keep the assembly state.
+    #[serde(default)]
+    pub do_not_populate: Option<bool>,
     /// Fail with `stale_revision` if the project revision differs.
     #[serde(default)]
     pub expected_revision: Option<u64>,
@@ -709,13 +714,18 @@ pub fn component_update(
             "selected_part requires a selected device",
         ));
     }
+    let assembly_options = args
+        .do_not_populate
+        .map(|dnp| assembly_with_population(p, c, !dnp))
+        .transpose()?
+        .flatten();
     let done = write(session, "component_update", args.expected_revision, |tx| {
         let updated = tx.run(EditComponent {
             component: id.into(),
             name,
             value: args.value.clone(),
             attributes,
-            assembly_options: None,
+            assembly_options,
             lock_assembly: None,
         })?;
         if let (Some(selector), Some(device)) = (args.selected_part.clone(), selected_device) {

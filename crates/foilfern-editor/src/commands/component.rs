@@ -19,7 +19,7 @@ use foilfern_core::project::circuit::{
 use foilfern_core::project::schematic::SchematicSymbol;
 use foilfern_core::project::{
     AssemblyVariantId, BoardId, BoardMutation, BoardNetSegmentRef, ComponentInstanceId,
-    LibraryElementKind, Mutation, SchematicId, SchematicMutation, SymbolId, SymbolRef,
+    LibraryElementKind, Mutation, Project, SchematicId, SchematicMutation, SymbolId, SymbolRef,
 };
 use foilfern_core::types::{Angle, CircuitIdentifier, Layer, Length, Orientation, Point, Uuid};
 use foilfern_i18n::tr;
@@ -555,6 +555,52 @@ pub struct EditComponent {
     /// The new assembly lock.
     #[serde(default)]
     pub lock_assembly: Option<bool>,
+}
+
+/// Whether a component is assembled in at least one assembly variant
+/// (upstream shows the others as "DNP", do not populate).
+pub fn is_populated(component: &ComponentInstance) -> bool {
+    component
+        .assembly_options()
+        .iter()
+        .any(|option| !option.assembly_variants().is_empty())
+}
+
+/// Assembly options which make the component populated in every assembly
+/// variant of the project, or in none (do not populate). Removing it clears
+/// the variants of all options; populating a component that is not populated
+/// enables its first option (the default device) in all variants. Returns
+/// `None` if nothing changes. Components without a device have no options
+/// and cannot be populated.
+pub fn assembly_with_population(
+    project: &Project,
+    component: &ComponentInstance,
+    populated: bool,
+) -> Result<Option<ComponentAssemblyOptionList>> {
+    if is_populated(component) == populated {
+        return Ok(None);
+    }
+    let mut options = component.assembly_options().clone();
+    if populated {
+        let variants: BTreeSet<_> = project
+            .circuit()
+            .assembly_variants()
+            .iter()
+            .map(|variant| AssemblyVariantId(variant.uuid()))
+            .collect();
+        let option = options.iter_mut().next().ok_or_else(|| {
+            Error::InvalidArgument(format!(
+                "Component {} has no device to populate.",
+                component.name()
+            ))
+        })?;
+        option.set_assembly_variants(variants);
+    } else {
+        for option in options.iter_mut() {
+            option.set_assembly_variants(BTreeSet::new());
+        }
+    }
+    Ok(Some(options))
 }
 
 impl Command for EditComponent {

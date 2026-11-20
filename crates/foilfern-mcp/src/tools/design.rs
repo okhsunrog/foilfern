@@ -17,8 +17,8 @@ use foilfern_core::types::{
 use foilfern_editor::commands::{
     AddComponent, AddLibraryElement, AddNet, AutoPlaceSymbols, BlockDirection, DrawWirePaths,
     EditComponent, MoveSymbol, PlaceSchematicBlock, Rect, SymbolPlacement, SymbolStyle,
-    WireCoordinate, WireGroup, WirePathPoint, WirePathSpec, WireWaypoint, connect_design_pin,
-    new_schematic,
+    WireCoordinate, WireGroup, WirePathPoint, WirePathSpec, WireWaypoint, assembly_with_population,
+    connect_design_pin, is_populated, new_schematic,
 };
 use foilfern_editor::design_preview::{DesignEdit, DesignPreview, DesignPreviewJob};
 use foilfern_editor::{LibraryElementSource, OpenProject, Transaction};
@@ -79,6 +79,10 @@ pub struct ExistingComponent {
     name: Option<ManagedValue>,
     /// Managed value. Omission preserves the current value.
     value: Option<ManagedValue>,
+    /// Managed do-not-populate state: true removes the component from every
+    /// assembly variant, false populates its selected device in all of them.
+    /// Omission preserves the current assembly options.
+    do_not_populate: Option<ManagedFlag>,
     /// Managed position of its single symbol on this sheet.
     /// Omission preserves manual placement.
     position: Option<ManagedPosition>,
@@ -99,6 +103,15 @@ struct ManagedSymbol {
     position: Option<ManagedPosition>,
     rotation: Option<ManagedRotation>,
     mirrored: Option<ManagedMirror>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ManagedFlag {
+    /// State at the last known baseline. A different current state is a conflict.
+    expected: bool,
+    /// Desired state. If already present, the edit is a no-op.
+    set: bool,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
@@ -231,6 +244,10 @@ struct NewComponent {
     /// Assign connections without stubs when the document supplies explicit wire groups.
     #[serde(default)]
     assign_only: bool,
+    /// Create the component as do-not-populate (DNP) in every assembly variant.
+    /// Initial state only; replay keeps later assembly changes.
+    #[serde(default)]
+    do_not_populate: bool,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -681,7 +698,23 @@ pub(crate) fn prepare(
             diff.push(json!({"component":key,"uuid":id,"field":"value","before":component.value(),"after":value.set}));
             edit.value = Some(value.set.clone());
         }
-        if edit.name.is_some() || edit.value.is_some() {
+        if let Some(flag) = spec.do_not_populate {
+            let current = !is_populated(component);
+            if current != flag.set {
+                if current != flag.expected {
+                    return Err(ToolError::new(
+                        ErrorKind::Conflict,
+                        format!(
+                            "{key}.do_not_populate: expected {}, found {current}, desired {}.",
+                            flag.expected, flag.set
+                        ),
+                    ));
+                }
+                diff.push(json!({"component":key,"uuid":id,"field":"do_not_populate","before":current,"after":flag.set}));
+                edit.assembly_options = assembly_with_population(p, component, !flag.set)?;
+            }
+        }
+        if edit.name.is_some() || edit.value.is_some() || edit.assembly_options.is_some() {
             edits.push(DesignEdit::Component(edit));
         }
         let shorthand = spec.position.is_some() || spec.rotation.is_some();
@@ -1604,6 +1637,23 @@ fn add_component(
             assembly_options,
             lock_assembly: None,
         })?;
+        if spec.do_not_populate {
+            let p = tx.project();
+            let instance = p
+                .circuit()
+                .component_instance(added.component)
+                .ok_or_else(|| ToolError::internal("Added component is missing."))?;
+            if let Some(options) = assembly_with_population(p, instance, false)? {
+                tx.run(EditComponent {
+                    component: added.component.into(),
+                    name: None,
+                    value: None,
+                    attributes: None,
+                    assembly_options: Some(options),
+                    lock_assembly: None,
+                })?;
+            }
+        }
         (added.component, true)
     };
     let p = tx.project();

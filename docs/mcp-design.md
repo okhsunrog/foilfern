@@ -1788,3 +1788,12 @@ review section) and extends annotation review to drawn symbol artwork. New
 finding kinds are `symbol_artwork` in `annotation_overlaps` and
 `wires_through_symbols` in `metrics.defects`. Callers that switch on finding
 kinds should treat unknown kinds as readability issues.
+
+### Assembly state and library diagnostics
+
+API 65 adds `do_not_populate` (DNP). `design_preview` accepts it as an initial
+boolean on `add_components` and as a managed `{expected, set}` field on bound
+`components`; `component_update` accepts a boolean. true removes the component
+from every assembly variant; false populates its selected device in all
+variants. `component_get` reports the current state. Per-variant assembly
+choices remain available through raw mutations.

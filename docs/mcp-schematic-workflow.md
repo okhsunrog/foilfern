@@ -154,3 +154,6 @@ Replace the first call's arguments with your actual document. Preview IDs and
 undo history belong to that session. The `rc-lowpass` guide is an executable
 example document once its library parts are available. Save local edits before
 exiting so they persist when the process closes.
+
+Mark parts that stay unassembled with `do_not_populate` on `add_components`,
+bound `components` or `component_update` instead of raw mutations.

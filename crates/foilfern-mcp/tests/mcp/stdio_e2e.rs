@@ -878,7 +878,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 64);
+    assert_eq!(info["api_capability_version"], 65);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -5561,5 +5561,80 @@ async fn stdio_block_packs_new_notes_and_no_connect_markers_once() {
     )
     .await;
     assert_eq!(noop["operation_count"], 0);
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn stdio_design_and_update_manage_do_not_populate() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    call_ok(&client, "project_create", json!({"name":"Assembly"})).await;
+    let device = call_ok(
+        &client,
+        "library_search",
+        json!({"query":"R-0805","kind":"device"}),
+    )
+    .await;
+    let device = &device["elements"][0];
+    let document = json!({"version":1,"schematic":"Main","add_components":{"r":{
+        "designator":"R1","library_component":device["component"]["uuid"],
+        "device":device["uuid"],"value":"10k","position":{"x":0,"y":0},
+        "do_not_populate":true}}});
+    let preview = call_ok(&client, "design_preview", document.clone()).await;
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":preview["preview"]}),
+    )
+    .await;
+    let r1 = call_ok(&client, "component_get", json!({"component":"R1"})).await;
+    assert_eq!(r1["do_not_populate"], true);
+    assert!(
+        r1["assembly_options"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|option| option["assembly_variants"] == json!([]))
+    );
+    // Replay keeps the state; a managed edit reports the change.
+    let replay = call_ok(&client, "design_preview", document).await;
+    assert_eq!(replay["diff"], json!([]));
+    let managed = |expected: bool, set: bool| {
+        json!({"version":1,"schematic":"Main","components":{"r":{
+            "designator":"R1","do_not_populate":{"expected":expected,"set":set}}}})
+    };
+    let conflict = call(&client, "design_preview", managed(false, false)).await;
+    assert_eq!(conflict.is_error, Some(true));
+    let populate = call_ok(&client, "design_preview", managed(true, false)).await;
+    assert_eq!(populate["diff"][0]["field"], "do_not_populate");
+    assert_eq!(populate["diff"][0]["before"], true);
+    assert_eq!(populate["diff"][0]["after"], false);
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":populate["preview"]}),
+    )
+    .await;
+    let r1 = call_ok(&client, "component_get", json!({"component":"R1"})).await;
+    assert_eq!(r1["do_not_populate"], false);
+    assert_ne!(r1["assembly_options"][0]["assembly_variants"], json!([]));
+    call_ok(
+        &client,
+        "component_update",
+        json!({"component":"R1","do_not_populate":true}),
+    )
+    .await;
+    let r1 = call_ok(&client, "component_get", json!({"component":"R1"})).await;
+    assert_eq!(r1["do_not_populate"], true);
+    call_ok(&client, "undo", json!({})).await;
+    let r1 = call_ok(&client, "component_get", json!({"component":"R1"})).await;
+    assert_eq!(r1["do_not_populate"], false);
     client.cancel().await.unwrap();
 }

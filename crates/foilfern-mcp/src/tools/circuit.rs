@@ -120,6 +120,7 @@ pub fn component_detail(p: &Project, id: ComponentInstanceId) -> ToolResult<(Str
     v["selected_device"] = json!(c.default_device());
     v["attributes"] = views::attributes(c.attributes());
     v["assembly_options"] = json!(c.assembly_options());
+    v["do_not_populate"] = json!(!foilfern_editor::commands::is_populated(c));
     v["symbol_variant"] = json!({
         "uuid": c.lib_variant(),
         "name": lib.symbol_variants().by_uuid(&c.lib_variant()).map(|x| x.name().as_str()),
