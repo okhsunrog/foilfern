@@ -34,7 +34,7 @@ net and repairing every annotation. Use stable document keys throughout.
   Omit their initial `position` and set their `rotation` and `fields` during
   creation. Give fixed anchors an explicit position. Arrange signal
   flow left to right, supply above and ground below. Give separate functional
-  blocks distinct areas and short titles. Keep local decoupling with its IC.
+  blocks distinct areas and short titles. Keep local decoupling with its IC; `anchors` place it at the pins.
 - Set each component's `connections`. Use `assign_only:true` when every
   connection will be drawn through `wire_groups`. For a component with labeled
   single-pin signal ends, leave `assign_only:false`; local groups replace their
@@ -87,6 +87,23 @@ Include local `wire_groups` with `pins` and omit `paths`. The block is placed
 first, then these connections are drawn from the final pin positions. Existing
 wires can be replaced when every pin on their segments belongs to the declared
 wire group. Replaying the same document preserves the resulting layout.
+
+## Place support parts at IC pins
+
+For a part that belongs to one IC pin, such as a decoupling capacitor at a
+supply or DEC pin, a load capacitor at an oscillator pin or a series resistor,
+use `anchors` instead of coordinates. Give the IC an explicit position (or bind
+it under `components`), add the part without `position` or `rotation`, and add
+`{"component":"c13","pin":"1","target":"u2.DEC1"}`. Foilfern rotates the part
+so that its `pin` faces the target pin, puts it on the target pin's axis and
+draws one straight wire with the net label between them. The far pins get
+labeled stubs unless `assign_only` is set. The distance starts at the room
+needed for the net label (at least 5.08 mm, or `distance`) and grows in grid
+steps while the part, its fields or the wire would touch other items; a part
+that still has no clear position fails the preview. A single labeled stub
+already at the target pin is replaced. List a pin in `wire_groups` instead
+when it needs a branch to several parts, and set `wire:false` to keep the
+connection for your own group. Anchors apply only when the part is created.
 
 Use separate bounded groups for the MCU support circuitry, power stages, clock
 circuits and interfaces. Inspect each group before adding the next one. The

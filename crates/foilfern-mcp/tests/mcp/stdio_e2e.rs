@@ -878,7 +878,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 65);
+    assert_eq!(info["api_capability_version"], 66);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -5730,5 +5730,95 @@ async fn stdio_design_preview_warns_about_off_grid_pins() {
             .unwrap()
             .contains("off the 2.54 mm page grid: R1.")
     }));
+    client.cancel().await.unwrap();
+}
+
+#[tokio::test]
+async fn stdio_design_anchors_place_parts_beside_pins() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    call_ok(&client, "project_create", json!({"name":"Anchors"})).await;
+    let device = call_ok(
+        &client,
+        "library_search",
+        json!({"query":"R-0805","kind":"device"}),
+    )
+    .await;
+    let device = &device["elements"][0];
+    let part = |name: &str, connections: Value| {
+        json!({"designator":name,"library_component":device["component"]["uuid"],
+            "device":device["uuid"],"value":"1k","connections":connections})
+    };
+    let mut fixed = part("R1", json!({"1":"IN","2":"MID"}));
+    fixed["position"] = json!({"x":50.8,"y":50.8});
+    fixed["assign_only"] = json!(true);
+    let document = json!({"version":1,"schematic":"Main","add_nets":["IN","MID","GND"],
+        "add_components":{"r1":fixed,"r2":part("R2",json!({"1":"MID","2":"GND"}))},
+        "anchors":[{"component":"r2","pin":"1","target":"r1.2"}]});
+    let preview = call_ok(&client, "design_preview", document.clone()).await;
+    let anchor = preview["diff"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|change| change["field"] == "anchor_position")
+        .unwrap()
+        .clone();
+    assert_eq!(anchor["component"], "r2");
+    assert_eq!(anchor["wired"], true);
+    assert!(anchor["distance_mm"].as_f64().unwrap() >= 5.08);
+    assert_eq!(preview["annotation_overlaps"], json!([]), "{preview}");
+    call_ok(
+        &client,
+        "design_apply",
+        json!({"preview":preview["preview"]}),
+    )
+    .await;
+
+    // R1.2 and R2.1 are joined by one straight wire carrying the MID label;
+    // R2.2 has its own GND stub.
+    let sheet = call_ok(&client, "schematic_get", json!({})).await;
+    let segments = sheet["net_segments"].as_array().unwrap();
+    let mid = segments.iter().find(|s| s["net"] == "MID").unwrap();
+    assert_eq!(mid["lines"].as_array().unwrap().len(), 1, "{mid}");
+    let line = &mid["lines"][0];
+    let pins = [line["from"]["pin"].as_str(), line["to"]["pin"].as_str()];
+    assert!(
+        pins.contains(&Some("R1.2")) && pins.contains(&Some("R2.1")),
+        "{line}"
+    );
+    let (a, b) = (&line["from"]["position"], &line["to"]["position"]);
+    assert!(a["x"] == b["x"] || a["y"] == b["y"], "{line}");
+    assert_eq!(mid["labels"].as_array().unwrap().len(), 1);
+    assert!(segments.iter().any(|s| s["net"] == "GND"));
+    let review = call_ok(&client, "schematic_review", json!({})).await;
+    assert_eq!(review["metrics"]["defect_count"], 0);
+    assert_eq!(review["annotation_overlaps"], json!([]));
+
+    // Replay keeps the placement.
+    let replay = call_ok(&client, "design_preview", document.clone()).await;
+    assert_eq!(replay["diff"], json!([]));
+
+    // Invalid combinations are rejected before any change.
+    let mut positioned = document.clone();
+    positioned["add_components"]["r3"] = part("R3", json!({"1":"IN"}));
+    positioned["add_components"]["r3"]["position"] = json!({"x":0,"y":0});
+    positioned["anchors"] = json!([{"component":"r3","pin":"1","target":"r1.1"}]);
+    assert_eq!(
+        call(&client, "design_preview", positioned).await.is_error,
+        Some(true)
+    );
+    let mut unknown = document.clone();
+    unknown["anchors"] = json!([{"component":"r2","pin":"1","target":"nope.1"}]);
+    assert_eq!(
+        call(&client, "design_preview", unknown).await.is_error,
+        Some(true)
+    );
     client.cancel().await.unwrap();
 }

@@ -9,14 +9,14 @@ use foilfern_core::library::dev::{Part, PartList};
 use foilfern_core::project::schematic::SchematicSymbol;
 use foilfern_core::project::{
     ComponentInstanceId, ComponentSignalRef, LibraryElementKind, Mutation, NetSegmentRef,
-    NetSignalId, Project, SchematicId, SchematicMutation, SymbolRef,
+    NetSignalId, Project, SchematicId, SchematicMutation, SymbolId, SymbolRef,
 };
 use foilfern_core::types::{
     Alignment, Angle, ElementName, Layer, Length, Point, PositiveLength, SimpleString, Uuid,
 };
 use foilfern_editor::commands::{
     AddComponent, AddLibraryElement, AddNet, AutoPlaceSymbols, BlockDirection, DrawWirePaths,
-    EditComponent, MoveSymbol, PlaceSchematicBlock, Rect, SymbolPlacement, SymbolStyle,
+    EditComponent, MoveSymbol, PlaceAtPin, PlaceSchematicBlock, Rect, SymbolPlacement, SymbolStyle,
     WireCoordinate, WireGroup, WirePathPoint, WirePathSpec, WireWaypoint, assembly_with_population,
     connect_design_pin, is_populated, new_schematic,
 };
@@ -182,8 +182,37 @@ pub struct DesignDocument {
     place_text: Option<text_placement::PlaceText>,
     /// Bounded row/column placement of bound or newly added components.
     block: Option<SchematicBlock>,
+    /// Place newly added components beside pins of placed parts, for example
+    /// a decoupling capacitor at an IC supply pin. Applied in order, only when
+    /// the component is created; replay keeps later moves.
+    #[serde(default)]
+    anchors: Vec<PinAnchor>,
     /// Place components and establish board requirements in the same patch.
     board_layout: Option<board_layout::BoardLayout>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct PinAnchor {
+    /// add_components key of the part to place. Omit its position; it must not
+    /// be a block member.
+    component: String,
+    /// Pin of that part which faces the target, as in wire_groups (for example "1").
+    pin: String,
+    /// Fixed target pin as key.pin of a bound or new component, for example "u2.DEC1".
+    target: String,
+    /// Initial distance between the two pins in mm (default 5.08). It grows in
+    /// grid steps while the part, its fields or the straight connection would
+    /// touch other items.
+    distance: Option<f64>,
+    /// Draw a straight automatic wire between the pins when both are on the
+    /// same net and neither is listed in wire_groups (default true).
+    #[serde(default = "default_true")]
+    wire: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -834,9 +863,16 @@ pub(crate) fn prepare(
                     added.push(json!({"field":"add_net","net":name,"uuid":id}));
                 }
             }
+            let anchored: BTreeSet<&str> =
+                doc.anchors.iter().map(|anchor| anchor.component.as_str()).collect();
+            let mut created = BTreeSet::new();
             for (key, spec) in &doc.add_components {
                 checkpoint(Stage::Plan)?;
-                let (id, change) = add_component(tx, page, key, spec)?;
+                let (id, change) =
+                    add_component(tx, page, key, spec, anchored.contains(key.as_str()))?;
+                if change.is_some() {
+                    created.insert(key.as_str());
+                }
                 bindings.insert(key.as_str(), id);
                 if doc.review_components.contains(key) {
                     reviewed.insert(id);
@@ -1059,6 +1095,18 @@ pub(crate) fn prepare(
                     "before":views::point(before),"after":views::point(after)}));
                 }
             }
+            place_anchors(
+                tx,
+                page,
+                &doc.anchors,
+                &doc.add_components,
+                &bindings,
+                &created,
+                &block_members,
+                &grouped,
+                &mut reviewed,
+                &mut added,
+            )?;
             // Clear all managed old routes before routing from the final block
             // positions. Their stretched geometry must not obstruct one another.
             if block_moved {
@@ -1420,6 +1468,7 @@ fn add_component(
     page: SchematicId,
     key: &str,
     spec: &NewComponent,
+    defer_stubs: bool,
 ) -> ToolResult<(ComponentInstanceId, Option<serde_json::Value>)> {
     let attributes = design_attributes(&spec.attributes)?;
     let part = spec.part.as_ref().map(DesignPart::to_part).transpose()?;
@@ -1766,7 +1815,7 @@ fn add_component(
                 signal,
             },
             net,
-            spec.assign_only,
+            spec.assign_only || defer_stubs,
         )?;
     }
     Ok((
@@ -1859,6 +1908,214 @@ pub fn discard(session: &mut Session, args: DesignPreviewArgs) -> ToolResult<Too
         return Err(ToolError::not_found("Unknown design preview."));
     }
     ToolOutput::new("Discarded the design preview.", json!({"preview": id}))
+}
+
+/// Places the created anchor components beside their target pins, then
+/// wires the facing pin straight to the target or draws the deferred stubs.
+#[allow(clippy::too_many_arguments)]
+fn place_anchors(
+    tx: &mut Transaction<'_>,
+    page: SchematicId,
+    anchors: &[PinAnchor],
+    components: &BTreeMap<String, NewComponent>,
+    bindings: &BTreeMap<&str, ComponentInstanceId>,
+    created: &BTreeSet<&str>,
+    block_members: &BTreeSet<ComponentInstanceId>,
+    grouped: &BTreeSet<ComponentSignalRef>,
+    reviewed: &mut BTreeSet<ComponentInstanceId>,
+    added: &mut Vec<serde_json::Value>,
+) -> ToolResult<()> {
+    let mut seen = BTreeSet::new();
+    for anchor in anchors {
+        let key = anchor.component.as_str();
+        let spec = components.get(key).ok_or_else(|| {
+            ToolError::invalid(format!(
+                "Anchor component {key:?} must be an add_components key."
+            ))
+        })?;
+        if !seen.insert(key) {
+            return Err(ToolError::invalid(format!(
+                "{key:?} has more than one anchor."
+            )));
+        }
+        if spec.position.is_some() || spec.rotation.is_some() {
+            return Err(ToolError::invalid(format!(
+                "Omit the initial position and rotation of anchored component {key:?}; the anchor places it."
+            )));
+        }
+        let id = bindings[key];
+        if block_members.contains(&id) {
+            return Err(ToolError::invalid(format!(
+                "{key:?} combines block placement with a pin anchor."
+            )));
+        }
+        let own = placed_pin(
+            tx.project(),
+            page,
+            bindings,
+            &format!("{key}.{}", anchor.pin),
+        )?;
+        let target = placed_pin(tx.project(), page, bindings, &anchor.target)?;
+        if !created.contains(key) {
+            continue;
+        }
+        let p = tx.project();
+        let net_of = |signal: ComponentSignalRef| {
+            p.circuit()
+                .component_instance(signal.component)
+                .and_then(|component| component.signal(&signal.signal))
+                .and_then(|signal| signal.net())
+        };
+        let shared = net_of(own.signal).filter(|net| Some(*net) == net_of(target.signal));
+        let wire = anchor.wire
+            && shared.is_some()
+            && !grouped.contains(&own.signal)
+            && !grouped.contains(&target.signal);
+        let grid = *p
+            .schematic(page)
+            .ok_or_else(|| ToolError::not_found("Schematic not found."))?
+            .grid_interval();
+        let requested = units::length(anchor.distance.unwrap_or(5.08))?;
+        // A wired connection holds its net label between the pins: one grid
+        // step from the lower or left pin, then the label text.
+        let distance = match shared.filter(|_| wire) {
+            Some(net) => {
+                let chars = p
+                    .circuit()
+                    .net_signal(net)
+                    .map_or(8, |net| net.name().as_str().chars().count());
+                let room = Length::new(LABEL_CHAR_NM * chars as i64 + LABEL_END_NM) + grid;
+                let step = grid.to_nm();
+                let room = Length::new((room.to_nm() + step - 1).div_euclid(step) * step);
+                requested.max(room)
+            }
+            None => requested,
+        };
+        let placed = tx
+            .run(PlaceAtPin {
+                schematic: page,
+                symbol: own.symbol,
+                pin: own.pin,
+                target: (target.symbol, target.pin),
+                distance,
+                max_steps: 12,
+            })
+            .map_err(|error| {
+                ToolError::invalid(format!(
+                    "Anchor {key}.{} at {}: {error}",
+                    anchor.pin, anchor.target
+                ))
+            })?;
+        reviewed.insert(id);
+        let mut change = json!({"field":"anchor_position","component":key,"pin":anchor.pin,
+            "target":anchor.target,"position":views::point(placed.position),
+            "rotation":units::deg(placed.rotation),"distance_mm":placed.distance.to_mm(),
+            "wired":wire});
+        if let Some(segment) = placed.removed_stub {
+            change["removed_target_stub"] = json!(segment);
+        }
+        added.push(change);
+        if let (true, Some(net)) = (wire, shared) {
+            let low = placed.target.min(placed.pin);
+            let label = if placed.target.y == placed.pin.y {
+                Point::new(low.x + grid, low.y)
+            } else {
+                Point::new(low.x, low.y + grid)
+            };
+            tx.run(DrawWirePaths {
+                schematic: page,
+                groups: vec![WirePathSpec {
+                    group: WireGroup {
+                        schematic: page,
+                        net,
+                        pins: vec![target.signal, own.signal],
+                    },
+                    paths: vec![vec![WirePathPoint::Pin(0), WirePathPoint::Pin(1)]],
+                    label: Some(WireWaypoint {
+                        x: WireCoordinate::Absolute(label.x),
+                        y: WireCoordinate::Absolute(label.y),
+                    }),
+                }],
+            })?;
+        }
+        if spec.assign_only {
+            continue;
+        }
+        // Draw the stubs deferred at creation for the remaining pins.
+        let instance = tx
+            .project()
+            .circuit()
+            .component_instance(id)
+            .ok_or_else(|| ToolError::internal("Anchored component is missing."))?;
+        let pending: Vec<_> = instance
+            .signals()
+            .iter()
+            .filter_map(|(uuid, signal)| Some((*uuid, signal.net()?)))
+            .map(|(signal, net)| {
+                (
+                    ComponentSignalRef {
+                        component: id,
+                        signal,
+                    },
+                    net,
+                )
+            })
+            .filter(|(signal, _)| !grouped.contains(signal) && !(wire && *signal == own.signal))
+            .collect();
+        for (signal, net) in pending {
+            connect_design_pin(tx, page, signal, net, false)?;
+        }
+    }
+    Ok(())
+}
+
+/// Estimated net label width per character and end allowance (nm), as the
+/// editor's label clearance estimate.
+const LABEL_CHAR_NM: i64 = 900_000;
+const LABEL_END_NM: i64 = 400_000;
+
+/// A placed pin on the page, resolved from `key.pin`.
+struct PlacedPinRef {
+    signal: ComponentSignalRef,
+    symbol: SymbolId,
+    pin: Uuid,
+}
+
+fn placed_pin(
+    p: &Project,
+    page: SchematicId,
+    bindings: &BTreeMap<&str, ComponentInstanceId>,
+    reference: &str,
+) -> ToolResult<PlacedPinRef> {
+    let (key, pin) = resolve::split_pin_ref(reference)?;
+    let id = *bindings
+        .get(key)
+        .ok_or_else(|| ToolError::invalid(format!("Unknown component key {key:?}.")))?;
+    let signal = resolve::pin(p, &format!("{id}.{pin}"))?.signal;
+    let sheet = p
+        .schematic(page)
+        .ok_or_else(|| ToolError::not_found("Schematic not found."))?;
+    let mut found = Vec::new();
+    for symbol in sheet.symbols().values().filter(|s| s.component() == id) {
+        for view in symbol.pins(p.view())? {
+            if view.signal() == signal {
+                found.push((symbol.id(), view.uuid()));
+            }
+        }
+    }
+    match found.as_slice() {
+        [(symbol, pin)] => Ok(PlacedPinRef {
+            signal,
+            symbol: *symbol,
+            pin: *pin,
+        }),
+        [] => Err(ToolError::invalid(format!(
+            "{reference} has no placed pin on this sheet."
+        ))),
+        _ => Err(ToolError::invalid(format!(
+            "{reference} has more than one placed pin on this sheet."
+        ))),
+    }
 }
 
 /// Reviewed components whose placed symbols on `schematic` have pins off the

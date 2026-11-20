@@ -408,7 +408,6 @@ fn arrange_fields(tx: &mut Transaction<'_>, schematic: SchematicId) -> Result<()
         if is_frame(tx.project(), schematic, id)? {
             continue;
         }
-        let body = placed_symbol_rect(tx.project(), schematic, id, false)?;
         let symbol = &tx
             .project()
             .schematic(schematic)
@@ -423,53 +422,71 @@ fn arrange_fields(tx: &mut Transaction<'_>, schematic: SchematicId) -> Result<()
             })?;
             continue;
         }
-        let large = symbol.pins(tx.project().view())?.len() >= 10;
-        let center = Point::new((body.min.x + body.max.x) / 2, (body.min.y + body.max.y) / 2);
-        let fields: Vec<_> = symbol.texts().values().cloned().collect();
-        for mut text in fields {
-            if text.locked() || ![Layer::SYMBOL_NAMES, Layer::SYMBOL_VALUES].contains(&text.layer())
-            {
-                continue;
-            }
-            let name = text.layer() == Layer::SYMBOL_NAMES;
-            let gap = *text.height() + Length::new(635_000);
-            let (position, align) = if large {
-                (
-                    Point::new(center.x, center.y + if name { gap } else { -gap }),
-                    Alignment::new(HAlign::Center, VAlign::Center),
-                )
-            } else if body.height() > body.width() {
-                (
-                    Point::new(
-                        body.max.x + Length::new(2_540_000),
-                        center.y + if name { gap / 2 } else { -gap / 2 },
-                    ),
-                    Alignment::new(HAlign::Left, VAlign::Center),
-                )
-            } else {
-                (
-                    Point::new(
-                        center.x,
-                        if name {
-                            body.max.y + gap
-                        } else {
-                            body.min.y - gap
-                        },
-                    ),
-                    Alignment::new(HAlign::Center, VAlign::Center),
-                )
-            };
-            text.set_position(position);
-            text.set_align(align);
-            text.set_rotation(Angle::DEG0);
-            tx.apply(Mutation::Schematic(SchematicMutation::UpdateSymbolText {
-                symbol: SymbolRef {
-                    schematic,
-                    symbol: id,
-                },
-                text,
-            }))?;
-        }
+        arrange_symbol_fields(tx, schematic, id)?;
     }
+    Ok(())
+}
+
+/// Places the ordinary name and value fields of a placed symbol upright
+/// beside its body: centered above and below wide or large symbols, at the
+/// right of tall ones. Locked fields are kept.
+pub(crate) fn arrange_symbol_fields(
+    tx: &mut Transaction<'_>,
+    schematic: SchematicId,
+    id: SymbolId,
+) -> Result<()> {
+    let body = placed_symbol_rect(tx.project(), schematic, id, false)?;
+    let symbol = &tx
+        .project()
+        .schematic(schematic)
+        .ok_or_else(|| Error::not_found("Schematic", schematic))?
+        .symbols()[&id];
+    let large = symbol.pins(tx.project().view())?.len() >= 10;
+    let center = Point::new((body.min.x + body.max.x) / 2, (body.min.y + body.max.y) / 2);
+    let fields: Vec<_> = symbol.texts().values().cloned().collect();
+    for mut text in fields {
+        if text.locked() || ![Layer::SYMBOL_NAMES, Layer::SYMBOL_VALUES].contains(&text.layer()) {
+            continue;
+        }
+        let name = text.layer() == Layer::SYMBOL_NAMES;
+        let gap = *text.height() + Length::new(635_000);
+        let (position, align) = if large {
+            (
+                Point::new(center.x, center.y + if name { gap } else { -gap }),
+                Alignment::new(HAlign::Center, VAlign::Center),
+            )
+        } else if body.height() > body.width() {
+            (
+                Point::new(
+                    body.max.x + Length::new(2_540_000),
+                    center.y + if name { gap / 2 } else { -gap / 2 },
+                ),
+                Alignment::new(HAlign::Left, VAlign::Center),
+            )
+        } else {
+            (
+                Point::new(
+                    center.x,
+                    if name {
+                        body.max.y + gap
+                    } else {
+                        body.min.y - gap
+                    },
+                ),
+                Alignment::new(HAlign::Center, VAlign::Center),
+            )
+        };
+        text.set_position(position);
+        text.set_align(align);
+        text.set_rotation(Angle::DEG0);
+        tx.apply(Mutation::Schematic(SchematicMutation::UpdateSymbolText {
+            symbol: SymbolRef {
+                schematic,
+                symbol: id,
+            },
+            text,
+        }))?;
+    }
+
     Ok(())
 }

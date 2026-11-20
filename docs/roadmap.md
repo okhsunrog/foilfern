@@ -73,13 +73,19 @@ short design note agreed with the owner.
    only; preview warnings or snapping for symbols placed off the page grid.
    **Done, API 65:** `do_not_populate`, `skipped` scan results with `partial`,
    and `off_grid_pins` preview warnings (no snapping, to keep explicit paths).
-4. **Design note: pin-relative placement.** Fixed members (placed ICs and
+4. **Design note: pin-relative placement.** Skipped at the owner's request;
+   implemented directly (item 5). Fixed members (placed ICs and
    finished groups), anchors such as "beside U2.DEC1 on the pin side" with an
    offset, and preserved local topology such as a feedback tap after the
    inductor or a bypass capacitor between pin and rail. The trial model named
    these as the conditions for relying on automatic layout around large ICs.
 5. **Implement pin-relative placement** in `design_preview` and `block`, tested
    on nRF52840 DEC1–DEC6, the AXP2101 LX1/FB1 loop and a crystal.
+   **First version done, API 66:** `anchors` place new parts at a fixed pin
+   with a straight labeled wire (verified on nRF52840 DEC1/DEC3/DEC4).
+   Remaining: anchoring bound parts, perpendicular orientation (part beside
+   rather than in line with the pin), and topology constraints such as a tap
+   after an inductor.
 6. **Explainable previews.** Report which groups were drawn as continuous wires
    and which were split into labels, which constraint failed and why, and the
    page metrics before and after.

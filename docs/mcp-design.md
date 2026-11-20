@@ -1805,3 +1805,18 @@ Element directories without the element marker file are still only logged.
 `design_preview` lists reviewed components whose placed pins are off the page
 grid in `off_grid_pins` (`component`, `pins`) with a warning. It does not snap
 them: explicit wire paths refer to absolute pin positions.
+
+### Pin anchors
+
+API 66 adds `anchors` to `design_preview`: `{component, pin, target,
+distance?, wire?}` places a newly created `add_components` part so that its
+`pin` faces the fixed `target` pin (`key.pin`) on the target pin's outward axis.
+The part is rotated in 90° steps, its name and value fields are arranged
+upright beside the body, and the distance grows in grid steps (at most 12)
+while the part, its fields or the straight connection touch other items. When
+both pins share a net and neither is in `wire_groups`, a straight wire with the
+net label one grid step from the lower or left pin connects them; the default
+distance leaves room for that label. A single-pin stub at the target is
+replaced; other wiring at the target pin is an error. The diff reports
+`anchor_position` with position, rotation, distance and whether it was wired.
+Anchors are initial placement and do not move existing parts on replay.

@@ -68,6 +68,9 @@ the next task merely because their last paragraph once said "next".
   and `component_update`; `library_rescan`/`library_install` report skipped
   directories with reasons as `partial`; `design_preview` warns about reviewed
   components with pins off the page grid.
+- **Pin anchors (2026-11-20, API 66):** `design_preview.anchors` place new
+  support parts at a fixed IC pin, rotated to face it, with a straight labeled
+  wire and clearance search in grid steps.
 
 - **Small binary-only schematic workflows (2026-11-16, API 63):** automatic
   local wire groups can form three-pin branches, with native junctions and
