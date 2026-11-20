@@ -50,14 +50,28 @@ pub enum ScanEvent {
     Progress(u8),
 }
 
+/// A library or library element directory the scan could not index. The
+/// scan logs it and continues (upstream only logs it).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScanSkip {
+    /// Native path of the directory.
+    pub path: String,
+    /// Kind of the element, `None` for a library directory.
+    pub kind: Option<ElementKind>,
+    /// Why it was skipped.
+    pub reason: String,
+}
+
 /// Result of a completed scan.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScanOutcome {
     /// The scan succeeded and the database was updated (upstream
     /// `scanSucceeded()`).
     Succeeded {
         /// Number of scanned library elements (excluding libraries).
         element_count: usize,
+        /// Directories which were skipped because they could not be opened.
+        skipped: Vec<ScanSkip>,
     },
     /// The scan was aborted; the elements in the database are unchanged
     /// (only the library list may have been updated).
@@ -100,7 +114,7 @@ impl LibraryScanner {
         log::debug!("Start workspace library scan...");
         let result = self.scan_impl(abort, on_event);
         match &result {
-            Ok(ScanOutcome::Succeeded { element_count }) => log::debug!(
+            Ok(ScanOutcome::Succeeded { element_count, .. }) => log::debug!(
                 "Workspace library scan succeeded: {element_count} elements in {} ms.",
                 start.elapsed().as_millis()
             ),
@@ -126,8 +140,9 @@ impl LibraryScanner {
         let writer = LibraryDbWriter::new(&self.libraries_path, &db);
 
         // Update list of libraries.
-        let mut libraries = self.libraries_of_directory("local");
-        libraries.extend(self.libraries_of_directory("remote"));
+        let mut skipped = Vec::new();
+        let mut libraries = self.libraries_of_directory("local", &mut skipped);
+        libraries.extend(self.libraries_of_directory("remote", &mut skipped));
         let lib_ids = self.update_libraries(&db, &writer, &libraries)?;
         on_event(ScanEvent::LibraryListUpdated {
             library_count: lib_ids.len(),
@@ -174,6 +189,7 @@ impl LibraryScanner {
                         &lib.search_for_elements::<$ty>(),
                         lib_id,
                         abort,
+                        &mut skipped,
                     );
                     step(on_event);
                 };
@@ -194,13 +210,18 @@ impl LibraryScanner {
             transaction.commit()?;
             Ok(ScanOutcome::Succeeded {
                 element_count: count,
+                skipped,
             })
         }
     }
 
     /// Opens all libraries in a subdirectory of the libraries directory
     /// (upstream `getLibrariesOfDirectory()`).
-    fn libraries_of_directory(&self, root: &str) -> Vec<(FilePath, Library)> {
+    fn libraries_of_directory(
+        &self,
+        root: &str,
+        skipped: &mut Vec<ScanSkip>,
+    ) -> Vec<(FilePath, Library)> {
         let mut dirs = file_utils::find_directories(&self.libraries_path.path_to(root));
         dirs.sort_by(|a, b| {
             a.file_name()
@@ -214,7 +235,12 @@ impl LibraryScanner {
                 match open_and_migrate::<Library>(&fp) {
                     Ok(lib) => libs.push((fp, lib)),
                     Err(e) => {
-                        log::error!("Could not open workspace library {}: {e}", fp.to_native())
+                        log::error!("Could not open workspace library {}: {e}", fp.to_native());
+                        skipped.push(ScanSkip {
+                            path: fp.to_native(),
+                            kind: None,
+                            reason: e.to_string(),
+                        });
                     }
                 }
             } else if !fp.is_empty_dir() {
@@ -222,6 +248,11 @@ impl LibraryScanner {
                     "Directory is not a valid library, ignoring it: {}",
                     fp.to_native()
                 );
+                skipped.push(ScanSkip {
+                    path: fp.to_native(),
+                    kind: None,
+                    reason: "not a valid library directory".into(),
+                });
             }
         }
         libs
@@ -310,6 +341,7 @@ impl LibraryScanner {
         dirs: &[String],
         lib_id: i64,
         abort: &AtomicBool,
+        skipped: &mut Vec<ScanSkip>,
     ) -> usize {
         let mut count = 0;
         for dir in dirs {
@@ -323,10 +355,17 @@ impl LibraryScanner {
             });
             match result {
                 Ok(()) => count += 1,
-                Err(e) => log::warn!(
-                    "Failed to open library element during scan: {}: {e}",
-                    fp.to_native()
-                ),
+                Err(e) => {
+                    log::warn!(
+                        "Failed to open library element during scan: {}: {e}",
+                        fp.to_native()
+                    );
+                    skipped.push(ScanSkip {
+                        path: fp.to_native(),
+                        kind: Some(E::KIND),
+                        reason: e.to_string(),
+                    });
+                }
             }
         }
         count

@@ -5638,3 +5638,47 @@ async fn stdio_design_and_update_manage_do_not_populate() {
     assert_eq!(r1["do_not_populate"], false);
     client.cancel().await.unwrap();
 }
+
+#[tokio::test]
+async fn stdio_library_rescan_reports_skipped_elements() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    let libraries = Path::new(info["workspace"]["libraries_path"].as_str().unwrap()).to_owned();
+    crate::common::install_populated_library(&libraries);
+    let clean = call(&client, "library_rescan", json!({})).await;
+    let clean = clean.structured_content.unwrap();
+    assert_eq!(clean["outcome"], "complete", "{clean}");
+    assert_eq!(clean["result"]["skipped"], json!([]));
+    // A copied symbol with an unreadable main file is skipped, not hidden.
+    let symbols = libraries.join("local/Populated Library.lplib/sym");
+    let source = std::fs::read_dir(&symbols)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    let broken = symbols.join("00000000-0000-4000-8000-00000000beef");
+    crate::common::copy_dir(&source, &broken);
+    std::fs::write(broken.join("symbol.lp"), "(librepcb_symbol broken").unwrap();
+    let scan = call(&client, "library_rescan", json!({})).await;
+    let scan = scan.structured_content.unwrap();
+    assert_eq!(scan["outcome"], "partial", "{scan}");
+    let skipped = scan["result"]["skipped"].as_array().unwrap();
+    assert_eq!(skipped.len(), 1, "{scan}");
+    assert_eq!(skipped[0]["kind"], "symbol");
+    assert!(
+        skipped[0]["path"]
+            .as_str()
+            .unwrap()
+            .ends_with("00000000beef")
+    );
+    assert!(!skipped[0]["reason"].as_str().unwrap().is_empty());
+    assert_eq!(
+        scan["result"]["element_count"].as_u64().unwrap(),
+        clean["result"]["element_count"].as_u64().unwrap()
+    );
+    client.cancel().await.unwrap();
+}

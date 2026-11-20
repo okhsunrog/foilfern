@@ -50,6 +50,31 @@ fn setup() -> (TempDir, Workspace) {
     (tmp, ws)
 }
 
+/// Checks a successful scan: element count and the directory names reported
+/// as skipped (the upstream test data contains a "no library" directory).
+fn assert_succeeded(outcome: ScanOutcome, count: usize, skipped_names: &[&str]) {
+    let ScanOutcome::Succeeded {
+        element_count,
+        skipped,
+    } = outcome
+    else {
+        panic!("scan did not succeed: {outcome:?}");
+    };
+    assert_eq!(element_count, count);
+    let names: Vec<_> = skipped
+        .iter()
+        .map(|skip| {
+            assert_eq!(skip.kind, None, "{skip:?}");
+            std::path::Path::new(&skip.path)
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    assert_eq!(names, skipped_names);
+}
+
 fn scan(ws: &Workspace) -> (ScanOutcome, Vec<ScanEvent>) {
     let mut events = Vec::new();
     let outcome = ws
@@ -66,7 +91,7 @@ fn test_scan_and_query() {
     let (outcome, events) = scan(&ws);
 
     // Populated Library: 67 elements, v1: 64 elements, v0.1: 6 elements.
-    assert_eq!(outcome, ScanOutcome::Succeeded { element_count: 137 });
+    assert_succeeded(outcome, 137, &["no library"]);
     assert_eq!(events[0], ScanEvent::Started);
     assert!(events.contains(&ScanEvent::LibraryListUpdated { library_count: 4 }));
     assert_eq!(events.last(), Some(&ScanEvent::Progress(100)));
@@ -303,7 +328,7 @@ fn test_rescan_updates_database() {
 
     // Rescan without changes.
     let (outcome, _) = scan(&ws);
-    assert_eq!(outcome, ScanOutcome::Succeeded { element_count: 137 });
+    assert_succeeded(outcome, 137, &["no library"]);
     assert_eq!(
         db.all(ElementKind::Library, None, None).unwrap(),
         lib_ids_before
@@ -312,7 +337,7 @@ fn test_rescan_updates_database() {
     // Remove a library.
     file_utils::remove_dir_recursively(&ws.local_libraries_path().path_to("v1.lplib")).unwrap();
     let (outcome, _) = scan(&ws);
-    assert_eq!(outcome, ScanOutcome::Succeeded { element_count: 73 });
+    assert_succeeded(outcome, 73, &["no library"]);
     assert_eq!(db.all(ElementKind::Library, None, None).unwrap().len(), 3);
     assert_eq!(
         db.all(ElementKind::Device, Some(uuid(R0805_DEVICE)), None)
@@ -325,7 +350,7 @@ fn test_rescan_updates_database() {
     let outcome = db
         .reset_and_rescan(&AtomicBool::new(false), &mut |_| {})
         .unwrap();
-    assert_eq!(outcome, ScanOutcome::Succeeded { element_count: 73 });
+    assert_succeeded(outcome, 73, &["no library"]);
 }
 
 #[test]
@@ -344,10 +369,7 @@ fn test_scan_on_other_thread() {
     let (_tmp, ws) = setup();
     let scanner = ws.library_db().scanner();
     let handle = std::thread::spawn(move || scanner.scan(&AtomicBool::new(false), &mut |_| {}));
-    assert_eq!(
-        handle.join().unwrap().unwrap(),
-        ScanOutcome::Succeeded { element_count: 137 }
-    );
+    assert_succeeded(handle.join().unwrap().unwrap(), 137, &["no library"]);
     assert_eq!(
         ws.library_db()
             .all(ElementKind::Symbol, None, None)

@@ -224,7 +224,7 @@ async fn test_install_libraries_into_workspace() {
     .await
     .unwrap()
     .unwrap();
-    let ScanOutcome::Succeeded { element_count } = outcome else {
+    let ScanOutcome::Succeeded { element_count, .. } = outcome else {
         panic!("scan aborted");
     };
     assert_eq!(element_count, 122);
@@ -357,7 +357,7 @@ async fn test_install_official_base_library_online() {
     .await
     .unwrap()
     .unwrap();
-    let ScanOutcome::Succeeded { element_count } = outcome else {
+    let ScanOutcome::Succeeded { element_count, .. } = outcome else {
         panic!("scan aborted");
     };
     eprintln!("Scanned {element_count} elements of {}", installed[0].name);

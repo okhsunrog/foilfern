@@ -35,7 +35,7 @@ pub use library_db::{
     Translations,
 };
 pub use library_db_writer::{LibraryDbWriter, OutputJobKind};
-pub use library_scanner::{LibraryScanner, ScanEvent, ScanOutcome};
+pub use library_scanner::{LibraryScanner, ScanEvent, ScanOutcome, ScanSkip};
 pub use settings::{
     ApiEndpointSettings, KeyboardShortcuts, ListItem, OFFICIAL_API_URL, RawSettings, SettingsItem,
     SettingsValue, WorkspaceSettings,

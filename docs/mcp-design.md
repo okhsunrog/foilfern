@@ -1797,3 +1797,8 @@ boolean on `add_components` and as a managed `{expected, set}` field on bound
 from every assembly variant; false populates its selected device in all
 variants. `component_get` reports the current state. Per-variant assembly
 choices remain available through raw mutations.
+`library_rescan` and `library_install` return `skipped`: library and element
+directories the scan could not index, each with `path`, `kind` (`null` for a
+library directory) and `reason`. Any skipped directory makes the outcome
+`partial` with a warning; previously these were only logged to stderr.
+Element directories without the element marker file are still only logged.

@@ -20,7 +20,9 @@ use foilfern_core::library::pkg::Package;
 use foilfern_core::library::sym::Symbol;
 use foilfern_core::project::ProjectLibrary;
 use foilfern_core::types::Uuid;
-use foilfern_core::workspace::{ElementKind, LibraryDb, ScanOutcome, SearchQuery, Workspace};
+use foilfern_core::workspace::{
+    ElementKind, LibraryDb, ScanOutcome, ScanSkip, SearchQuery, Workspace,
+};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -145,11 +147,48 @@ pub fn library_list(session: &Session) -> ToolResult<ToolOutput> {
     )
 }
 
+/// Result of a workspace library scan.
+pub struct Rescan {
+    /// Indexed library elements.
+    pub element_count: usize,
+    /// Library and element directories which could not be indexed.
+    pub skipped: Vec<ScanSkip>,
+}
+
+impl Rescan {
+    /// The skipped directories, with their kind and reason.
+    pub fn skipped_json(&self) -> Value {
+        json!(
+            self.skipped
+                .iter()
+                .map(|skip| json!({"path":skip.path,"kind":skip.kind,"reason":skip.reason}))
+                .collect::<Vec<_>>()
+        )
+    }
+
+    /// Warning for skipped directories, if any.
+    pub fn warning(&self) -> Option<String> {
+        (!self.skipped.is_empty()).then(|| {
+            format!(
+                "{} library or element director{} could not be indexed; see skipped for paths and reasons.",
+                self.skipped.len(),
+                if self.skipped.len() == 1 { "y" } else { "ies" }
+            )
+        })
+    }
+}
+
 /// Rescans the workspace libraries (blocking).
-pub fn rescan(ws: &Workspace) -> ToolResult<usize> {
+pub fn rescan(ws: &Workspace) -> ToolResult<Rescan> {
     let abort = AtomicBool::new(false);
     match ws.library_db().rescan(&abort, &mut |_| {})? {
-        ScanOutcome::Succeeded { element_count } => Ok(element_count),
+        ScanOutcome::Succeeded {
+            element_count,
+            skipped,
+        } => Ok(Rescan {
+            element_count,
+            skipped,
+        }),
         ScanOutcome::Aborted => Err(ToolError::internal("library scan aborted")),
     }
 }
@@ -157,12 +196,24 @@ pub fn rescan(ws: &Workspace) -> ToolResult<usize> {
 /// `library_rescan`.
 pub fn library_rescan(session: &Session) -> ToolResult<ToolOutput> {
     let ws = session.workspace()?;
-    let count = rescan(ws)?;
+    let scan = rescan(ws)?;
     let libraries = ws.library_db().all(ElementKind::Library, None, None)?.len();
-    ToolOutput::new(
-        format!("Scanned {libraries} libraries with {count} elements."),
-        json!({ "library_count": libraries, "element_count": count }),
-    )
+    let output = ToolOutput::new(
+        format!(
+            "Scanned {libraries} libraries with {} elements; {} skipped.",
+            scan.element_count,
+            scan.skipped.len()
+        ),
+        json!({
+            "library_count": libraries,
+            "element_count": scan.element_count,
+            "skipped": scan.skipped_json(),
+        }),
+    )?;
+    Ok(match scan.warning() {
+        Some(warning) => output.partial().warn(warning),
+        None => output,
+    })
 }
 
 /// What `library_install` needs from the session (taken before the async
@@ -342,7 +393,8 @@ pub fn install_finish(session: &Session, batch: InstallBatch) -> ToolResult<Tool
             json!({ "available": batch.available, "installed": [] }),
         );
     }
-    let count = rescan(ws)?;
+    let scan = rescan(ws)?;
+    let count = scan.element_count;
     let installed: Vec<Value> = batch
         .installed
         .iter()
@@ -366,9 +418,14 @@ pub fn install_finish(session: &Session, batch: InstallBatch) -> ToolResult<Tool
             batch.failures.len(),
             batch.dependency_failures.len()
         ),
-        json!({"installed":installed,"requests":batch.requests,"failures":batch.failures,"dependency_failures":batch.dependency_failures,"element_count":count}),
+        json!({"installed":installed,"requests":batch.requests,"failures":batch.failures,"dependency_failures":batch.dependency_failures,"element_count":count,"skipped":scan.skipped_json()}),
     )?;
-    Ok(if partial { output.partial() } else { output })
+    let output = match scan.warning() {
+        Some(warning) => output.partial().warn(warning),
+        None if partial => output.partial(),
+        None => output,
+    };
+    Ok(output)
 }
 
 /// `library_search`.

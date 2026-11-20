@@ -446,7 +446,7 @@ fn output(
     // Make the new elements available (library_search, component_add).
     let element_count_in_index = match workspace {
         Some(ws) if destination.is_located_in_dir(ws.libraries_path()) => {
-            Some(library::rescan(ws)?)
+            Some(library::rescan(ws)?.element_count)
         }
         _ => None,
     };
