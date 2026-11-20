@@ -1137,6 +1137,7 @@ pub(crate) fn prepare(
         payload["annotation_changes"] = after.changes_since(baseline);
         payload["annotation_overlaps"] = json!(after.overlaps().collect::<Vec<_>>());
     }
+    let off_grid = off_grid_pins(&project, schematic, &reviewed)?;
     let findings = preview.requirement_findings();
     let blockers = findings
         .iter()
@@ -1216,6 +1217,28 @@ pub(crate) fn prepare(
     }
     if annotation_overlaps > 0 {
         output = output.partial().warn("Inspect the rendered overlap locations and adjust placement or fields in design_preview. schematic_tidy repairs an applied page while preserving circuit assignments.");
+    }
+    if !off_grid.is_empty() {
+        let names: Vec<_> = off_grid
+            .iter()
+            .filter_map(|entry| entry["component"].as_str())
+            .collect();
+        const SHOWN: usize = 12;
+        let mut listed = names
+            .iter()
+            .take(SHOWN)
+            .copied()
+            .collect::<Vec<_>>()
+            .join(", ");
+        if names.len() > SHOWN {
+            listed.push_str(&format!(" and {} more", names.len() - SHOWN));
+        }
+        output.result["off_grid_pins"] = json!(off_grid);
+        output = output.warn(format!(
+            "{} reviewed component(s) have pins off the {} mm page grid: {listed}. Wires and labels attached to those pins cannot stay on the grid; place symbols so their pins land on it.",
+            names.len(),
+            schematic.grid_interval().get().to_mm(),
+        ));
     }
     Ok(PreparedPreview {
         source_project,
@@ -1836,6 +1859,48 @@ pub fn discard(session: &mut Session, args: DesignPreviewArgs) -> ToolResult<Too
         return Err(ToolError::not_found("Unknown design preview."));
     }
     ToolOutput::new("Discarded the design preview.", json!({"preview": id}))
+}
+
+/// Reviewed components whose placed symbols on `schematic` have pins off the
+/// page grid, with the number of such pins.
+fn off_grid_pins(
+    project: &Project,
+    schematic: &foilfern_core::project::schematic::Schematic,
+    reviewed: &BTreeSet<ComponentInstanceId>,
+) -> ToolResult<Vec<serde_json::Value>> {
+    let grid = schematic.grid_interval();
+    let mut counts: BTreeMap<ComponentInstanceId, usize> = BTreeMap::new();
+    for symbol in schematic.symbols().values() {
+        if !reviewed.contains(&symbol.component()) {
+            continue;
+        }
+        let off = symbol
+            .pins(project.view())?
+            .iter()
+            .filter(|pin| !pin.position().is_on_grid(grid))
+            .count();
+        if off > 0 {
+            *counts.entry(symbol.component()).or_default() += off;
+        }
+    }
+    let mut entries: Vec<_> = counts
+        .into_iter()
+        .map(|(component, pins)| (resolve::designator(project, component), pins))
+        .collect();
+    entries.sort_by(|a, b| natural_designator_order(&a.0, &b.0));
+    Ok(entries
+        .into_iter()
+        .map(|(component, pins)| json!({"component": component, "pins": pins}))
+        .collect())
+}
+
+/// Orders designators by prefix, then number ("C2" before "C10").
+fn natural_designator_order(a: &str, b: &str) -> std::cmp::Ordering {
+    let split = |s: &str| {
+        let digits = s.trim_end_matches(|c: char| c.is_ascii_digit());
+        (digits.to_owned(), s[digits.len()..].parse::<u64>().ok())
+    };
+    split(a).cmp(&split(b)).then_with(|| a.cmp(b))
 }
 
 #[cfg(test)]

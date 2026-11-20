@@ -1802,3 +1802,6 @@ directories the scan could not index, each with `path`, `kind` (`null` for a
 library directory) and `reason`. Any skipped directory makes the outcome
 `partial` with a warning; previously these were only logged to stderr.
 Element directories without the element marker file are still only logged.
+`design_preview` lists reviewed components whose placed pins are off the page
+grid in `off_grid_pins` (`component`, `pins`) with a warning. It does not snap
+them: explicit wire paths refer to absolute pin positions.

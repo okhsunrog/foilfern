@@ -5682,3 +5682,53 @@ async fn stdio_library_rescan_reports_skipped_elements() {
     );
     client.cancel().await.unwrap();
 }
+
+#[tokio::test]
+async fn stdio_design_preview_warns_about_off_grid_pins() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_foilfern-mcp"));
+    cmd.arg("--workspace").arg(tmp.path().join("ws"));
+    let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
+    let info = call_ok(&client, "server_info", json!({})).await;
+    crate::common::install_populated_library(Path::new(
+        info["workspace"]["libraries_path"].as_str().unwrap(),
+    ));
+    call_ok(&client, "library_rescan", json!({})).await;
+    call_ok(&client, "project_create", json!({"name":"Grid"})).await;
+    let device = call_ok(
+        &client,
+        "library_search",
+        json!({"query":"R-0805","kind":"device"}),
+    )
+    .await;
+    let device = &device["elements"][0];
+    let document = |x: f64| {
+        json!({"version":1,"schematic":"Main","add_components":{"r":{
+            "designator":"R1","library_component":device["component"]["uuid"],
+            "device":device["uuid"],"value":"10k","position":{"x":x,"y":0}}}})
+    };
+    let preview = |x| {
+        let client = &client;
+        let document = document(x);
+        async move {
+            call(client, "design_preview", document)
+                .await
+                .structured_content
+                .unwrap()
+        }
+    };
+    let aligned = preview(0.0).await;
+    assert!(
+        aligned["result"].get("off_grid_pins").is_none(),
+        "{aligned}"
+    );
+    let shifted = preview(1.27).await;
+    assert_eq!(shifted["result"]["off_grid_pins"][0]["component"], "R1");
+    assert_eq!(shifted["result"]["off_grid_pins"][0]["pins"], 2);
+    assert!(shifted["warnings"].as_array().unwrap().iter().any(|w| {
+        w.as_str()
+            .unwrap()
+            .contains("off the 2.54 mm page grid: R1.")
+    }));
+    client.cancel().await.unwrap();
+}

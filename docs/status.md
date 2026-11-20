@@ -64,6 +64,10 @@ the next task merely because their last paragraph once said "next".
   artwork, and the metrics report wires drawn through symbols. On the original
   DeepSeek remote pages this finds 12 artwork contacts and 3 wires through
   symbols, all confirmed in close-up renders; the clean trial pages report none.
+- **Feedback fixes (2026-11-20, API 65):** `do_not_populate` on design documents
+  and `component_update`; `library_rescan`/`library_install` report skipped
+  directories with reasons as `partial`; `design_preview` warns about reviewed
+  components with pins off the page grid.
 
 - **Small binary-only schematic workflows (2026-11-16, API 63):** automatic
   local wire groups can form three-pin branches, with native junctions and

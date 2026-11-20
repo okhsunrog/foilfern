@@ -71,6 +71,8 @@ short design note agreed with the owner.
    `design_preview` instead of raw mutations; `library_rescan` reports
    rejected elements and reasons with a `partial` outcome instead of stderr
    only; preview warnings or snapping for symbols placed off the page grid.
+   **Done, API 65:** `do_not_populate`, `skipped` scan results with `partial`,
+   and `off_grid_pins` preview warnings (no snapping, to keep explicit paths).
 4. **Design note: pin-relative placement.** Fixed members (placed ICs and
    finished groups), anchors such as "beside U2.DEC1 on the pin side" with an
    offset, and preserved local topology such as a feedback tap after the
