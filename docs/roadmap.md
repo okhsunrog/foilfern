@@ -89,6 +89,9 @@ short design note agreed with the owner.
 6. **Explainable previews.** Report which groups were drawn as continuous wires
    and which were split into labels, which constraint failed and why, and the
    page metrics before and after.
+   **Done, API 67:** `layout_metrics` before/after with `partial` for added
+   defects, per-net `connectivity`, and named blockers in route and anchor
+   failures.
 7. **Repeat the GPT-6.2 Sol trial** after items 2 and 4–6, asking the model to
    try automatic composition on one group first. Compare metrics, tokens and
    time with the recorded run.

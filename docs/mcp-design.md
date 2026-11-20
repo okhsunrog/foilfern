@@ -1820,3 +1820,22 @@ distance leaves room for that label. A single-pin stub at the target is
 replaced; other wiring at the target pin is an error. The diff reports
 `anchor_position` with position, rotation, distance and whether it was wired.
 Anchors are initial placement and do not move existing parts on replay.
+
+### Explainable previews
+
+API 67 adds two fields to schematic `design_preview` results.
+`layout_metrics` holds compact page measurements `after` the preview and
+`before` it when the page exists (`defect_count`, `wire_length_mm`, `bends`,
+`crossings`, `labels`, `split_nets`, `pin_span_mm`, `unwired_pins`,
+`off_grid_anchors`), plus `defects` lists when the result has any. A preview
+that adds defects returns `partial` with a warning. `connectivity` lists every
+net of a reviewed component with at least two placed pins on the page: `drawn`
+is `continuous` (one wire segment holds every pin), `split` (several segments,
+normally joined by labels) or `unwired`, with each segment's pins and label
+count and any `unwired` pins.
+
+Placement and routing failures now name what is in the way. A wire group
+without a route reports the nearest unconnected pins and the symbols, fields,
+wiring of other nets or page notes on their direct one-corner routes. An anchor
+without a clear position reports the distance range tried and the items its
+part, fields or straight connection touch.

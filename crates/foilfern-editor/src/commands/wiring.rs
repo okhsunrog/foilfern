@@ -26,8 +26,9 @@ use super::circuit::{
 };
 use super::component::MoveSymbol;
 use super::placement::{
-    Rect, is_frame, net_label_direction, net_label_length, net_label_rect, placed_symbol_obstacles,
-    placed_symbol_rect, schematic_obstacles, sheet_annotation_obstacles, text_rect,
+    Rect, describe_blockers, is_frame, named_obstacles, net_label_direction, net_label_length,
+    net_label_rect, placed_symbol_obstacles, placed_symbol_rect, schematic_obstacles,
+    sheet_annotation_obstacles, text_rect,
 };
 use super::resolve;
 use super::schematic::{
@@ -1109,6 +1110,57 @@ fn clean_route(
     Ok(None)
 }
 
+/// `<designator>.<signal>` of a placed pin.
+fn placed_pin_name(p: &Project, pin: &PlacedPin) -> String {
+    p.schematic(pin.schematic)
+        .and_then(|sheet| sheet.symbols().get(&pin.symbol))
+        .and_then(|symbol| {
+            let view = symbol.pin(p.view(), pin.pin).ok().flatten()?;
+            Some(signal_name(p, view.signal()))
+        })
+        .unwrap_or_else(|| pin.pin.to_string())
+}
+
+/// What the two one-corner routes between `a` and `b` touch, for diagnostics.
+fn route_blockers(
+    p: &Project,
+    schematic: SchematicId,
+    a: &PlacedPin,
+    b: &PlacedPin,
+) -> Result<Vec<String>> {
+    let named = named_obstacles(p, schematic, &BTreeSet::new(), &BTreeSet::new())?;
+    // Leave the pin ends out: each route starts on a symbol's pin.
+    let shrink = Length::new(200_000);
+    let mut probes = Vec::new();
+    for mode in [WireMode::HV, WireMode::VH] {
+        let corner = mode.middle_point(a.position, b.position);
+        for (from, to, trim_from, trim_to) in [
+            (a.position, corner, true, false),
+            (corner, b.position, false, true),
+        ] {
+            if from == to {
+                continue;
+            }
+            let step = |from: Point, to: Point| {
+                Point::new(
+                    shrink * (to.x - from.x).to_nm().signum(),
+                    shrink * (to.y - from.y).to_nm().signum(),
+                )
+            };
+            let start = if trim_from {
+                from + step(from, to)
+            } else {
+                from
+            };
+            let end = if trim_to { to - step(from, to) } else { to };
+            if let Some(rect) = Rect::bounding([start, end]) {
+                probes.push(rect);
+            }
+        }
+    }
+    Ok(describe_blockers(&named, &probes))
+}
+
 /// Draws a local group of pins already assigned to the same circuit net.
 /// Existing segments are replaced only if they are fully contained in the group.
 pub struct WireGroup {
@@ -1276,6 +1328,10 @@ impl Command for WireGroup {
                 })
                 .collect();
             candidates.sort_unstable();
+            let closest = candidates
+                .iter()
+                .find(|(distance, _, _)| *distance != Length::ZERO)
+                .map(|&(_, a, b)| (connected[a], pending[b]));
             let mut route = None;
             for (distance, a, b) in candidates {
                 if distance != Length::ZERO
@@ -1286,11 +1342,27 @@ impl Command for WireGroup {
                     break;
                 }
             }
-            let (a, b, corners) = route.ok_or_else(|| {
-                Error::InvalidArgument(format!(
-                    "No clear route for wire group on {net_name}. Adjust symbol positions or move name/value fields away from the pin rows."
-                ))
-            })?;
+            let Some((a, b, corners)) = route else {
+                let detail = match closest {
+                    Some((from, to)) => {
+                        let blockers = route_blockers(tx.project(), schematic, &from, &to)?;
+                        format!(
+                            " The nearest unconnected pins are {} and {}; their direct routes touch {}.",
+                            placed_pin_name(tx.project(), &from),
+                            placed_pin_name(tx.project(), &to),
+                            if blockers.is_empty() {
+                                "pins or wires on the way".to_owned()
+                            } else {
+                                blockers.join(", ")
+                            }
+                        )
+                    }
+                    None => String::new(),
+                };
+                return Err(Error::InvalidArgument(format!(
+                    "No clear route for wire group on {net_name}.{detail} Adjust symbol positions or move name/value fields away from the pin rows."
+                )));
+            };
             let start = connected[a];
             let end = pending.remove(b);
             let points: Vec<_> = std::iter::once(start.position)

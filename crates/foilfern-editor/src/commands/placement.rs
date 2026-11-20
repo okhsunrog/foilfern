@@ -409,6 +409,65 @@ pub(crate) fn segment_obstacles(
     rects
 }
 
+/// Obstacles on a schematic page with a short description for diagnostics:
+/// symbols with their fields by designator, wires, junctions and labels by
+/// net, and page notes. Excluded symbols and segments and frames are left out.
+pub(crate) fn named_obstacles(
+    p: &Project,
+    schematic: SchematicId,
+    exclude: &BTreeSet<SymbolId>,
+    excluded_segments: &BTreeSet<NetSegmentId>,
+) -> Result<Vec<(Rect, String)>> {
+    let s = p
+        .schematic(schematic)
+        .ok_or_else(|| Error::not_found("Schematic", schematic))?;
+    let mut named = Vec::new();
+    for (id, symbol) in s.symbols() {
+        if exclude.contains(id) || is_frame(p, schematic, *id)? {
+            continue;
+        }
+        let name = super::resolve::component_name(p, symbol.component());
+        let (body, texts) = placed_symbol_obstacles(p, schematic, *id, true)?;
+        named.push((body, name.clone()));
+        named.extend(
+            texts
+                .into_iter()
+                .map(|rect| (rect, format!("{name} field"))),
+        );
+    }
+    for (id, segment) in s.net_segments() {
+        if excluded_segments.contains(id) {
+            continue;
+        }
+        let name = format!(
+            "net {} wiring",
+            super::resolve::net_name(p, Some(segment.net()))
+        );
+        named.extend(
+            segment_obstacles(p, s, segment)
+                .into_iter()
+                .map(|rect| (rect, name.clone())),
+        );
+    }
+    named.extend(
+        sheet_annotation_obstacles(p, s)
+            .into_iter()
+            .map(|rect| (rect, "page note or graphics".to_owned())),
+    );
+    Ok(named)
+}
+
+/// Unique descriptions of the obstacles touching any of `probes`, in order.
+pub(crate) fn describe_blockers(named: &[(Rect, String)], probes: &[Rect]) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    named
+        .iter()
+        .filter(|(rect, _)| probes.iter().any(|probe| rect.intersects(probe)))
+        .filter(|(_, name)| seen.insert(name.clone()))
+        .map(|(_, name)| name.clone())
+        .collect()
+}
+
 /// Fixed page graphics and buses for bounded block placement.
 pub(crate) fn sheet_annotation_obstacles(p: &Project, s: &Schematic) -> Vec<Rect> {
     let mut rects = Vec::new();

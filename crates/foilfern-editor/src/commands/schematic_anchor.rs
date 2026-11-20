@@ -16,8 +16,8 @@ use foilfern_core::types::{Angle, Length, Point, Uuid};
 
 use super::component::MoveSymbol;
 use super::placement::{
-    Rect, placed_symbol_obstacles, placed_symbol_rect, schematic_obstacles_except,
-    sheet_annotation_obstacles,
+    Rect, describe_blockers, named_obstacles, placed_symbol_obstacles, placed_symbol_rect,
+    schematic_obstacles_except, sheet_annotation_obstacles,
 };
 use super::schematic_tidy::arrange_symbol_fields;
 use crate::{Command, Error, Result, Transaction};
@@ -170,6 +170,7 @@ impl Command for PlaceAtPin {
         let (target_body, target_fields) =
             placed_symbol_obstacles(tx.project(), self.schematic, self.target.0, true)?;
         obstacles.extend(target_fields);
+        let mut blockers = Vec::new();
         for step in 0..=self.max_steps {
             let distance = self.distance + grid * step as i64;
             let wanted = Point::new(
@@ -190,20 +191,46 @@ impl Command for PlaceAtPin {
                 || obstacles
                     .iter()
                     .any(|obstacle| obstacle.intersects(&bounds) || obstacle.intersects(&corridor));
-            if !blocked {
-                return Ok(PinPlacement {
-                    position,
-                    rotation,
-                    distance,
-                    pin: wanted,
-                    target: target_position,
-                    removed_stub,
-                });
+            if blocked {
+                if step == 0 || step == self.max_steps {
+                    let mut named = named_obstacles(
+                        tx.project(),
+                        self.schematic,
+                        &BTreeSet::from([self.symbol]),
+                        &BTreeSet::new(),
+                    )?;
+                    named.retain(|(rect, _)| *rect != target_body);
+                    named.push((
+                        target_body,
+                        format!("{} body", target_name(tx, self.target.0)),
+                    ));
+                    for name in describe_blockers(&named, &[bounds, corridor]) {
+                        if !blockers.contains(&name) {
+                            blockers.push(name);
+                        }
+                    }
+                }
+                continue;
             }
+            return Ok(PinPlacement {
+                position,
+                rotation,
+                distance,
+                pin: wanted,
+                target: target_position,
+                removed_stub,
+            });
         }
+        let last = self.distance + grid * self.max_steps as i64;
         Err(Error::InvalidArgument(format!(
-            "No clear position within {} grid steps beside the target pin; other items block the part or its connection. Increase the distance or free the space.",
-            self.max_steps
+            "No clear position from {} to {} mm beside the target pin; the part, its fields or its straight connection touch {}. Free that space, move the target, or choose another distance.",
+            self.distance.to_mm(),
+            last.to_mm(),
+            if blockers.is_empty() {
+                "other items".to_owned()
+            } else {
+                blockers.join(", ")
+            }
         )))
     }
 }
@@ -250,4 +277,15 @@ fn direction(angle: Angle) -> Option<(i64, i64)> {
 fn corridor(from: Point, to: Point, (dx, dy): (i64, i64)) -> Rect {
     let shrink = Point::new(CORRIDOR_END * dx, CORRIDOR_END * dy);
     Rect::bounding([from + shrink, to - shrink]).unwrap_or(Rect { min: from, max: to })
+}
+
+fn target_name(tx: &Transaction<'_>, symbol: SymbolId) -> String {
+    tx.project()
+        .schematics()
+        .iter()
+        .find_map(|sheet| sheet.symbols().get(&symbol))
+        .map_or_else(
+            || symbol.to_string(),
+            |symbol| super::resolve::component_name(tx.project(), symbol.component()),
+        )
 }

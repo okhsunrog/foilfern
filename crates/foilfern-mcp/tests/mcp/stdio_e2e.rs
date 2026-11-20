@@ -878,7 +878,7 @@ async fn stdio_server_info_reports_embedded_build_identity() {
     cmd.current_dir(tmp.path()).env_remove("PATH");
     let client = ().serve(TokioChildProcess::new(cmd).unwrap()).await.unwrap();
     let info = call_ok(&client, "server_info", json!({})).await;
-    assert_eq!(info["api_capability_version"], 66);
+    assert_eq!(info["api_capability_version"], 67);
     let build = &info["build"];
     let commit = env!("FOILFERN_SOURCE_COMMIT");
     assert_eq!(
@@ -5774,12 +5774,47 @@ async fn stdio_design_anchors_place_parts_beside_pins() {
     assert_eq!(anchor["wired"], true);
     assert!(anchor["distance_mm"].as_f64().unwrap() >= 5.08);
     assert_eq!(preview["annotation_overlaps"], json!([]), "{preview}");
+    // The preview explains the layout: metrics before and after, and how
+    // each reviewed net is drawn.
+    assert_eq!(preview["layout_metrics"]["after"]["defect_count"], 0);
+    assert_eq!(preview["layout_metrics"]["before"]["wire_length_mm"], 0.0);
+    let connectivity = preview["connectivity"].as_array().unwrap();
+    let mid = connectivity.iter().find(|net| net["net"] == "MID").unwrap();
+    assert_eq!(mid["drawn"], "continuous", "{mid}");
+    assert_eq!(mid["segments"][0]["pins"], json!(["R1.2", "R2.1"]));
     call_ok(
         &client,
         "design_apply",
         json!({"preview":preview["preview"]}),
     )
     .await;
+
+    // A preview drawing a new part over R1 reports the added defect.
+    let overlap = json!({"version":1,"schematic":"Main","add_components":{
+        "r9":{"designator":"R9","library_component":device["component"]["uuid"],
+            "device":device["uuid"],"value":"1k","position":{"x":50.8,"y":50.8}}}});
+    let overlapping = call(&client, "design_preview", overlap).await;
+    let overlapping = overlapping.structured_content.unwrap();
+    assert_eq!(overlapping["outcome"], "partial", "{overlapping}");
+    assert!(
+        overlapping["result"]["layout_metrics"]["after"]["defect_count"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+    assert!(
+        !overlapping["result"]["layout_metrics"]["defects"]["symbol_overlaps"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        overlapping["warnings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|w| w.as_str().unwrap().contains("adds 1 layout defect"))
+    );
 
     // R1.2 and R2.1 are joined by one straight wire carrying the MID label;
     // R2.2 has its own GND stub.

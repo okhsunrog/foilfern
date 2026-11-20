@@ -197,7 +197,60 @@ fn test_place_at_pin_steps_past_obstacles_and_reports_failure() {
     editor.undo().unwrap();
 
     // A resistor on the axis blocks the connection at every distance.
-    add(&mut editor, lib::resistor(), lib::r0805(), step(20.32));
-    let error = editor.execute(request(16)).unwrap_err();
-    assert!(error.to_string().contains("No clear position"), "{error}");
+    let blocker = add(&mut editor, lib::resistor(), lib::r0805(), step(20.32));
+    let error = editor.execute(request(16)).unwrap_err().to_string();
+    assert!(error.contains("No clear position"), "{error}");
+    // The message names the blocking part.
+    assert!(error.contains(&blocker.name), "{error}");
+}
+
+#[test]
+fn test_wire_group_failure_names_the_blocking_parts() {
+    let (_tmp, mut editor) = setup();
+    let r1 = add(&mut editor, lib::resistor(), lib::r0805(), mm(0.0, 0.0));
+    let r2 = add(&mut editor, lib::resistor(), lib::r0805(), mm(30.48, 0.0));
+    let schematic = editor.project().schematics()[0].id();
+    let pins = vec![
+        signal(editor.project(), &r1, "1"),
+        signal(editor.project(), &r2, "1"),
+    ];
+    let net = editor
+        .execute(AssignNet(ConnectNet {
+            net: Some(CircuitIdentifier::new("N").unwrap()),
+            signals: pins.clone(),
+            max_wire_length: None,
+        }))
+        .unwrap()
+        .net
+        .unwrap();
+    // A large page note covers both resistors, so every route leaving a pin
+    // runs into it.
+    let mutations = vec![Mutation::Schematic(SchematicMutation::AddText {
+        schematic,
+        text: Text::new(
+            Uuid::new_random(),
+            Layer::SCHEMATIC_COMMENTS,
+            "WWWWWWWWWWWW",
+            mm(-25.4, -20.32),
+            Angle::DEG0,
+            PositiveLength::new(mm(40.64, 0.0).x).unwrap(),
+            Alignment::default(),
+            false,
+        ),
+    })];
+    // A third resistor sits between the two pins.
+    let wall = add(&mut editor, lib::resistor(), lib::r0805(), mm(15.24, 0.0));
+    editor.apply_mutations("Walls", mutations).unwrap();
+    let error = editor
+        .execute(WireGroup {
+            schematic,
+            net,
+            pins,
+        })
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("No clear route"), "{error}");
+    assert!(error.contains("nearest unconnected pins"), "{error}");
+    assert!(error.contains(&wall.name), "{error}");
+    assert!(error.contains("page note"), "{error}");
 }

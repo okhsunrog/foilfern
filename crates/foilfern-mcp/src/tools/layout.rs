@@ -256,8 +256,149 @@ pub fn schematic_review(session: &Session, args: SchematicReviewArgs) -> ToolRes
     Ok(output)
 }
 
+/// Measures a page for previews: the full metrics and a compact summary.
+pub(super) fn page_metrics(
+    project: &Project,
+    schematic: &Schematic,
+) -> ToolResult<(SchematicMetrics, Value)> {
+    let scene = SchematicScene::build(project, schematic.id(), &ColorScheme::SCHEMATIC_LIGHT)?;
+    let metrics = schematic_metrics(project, &scene)?;
+    let summary = json!({
+        "defect_count": metrics.defects(),
+        "wire_length_mm": round3(metrics.wires.total_length_mm),
+        "bends": metrics.wires.bends,
+        "crossings": metrics.wires.crossings,
+        "labels": metrics.nets.labels,
+        "split_nets": metrics.nets.split_nets,
+        "pin_span_mm": round3(metrics.nets.pin_span_mm),
+        "unwired_pins": metrics.nets.unwired_pins,
+        "off_grid_anchors": metrics.off_grid.junctions + metrics.off_grid.labels,
+    });
+    Ok((metrics, summary))
+}
+
+/// The defect lists of `metrics_json` for a page.
+pub(super) fn defects_json(
+    project: &Project,
+    schematic: &Schematic,
+    metrics: &SchematicMetrics,
+) -> Value {
+    metrics_json(project, schematic, metrics, 0)["defects"].clone()
+}
+
+/// How the nets of `components` are drawn on a page: each net with at least
+/// two placed pins lists its wire segments (pins and labels) and pins without
+/// wires. `continuous` means one segment holds every placed pin.
+pub(super) fn connectivity_json(
+    project: &Project,
+    schematic: &Schematic,
+    components: &BTreeSet<ComponentInstanceId>,
+) -> ToolResult<Vec<Value>> {
+    use foilfern_core::project::NetSignalId;
+    let mut nets: BTreeMap<NetSignalId, Vec<(String, Option<NetSegmentId>)>> = BTreeMap::new();
+    let mut touched = BTreeSet::new();
+    for symbol in schematic.symbols().values() {
+        for pin in symbol.pins(project.view())? {
+            let Some(net) = pin.net() else { continue };
+            if components.contains(&symbol.component()) {
+                touched.insert(net);
+            }
+            nets.entry(net).or_default().push((
+                resolve::signal_label(project, pin.signal()),
+                schematic.pin_net_segment(symbol.id(), pin.uuid()),
+            ));
+        }
+    }
+    let mut result = Vec::new();
+    for net in touched {
+        let pins = &nets[&net];
+        if pins.len() < 2 {
+            continue;
+        }
+        let mut segments: BTreeMap<NetSegmentId, Vec<&str>> = BTreeMap::new();
+        let mut unwired = Vec::new();
+        for (label, segment) in pins {
+            match segment {
+                Some(segment) => segments.entry(*segment).or_default().push(label),
+                None => unwired.push(label.as_str()),
+            }
+        }
+        let drawn = match (segments.len(), unwired.is_empty()) {
+            (1, true) => "continuous",
+            (0, _) => "unwired",
+            _ => "split",
+        };
+        unwired.sort_by(|a, b| natural_order(a, b));
+        let mut segments: Vec<_> = segments
+            .into_iter()
+            .map(|(id, mut pins)| {
+                pins.sort_by(|a, b| natural_order(a, b));
+                (id, pins)
+            })
+            .collect();
+        segments.sort_by(|(_, a), (_, b)| natural_order(a[0], b[0]));
+        let segments: Vec<_> = segments
+            .into_iter()
+            .map(|(id, pins)| {
+                let labels = schematic
+                    .net_segments()
+                    .get(&id)
+                    .map_or(0, |s| s.labels().len());
+                json!({"pins": pins, "labels": labels})
+            })
+            .collect();
+        let mut entry =
+            json!({"net": resolve::net_name(project, net), "drawn": drawn, "segments": segments});
+        if !unwired.is_empty() {
+            entry["unwired"] = json!(unwired);
+        }
+        result.push(entry);
+    }
+    result.sort_by(|a, b| a["net"].as_str().cmp(&b["net"].as_str()));
+    Ok(result)
+}
+
+/// Compares labels such as "C2.1" and "C10.1" by their text and number runs.
+fn natural_order(a: &str, b: &str) -> std::cmp::Ordering {
+    fn runs(s: &str) -> Vec<(bool, &str)> {
+        let mut result = Vec::new();
+        let mut start = 0;
+        for (i, c) in s.char_indices().skip(1) {
+            let previous = s[..i]
+                .chars()
+                .next_back()
+                .is_some_and(|p| p.is_ascii_digit());
+            if c.is_ascii_digit() != previous {
+                result.push((previous, &s[start..i]));
+                start = i;
+            }
+        }
+        if !s.is_empty() {
+            let digit = s[start..].starts_with(|c: char| c.is_ascii_digit());
+            result.push((digit, &s[start..]));
+        }
+        result
+    }
+    let (a_runs, b_runs) = (runs(a), runs(b));
+    for (x, y) in a_runs.iter().zip(&b_runs) {
+        let order = match (x, y) {
+            ((true, x), (true, y)) => x
+                .parse::<u64>()
+                .ok()
+                .cmp(&y.parse::<u64>().ok())
+                .then_with(|| x.cmp(y)),
+            ((_, x), (_, y)) => x.cmp(y),
+        };
+        if order.is_ne() {
+            return order;
+        }
+    }
+    a_runs.len().cmp(&b_runs.len())
+}
+
 fn round3(value: f64) -> f64 {
-    (value * 1000.0).round() / 1000.0
+    // Adding zero turns a negative zero into zero.
+    (value * 1000.0).round() / 1000.0 + 0.0
 }
 
 fn point3((x, y): (f64, f64)) -> Value {
@@ -677,4 +818,19 @@ pub fn board_get(session: &Session, args: BoardGetArgs) -> ToolResult<ToolOutput
             "stroke_texts": b.stroke_texts().len(),
         }),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::natural_order;
+
+    #[test]
+    fn natural_order_compares_number_runs() {
+        let mut labels = vec!["C10.1", "C2.1", "R1.2", "C2.10", "C2.2", "U2.DEC1", "C1"];
+        labels.sort_by(|a, b| natural_order(a, b));
+        assert_eq!(
+            labels,
+            ["C1", "C2.1", "C2.2", "C2.10", "C10.1", "R1.2", "U2.DEC1"]
+        );
+    }
 }

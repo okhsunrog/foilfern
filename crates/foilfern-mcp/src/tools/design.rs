@@ -1186,6 +1186,29 @@ pub(crate) fn prepare(
         payload["annotation_overlaps"] = json!(after.overlaps().collect::<Vec<_>>());
     }
     let off_grid = off_grid_pins(&project, schematic, &reviewed)?;
+    // Page measurements before and after, and how the reviewed nets are drawn.
+    let (after_metrics, after_summary) = super::layout::page_metrics(&project, schematic)?;
+    let before_metrics = before
+        .schematic(page)
+        .map(|sheet| super::layout::page_metrics(&before, sheet))
+        .transpose()?;
+    checkpoint(Stage::Check)?;
+    let before_defects = before_metrics
+        .as_ref()
+        .map_or(0, |(metrics, _)| metrics.defects());
+    let new_defects = after_metrics.defects().saturating_sub(before_defects);
+    let mut layout_metrics = json!({"after": after_summary});
+    if let Some((_, summary)) = &before_metrics {
+        layout_metrics["before"] = summary.clone();
+    }
+    if after_metrics.defects() > 0 {
+        layout_metrics["defects"] =
+            super::layout::defects_json(&project, schematic, &after_metrics);
+    }
+    payload["layout_metrics"] = layout_metrics;
+    payload["connectivity"] = json!(super::layout::connectivity_json(
+        &project, schematic, &reviewed
+    )?);
     let findings = preview.requirement_findings();
     let blockers = findings
         .iter()
@@ -1265,6 +1288,11 @@ pub(crate) fn prepare(
     }
     if annotation_overlaps > 0 {
         output = output.partial().warn("Inspect the rendered overlap locations and adjust placement or fields in design_preview. schematic_tidy repairs an applied page while preserving circuit assignments.");
+    }
+    if new_defects > 0 {
+        output = output.partial().warn(format!(
+            "The preview adds {new_defects} layout defect(s): see layout_metrics.defects for overlapping symbols, wires through symbols and wires of different nets drawn as connected."
+        ));
     }
     if !off_grid.is_empty() {
         let names: Vec<_> = off_grid

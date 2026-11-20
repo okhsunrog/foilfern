@@ -71,6 +71,9 @@ the next task merely because their last paragraph once said "next".
 - **Pin anchors (2026-11-20, API 66):** `design_preview.anchors` place new
   support parts at a fixed IC pin, rotated to face it, with a straight labeled
   wire and clearance search in grid steps.
+- **Explainable previews (2026-11-20, API 67):** previews return page
+  metrics before and after and per-net connectivity; route and anchor failures
+  name the blocking parts, fields, nets or notes.
 
 - **Small binary-only schematic workflows (2026-11-16, API 63):** automatic
   local wire groups can form three-pin branches, with native junctions and

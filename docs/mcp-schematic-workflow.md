@@ -62,6 +62,10 @@ net and repairing every annotation. Use stable document keys throughout.
   wire solely because their nets have the same name.
 
 Preview checks the proposed circuit and annotations and returns its image.
+Its `layout_metrics` compare the page before and after, and `connectivity`
+shows for each reviewed net whether it is one continuous wire or split into
+labeled pieces; use it to confirm local groups are drawn as intended. Failed
+routes and anchors name the parts, fields, nets or notes in the way.
 Inspect that image before accepting the layout. Annotation review automatically
 covers bound and new components. A preview with overlaps returns `partial`
 and includes their locations and changes from the live sheet. Field edits and
